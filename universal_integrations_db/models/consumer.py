@@ -1,4 +1,4 @@
-import sys
+"""Consumer Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
@@ -6,6 +6,8 @@ from models.dealer_group import DealerGroup
 
 
 class Consumer(BaseForModels):
+    """Consumer Model."""
+
     __tablename__ = 'consumer'
 
     id = Column(Integer, primary_key=True)

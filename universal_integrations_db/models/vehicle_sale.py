@@ -1,4 +1,4 @@
-import sys
+"""Vehicle Sale Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String
@@ -8,6 +8,7 @@ from models.vehicle import Vehicle
 
 
 class VehicleSale(BaseForModels):
+    """Vehicle Sale Model."""
     __tablename__ = 'vehicle_sale'
 
     id = Column(Integer, primary_key=True)

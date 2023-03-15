@@ -1,4 +1,4 @@
-import sys
+"""Service Repair Order Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
@@ -9,6 +9,8 @@ from models.integration_partner import IntegrationPartner
 
 
 class ServiceRepairOrder(BaseForModels):
+    """Service Repair Order Model."""
+
     __tablename__ = 'service_repair_order'
 
     id = Column(Integer, primary_key=True)

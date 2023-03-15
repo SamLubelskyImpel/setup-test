@@ -1,9 +1,12 @@
-import sys
+"""SFDC Account Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Column, Integer, String
 
+
 class SFDCAccount(BaseForModels):
+    """SFDC Account Model."""
+
     __tablename__ = 'sfdc_account'
 
     id = Column(Integer)

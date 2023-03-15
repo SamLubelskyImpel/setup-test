@@ -1,3 +1,5 @@
+"""Create reusable sqlalchemy session object."""
+
 from builtins import object
 from os import environ
 from sqlalchemy import create_engine
@@ -18,6 +20,7 @@ BaseForModels = declarative_base()
 
 
 class DBSession(object):
+    """Create reusable sqlalchemy session object."""
 
     def __init__(self):   
         self.uri = create_db_uri(env)

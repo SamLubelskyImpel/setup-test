@@ -1,10 +1,13 @@
-import sys
+"""OP Code Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Column, ForeignKey, Integer, String
 from models.dealer import Dealer
 
+
 class OpCode(BaseForModels):
+    """OP Code Model."""
+
     __tablename__ = 'op_code'
 
     id = Column(Integer, primary_key=True)

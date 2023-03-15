@@ -1,10 +1,12 @@
-import sys
+"""DealerGroup Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Column, Integer, String
 
 
 class DealerGroup(BaseForModels):
+    """DealerGroup Model."""
+
     __tablename__ = 'dealer_group'
 
     id = Column(Integer)

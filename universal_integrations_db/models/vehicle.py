@@ -1,10 +1,12 @@
-import sys
+"""Vehicle Model."""
 
 from session_config import BaseForModels
 from sqlalchemy import Column, Integer, String
 
 
 class Vehicle(BaseForModels):
+    """Vehicle Model."""
+
     __tablename__ = 'vehicle'
 
     id = Column(Integer, primary_key=True)
@@ -16,4 +18,3 @@ class Vehicle(BaseForModels):
     make = Column(String)
     model = Column(String)
     year = Column(Integer)
-
