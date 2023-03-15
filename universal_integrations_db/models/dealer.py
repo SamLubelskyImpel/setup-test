@@ -1,16 +1,16 @@
 import sys
 
 from session_config import BaseForModels
-from sqlalchemy import Column, Integer, String
-from universal_integrations_db.models.dealer_group import DealerGroup
-from universal_integrations_db.models.sdfc_account import SDFCAccount
+from sqlalchemy import Column, Integer,ForeignKey,  String
+from models.dealer_group import DealerGroup
+from models.sfdc_account import SFDCAccount
 
 
 class Dealer(BaseForModels):
     __tablename__ = 'dealer'
 
     id = Column(Integer, primary_key=True)
-    sdfc_account_id = Column(Integer, ForeignKey('sdfc_account.sdfc_account_id'))
+    sfdc_account_id = Column(Integer, ForeignKey('sfdc_account.sdfc_account_id'))
     dealer_group_id = Column(Integer, ForeignKey('dealer_group.id'))
     name = Column(String)
     location_name = Column(String)

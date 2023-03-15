@@ -1,11 +1,11 @@
 import sys
 
 from session_config import BaseForModels
-from sqlalchemy import Column, DateTime, Float Integer, String
-from universal_integrations_db.models.consumer import Consumer
-from universal_integrations_db.models.dealer import Dealer
-from universal_integrations_db.models.vehicle import Vehicle
-from universal_integrations_db.models.integration_partner import IntegrationPartner
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from models.consumer import Consumer
+from models.dealer import Dealer
+from models.vehicle import Vehicle
+from models.integration_partner import IntegrationPartner
 
 
 class ServiceRepairOrder(BaseForModels):

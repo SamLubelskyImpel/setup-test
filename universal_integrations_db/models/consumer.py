@@ -1,9 +1,8 @@
 import sys
 
 from session_config import BaseForModels
-from sqlalchemy import Boolean, Column, Integer, String
-from universal_integrations_db.models.sdfc_account import SDFCAccount
-from universal_integrations_db.models.dealer_group import DealerGroup
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from models.dealer_group import DealerGroup
 
 
 class Consumer(BaseForModels):
@@ -26,4 +25,4 @@ class Consumer(BaseForModels):
     phone_optin_flag = Column(Boolean)
     postal_mail_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
-    mastter_consumer_id = Column(Integer)
+    master_consumer_id = Column(Integer)

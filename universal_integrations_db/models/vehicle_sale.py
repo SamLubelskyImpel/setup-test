@@ -1,10 +1,10 @@
 import sys
 
 from session_config import BaseForModels
-from sqlalchemy import Boolean, Column, DateTime, Float Integer, JSON, String
-from universal_integrations_db.models.consumer import Consumer
-from universal_integrations_db.models.dealer import Dealer
-from universal_integrations_db.models.vehicle import Vehicle
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String
+from models.consumer import Consumer
+from models.dealer import Dealer
+from models.vehicle import Vehicle
 
 
 class VehicleSale(BaseForModels):
@@ -19,13 +19,13 @@ class VehicleSale(BaseForModels):
     sales_tax = Column(Float)
     mileage_on_vehicle = Column(Integer)
     deal_type = Column(String)
-    cost_of_vehicles = Column(Float)
+    cost_of_vehicle = Column(Float)
     oem_msrp = Column(Float)
     discount_on_price = Column(Float)
     days_in_stock = Column(Integer)
     date_of_state_inspection = Column(DateTime)
     is_new = Column(Boolean)
-    trade_in_values = Column(Float)
+    trade_in_value = Column(Float)
     payoff_on_trade = Column(Float)
     value_at_end_of_lease = Column(Float)
     miles_per_year = Column(Integer)

@@ -10,7 +10,6 @@ def __get_db_secrets(secretId):
         SecretId=secretId
     )['SecretString'])
 
-    #dialect+driver://username:password@host:port/database
     return 'postgresql://{}:{}@{}/{}'.format(
         SecretString['user'], SecretString['password'], SecretString['host'], SecretString['db_name']
     )

@@ -1,10 +1,9 @@
 import sys
 
 from session_config import BaseForModels
-from sqlalchemy import Column, DateTime, Float, Integer
-from universal_integrations_db.models.dealer_group import DealerGroup
-from universal_integrations_db.models.sdfc_account import SDFCAccount
-from universal_integrations_db.models.vehicle import Vehicle
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer
+from models.dealer_group import DealerGroup
+from models.vehicle import Vehicle
 
 
 class Inventory(BaseForModels):
