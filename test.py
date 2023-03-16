@@ -1,5 +1,5 @@
 import requests
-url = "https://dms.testenv.impel.io/dms-data-service/v1"
+url = "https://dms.testenv.impel.io/repair-order/v1"
 headers = {
  "client_id": "test",
  "x_api_key": "test",

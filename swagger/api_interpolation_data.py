@@ -13,10 +13,10 @@ x-amazon-apigateway-request-validator: full
 """
 
 # httpMethod should always be POST even for other endpoint types
-DMS_DATA_SERVICE_LAMBDA_INFO = """
+REPAIR_ORDER_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DmsDataServiceInbound.Arn}/invocations
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RepairOrderInbound.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
@@ -24,5 +24,5 @@ x-amazon-apigateway-integration:
 
 DMS_DATA_SERVICE_INTERPOLATION_DATA = {
     'DMS_DATA_SERVICE_AWS_VALIDATION': DMS_DATA_SERVICE_AWS_VALIDATION,
-    'DMS_DATA_SERVICE_LAMBDA_INFO': DMS_DATA_SERVICE_LAMBDA_INFO
+    'REPAIR_ORDER_LAMBDA_INFO': REPAIR_ORDER_LAMBDA_INFO
 }

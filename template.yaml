@@ -136,17 +136,17 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DmsDataService*"
                       ]
 
-  DmsDataServiceInbound:
+  RepairOrderInbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dms-data-service-inbound-${Environment}
+      FunctionName: !Sub repair-order-inbound-${Environment}
       CodeUri: app/
-      Handler: dms_data_service_inbound.lambda_handler
+      Handler: repair_order_inbound.lambda_handler
       Timeout: 30
       Events:
         Get:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway
-            Path: /dms-data-service/v1
+            Path: /repair-order/v1
             Method: GET
