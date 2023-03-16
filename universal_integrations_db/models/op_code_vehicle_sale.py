@@ -14,4 +14,3 @@ class OpCodeVehicleSale(BaseForModels):
     id = Column(Integer, primary_key=True)
     op_code_id = Column(Integer, ForeignKey('op_code.id'))
     vehicle_sale_id = Column(Integer, ForeignKey('vehicle_sale.id'))
-

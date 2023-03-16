@@ -9,6 +9,7 @@ from models.vehicle import Vehicle
 
 class VehicleSale(BaseForModels):
     """Vehicle Sale Model."""
+
     __tablename__ = 'vehicle_sale'
 
     id = Column(Integer, primary_key=True)

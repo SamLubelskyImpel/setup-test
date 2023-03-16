@@ -22,9 +22,8 @@ BaseForModels = declarative_base()
 class DBSession(object):
     """Create reusable sqlalchemy session object."""
 
-    def __init__(self):   
+    def __init__(self):
         """Create DB Session."""
-
         self.uri = create_db_uri(env)
         if self.uri in _Sessions:
             self.engine = _Sessions[self.uri][0]
@@ -41,7 +40,6 @@ class DBSession(object):
  
     def __enter__(self):
         """Initialize DB Session."""
-
         if self.__state != 'pre-open':
             raise RuntimeError('this session was already used in a context manager')
         self.session = self.Session()
@@ -50,7 +48,6 @@ class DBSession(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Close DB Session."""
-
         self.__state = 'closed'
         try:
             self.session.close()
@@ -58,13 +55,11 @@ class DBSession(object):
             traceback.print_exc()
 
     def __getattr__(self, name):
-        """ Return DB session attributes."""
-
+        """Return DB session attributes."""
         if self.__state != 'open':
             raise RuntimeError('using session that is not open')
-        return getattr(self.session, name)   
+        return getattr(self.session, name)
 
     def query(self, *args, **kwds):
         """Return a new query object that uses this wrapper as the session."""
-
         return self.session.query(*args, **kwds).with_session(self)

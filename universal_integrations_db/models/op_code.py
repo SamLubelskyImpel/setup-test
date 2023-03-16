@@ -14,4 +14,3 @@ class OpCode(BaseForModels):
     dealer_id = Column(Integer, ForeignKey('dealer.id'))
     op_code = Column(String)
     op_code_desc = Column(String)
-    
