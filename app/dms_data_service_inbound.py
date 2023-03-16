@@ -12,10 +12,10 @@ def lambda_handler(event, context):
     """Run dms data service API."""
     logger.info(f'Event: {event}')
     try:
-        message_body = loads(event['body'])
-        headers = event['headers']
+        #message_body = loads(event['body'])
+        #headers = event['headers']
 
-        logger.info(f'Received body {message_body} and headers {headers}')
+        #logger.info(f'Received body {message_body} and headers {headers}')
 
         return {
             'statusCode': '200',

@@ -144,9 +144,9 @@ Resources:
       Handler: dms_data_service_inbound.lambda_handler
       Timeout: 30
       Events:
-        Post:
+        Get:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /dms-data-service/v1
-            Method: POST
+            Method: GET

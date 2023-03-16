@@ -12,6 +12,6 @@ json = {
     "sample_string": "12345ABC"
   }
 }
-resp = requests.post(url, headers=headers, json=json)
+resp = requests.get(url, headers=headers)
 resp.raise_for_status()
 print(resp.json())

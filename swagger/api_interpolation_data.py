@@ -12,6 +12,7 @@ x-amazon-apigateway-request-validators:
 x-amazon-apigateway-request-validator: full
 """
 
+# httpMethod should always be POST even for other endpoint types
 DMS_DATA_SERVICE_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:

@@ -12,7 +12,7 @@ servers:
 #{{DMS_DATA_SERVICE_AWS_VALIDATION}}
 paths:
   /dms-data-service/v1:
-    post:
+    get:
       summary: dms data service route summary
       operationId: dms-data-service
       description: |-
@@ -30,11 +30,6 @@ paths:
         name: x_api_key
         required: true
         description: API Key provided by Impel
-      requestBody:
-        content:
-          application/json:
-            schema:
-              "$ref": "#/components/schemas/DmsDataService"
       responses:
         '200':
           description: Success
