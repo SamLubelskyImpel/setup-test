@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Ignore interpolated data
+*-interpolated.yaml
+
+# Ignore SAM build files
+.aws-sam*

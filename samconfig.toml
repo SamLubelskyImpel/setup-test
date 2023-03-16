@@ -1,0 +1,34 @@
+version=0.1
+[default.global.parameters]
+s3_prefix = "test"
+
+[prod.global.parameters]
+s3_prefix = "prod"
+
+[stage.global.parameters]
+s3_prefix = "test"
+
+[default.deploy.parameters]
+profile = "test"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+role_arn = "arn:aws:iam::901863237878:role/cfn-deployer-serverless"
+
+[stage.deploy.parameters]
+profile = "test"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+role_arn = "arn:aws:iam::901863237878:role/cfn-deployer-serverless"
+stack_name = "dms-data-service-stage"
+parameter_overrides = "Environment=\"stage\""
+
+[prod.deploy.parameters]
+profile = "prod"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM"
+role_arn = "arn:aws:iam::505055843994:role/cfn-deployer-serverless"
+stack_name = "dms-data-service-prod"
+parameter_overrides = """\
+    STSEnvironment=\"prod" \
+    Environment=\"prod\"\
+"""

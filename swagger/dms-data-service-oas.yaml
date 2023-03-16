@@ -1,0 +1,82 @@
+openapi: 3.0.1
+info:
+  title: dms data service
+  version: 1.0.0
+  description: |-
+    All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
+servers:
+  - url: https://dms.testenv.impel.io
+    description: Impel test environment endpoint.
+  - url: https://dms.impel.io
+    description: Impel prod environment endpoint.
+#{{DMS_DATA_SERVICE_AWS_VALIDATION}}
+paths:
+  /dms-data-service/v1:
+    post:
+      summary: dms data service route summary
+      operationId: dms-data-service
+      description: |-
+        dms data service description
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DmsDataService"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received_date_utc:
+                    type: string
+                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
+                    format: date-time
+                    example: '2021-11-19T16:57:31+0000'
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '403':
+          description: The client does not have access to this dealer. Please contact Impel support.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{DMS_DATA_SERVICE_LAMBDA_INFO}}
+components:
+  schemas:
+    DmsDataService:
+      additionalProperties: false
+      type: object
+      required:
+        - sample_string
+        - sample_obj
+      properties:
+        sample_string:
+          description: Sample desc.
+          type: string
+          minLength: 1
+          example: 12345ABC
+        sample_obj:
+          type: object
+          description: Sample desc.
+          properties:
+            sample_string:
+              description: Sample desc.
+              type: string
+              minLength: 1
+              example: 12345ABC
