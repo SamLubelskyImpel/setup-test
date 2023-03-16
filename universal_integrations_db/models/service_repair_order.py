@@ -28,4 +28,3 @@ class ServiceRepairOrder(BaseForModels):
     warranty_total_amount = Column(Float)
     comment = Column(String)
     recommendation = Column(String)
-
