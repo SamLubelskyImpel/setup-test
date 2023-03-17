@@ -22,7 +22,17 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+VEHICLE_SALE_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${VehicleSaleInbound.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 DMS_DATA_SERVICE_INTERPOLATION_DATA = {
     'DMS_DATA_SERVICE_AWS_VALIDATION': DMS_DATA_SERVICE_AWS_VALIDATION,
-    'REPAIR_ORDER_LAMBDA_INFO': REPAIR_ORDER_LAMBDA_INFO
+    'REPAIR_ORDER_LAMBDA_INFO': REPAIR_ORDER_LAMBDA_INFO,
+    'VEHICLE_SALE_LAMBDA_INFO': VEHICLE_SALE_LAMBDA_INFO
 }

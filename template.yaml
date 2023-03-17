@@ -64,6 +64,8 @@ Resources:
               Headers:
                 - client_id
                 - x_api_key
+              Context:
+                - resourcePath
               ReauthorizeEvery: 300
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
@@ -150,3 +152,18 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /repair-order/v1
             Method: GET
+
+  VehicleSaleInbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vehicle-sale-inbound-${Environment}
+      CodeUri: app/
+      Handler: vehicle_sale_inbound.lambda_handler
+      Timeout: 30
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /vehicle-sale/v1
+            Method: POST
