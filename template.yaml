@@ -141,7 +141,6 @@ Resources:
   RepairOrderInbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub repair-order-inbound-${Environment}
       CodeUri: app/
       Handler: repair_order_inbound.lambda_handler
       Timeout: 30
@@ -156,14 +155,41 @@ Resources:
   VehicleSaleInbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub vehicle-sale-inbound-${Environment}
       CodeUri: app/
       Handler: vehicle_sale_inbound.lambda_handler
       Timeout: 30
       Events:
-        Post:
+        Get:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /vehicle-sale/v1
-            Method: POST
+            Method: GET
+
+  DealerInbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: dealer_inbound.lambda_handler
+      Timeout: 30
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /dealer/v1
+            Method: GET
+    
+  IntegrationPartner:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: integration_partner.lambda_handler
+      Timeout: 30
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /integration-partner/v1
+            Method: GET

@@ -1,4 +1,4 @@
-"""Runs the repair order API"""
+"""Runs the integration partner API"""
 import logging
 from datetime import datetime, timezone
 from json import loads, dumps
@@ -9,7 +9,7 @@ logger.setLevel(environ.get('LOGLEVEL', 'INFO').upper())
 
 
 def lambda_handler(event, context):
-    """Run repair order API."""
+    """Run integration partner API."""
     logger.info(f'Event: {event}')
     try:
         return {
@@ -19,5 +19,5 @@ def lambda_handler(event, context):
             })
         }
     except Exception:
-        logger.exception('Error running repair order api.')
+        logger.exception('Error running integration partner api.')
         raise
