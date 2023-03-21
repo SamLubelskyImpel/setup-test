@@ -133,3 +133,4 @@ dmypy.json
 
 # Ignore SAM build files
 .aws-sam*
+*/.aws-sam/*
