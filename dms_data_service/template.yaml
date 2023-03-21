@@ -152,6 +152,7 @@ Resources:
             Path: /repair-order/v1
             Method: GET
 
+
   VehicleSaleInbound:
     Type: AWS::Serverless::Function
     Properties:
@@ -165,6 +166,16 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /vehicle-sale/v1
             Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal_integration/target_db*"
+
 
   DealerInbound:
     Type: AWS::Serverless::Function
@@ -179,7 +190,7 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /dealer/v1
             Method: GET
-    
+
   IntegrationPartner:
     Type: AWS::Serverless::Function
     Properties:
