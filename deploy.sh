@@ -36,7 +36,7 @@ else
     exit 2
 fi
 
-python3 oas_interpolator.py
+python3 ./dms_data_service/oas_interpolator.py
 
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
@@ -59,7 +59,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "dms-data-service-$env" \
+    --stack-name "universal-integrations-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

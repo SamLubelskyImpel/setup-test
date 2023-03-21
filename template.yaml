@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: dms data service
+Description: universal integrations
 
 Parameters:
   Environment:
@@ -42,154 +42,11 @@ Globals:
         LOGLEVEL: INFO
 
 Resources:
-  DmsDataServiceGateway:
-    Type: AWS::Serverless::Api
+  # Child stacks
+  DmsDataService:
+    Type: AWS::Serverless::Application
     Properties:
-      Name: !Sub 'dms-data-service-${Environment}'
-      StageName: !Ref Environment
-      Domain:
-        DomainName: !If [ IsProd, !Sub 'dms.impel.io', !Sub 'dms${DomainSuffix}.testenv.impel.io' ]
-        CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-        SecurityPolicy: TLS_1_2
-        Route53:
-          HostedZoneName: !If [ IsProd, impel.io., testenv.impel.io. ]
-          IpV6: true
-      Auth:
-        DefaultAuthorizer: DefaultAuth
-        Authorizers:
-          DefaultAuth:
-            FunctionPayloadType: REQUEST
-            FunctionArn: !GetAtt Authorizer.Arn
-            Identity:
-              Headers:
-                - client_id
-                - x_api_key
-              Context:
-                - resourcePath
-              ReauthorizeEvery: 300
-      AccessLogSetting:
-        DestinationArn: !GetAtt APILogGroup.Arn
-        Format: >-
-            {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-      DefinitionBody:
-        Fn::Transform:
-          Name: AWS::Include
-          Parameters:
-            Location: './swagger/dms-data-service-oas-interpolated.yaml'
-      GatewayResponses:
-        BAD_REQUEST_PARAMETERS:
-          ResponseTemplates:
-            application/json: '{"message": "$context.error.validationErrorString"}'
-        BAD_REQUEST_BODY:
-          ResponseTemplates:
-            application/json: '{"message": "$context.error.validationErrorString"}'
-        UNAUTHORIZED:
-          ResponseTemplates:
-            application/json: '{"message": "This request is unauthorized."}'
-          StatusCode: '401'
-        ACCESS_DENIED:
-          ResponseTemplates:
-            application/json: '{"message": "$context.authorizer.key"}'
-          StatusCode: '403'
-        DEFAULT_5xx:
-          ResponseTemplates:
-            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
-
-  APILogGroup:
-    Type: AWS::Logs::LogGroup
-
-  APICloudWatchRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - apigateway.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Path: /
-      ManagedPolicyArns:
-        - >-
-          arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-
-  APIGatewayAccount:
-    Type: 'AWS::ApiGateway::Account'
-    Properties:
-      CloudWatchRoleArn: !GetAtt APICloudWatchRole.Arn
-
-  Authorizer:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: authorizer.lambda_handler
-      Timeout: 120
-      Policies:
-        - Id: AuthorizerPermissions
-          Version: '2012-10-17'
-          Statement:
-          - Sid: AllowGetAPIKeys
-            Effect: Allow
-            Action:
-              - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DmsDataService*"
-                      ]
-
-  RepairOrderInbound:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: repair_order_inbound.lambda_handler
-      Timeout: 30
-      Events:
-        Get:
-          Type: Api
-          Properties:
-            RestApiId: !Ref DmsDataServiceGateway
-            Path: /repair-order/v1
-            Method: GET
-
-  VehicleSaleInbound:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: vehicle_sale_inbound.lambda_handler
-      Timeout: 30
-      Events:
-        Get:
-          Type: Api
-          Properties:
-            RestApiId: !Ref DmsDataServiceGateway
-            Path: /vehicle-sale/v1
-            Method: GET
-
-  DealerInbound:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: dealer_inbound.lambda_handler
-      Timeout: 30
-      Events:
-        Get:
-          Type: Api
-          Properties:
-            RestApiId: !Ref DmsDataServiceGateway
-            Path: /dealer/v1
-            Method: GET
-    
-  IntegrationPartner:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: integration_partner.lambda_handler
-      Timeout: 30
-      Events:
-        Get:
-          Type: Api
-          Properties:
-            RestApiId: !Ref DmsDataServiceGateway
-            Path: /integration-partner/v1
-            Method: GET
+      Location: dms_data_service/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        DomainSuffix: !Ref DomainSuffix
