@@ -2,11 +2,10 @@
 
 import sys
 
-sys.path.append("..") 
-from session_config import BaseForModels
+from dms_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, ForeignKey, String
-from models.dealer_group import DealerGroup
-from models.sfdc_account import SFDCAccount
+from dms_orm.models.dealer_group import DealerGroup
+from dms_orm.models.sfdc_account import SFDCAccount
 
 
 class Dealer(BaseForModels):
@@ -23,3 +22,10 @@ class Dealer(BaseForModels):
     city = Column(String)
     zip_code = Column(String)
     category = Column(String)
+
+    def as_dict(self):
+        """Return attributes of the keys in the table."""
+        return {
+            key.name: getattr(self, key.name) for key in self.__table__.columns
+            if getattr(self, key.name) is not None
+        }

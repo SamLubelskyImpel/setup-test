@@ -30,3 +30,10 @@ class Consumer(BaseForModels):
     postal_mail_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
     master_consumer_id = Column(Integer)
+
+    def as_dict(self):
+        """Return attributes of the keys in the table."""
+        return {
+            key.name: getattr(self, key.name) for key in self.__table__.columns
+            if getattr(self, key.name) is not None
+        }
