@@ -151,6 +151,16 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /repair-order/v1
             Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal_integration/target_db*"
+
 
 
   VehicleSaleInbound:
@@ -190,6 +200,17 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /dealer/v1
             Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal_integration/target_db*"
+
+
 
   IntegrationPartner:
     Type: AWS::Serverless::Function
@@ -204,3 +225,13 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /integration-partner/v1
             Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal_integration/target_db*"
+

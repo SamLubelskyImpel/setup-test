@@ -18,16 +18,15 @@ def build_query_filters(params):
     """Build appropriate filters for query."""
 
     filters = {}
-
-    for attr, value in params.items():
-        filters[attr] = value
+    if params:
+        for attr, value in params.items():
+            filters[attr] = value
 
     return filters
 
 
 def lambda_handler(event, context):
     """Run vehicle sale API."""
-
     logger.info(f'Event: {event}')
     try:
         filters = build_query_filters(event['queryStringParameters'])
@@ -37,18 +36,18 @@ def lambda_handler(event, context):
         with DBSession() as session:
 
             query = session.query(VehicleSale)
-
-            for attr, value in filters.items():
-                if attr == 'sale_date_start':
-                    query = query.filter(getattr(VehicleSale, attr) >= value)
-                elif attr == 'ro_open_date_end':
-                    query = query.filter(getattr(VehicleSale, attr) <= value)
-                elif attr == 'next_fetch_key':
-                    query = query.filter(getattr(VehicleSale, 'id') > value)
-                elif attr == 'result_count':
-                    max_results = value
-                else:
-                    query = query.filter(getattr(VehicleSale, attr) == value)
+            if filters:
+                for attr, value in filters.items():
+                    if attr == 'sale_date_start':
+                        query = query.filter(getattr(VehicleSale, attr) >= value)
+                    elif attr == 'ro_open_date_end':
+                        query = query.filter(getattr(VehicleSale, attr) <= value)
+                    elif attr == 'next_fetch_key':
+                        query = query.filter(getattr(VehicleSale, 'id') > value)
+                    elif attr == 'result_count':
+                        max_results = value
+                    else:
+                        query = query.filter(getattr(VehicleSale, attr) == value)
 
             vehicle_sales = query.order_by(VehicleSale.id).limit(max_results).all()
             for vehicle_sale in vehicle_sales:
