@@ -39,9 +39,9 @@ def lambda_handler(event, context):
             if filters:
                 for attr, value in filters.items():
                     if attr == 'sale_date_start':
-                        query = query.filter(getattr(VehicleSale, attr) >= value)
+                        query = query.filter(getattr(VehicleSale, 'sale_date') >= value)
                     elif attr == 'ro_open_date_end':
-                        query = query.filter(getattr(VehicleSale, attr) <= value)
+                        query = query.filter(getattr(VehicleSale, 'sale_date') <= value)
                     elif attr == 'next_fetch_key':
                         query = query.filter(getattr(VehicleSale, 'id') > value)
                     elif attr == 'result_count':

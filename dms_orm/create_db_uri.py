@@ -21,6 +21,6 @@ def create_db_uri(env):
     if env == 'prod':
         pass
     else:
-        uri = __get_db_secrets('universal_integration/target_db')
+        uri = __get_db_secrets('stage/DMSDB')
 
     return uri
