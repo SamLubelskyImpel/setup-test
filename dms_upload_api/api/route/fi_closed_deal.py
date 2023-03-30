@@ -47,6 +47,12 @@ def post_fi_closed_deal():
             return log_and_return_response(jsonify(response), 401)
 
         data = request.data
+        if not data:
+            response = {
+                "message": "Error missing request data",
+                "request_id": request_id,
+            }
+            return log_and_return_response(jsonify(response), 400)
 
         upload_dms_data(client_id, "fi_closed_deal", filename, data)
 

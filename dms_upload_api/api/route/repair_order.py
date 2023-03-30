@@ -47,6 +47,12 @@ def post_repair_order():
             return log_and_return_response(jsonify(response), 401)
 
         data = request.data
+        if not data:
+            response = {
+                "message": "Error missing request data",
+                "request_id": request_id,
+            }
+            return log_and_return_response(jsonify(response), 400)
 
         upload_dms_data(client_id, "repair_order", filename, data)
 
