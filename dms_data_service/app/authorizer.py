@@ -56,17 +56,7 @@ def _lambda_handler(event, context):
             'policyDocument': policy,
             'principalId': client_id
         }
-    """
-    if not valid_dealer:
-        message = 'The client does not have access to this dealer. Please contact Impel Support.'
-        return {
-            'policyDocument': policy,
-            'principalId': client_id,
-            'context': {
-                'key': message
-            }
-        }
-    """
+
     raise Exception('Unauthorized')
 
 
