@@ -18,9 +18,7 @@ def __get_db_secrets(secretId):
 
 def create_db_uri(env):
     """Construct and return database URI."""
-    if env == 'prod':
-        pass
-    else:
-        uri = __get_db_secrets('stage/DMSDB')
+    sm_env = f"{env}/DMSDB"
+    uri = __get_db_secrets(sm_env)        
 
     return uri

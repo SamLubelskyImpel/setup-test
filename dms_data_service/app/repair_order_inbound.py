@@ -58,9 +58,8 @@ def lambda_handler(event, context):
                         query = query.filter(getattr(ServiceRepairOrder, attr) == value)
 
             service_repair_orders = query.order_by(ServiceRepairOrder.id).limit(max_results).all()
+            results = [service_repair_order.as_dict() for service_repair_order in service_repair_orders]
 
-            for service_repair_order in service_repair_orders:
-                results.append(service_repair_order.as_dict())
 
         next_fetch_key = None
 

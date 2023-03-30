@@ -50,8 +50,8 @@ def lambda_handler(event, context):
                         query = query.filter(getattr(VehicleSale, attr) == value)
 
             vehicle_sales = query.order_by(VehicleSale.id).limit(max_results).all()
-            for vehicle_sale in vehicle_sales:
-                results.append(vehicle_sale.as_dict())
+
+            results = [vehicle_sale.as_dict() for vehicle_sale in vehicle_sales]
 
         next_fetch_key = None
 

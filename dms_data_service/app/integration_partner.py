@@ -46,8 +46,8 @@ def lambda_handler(event, context):
                         query = query.filter(getattr(IntegrationPartner, attr) == value)
 
             integration_partners = query.order_by(IntegrationPartner.id).limit(max_results).all()
-            for integration_partner in integration_partners:
-                results.append(integration_partner.as_dict())
+            results = [integration_partner.as_dict() for integration_partner in integration_partners]
+
 
         next_fetch_key = None
 
