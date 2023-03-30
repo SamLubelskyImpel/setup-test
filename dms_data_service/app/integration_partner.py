@@ -59,7 +59,7 @@ def lambda_handler(event, context):
             'statusCode': '200',
             'body': dumps({
                 'received_date_utc': datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc).isoformat(),
-                'results': results,
+                'integration_partners': results,
                 'next_fetch_key': next_fetch_key
             }, default=str)
         }
