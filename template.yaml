@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: universal integrations
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+  DomainSuffix:
+    Description: The domain suffix of the API Gateway
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$|'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+    Default: ""
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 505055843994
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  SslCertificates:
+    us-east-1:
+      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
+      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
+    eu-west-1:
+      '505055843994': 'arn:aws:acm:eu-west-1:505055843994:certificate/1eb09e7e-118a-400b-a5e0-0c48c15477c9'
+      '901863237878': 'arn:aws:acm:eu-west-1:901863237878:certificate/6699a86f-af92-40a8-b8b4-e4fb4019a162'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+  # Child stacks
+  DmsDataService:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: dms_data_service/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        DomainSuffix: !Ref DomainSuffix
