@@ -1,3 +1,4 @@
+"""Secrets manager functionality."""
 from os import environ
 import boto3
 from flask import current_app
@@ -10,7 +11,8 @@ REGION_NAME = environ.get("REGION_NAME", "us-east-1")
 SECRET_ID = f"{ENV}/DMSUploadAPI"
 
 
-def get_secret(secret_id, region_name):
+def get_secret(secret_id: str, region_name: str):
+    """Get a secret from secrets manager."""
     try:
         sm_client = boto3.session.Session(region_name=region_name).client(
             "secretsmanager"
@@ -22,7 +24,8 @@ def get_secret(secret_id, region_name):
     return secret
 
 
-def check_api_key(client_id, input_api_key):
+def check_api_key(client_id: str, input_api_key: str):
+    """Check if an api key is valid."""
     secret = get_secret(SECRET_ID, REGION_NAME)
 
     try:

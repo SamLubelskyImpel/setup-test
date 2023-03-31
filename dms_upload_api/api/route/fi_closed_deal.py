@@ -1,3 +1,4 @@
+"""Routes for uploading FI Closed Deal files."""
 import uuid
 from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_api_key
@@ -10,6 +11,7 @@ fi_closed_deal_api = Blueprint("fi_closed_deal_api", __name__)
 
 @fi_closed_deal_api.route("/v1", methods=["POST"])
 def post_fi_closed_deal():
+    """Upload FI Closed Deal file."""
     request_id = str(uuid.uuid4())
     try:
         now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)

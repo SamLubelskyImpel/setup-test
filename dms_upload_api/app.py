@@ -1,3 +1,4 @@
+"""DMS Upload API Flask app entry point."""
 from os import environ
 import logging
 from flask import Flask
@@ -7,6 +8,7 @@ from api.route.health_check import health_check_api
 
 
 def create_app():
+    """Create DMS Upload API flask app."""
     environ["ENV"] = "stage"
     app = Flask(__name__)
     app.logger.setLevel(logging.INFO)
