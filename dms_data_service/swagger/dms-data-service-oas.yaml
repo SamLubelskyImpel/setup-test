@@ -5,9 +5,9 @@ info:
   description: |-
     All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
 servers:
-  - url: https://dmstemp.testenv.impel.io
+  - url: https://dms-service.testenv.impel.io
     description: Impel test environment endpoint.
-  - url: https://dms.impel.io
+  - url: https://dms-service.impel.io
     description: Impel prod environment endpoint.
 #{{DMS_DATA_SERVICE_AWS_VALIDATION}}
 paths:

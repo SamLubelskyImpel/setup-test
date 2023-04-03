@@ -48,7 +48,7 @@ Resources:
       Name: !Sub 'dms-data-service-${Environment}'
       StageName: !Ref Environment
       Domain:
-        DomainName: !If [ IsProd, !Sub 'dms.impel.io', !Sub 'dmstemp${DomainSuffix}.testenv.impel.io' ]
+        DomainName: !If [ IsProd, !Sub 'dms-service.impel.io', !Sub 'dms-service${DomainSuffix}.testenv.impel.io' ]
         CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
         SecurityPolicy: TLS_1_2
         Route53:
