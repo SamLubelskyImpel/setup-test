@@ -62,5 +62,5 @@ else
     --stack-name "universal-integrations-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
+    --parameter-overrides "Environment=\"$env\""
 fi
