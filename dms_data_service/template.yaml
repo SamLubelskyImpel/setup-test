@@ -39,13 +39,14 @@ Globals:
         LOGLEVEL: INFO
 
 Resources:
-  DbSecret:  # TODO: This secret is just a shell. Must manually add the secret after deploying this template.
+  DbSecretReadWrite:  # TODO: This secret is just a shell. Must manually add the secret after deploying this template.
     Type: AWS::SecretsManager::Secret
     Condition: IsProdOrStage  # Application should be written so that Staging secret is used in non-prod, non-stage.
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       Description: Database credentials for DMS Data Service
+      Name: 'dms/db/rw'
 
   DmsDataServiceGateway:
     Type: AWS::Serverless::Api
