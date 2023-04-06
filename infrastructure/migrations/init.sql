@@ -1,10 +1,10 @@
--- public.dealer_group definition
+-- stage.dealer_group definition
 
 -- Drop table
 
--- DROP TABLE public.dealer_group;
+-- DROP TABLE stage.dealer_group;
 
-CREATE TABLE public.dealer_group (
+CREATE TABLE stage.dealer_group (
 	id serial4 NOT NULL,
 	"name" varchar(80) NOT NULL,
 	duns_no varchar(20) NULL,
@@ -13,13 +13,13 @@ CREATE TABLE public.dealer_group (
 	CONSTRAINT dealer_group_pkey PRIMARY KEY (id)
 );
 
--- public.integration_partner definition
+-- stage.integration_partner definition
 
 -- Drop table
 
--- DROP TABLE public.integration_partner;
+-- DROP TABLE stage.integration_partner;
 
-CREATE TABLE public.integration_partner (
+CREATE TABLE stage.integration_partner (
 	id serial4 NOT NULL,
 	"name" varchar(40) NOT NULL,
 	"type" varchar(20) NULL,
@@ -28,13 +28,13 @@ CREATE TABLE public.integration_partner (
 );
 
 
--- public.sfdc_account definition
+-- stage.sfdc_account definition
 
 -- Drop table
 
--- DROP TABLE public.sfdc_account;
+-- DROP TABLE stage.sfdc_account;
 
-CREATE TABLE public.sfdc_account (
+CREATE TABLE stage.sfdc_account (
 	id serial4 NOT NULL,
 	sfdc_account_id varchar(80) NOT NULL,
 	customer_type varchar(40) NULL,
@@ -44,13 +44,13 @@ CREATE TABLE public.sfdc_account (
 );
 
 
--- public.vehicle definition
+-- stage.vehicle definition
 
 -- Drop table
 
--- DROP TABLE public.vehicle;
+-- DROP TABLE stage.vehicle;
 
-CREATE TABLE public.vehicle (
+CREATE TABLE stage.vehicle (
 	id serial4 NOT NULL,
 	vin varchar(40) NOT NULL,
 	oem_name varchar(80) NULL,
@@ -65,13 +65,13 @@ CREATE TABLE public.vehicle (
 );
 
 
--- public.dealer definition
+-- stage.dealer definition
 
 -- Drop table
 
--- DROP TABLE public.dealer;
+-- DROP TABLE stage.dealer;
 
-CREATE TABLE public.dealer (
+CREATE TABLE stage.dealer (
 	id serial4 NOT NULL,
 	sfdc_account_id int4 NOT NULL,
 	dealer_group_id int4 NOT NULL,
@@ -83,18 +83,18 @@ CREATE TABLE public.dealer (
 	category varchar(40) NULL,
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT dealer_pkey PRIMARY KEY (id),
-	CONSTRAINT dealer_dealer_group_id_fkey FOREIGN KEY (dealer_group_id) REFERENCES public.dealer_group(id),
-	CONSTRAINT dealer_sfdc_account_id_fkey FOREIGN KEY (sfdc_account_id) REFERENCES public.sfdc_account(id)
+	CONSTRAINT dealer_dealer_group_id_fkey FOREIGN KEY (dealer_group_id) REFERENCES stage.dealer_group(id),
+	CONSTRAINT dealer_sfdc_account_id_fkey FOREIGN KEY (sfdc_account_id) REFERENCES stage.sfdc_account(id)
 );
 
 
--- public.inventory definition
+-- stage.inventory definition
 
 -- Drop table
 
--- DROP TABLE public.inventory;
+-- DROP TABLE stage.inventory;
 
-CREATE TABLE public.inventory (
+CREATE TABLE stage.inventory (
 	id serial4 NOT NULL,
 	vehicle_id int4 NOT NULL,
 	dealer_id int4 NOT NULL,
@@ -105,18 +105,18 @@ CREATE TABLE public.inventory (
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT inventory_pkey PRIMARY KEY (id),
 	CONSTRAINT unique_inventory UNIQUE (vehicle_id, dealer_id),
-	CONSTRAINT inventory_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES public.dealer(id),
-	CONSTRAINT inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES public.vehicle(id)
+	CONSTRAINT inventory_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id),
+	CONSTRAINT inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES stage.vehicle(id)
 );
 
 
--- public.op_code definition
+-- stage.op_code definition
 
 -- Drop table
 
--- DROP TABLE public.op_code;
+-- DROP TABLE stage.op_code;
 
-CREATE TABLE public.op_code (
+CREATE TABLE stage.op_code (
 	id serial4 NOT NULL,
 	dealer_id int8 NOT NULL,
 	op_code varchar(255) NULL,
@@ -124,17 +124,17 @@ CREATE TABLE public.op_code (
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT op_code_pkey PRIMARY KEY (id),
 	CONSTRAINT unique_op_code UNIQUE (dealer_id, op_code, op_code_desc),
-	CONSTRAINT op_code_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES public.dealer(id)
+	CONSTRAINT op_code_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id)
 );
 
 
--- public.consumer definition
+-- stage.consumer definition
 
 -- Drop table
 
--- DROP TABLE public.consumer;
+-- DROP TABLE stage.consumer;
 
-CREATE TABLE public.consumer (
+CREATE TABLE stage.consumer (
 	id serial4 NOT NULL,
 	dealer_id int8 NOT NULL,
 	dealer_customer_no varchar(40) NULL,
@@ -155,17 +155,17 @@ CREATE TABLE public.consumer (
 	master_consumer_id int8 NULL,
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT consumer_pkey PRIMARY KEY (id),
-	CONSTRAINT consumer_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES public.dealer(id)
+	CONSTRAINT consumer_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id)
 );
 
 
--- public.service_repair_order definition
+-- stage.service_repair_order definition
 
 -- Drop table
 
--- DROP TABLE public.service_repair_order;
+-- DROP TABLE stage.service_repair_order;
 
-CREATE TABLE public.service_repair_order (
+CREATE TABLE stage.service_repair_order (
 	id serial4 NOT NULL,
 	partner_id int8 NOT NULL,
 	dealer_id int8 NOT NULL,
@@ -184,20 +184,20 @@ CREATE TABLE public.service_repair_order (
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT service_repair_order_pkey PRIMARY KEY (id),
 	CONSTRAINT unique_ros_dms UNIQUE (partner_id, dealer_id, repair_order_no),
-	CONSTRAINT service_repair_order_consumer_id_fkey FOREIGN KEY (consumer_id) REFERENCES public.consumer(id),
-	CONSTRAINT service_repair_order_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES public.dealer(id),
-	CONSTRAINT service_repair_order_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES public.integration_partner(id),
-	CONSTRAINT service_repair_order_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES public.vehicle(id)
+	CONSTRAINT service_repair_order_consumer_id_fkey FOREIGN KEY (consumer_id) REFERENCES stage.consumer(id),
+	CONSTRAINT service_repair_order_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id),
+	CONSTRAINT service_repair_order_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES stage.integration_partner(id),
+	CONSTRAINT service_repair_order_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES stage.vehicle(id)
 );
 
 
--- public.vehicle_sale definition
+-- stage.vehicle_sale definition
 
 -- Drop table
 
--- DROP TABLE public.vehicle_sale;
+-- DROP TABLE stage.vehicle_sale;
 
-CREATE TABLE public.vehicle_sale (
+CREATE TABLE stage.vehicle_sale (
 	id serial4 NOT NULL,
 	dealer_id int8 NOT NULL,
 	vehicle_id int8 NOT NULL,
@@ -226,23 +226,23 @@ CREATE TABLE public.vehicle_sale (
 	db_creation_date timestamp NOT NULL DEFAULT now(),
 	CONSTRAINT unique_vehicle_sale UNIQUE (dealer_id, vehicle_id, consumer_id),
 	CONSTRAINT vehicle_sale_pkey PRIMARY KEY (id),
-	CONSTRAINT vehicle_sale_consumer_id_fkey FOREIGN KEY (consumer_id) REFERENCES public.consumer(id),
-	CONSTRAINT vehicle_sale_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES public.dealer(id),
-	CONSTRAINT vehicle_sale_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES public.vehicle(id)
+	CONSTRAINT vehicle_sale_consumer_id_fkey FOREIGN KEY (consumer_id) REFERENCES stage.consumer(id),
+	CONSTRAINT vehicle_sale_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id),
+	CONSTRAINT vehicle_sale_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES stage.vehicle(id)
 );
 
 
--- public.op_code_vehicle_sale definition
+-- stage.op_code_vehicle_sale definition
 
 -- Drop table
 
--- DROP TABLE public.op_code_vehicle_sale;
+-- DROP TABLE stage.op_code_vehicle_sale;
 
-CREATE TABLE public.op_code_vehicle_sale (
+CREATE TABLE stage.op_code_vehicle_sale (
 	id serial4 NOT NULL,
 	op_code_id int8 NOT NULL,
 	vehicle_sale_id int8 NOT NULL,
 	CONSTRAINT op_code_vehicle_sale_pkey PRIMARY KEY (id),
-	CONSTRAINT op_code_vehicle_sale_op_code_id_fkey FOREIGN KEY (op_code_id) REFERENCES public.op_code(id),
-	CONSTRAINT op_code_vehicle_sale_vehicle_sale_id_fkey FOREIGN KEY (vehicle_sale_id) REFERENCES public.vehicle_sale(id)
+	CONSTRAINT op_code_vehicle_sale_op_code_id_fkey FOREIGN KEY (op_code_id) REFERENCES stage.op_code(id),
+	CONSTRAINT op_code_vehicle_sale_vehicle_sale_id_fkey FOREIGN KEY (vehicle_sale_id) REFERENCES stage.vehicle_sale(id)
 );
