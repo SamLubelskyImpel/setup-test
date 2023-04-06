@@ -10,7 +10,7 @@ from awsglue.job import Job
 from json import loads
 
 args = getResolvedOptions(
-    sys.argv, ["JOB_NAME", "db_name", "table_names", "catalog_connection"]
+    sys.argv, ["JOB_NAME", "db_name", "table_names", "catalog_connection", "environment"]
 )
 
 SM_CLIENT = boto3.client('secretsmanager')
@@ -19,17 +19,17 @@ glue_context = GlueContext(sc)
 spark = glue_context.spark_session
 job = Job(glue_context)
 job.init(args["JOB_NAME"], args)
-
+isprod = args["environment"] == 'prod'
 
 def _load_secret():
     secret_string = loads(SM_CLIENT.get_secret_value(
-        SecretId='universal_integration/target_db'
+        SecretId='prod/DMSDB' if isprod else 'stage/DMSDB' 
     )['SecretString'])
     DB_CONFIG = {
-        'target_database_name': secret_string['target_database_name'],
-        'target_db_jdbc_url': secret_string['target_db_jdbc_url'],
-        'target_db_user': secret_string['target_db_user'],
-        'target_db_password': secret_string['target_db_password']
+        'target_database_name': args["table_names"],
+        'target_db_jdbc_url': secret_string['jdbc_url'],
+        'target_db_user': secret_string['user'],
+        'target_db_password': secret_string['password']
     }
     return DB_CONFIG
 

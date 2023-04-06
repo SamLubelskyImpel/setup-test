@@ -53,6 +53,6 @@ Resources:
   DmsETL:
     Type: AWS::Serverless::Application
     Properties:
-      Location: dms_etl_job/template.yaml
+      Location: dms_etl/template.yaml
       Parameters:
         Environment: !Ref Environment

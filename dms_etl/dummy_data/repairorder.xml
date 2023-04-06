@@ -1,38 +1,38 @@
 <reyreyrepairorder>
     <applicationarea>
         <sender>
-            <dealernumber></dealernumber>
-            <storenumber></storenumber>
-            <areanumber></areanumber>
+            <dealernumber>12344</dealernumber>
+            <storenumber>123423</storenumber>
+            <areanumber>00329</areanumber>
         </sender>
         <destination>
-            <destinationnamecode></destinationnamecode>
+            <destinationnamecode>FLR</destinationnamecode>
         </destination>
     </applicationarea>
 
     <repairorder>
         <rorecord>
             <rogen>
-                <repairordernumber></repairordernumber>
-                <custno></custno>
-                <custname></custname>
-                <advno></advno>
-                <vin></vin>
-                <rostatus></rostatus>
-                <rocreatedate></rocreatedate>
-                <custrototalamt></custrototalamt>
-                <warrototalamt></warrototalamt>
+                <repairordernumber>23123123</repairordernumber>
+                <custno>233</custno>
+                <custname>TEST CUST 1</custname>
+                <advno>3132</advno>
+                <vin>SADFASDFFD</vin>
+                <rostatus>in progress</rostatus>
+                <rocreatedate>2023-11-23</rocreatedate>
+                <custrototalamt>3434.32</custrototalamt>
+                <warrototalamt>3243.23</warrototalamt>
                 <rocommentinfo>
-                    <rocomment></rocomment>
+                    <rocomment>no comments</rocomment>
                 </rocommentinfo>
                 <techrecommendations>
-                    <techrecommend></techrecommend>
+                    <techrecommend>no comments</techrecommend>
                 </techrecommendations>
             </rogen>
             <rosub>
                 <allsubtotalamts>
                     <roamts>
-                        <paytype></paytype>
+                        <paytype>testpaytype</paytype>
                     </roamts>
                 </allsubtotalamts>
             </rosub>
@@ -42,26 +42,26 @@
     <repairorder>
         <rorecord>
             <rogen>
-                <repairordernumber></repairordernumber>
-                <custno></custno>
-                <custname></custname>
-                <advno></advno>
-                <vin></vin>
-                <rostatus></rostatus>
-                <rocreatedate></rocreatedate>
-                <custrototalamt></custrototalamt>
-                <warrototalamt></warrototalamt>
+                <repairordernumber>3423434</repairordernumber>
+                <custno>3423433</custno>
+                <custname>test cust 2</custname>
+                <advno>34234324</advno>
+                <vin>asdfsdfsda</vin>
+                <rostatus>in progress</rostatus>
+                <rocreatedate>2023-01-23</rocreatedate>
+                <custrototalamt>343343.33</custrototalamt>
+                <warrototalamt>123231.23</warrototalamt>
                 <rocommentinfo>
-                    <rocomment></rocomment>
+                    <rocomment>no comment</rocomment>
                 </rocommentinfo>
                 <techrecommendations>
-                    <techrecommend></techrecommend>
+                    <techrecommend>no comment</techrecommend>
                 </techrecommendations>
             </rogen>
             <rosub>
                 <allsubtotalamts>
                     <roamts>
-                        <paytype></paytype>
+                        <paytype>test pay type</paytype>
                     </roamts>
                 </allsubtotalamts>
             </rosub>
@@ -71,26 +71,26 @@
     <repairorder>
         <rorecord>
             <rogen>
-                <repairordernumber></repairordernumber>
-                <custno></custno>
-                <custname></custname>
-                <advno></advno>
-                <vin></vin>
-                <rostatus></rostatus>
-                <rocreatedate></rocreatedate>
-                <custrototalamt></custrototalamt>
-                <warrototalamt></warrototalamt>
+                <repairordernumber>3423434</repairordernumber>
+                <custno>342343</custno>
+                <custname>test cust 3</custname>
+                <advno>3333</advno>
+                <vin>dafsdfsdfa</vin>
+                <rostatus>in progress</rostatus>
+                <rocreatedate>2021-12-13</rocreatedate>
+                <custrototalamt>34234.3</custrototalamt>
+                <warrototalamt>23432.3</warrototalamt>
                 <rocommentinfo>
-                    <rocomment></rocomment>
+                    <rocomment>no comment</rocomment>
                 </rocommentinfo>
                 <techrecommendations>
-                    <techrecommend></techrecommend>
+                    <techrecommend>no comment</techrecommend>
                 </techrecommendations>
             </rogen>
             <rosub>
                 <allsubtotalamts>
                     <roamts>
-                        <paytype></paytype>
+                        <paytype>testpaytype3</paytype>
                     </roamts>
                 </allsubtotalamts>
             </rosub>

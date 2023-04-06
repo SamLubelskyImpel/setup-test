@@ -94,15 +94,6 @@ Resources:
         Classification: "xml"
         RowTag: "reyreyrepairorder"
 
-
-  ReyReyFandIClassifier:
-    Type: AWS::Glue::Classifier
-    Properties:
-      XMLClassifier:
-        Name: "CrawlerClassifier"
-        Classification: "xml"
-        RowTag: "fi"
-
     
   UniversalIntegrationLakeFormationPermissionRaw:
     Type: AWS::LakeFormation::Permissions
@@ -119,7 +110,7 @@ Resources:
         - 'ALL'
       PermissionsWithGrantOption: []
   
-    UniversalIntegrationCrawler:
+  UniversalIntegrationCrawler:
     Type: AWS::Glue::Crawler
     Properties:
       Name: !Sub 'universal-integration-crawler-${Environment}'
@@ -129,7 +120,6 @@ Resources:
       DatabaseName: !Ref UniversalIntegrationCrawlerDB
       Classifiers:
         - !Ref ReyReyRepairOrderClassifier
-        - !Ref ReyReyFandIClassifier
       Targets:
         S3Targets:
           - Path: !Sub 's3://aws-glue-assets-universal-integrations/raw_data/'
@@ -150,13 +140,14 @@ Resources:
       Command:
         Name: glueetl
         PythonVersion: 3
-        ScriptLocation: !Sub 's3://aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
+        ScriptLocation: !Sub 's3://aws-glue-assets-universal-integrations/glue_etl_job/reyrey_etl.py'
       DefaultArguments: 
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !Sub 's3://aws-glue-assets-universal-integrations/temporary/'
         '--db_name': !Ref UniversalIntegrationCrawlerDB
-        '--table_names': ''
+        '--table_names': 'tbd'
         '--catalog_connection': !Ref RDSConnection
+        '--environment': !Ref Environment
 
   UniversalIntegrationGlueWorkflow:
     Type: AWS::Glue::Workflow
