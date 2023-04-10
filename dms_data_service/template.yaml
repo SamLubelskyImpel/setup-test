@@ -16,39 +16,45 @@ Parameters:
     Default: ""
 
 Conditions:
-  IsProd:
-    Fn::Equals:
-    - Ref: AWS::AccountId
-    - 505055843994
-  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+  IsProd: !Equals [ !Ref 'AWS::AccountId', '196800776222' ]
+  IsStage: !Equals [ !Ref Environment, stage ]
+  IsProdOrStage: !Or
+    - !Condition IsProd
+    - !Condition IsStage
 
 Mappings:
   SslCertificates:
     us-east-1:
-      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
-      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
-    eu-west-1:
-      '505055843994': 'arn:aws:acm:eu-west-1:505055843994:certificate/1eb09e7e-118a-400b-a5e0-0c48c15477c9'
-      '901863237878': 'arn:aws:acm:eu-west-1:901863237878:certificate/6699a86f-af92-40a8-b8b4-e4fb4019a162'
+      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
+      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
 
 Globals:
   Function:
     Runtime: python3.9
     Environment:
       Variables:
-        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        AWS_ACCOUNT_ID: !Ref 'AWS::AccountId'
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
 
 Resources:
+  DbSecretReadWrite:  # TODO: This secret is just a shell. Must manually add the secret after deploying this template.
+    Type: AWS::SecretsManager::Secret
+    Condition: IsProdOrStage  # Application should be written so that Staging secret is used in non-prod, non-stage.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Database credentials for DMS Data Service
+      Name: 'dms/db/rw'
+
   DmsDataServiceGateway:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub 'dms-data-service-${Environment}'
       StageName: !Ref Environment
       Domain:
-        DomainName: !If [ IsProd, !Sub 'dms-service.impel.io', !Sub 'dms-service${DomainSuffix}.testenv.impel.io' ]
+        DomainName: !If [ IsProd, 'dms-service.impel.io', !Sub 'dms-service${DomainSuffix}.testenv.impel.io' ]
         CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
         SecurityPolicy: TLS_1_2
         Route53:
