@@ -81,7 +81,7 @@ def post_dms_upload():
             }
             return log_and_return_response(jsonify(response), 400)
 
-        upload_dms_data(client_id, "dms_upload", filename, data)
+        upload_dms_data(client_id, file_type, filename, data)
 
         response = {
             "file_name": filename,
