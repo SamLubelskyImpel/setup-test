@@ -1,4 +1,4 @@
-"""Routes for uploading FI Closed Deal files."""
+"""Routes for uploading DMS files."""
 import uuid
 from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_api_key
@@ -6,12 +6,26 @@ from api.flask_common import log_and_return_response
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, current_app, request
 
-fi_closed_deal_api = Blueprint("fi_closed_deal_api", __name__)
+dms_upload_api = Blueprint("dms_upload_api", __name__)
 
 
-@fi_closed_deal_api.route("/v1", methods=["POST"])
-def post_fi_closed_deal():
-    """Upload FI Closed Deal file."""
+def get_reyrey_file_type(filename: str):
+    """ Categorize ReyRey file types by filename.
+    Filenames are _ deliminated with the 3rd parameter specifying type. """
+    reyrey_file_type_mappings = {
+        "RO": "repair_order",
+        "DH": "fi_closed_deal"
+    }
+    file_type = None
+    filename_sections = filename.split("_")
+    if len(filename_sections) >= 3:
+        file_type = reyrey_file_type_mappings.get(filename_sections[2])
+    return file_type
+
+
+@dms_upload_api.route("/v1", methods=["POST"])
+def post_dms_upload():
+    """Upload Repair Order file."""
     request_id = str(uuid.uuid4())
     try:
         now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
@@ -56,7 +70,18 @@ def post_fi_closed_deal():
             }
             return log_and_return_response(jsonify(response), 400)
 
-        upload_dms_data(client_id, "fi_closed_deal", filename, data)
+        file_type = None
+        if client_id == "reyrey" or client_id == "test_client":
+            file_type = get_reyrey_file_type(filename)
+
+        if not file_type:
+            response = {
+                "message": "Error invalid filetype",
+                "request_id": request_id,
+            }
+            return log_and_return_response(jsonify(response), 400)
+
+        upload_dms_data(client_id, "dms_upload", filename, data)
 
         response = {
             "file_name": filename,
@@ -65,6 +90,7 @@ def post_fi_closed_deal():
         }
         return log_and_return_response(jsonify(response), 200)
     except Exception:
+        current_app.logger.exception("Error running dms_upload endpoint")
         response = {
             "message": "Internal Server Error. Please contact Impel support",
             "request_id": request_id,
