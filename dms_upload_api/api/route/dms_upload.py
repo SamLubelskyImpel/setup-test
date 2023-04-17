@@ -1,7 +1,7 @@
 """Routes for uploading DMS files."""
 import uuid
 from api.s3_manager import upload_dms_data
-from api.secrets_manager import check_api_key
+from api.secrets_manager import check_basic_auth, decode_basic_auth
 from api.flask_common import log_and_return_response
 from datetime import datetime, timezone
 from flask import Blueprint, jsonify, current_app, request
@@ -33,29 +33,23 @@ def post_dms_upload():
             f"ID: {request_id} Request: {request} Headers: {request.headers}"
         )
 
-        client_id = request.headers.get("client_id", None)
-        if not client_id:
+        auth = request.headers.get("Authorization", None)
+        if not auth:
             response = {
-                "message": "Error missing header client_id",
+                "message": "Error missing header Authorization",
                 "request_id": request_id,
             }
             return log_and_return_response(jsonify(response), 400)
-        x_api_key = request.headers.get("x_api_key", None)
-        if not x_api_key:
-            response = {
-                "message": "Error missing header x_api_key",
-                "request_id": request_id,
-            }
-            return log_and_return_response(jsonify(response), 400)
-        filename = request.headers.get("filename", None)
+        filename = request.headers.get("Filename", None)
         if not filename:
             response = {
-                "message": "Error missing header filename",
+                "message": "Error missing header Filename",
                 "request_id": request_id,
             }
             return log_and_return_response(jsonify(response), 400)
 
-        if not check_api_key(client_id, x_api_key):
+        client_id, input_auth = decode_basic_auth(auth)
+        if not client_id or not input_auth or not check_basic_auth(client_id, input_auth):
             response = {
                 "message": "This request is unauthorized",
                 "request_id": request_id,
