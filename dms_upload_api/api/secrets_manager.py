@@ -4,6 +4,7 @@ import boto3
 from flask import current_app
 from json import loads
 from botocore.exceptions import ClientError
+from base64 import b64decode
 
 ENV = environ.get("ENV", "stage")
 REGION_NAME = environ.get("REGION_NAME", "us-east-1")
@@ -24,7 +25,19 @@ def get_secret(secret_id: str, region_name: str):
     return secret
 
 
-def check_api_key(client_id: str, input_api_key: str):
+def decode_basic_auth(basic_auth_str: str):
+    """ Decode a given basic auth. """
+    try:
+        input_auth_encoded = basic_auth_str.split("Basic ")[1]
+        input_auth_str = b64decode(input_auth_encoded).decode("utf-8")
+        client_id, input_auth = input_auth_str.split(":")
+        return client_id, input_auth
+    except (ValueError, IndexError):
+        current_app.logger.exception(f"Malformed input basic auth {basic_auth_str}")
+        return None, None
+
+
+def check_basic_auth(client_id: str, input_auth: str):
     """Check if an api key is valid."""
     secret = get_secret(SECRET_ID, REGION_NAME)
 
@@ -35,15 +48,15 @@ def check_api_key(client_id: str, input_api_key: str):
         return False
 
     try:
-        api_key = loads(secret_value)["api_key"]
+        expected_auth = loads(secret_value)["api_key"]
     except KeyError:
         current_app.logger.exception(
             f"Malformed secret {secret_value} for client {client_id}"
         )
         raise
 
-    if api_key != input_api_key:
-        current_app.logger.exception(f"Wrong api key input for client {client_id}")
+    if input_auth != expected_auth:
+        current_app.logger.exception(f"Wrong auth value input for client {client_id}")
         return False
 
     return True
