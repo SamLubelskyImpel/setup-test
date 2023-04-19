@@ -55,19 +55,6 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Sid: S3Policy
-                Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                  - s3:*Object
-                Resource: !Sub "arn:aws:s3:${AWS::Region}:${AWS::AccountId}:aws-glue-assets-universal-integrations/*"
-
-
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
               - Sid: SMPolicy
                 Effect: Allow
                 Action:
@@ -76,7 +63,21 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB-*"
                       ]
-
+        - PolicyName: UniversalIntegrationsGlueS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource: 
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*'
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
+                  - !Sub "arn:aws:s3:::stage-dms-uploads-us-east-1/*"
 
   UniversalIntegrationCrawlerDB:
     Type: AWS::Glue::Database
@@ -90,11 +91,19 @@ Resources:
     Type: AWS::Glue::Classifier
     Properties:
       XMLClassifier:
-        Name: "CrawlerClassifier"
+        Name: "ReyReyRepairOrderClassifier"
         Classification: "xml"
-        RowTag: "reyreyrepairorder"
+        RowTag: "rey_ImpelRepairOrder"
 
-    
+  ReyReyFIClassifier:
+    Type: AWS::Glue::Classifier
+    Properties:
+      XMLClassifier:
+        Name: "ReyReyFIClassifier"
+        Classification: "xml"
+        RowTag: "rey_ImpelFIClosedDeal"
+
+
   UniversalIntegrationLakeFormationPermissionRaw:
     Type: AWS::LakeFormation::Permissions
     Properties:
@@ -120,15 +129,18 @@ Resources:
       DatabaseName: !Ref UniversalIntegrationCrawlerDB
       Classifiers:
         - !Ref ReyReyRepairOrderClassifier
+        - !Ref ReyReyFIClassifier
       Targets:
         S3Targets:
-          - Path: !Sub 's3://aws-glue-assets-universal-integrations/raw_data/'
-      # Note that CRAWL_NEW_FOLDERS_ONLY while cost effective cannot update table's schema
+          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/fi_closed_deal/"
+          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
+
       SchemaChangePolicy:
-        UpdateBehavior: 'LOG'
+        UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
-      RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_NEW_FOLDERS_ONLY'
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+
+
 
   UniversalIntegrationETL:
     Type: AWS::Glue::Job
@@ -145,7 +157,7 @@ Resources:
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !Sub 's3://aws-glue-assets-universal-integrations/temporary/'
         '--db_name': !Ref UniversalIntegrationCrawlerDB
-        '--table_names': 'tbd'
+        '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal, universalintegrationcrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
 
@@ -155,6 +167,7 @@ Resources:
       Description: Workflow for orchestrating glue universal integration jobs
       Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
 
+  # trigger crawler whenever there is new data
   # UniversalIntegrationGlueWorkflowStartTrigger:
   #   Type: AWS::Glue::Trigger
   #   Properties:
