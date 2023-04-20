@@ -157,7 +157,7 @@ Resources:
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !Sub 's3://aws-glue-assets-universal-integrations/temporary/'
         '--db_name': !Ref UniversalIntegrationCrawlerDB
-        '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal, universalintegrationcrawlerdb_repair_order"
+        '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal,universalintegrationcrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
 
