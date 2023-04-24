@@ -78,6 +78,16 @@ Resources:
                   - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*'
                   - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
                   - !Sub "arn:aws:s3:::stage-dms-uploads-us-east-1/*"
+        - PolicyName: UniversalIntegrationsGlueSSMPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SSMPolicy
+                Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: "*"
+
 
   UniversalIntegrationCrawlerDB:
     Type: AWS::Glue::Database
@@ -160,6 +170,8 @@ Resources:
         '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal,universalintegrationcrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
+        '--additional-python-modules': 'psycopg2-binary==2.9.3'
+
 
   UniversalIntegrationGlueWorkflow:
     Type: AWS::Glue::Workflow
