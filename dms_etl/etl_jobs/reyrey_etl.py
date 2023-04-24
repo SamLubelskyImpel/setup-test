@@ -1,16 +1,19 @@
 """Rey Rey ETL Job."""
 
-import sys
 from awsglue.transforms import RenameField, Relationalize, ApplyMapping
 from awsglue.utils import getResolvedOptions
 import boto3
-from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.dynamicframe import DynamicFrame 
-from pyspark.sql.functions import col, lit, flatten, explode
+import datetime
+from json import dumps, loads
+import logging
 from awsglue.job import Job
-from json import loads
+from pyspark.context import SparkContext
+from pyspark.sql.functions import col, lit, flatten, explode
 import psycopg2.pool
+import sys
+
 
 
 
@@ -60,24 +63,19 @@ class ReyReyUpsertJob:
 
     def apply_mappings(self, df,  tablename, catalog_table):
         """Apply appropriate mapping to dynamic frame."""
-        #for all of the comments in each mapping this customization can be added in the partition methods.
         mapping = []
         current_df = df.toDF()
         dealer_number = current_df.select("ApplicationArea.Sender.DealerNumber").collect()[0][0]
 
         if 'fi_closed_deal' in catalog_table:
-            if tablename == 'dealer':
 
+            if tablename == 'dealer':
                 current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
                           
-                #before upserting needs to be checked for existence
             elif tablename == 'consumer':
-
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("FIDeal.Buyer.CustRecord.ContactInfo.Email").alias("email"),
                     col("FIDeal.Buyer.CustRecord.ContactInfo._LastName").alias("lastname"),
@@ -86,32 +84,20 @@ class ReyReyUpsertJob:
                     col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
                 ).withColumn("DealerNumber", lit(dealer_number))
 
-
-                #additional work for grabbing the phone number might be required
-                #check if consumer exists before upsert. grab dealer id before upserting
             elif tablename == 'vehicle':
-
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin").alias("vin"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr").alias("year"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass").alias("vehicle_class")
                 ).withColumn("DealerNumber", lit(dealer_number))
 
-
-                #for vehicle before inserting we need to find the appropriate dealer id. if it doesn't exist we need to create it and grab it.
-                #before upsert dealer id needs to be grabbed
             elif tablename == 'vehicle_sale':
-                
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("FIDeal.FIDealFin.TransactionVehicle._VehCost").alias("cost_of_vehicle"),
                     col("FIDeal.FIDealFin.TransactionVehicle._Discount").alias("discount_on_price"),
@@ -128,69 +114,46 @@ class ReyReyUpsertJob:
 
                 ).withColumn("DealerNumber", lit(dealer_number))
 
-                
-                #bool values newused need to be extracted to appropriate types
-                #dump warranty info as a json into the table in the catch all field
-                #vehicle id(use vin) and dealer id(use dealernumber) needs to be grabbed before upsert
-
-
         elif 'repair_order' in catalog_table:
             if tablename == 'dealer':
-
                 current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
-                          
-                #before upserting needs to be checked for existence
+                        
             elif tablename == 'vehicle':
-
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("RepairOrder.RoRecord.Rogen._Vin").alias("vin")
                 ).withColumn("DealerNumber", lit(dealer_number))
-
-         
-                #before upsert dealer id needs to be grabbed.
+                
             elif tablename == 'consumer':
-
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("RepairOrder.CustRecord.ContactInfo._FirstName").alias("firstname"),
                     col("RepairOrder.CustRecord.ContactInfo._LastName").alias("lastname"),
                     col("RepairOrder.CustRecord.ContactInfo.phone").alias("phone"),
                     col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
                     col("RepairOrder.CustRecord.ContactInfo.Address").alias("address")
-                )
+                ).withColumn("DealerNumber", lit(dealer_number))
 
-
-                #check if consumer exists before upsert. check by email 
             elif tablename == 'service_repair_order':
-
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
                 )
-
-                # Select the nested columns
                 current_df = current_df.select(
                     col("RepairOrder.RoRecord.Rogen._Vin").alias("vin"),
                     col("RepairOrder.RoRecord.Rogen._RoNo").alias("repair_order_no"),
                     col("RepairOrder.RoRecord.Rogen._RoCreateDate").alias("repair_order_open_date"),
-                    col("RepairOrder.RoRecord.Rogen.RecommendedServc").alias("recommendation"),
+                    col("RepairOrder.RoRecord.Rogen.TechRecommends._TechRecommend").alias("recommendation"),
                     col("RepairOrder.ServVehicle.VehicleServInfo._LastRODate").alias("repair_order_close_date"),
                     col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
-                    col("RepairOrder.CustRecord.ContactInfo.FirstName").alias("firstname"),
-                    col("RepairOrder.CustRecord.ContactInfo.LastName").alias("lastname")
+                    col("RepairOrder.CustRecord.ContactInfo._FirstName").alias("firstname"),
+                    col("RepairOrder.CustRecord.ContactInfo._LastName").alias("lastname")
                 ).withColumn("DealerNumber", lit(dealer_number))
 
- 
-                #before upsert vehicle id needs to be grabbed by the vin and included. dealer id(use dealer number) also needs to be included. consumer id(use email) also needs to be included.
-        
+         
         # Convert the flattened DataFrame back to a DynamicFrame
         current_dyf = DynamicFrame.fromDF(
             current_df, self.glueContext, "current_dyf"
@@ -207,49 +170,49 @@ class ReyReyUpsertJob:
         )
 
 
-    def upsert_consumer(self, df):
+    def upsert_consumer(self, cursor, row, phone, email, postal_code):
         """Upsert consumer data."""
 
         #grab the dealer id we need
-        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        cursor.execute("SELECT COUNT(*), id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealers = cursor.fetchone()
 
         if dealers[0] > 0:
             #check if the consumer already exists
             cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%s", (
-                dealers[1], row['phone'], row['email'], row['firstname'], row['lastname'], row['postal_code']
+                dealers[1], phone, email, row['firstname'], row['lastname'], postal_code
                 ))
             result = cursor.fetchone()
             if result[0] == 0:
                 cursor.execute("""
                     INSERT INTO consumer (firstname, lastname, phone, postal_code, email, dealer_id)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (row['firstname'], row['lastname'], row['phone'], row['postal_code'], row['email'], result[1]))
+                """, (row['firstname'], row['lastname'], phone, postal_code, email, result[1]))
 
 
-    def upsert_dealer(self, df):
+    def upsert_dealer(self, cursor, row):
         """Upsert dealer data."""
 
-        cursor.execute("SELECT COUNT(*) FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        cursor.execute("SELECT COUNT(*) FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         result = cursor.fetchone()
 
         if result[0] == 0:
             cursor.execute("""
                 INSERT INTO dealer (dms_id)
                 VALUES (%s)
-            """, (row['DealerNumber']))
+            """, (row['DealerNumber'],))
 
 
-    def upsert_vehicle(self, df, catalog):
+    def upsert_vehicle(self, cursor, row, catalog):
         """Upsert vehicle data."""
 
-        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        cursor.execute("SELECT COUNT(*), id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealer = cursor.fetchone()
 
         if dealer[0] > 0:
             #check if the vehicle already exists
             cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE dealer_id=%s AND vin=%s", (
-                dealers[1], row['vin']
+                dealer[1], row['vin']
                 ))
             result = cursor.fetchone()
 
@@ -257,8 +220,8 @@ class ReyReyUpsertJob:
             if result[0] == 0:
                 cursor.execute("""
                     INSERT INTO vehicle (dealer_id, vin)
-                    VALUES (%s)
-                """, (dealers[1], row['vin']))
+                    VALUES (%s, %s)
+                """, (dealer[1], row['vin']))
 
             elif result[0] > 0 and catalog == 'fi_closed_deal':
                 cursor.execute("""
@@ -268,13 +231,13 @@ class ReyReyUpsertJob:
                 """, (row['vehicle_class'], row['year'], result[1]))    
 
 
-    def upsert_vehicle_sale(self, df):
+    def upsert_vehicle_sale(self, cursor, row, warranty_info, date_of_state_inspection, is_new):
         """Upsert Vehicle Sale data."""
 
-        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        cursor.execute("SELECT COUNT(*), id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealer = cursor.fetchone()
 
-        cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE vin=%s", (row['vin']))
+        cursor.execute("SELECT COUNT(*), id FROM vehicle WHERE vin=%s", (row['vin'],))
         vehicle = cursor.fetchone()
 
         #prepare NewUsed and Warranty info
@@ -286,29 +249,29 @@ class ReyReyUpsertJob:
                     date_of_state_inspection, days_in_stock,
                     mileage_on_vehicle, trade_in_value,
                     payoff_on_trade, profit_on_sale,
-                    vehicle_gross, warranty_info, NewUsed,
+                    vehicle_gross, extended_warranty, is_new,
                     vehicle_id, dealer_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (row['vin'], row['cost_of_vehicle'], row['discount_on_price'],
-            row['date_of_state_inspection'], row['days_in_stock'], result['mileage_on_vehicle'],
+            date_of_state_inspection, row['days_in_stock'], result['mileage_on_vehicle'],
             row['trade_in_value'], row['payoff_on_trade'], row['profit_on_sale'], 
-            row['vehicle_gross'], row['warranty_info'], row['NewUsed'],
+            row['vehicle_gross'], warranty_info, is_new,
             vehicle[1], dealer[1]))
 
 
 
-    def upsert_service_repair_order(row, cursor):
+    def upsert_service_repair_order(self, cursor, row, email, repair_order_open_date, repair_order_close_date):
         """Upsert Service Repair Order to RDS."""
        
-        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        cursor.execute("SELECT COUNT(*), id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
         dealer = cursor.fetchone()
 
-        cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE vin=%s", (row['vin']))
+        cursor.execute("SELECT COUNT(*), id FROM vehicle WHERE vin=%s", (row['vin']))
         vehicle = cursor.fetchone()
         if dealer[0] > 0:
-            cursor.execute("SELECT COUNT(*), consumer_id FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%", (
+            cursor.execute("SELECT COUNT(*), id FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%s", (
                 dealer[1], row['phone'], row['email'], row['firstname'], row['lastname'], row['postal_code']
                 ))
             consumer = cursor.fetchone()
@@ -322,11 +285,72 @@ class ReyReyUpsertJob:
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (row['vin'], row['repair_order_no'], row['repair_order_open_date'],
-                row['recommendation'], row['repair_order_close_date'], result['email'],
+                (row['vin'], row['repair_order_no'], repair_order_open_date,
+                row['recommendation'], repair_order_close_date, email,
                 row['firstname'], row['lastname'], vehicle[1], dealer[1], consumer[1]
                 ))
 
+
+    def format_phone_number(self, row):
+        phone = None
+        if hasattr(row.phone, 'array') and row.phone.array is not None:
+            phone = next((phone_row._Num.long for phone_row in row.phone.array if phone_row._Type == 'H'), None)
+        elif hasattr(row.phone, 'struct') and row.phone.struct is not None:
+            if row.phone.struct._Type == 'H':
+                phone = row.phone.struct._Num
+
+        return phone
+
+
+    def format_email(self, row):
+        email = None
+        if hasattr(row, 'email') and row.email is not None:
+            email = row.email._MailTo 
+        
+        return email
+
+    def format_postal_code(self, row):
+        postal_code = None
+        if hasattr(row, 'address'):
+            if hasattr(row.address, 'struct') and row.address.struct is not None:
+                postal_code = row.address.struct._Zip
+            elif hasattr(row.address, 'array') and row.address.array is not None:
+                postal_code = next((address_row._Zip for address_row in row.address.array), None)
+
+        return postal_code
+
+    def format_warranty_info(self, row):
+        has_array = False
+        has_struct = False
+        warranty_info_json = None
+        if hasattr(row, 'warranty_info'):
+            if hasattr(row.warranty_info, 'array') and row.address.struct is not None:
+                warranty_info_json = json.dumps(row.warranty_info.array.asDict(True)) 
+            elif hasattr(row.warranty_info, 'struct') and row.address.array is not None:
+                warranty_info_json = json.dumps(row.warranty_info.struct.asDict(True)) 
+        
+        return warranty_info
+
+    def format_is_new(self, row):
+        is_new = False
+        if hasattr(row, 'NewUsed'):
+            is_new = True if row.NewUsed == 'N' else False
+        return is_new
+
+    def format_date(self, row, attribute_name):
+        ro_date = None
+        if hasattr(row, attribute_name):
+            if attribute_name == 'repair_order_close_date':
+                dt_obj = datetime.datetime.strptime(row.repair_order_close_date, '%Y/%m/%d')
+            elif attribute_name == 'repair_order_open_date': 
+                dt_obj = datetime.datetime.strptime(row.repair_order_open_date, '%Y/%m/%d')
+            else:
+                dt_obj = datetime.datetime.strptime(row.date_of_state_inspection, '%Y/%m/%d')
+
+            ro_date = dt_obj.strftime('%Y-%m-%d')
+        return ro_date
+
+    
 
     def upsert(self, df, table_name, catalog_table):
         """Upsert ReyRey data to RDS."""
@@ -335,21 +359,30 @@ class ReyReyUpsertJob:
             conn = self.pool.getconn()
             cursor = conn.cursor()
 
-            for _, row in df.iterrows():
+            for row in df.rdd.toLocalIterator():
                 try:
                     if table_name == 'consumer':
-                        self.upsert_consumer(df)
-                    elif table_name == 'vehicle':
-                        self.upsert_vehicle(df, catalog_table)
-                    elif table_name == 'vehicle_sale':
-                        self.upsert_vehicle_sale(df)
+                        phone = self.format_phone_number(row)
+                        email = self.format_email(row)
+                        postal_code = self.format_postal_code(row)
+                        self.upsert_consumer(cursor, row, phone, email, postal_code)
+                    # elif table_name == 'vehicle':
+                    #     self.upsert_vehicle(cursor, row, catalog_table)
+                    # elif table_name == 'vehicle_sale':
+                    #     warranty_info = self.format_warranty_info(row)
+                    #     date_of_state_inspection = self.format_date(row, 'date_of_state_inspection')
+                    #     is_new = self.format_is_new(row)
+                    #     self.upsert_vehicle_sale(cursor, row, warranty_info, date_of_state_inspection, is_new)
                     elif table_name == 'dealer':
-                        self.upsert_dealer(df)
-                    elif table_name == 'service_repair_order':
-                        self.upsert_service_repair_order(df)
-                    else:
-                        raise ValueError(f"Invalid table name: {table_name}")
-                        
+                        self.upsert_dealer(cursor, row)
+                    # elif table_name == 'service_repair_order':
+                    #     email = self.format_email(row)
+                    #     repair_order_open_date = self.format_date(row, 'repair_order_open_date')
+                    #     repair_order_close_date = self.format_date(row, 'repair_order_close_date')
+                    #     self.upsert_service_repair_order(cursor, row, email, repair_order_open_date, repair_order_close_date)
+                    # else:
+                    #     raise ValueError(f"Invalid table name: {table_name}")
+
                     conn.commit()
                 except Exception as e:
                     logging.error(f"Error processing row: {row}. Error: {e}")
@@ -379,7 +412,7 @@ class ReyReyUpsertJob:
 
 
                 # Perform upsert based on the table_name
-                self.upsert(df, table_name)
+                self.upsert(df, table_name, catalog_table)
 
 
 
@@ -387,6 +420,7 @@ if __name__ == "__main__":
     args = getResolvedOptions(sys.argv, ["JOB_NAME", "db_name", "catalog_table_names", "catalog_connection", "environment"])
     SM_CLIENT = boto3.client('secretsmanager')
     isprod = args["environment"] == 'prod'
+
     # Create database connection pool
     DB_CREDENTIALS = _load_secret()
 
