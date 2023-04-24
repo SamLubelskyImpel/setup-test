@@ -117,6 +117,7 @@ class ReyReyUpsertJob:
                     col("FIDeal.FIDealFin.TransactionVehicle._Discount").alias("discount_on_price"),
                     col("FIDeal.FIDealFin.TransactionVehicle._InspectionDate").alias("date_of_state_inspection"),
                     col("FIDeal.FIDealFin.TransactionVehicle._DaysInStock").alias("days_in_stock"),
+                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin").alias("vin"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading").alias("mileage_on_vehicle"),
                     col("FIDeal.FIDealFin.TradeIn._ActualCashValue").alias("trade_in_value"),
                     col("FIDeal.FIDealFin.TradeIn._Payoff").alias("payoff_on_trade"),
@@ -182,7 +183,9 @@ class ReyReyUpsertJob:
                     col("RepairOrder.RoRecord.Rogen._RoCreateDate").alias("repair_order_open_date"),
                     col("RepairOrder.RoRecord.Rogen.RecommendedServc").alias("recommendation"),
                     col("RepairOrder.ServVehicle.VehicleServInfo._LastRODate").alias("repair_order_close_date"),
-                    col("RepairOrder.CustRecord.ContactInfo.Email").alias("email")
+                    col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
+                    col("RepairOrder.CustRecord.ContactInfo.FirstName").alias("firstname"),
+                    col("RepairOrder.CustRecord.ContactInfo.LastName").alias("lastname")
                 ).withColumn("DealerNumber", lit(dealer_number))
 
  
@@ -206,102 +209,147 @@ class ReyReyUpsertJob:
 
     def upsert_consumer(self, df):
         """Upsert consumer data."""
-        try:
-            conn = self.pool.getconn()
-            cursor = conn.cursor()
 
-            for _, row in df.iterrows():
-                try:
-                    #grab the dealer id we need
-                    cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
-                    dealers = cursor.fetchone()
+        #grab the dealer id we need
+        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        dealers = cursor.fetchone()
 
-                    if dealers[0] > 0:
-                        #check if the consumer already exists
-                        cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%s", (
-                            dealers[1], row['phone'], row['email'], row['firstname'], row['lastname'], row['postal_code']
-                            ))
-                        result = cursor.fetchone()
-                        if result[0] == 0:
-                            cursor.execute("""
-                                INSERT INTO consumer (firstname, lastname, phone, postal_code, email, dealer_id)
-                                VALUES (%s, %s, %s, %s, %s, %s)
-                            """, (row['firstname'], row['lastname'], row['phone'], row['postal_code'], row['email'], result[1]))
-
-                    conn.commit()
-                except Exception as e:
-                    logging.error(f"Error processing row: {row}. Error: {e}")
-                    conn.rollback()
-            cursor.close()
-        except Exception as e:
-            logging.error(f"Error getting connection from pool: {e}")
-            raise e
-        finally:
-            self.pool.putconn(conn)
+        if dealers[0] > 0:
+            #check if the consumer already exists
+            cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%s", (
+                dealers[1], row['phone'], row['email'], row['firstname'], row['lastname'], row['postal_code']
+                ))
+            result = cursor.fetchone()
+            if result[0] == 0:
+                cursor.execute("""
+                    INSERT INTO consumer (firstname, lastname, phone, postal_code, email, dealer_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (row['firstname'], row['lastname'], row['phone'], row['postal_code'], row['email'], result[1]))
 
 
     def upsert_dealer(self, df):
         """Upsert dealer data."""
-        try:
-            conn = self.pool.getconn()
-            cursor = conn.cursor()
 
-            for _, row in df.iterrows():
-                try:
-                    cursor.execute("SELECT COUNT(*) FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
-                    result = cursor.fetchone()
+        cursor.execute("SELECT COUNT(*) FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        result = cursor.fetchone()
 
-                    if result[0] == 0:
-                        cursor.execute("""
-                            INSERT INTO dealer (dms_id)
-                            VALUES (%s)
-                        """, (row['DealerNumber']))
-
-                    conn.commit()
-                except Exception as e:
-                    logging.error(f"Error processing row: {row}. Error: {e}")
-                    conn.rollback()
-            cursor.close()
-        except Exception as e:
-            logging.error(f"Error getting connection from pool: {e}")
-            raise e
-        finally:
-            self.pool.putconn(conn)
+        if result[0] == 0:
+            cursor.execute("""
+                INSERT INTO dealer (dms_id)
+                VALUES (%s)
+            """, (row['DealerNumber']))
 
 
     def upsert_vehicle(self, df, catalog):
         """Upsert vehicle data."""
+
+        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        dealer = cursor.fetchone()
+
+        if dealer[0] > 0:
+            #check if the vehicle already exists
+            cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE dealer_id=%s AND vin=%s", (
+                dealers[1], row['vin']
+                ))
+            result = cursor.fetchone()
+
+            #if it doesn't add it. If it does and the catalog we're upsertting to is fi. We have additional data for vehicle. 
+            if result[0] == 0:
+                cursor.execute("""
+                    INSERT INTO vehicle (dealer_id, vin)
+                    VALUES (%s)
+                """, (dealers[1], row['vin']))
+
+            elif result[0] > 0 and catalog == 'fi_closed_deal':
+                cursor.execute("""
+                    UPDATE vehicle
+                    SET vehicle_class=%s, year=%s
+                    WHERE vehicle_id=%s
+                """, (row['vehicle_class'], row['year'], result[1]))    
+
+
+    def upsert_vehicle_sale(self, df):
+        """Upsert Vehicle Sale data."""
+
+        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        dealer = cursor.fetchone()
+
+        cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE vin=%s", (row['vin']))
+        vehicle = cursor.fetchone()
+
+        #prepare NewUsed and Warranty info
+
+        if dealer[0] > 0 and vehicle[0] > 0:
+            cursor.execute("""
+                INSERT INTO vehicle_sale (
+                    vin, cost_of_vehicle, discount_on_price,
+                    date_of_state_inspection, days_in_stock,
+                    mileage_on_vehicle, trade_in_value,
+                    payoff_on_trade, profit_on_sale,
+                    vehicle_gross, warranty_info, NewUsed,
+                    vehicle_id, dealer_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (row['vin'], row['cost_of_vehicle'], row['discount_on_price'],
+            row['date_of_state_inspection'], row['days_in_stock'], result['mileage_on_vehicle'],
+            row['trade_in_value'], row['payoff_on_trade'], row['profit_on_sale'], 
+            row['vehicle_gross'], row['warranty_info'], row['NewUsed'],
+            vehicle[1], dealer[1]))
+
+
+
+    def upsert_service_repair_order(row, cursor):
+        """Upsert Service Repair Order to RDS."""
+       
+        cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
+        dealer = cursor.fetchone()
+
+        cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE vin=%s", (row['vin']))
+        vehicle = cursor.fetchone()
+        if dealer[0] > 0:
+            cursor.execute("SELECT COUNT(*), consumer_id FROM consumer WHERE dealer_id=%s AND phone=%s AND email=%s AND firstname=%s AND lastname=%s AND postal_code=%", (
+                dealer[1], row['phone'], row['email'], row['firstname'], row['lastname'], row['postal_code']
+                ))
+            consumer = cursor.fetchone()
+            if consumer[0] > 0:
+                cursor.execute("""
+                    INSERT INTO service_repair_order (
+                        vin, repair_order_no, repair_order_open_date,
+                        recommendation, repair_order_close_date,
+                        email, firstname, lastname,
+                        vehicle_id, dealer_id, consumer_id
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (row['vin'], row['repair_order_no'], row['repair_order_open_date'],
+                row['recommendation'], row['repair_order_close_date'], result['email'],
+                row['firstname'], row['lastname'], vehicle[1], dealer[1], consumer[1]
+                ))
+
+
+    def upsert(self, df, table_name, catalog_table):
+        """Upsert ReyRey data to RDS."""
+
         try:
             conn = self.pool.getconn()
             cursor = conn.cursor()
 
             for _, row in df.iterrows():
                 try:
-                    cursor.execute("SELECT COUNT(*), dealer_id FROM dealer WHERE dms_id=%s", (row['DealerNumber']))
-                    dealer = cursor.fetchone()
-
-                    if dealer[0] > 0:
-                        #check if the vehicle already exists
-                        cursor.execute("SELECT COUNT(*), vehicle_id FROM vehicle WHERE dealer_id=%s AND vin=%s", (
-                            dealers[1], row['vin']
-                            ))
-                        result = cursor.fetchone()
-
-                        #if it doesn't add it. If it does and the catalog we're upsertting to is fi. We have additional data for vehicle. 
-                        if result[0] == 0:
-                            cursor.execute("""
-                                INSERT INTO vehicle (dealer_id, vin)
-                                VALUES (%s)
-                            """, (dealers[1], row['vin']))
-
-                        elif result[0] > 0 and catalog == 'fi_closed_deal':
-                            cursor.execute("""
-                                UPDATE vehicle
-                                SET vehicle_class=%s, year=%s
-                                WHERE vehicle_id=%s
-                            """, (row['vehicle_class'], row['year'], result[1]))                        
-
-
+                    if table_name == 'consumer':
+                        self.upsert_consumer(df)
+                    elif table_name == 'vehicle':
+                        self.upsert_vehicle(df, catalog_table)
+                    elif table_name == 'vehicle_sale':
+                        self.upsert_vehicle_sale(df)
+                    elif table_name == 'dealer':
+                        self.upsert_dealer(df)
+                    elif table_name == 'service_repair_order':
+                        self.upsert_service_repair_order(df)
+                    else:
+                        raise ValueError(f"Invalid table name: {table_name}")
+                        
                     conn.commit()
                 except Exception as e:
                     logging.error(f"Error processing row: {row}. Error: {e}")
@@ -331,18 +379,8 @@ class ReyReyUpsertJob:
 
 
                 # Perform upsert based on the table_name
-                if table_name == 'consumer':
-                    self.upsert_consumer(df)
-                elif table_name == 'vehicle':
-                    self.upsert_vehicle(df, catalog_table)
-                # elif table_name == 'vehicle_sale':
-                #     df.rdd.foreachPartition(self.upsert_vehicle_sale_partition)
-                elif table_name == 'dealer':
-                    self.upsert_dealer(df)
-                # elif table_name == 'service_repair_order':
-                #     df.rdd.foreachPartition(self.upsert_deal_partition)
-                else:
-                    raise ValueError(f"Invalid table name: {table_name}")
+                self.upsert(df, table_name)
+
 
 
 if __name__ == "__main__":
