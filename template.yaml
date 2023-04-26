@@ -68,22 +68,6 @@ Conditions:
   IsProd: !Equals [ !Ref 'AWS::AccountId', '196800776222' ]
 
 Resources:
-<<<<<<< HEAD
-  # Child stacks
-  # DmsDataService:
-  #   Type: AWS::Serverless::Application
-  #   Properties:
-  #     Location: dms_data_service/template.yaml
-  #     Parameters:
-  #       Environment: !Ref Environment
-  #       DomainSuffix: !Ref DomainSuffix
-  DmsETL:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: dms_etl/template.yaml
-      Parameters:
-        Environment: !Ref Environment
-=======
   CodeDeployApplication:
     Type: AWS::CodeDeploy::Application
     Properties:
@@ -554,4 +538,3 @@ Outputs:
   DeploymentGroupName:
     Description: The name of the CodeDeploy deployment group
     Value: !Ref 'CodeDeployDeploymentGroup'
->>>>>>> master
