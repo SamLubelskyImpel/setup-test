@@ -225,10 +225,17 @@ class ReyReyUpsertJob:
 
             #if it doesn't add it. If it does and the catalog we're upsertting to is fi. We have additional data for vehicle. 
             if vehicle is None:
+
                 cursor.execute("""
                     INSERT INTO vehicle (dealer_id, vin)
                     VALUES (%s, %s)
                 """, (dealer_id, row['vin']))
+            elif vehicle is None and catalog == 'fi_closed_deal':
+
+                cursor.execute("""
+                    INSERT INTO vehicle (dealer_id, vin, vehicle_class, year)
+                    VALUES (%s, %s, %s, %s)
+                """, (dealer_id, row['vin'], row['vehicle_class'], row['year']))
 
             elif vehicle is not None and catalog == 'fi_closed_deal':
                 vehicle_id = vehicle[0]
@@ -237,11 +244,7 @@ class ReyReyUpsertJob:
                     SET vehicle_class=%s, year=%s
                     WHERE vehicle_id=%s
                 """, (row['vehicle_class'], row['year'], vehicle_id))    
-            elif vehicle is None and catalog == 'fi_closed_deal':
-                cursor.execute("""
-                    INSERT INTO vehicle (dealer_id, vin, vehicle_class, year)
-                    VALUES (%s, %s, %s, %s)
-                """, (dealer_id, row['vin'], row['vehicle_class'], row['year']))
+
  
 
     def upsert_vehicle_sale(self, cursor, row, warranty_info, date_of_state_inspection, is_new, phone, email, postal_code):
@@ -253,8 +256,6 @@ class ReyReyUpsertJob:
         cursor.execute("SELECT id FROM vehicle WHERE vin=%s", (row['vin'],))
         vehicle = cursor.fetchone()
 
-        #prepare NewUsed and Warranty info
-
         if dealer is not None and vehicle is not None:
             dealer_id = dealer[0]           
             vehicle_id = vehicle[0]           
@@ -263,6 +264,7 @@ class ReyReyUpsertJob:
                 ))
 
             consumer = cursor.fetchone()
+
             if consumer is not None:
                 consumer_id = consumer[0]           
 
@@ -276,6 +278,7 @@ class ReyReyUpsertJob:
                         vehicle_id, dealer_id, consumer_id
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (vehicle_id, dealer_id, consumer_id) DO NOTHING
                 """,
                 (row['cost_of_vehicle'], row['discount_on_price'],
                 date_of_state_inspection, row['days_in_stock'], row['mileage_on_vehicle'],
@@ -301,14 +304,16 @@ class ReyReyUpsertJob:
                 ))
             consumer = cursor.fetchone()
             if consumer is not None:
-                consumer_id = consumer[0]           
+                consumer_id = consumer[0]
 
                 cursor.execute("""
                     INSERT INTO service_repair_order (
                         repair_order_no, ro_open_date,
                         recommendation, ro_close_date,
                         consumer_total_amount,
-                        vehicle_id, dealer_id, consumer_id
+                        vehicle_id, dealer_id, consumer_id,
+                        ON CONFLICT (vehicle_id, dealer_id, consumer_id) DO NOTHING
+
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
@@ -320,6 +325,8 @@ class ReyReyUpsertJob:
 
 
     def format_phone_number(self, row):
+        """Get phone_number struct or array and return string."""
+
         phone = None
         if hasattr(row, 'phone'):
             if hasattr(row.phone, 'array') and row.phone.array is not None:
@@ -332,12 +339,15 @@ class ReyReyUpsertJob:
 
 
     def format_email(self, row):
+        """Get email tuple and return string."""
+
         email = None
         if hasattr(row, 'email') and row.email is not None:
             email = row.email._MailTo 
         return str(email) if email is not None else email
 
     def format_postal_code(self, row):
+        """Get address struct or array and return postal_code."""
         postal_code = None
         if hasattr(row, 'address') and row.address is not None:
             if hasattr(row.address, 'struct') and row.address.struct is not None:
@@ -348,6 +358,7 @@ class ReyReyUpsertJob:
         return str(postal_code) if postal_code is not None else postal_code
 
     def format_warranty_info(self, row):
+        """Get warranty data struct or array and return JSON."""
         has_array = False
         has_struct = False
         warranty_info_json = None
@@ -360,77 +371,83 @@ class ReyReyUpsertJob:
         return warranty_info_json
 
     def format_is_new(self, row):
+        """Get NewUsed, determine and return is_new Boolean."""
         is_new = False
         if hasattr(row, 'NewUsed'):
             is_new = True if row.NewUsed == 'N' else False
         return is_new
 
+    def convert_date(self, date_string, input_format='%m/%d/%Y', output_format='%Y-%m-%d'):
+        """Convert date object to string."""
+        dt_obj = datetime.datetime.strptime(date_string, input_format)
+        return dt_obj.strftime(output_format)
+
     def format_date(self, row, attribute_name):
+        """Format and return string datetime value."""
         ro_date = None
         if hasattr(row, attribute_name):
-            if attribute_name == 'repair_order_close_date' and row.repair_order_close_date is not None:
-                dt_obj = datetime.datetime.strptime(row.repair_order_close_date, '%m/%d/%Y')
-                ro_date = dt_obj.strftime('%Y-%m-%d')
-
-            elif attribute_name == 'repair_order_open_date' and row.repair_order_open_date is not None: 
-                dt_obj = datetime.datetime.strptime(row.repair_order_open_date, '%m/%d/%Y')
-                ro_date = dt_obj.strftime('%Y-%m-%d')
-
-            elif attribute_name == 'date_of_state_inspection' and row.date_of_state_inspection is not None:
-                dt_obj = datetime.datetime.strptime(row.date_of_state_inspection, '%m/%d/%Y')
-                ro_date = dt_obj.strftime('%Y-%m-%d')
+            date_value = getattr(row, attribute_name)
+            if date_value is not None:
+                ro_date = self.convert_date(date_value)
 
         return ro_date
 
-    
 
     def upsert(self, df, table_name, catalog_table):
         """Upsert ReyRey data to RDS."""
 
+        def format_data(row, *args):
+            data = {}
+            for arg in args:
+                if arg == 'phone':
+                    data[arg] = self.format_phone_number(row)
+                elif arg == 'email':
+                    data[arg] = self.format_email(row)
+                elif arg == 'postal_code':
+                    data[arg] = self.format_postal_code(row)
+                elif arg == 'warranty_info':
+                    data[arg] = self.format_warranty_info(row)
+                elif arg == 'date_of_state_inspection':
+                    data[arg] = self.format_date(row, 'date_of_state_inspection')
+                elif arg == 'is_new':
+                    data[arg] = self.format_is_new(row)
+                elif arg == 'repair_order_open_date':
+                    data[arg] = self.format_date(row, 'repair_order_open_date')
+                elif arg == 'repair_order_close_date':
+                    data[arg] = self.format_date(row, 'repair_order_close_date')
+            return data
+
+        upsert_functions = {
+            'consumer': (self.upsert_consumer, ['phone', 'email', 'postal_code']),
+            'vehicle': (self.upsert_vehicle, []),
+            'vehicle_sale': (self.upsert_vehicle_sale, ['warranty_info', 'date_of_state_inspection', 'is_new', 'phone', 'email', 'postal_code']),
+            'dealer': (self.upsert_dealer, []),
+            'service_repair_order': (self.upsert_service_repair_order, ['email', 'phone', 'postal_code', 'repair_order_open_date', 'repair_order_close_date'])
+        }
+
+        upsert_function, format_args = upsert_functions[table_name]
+
         try:
-            conn = self.pool.getconn()
-            cursor = conn.cursor()
+            with self.pool.getconn() as conn:
+                with conn.cursor() as cursor:
+                    for row in df.rdd.toLocalIterator():
+                        try:
+                            formatted_data = format_data(row, *format_args)
+                            if table_name == 'vehicle':
+                                upsert_function(cursor, row, catalog_table, **formatted_data)
+                            else:
+                                upsert_function(cursor, row, **formatted_data)
 
-            for row in df.rdd.toLocalIterator():
-                try:
-                    if table_name == 'consumer':
-                        phone = self.format_phone_number(row)
-                        email = self.format_email(row)
-                        postal_code = self.format_postal_code(row)
-                        self.upsert_consumer(cursor, row, phone, email, postal_code)
-                    elif table_name == 'vehicle':
-                        self.upsert_vehicle(cursor, row, catalog_table)
-                    elif table_name == 'vehicle_sale':
-                        email = self.format_email(row)
-                        phone = self.format_phone_number(row)
-                        postal_code = self.format_postal_code(row)
-                        warranty_info = self.format_warranty_info(row)
-                        date_of_state_inspection = self.format_date(row, 'date_of_state_inspection')
-                        is_new = self.format_is_new(row)
-                        self.upsert_vehicle_sale(cursor, row, warranty_info, date_of_state_inspection, is_new, phone, email, postal_code)
-                    elif table_name == 'dealer':
-                        self.upsert_dealer(cursor, row)
-                    elif table_name == 'service_repair_order':
-                        email = self.format_email(row)
-                        phone = self.format_phone_number(row)
-                        postal_code = self.format_postal_code(row)
-                        repair_order_open_date = self.format_date(row, 'repair_order_open_date')
-                        repair_order_close_date = self.format_date(row, 'repair_order_close_date')
-                        self.upsert_service_repair_order(cursor, row, email, phone, postal_code, repair_order_open_date, repair_order_close_date)
-                    else:
-                        raise ValueError(f"Invalid table name: {table_name}")
-
-                    conn.commit()
-                except Exception as e:
-                    logging.error(f"Error processing row: {row}. Error: {e}")
-                    conn.rollback()
-            cursor.close()
+                            conn.commit()
+                        except Exception as e:
+                            logging.error(f"Error processing row: {row}. Error: {e}")
+                            conn.rollback()
+                            raise e
         except Exception as e:
             logging.error(f"Error getting connection from pool: {e}")
             raise e
         finally:
             self.pool.putconn(conn)
-
 
 
     def run(self, database):
