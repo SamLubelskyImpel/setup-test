@@ -15,15 +15,12 @@ import psycopg2.pool
 import sys
 
 
-
-
 def _load_secret():
     """Get DMS DB configuration from Secrets Manager."""
 
     secret_string = loads(SM_CLIENT.get_secret_value(
         SecretId='prod/DMSDB' if isprod else 'stage/DMSDB' 
     )['SecretString'])
-
     DB_CONFIG = {
         'db_name': secret_string['db_name'],
         'host': secret_string['host'],
@@ -31,7 +28,6 @@ def _load_secret():
         'password': secret_string['password'],
         'port': '5432'
     }
-
     return DB_CONFIG
 
 
@@ -68,10 +64,8 @@ class ReyReyUpsertJob:
         dealer_number = current_df.select("ApplicationArea.Sender.DealerNumber").collect()[0][0]
 
         if 'fi_closed_deal' in catalog_table:
-
             if tablename == 'dealer':
-                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
-                          
+                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")                        
             elif tablename == 'consumer':
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
@@ -83,7 +77,6 @@ class ReyReyUpsertJob:
                     col("FIDeal.Buyer.CustRecord.ContactInfo.Address").alias("address"),
                     col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
                 ).withColumn("DealerNumber", lit(dealer_number))
-
             elif tablename == 'vehicle':
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
@@ -93,7 +86,6 @@ class ReyReyUpsertJob:
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr").alias("year"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass").alias("vehicle_class")
                 ).withColumn("DealerNumber", lit(dealer_number))
-
             elif tablename == 'vehicle_sale':
                 current_df = current_df.select(
                     explode("FIDeal").alias("FIDeal")
@@ -119,19 +111,16 @@ class ReyReyUpsertJob:
                     col("FIDeal.Buyer.CustRecord.ContactInfo.Address").alias("address"),
                     col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
                 ).withColumn("DealerNumber", lit(dealer_number))
-
         elif 'repair_order' in catalog_table:
             if tablename == 'dealer':
-                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
-                        
+                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")                       
             elif tablename == 'vehicle':
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
                 )
                 current_df = current_df.select(
                     col("RepairOrder.RoRecord.Rogen._Vin").alias("vin")
-                ).withColumn("DealerNumber", lit(dealer_number))
-                
+                ).withColumn("DealerNumber", lit(dealer_number))           
             elif tablename == 'consumer':
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
@@ -143,7 +132,6 @@ class ReyReyUpsertJob:
                     col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
                     col("RepairOrder.CustRecord.ContactInfo.Address").alias("address")
                 ).withColumn("DealerNumber", lit(dealer_number))
-
             elif tablename == 'service_repair_order':
                 current_df = current_df.select(
                     explode("RepairOrder.array").alias("RepairOrder")
@@ -159,8 +147,7 @@ class ReyReyUpsertJob:
                     col("RepairOrder.CustRecord.ContactInfo._FirstName").alias("firstname"),
                     col("RepairOrder.CustRecord.ContactInfo._LastName").alias("lastname")
                 ).withColumn("DealerNumber", lit(dealer_number))
-
-         
+    
         # Convert the flattened DataFrame back to a DynamicFrame
         current_dyf = DynamicFrame.fromDF(
             current_df, self.glueContext, "current_dyf"
@@ -182,7 +169,6 @@ class ReyReyUpsertJob:
 
         cursor.execute("SELECT id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealers = cursor.fetchone()
-
         if dealers is not None:
             dealer_id = dealers[0]
             cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND email=%s", (
@@ -201,7 +187,6 @@ class ReyReyUpsertJob:
 
         cursor.execute("SELECT COUNT(*) FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         result = cursor.fetchone()
-
         if result[0] == 0:
             cursor.execute("""
                 INSERT INTO dealer (dms_id)
@@ -214,7 +199,6 @@ class ReyReyUpsertJob:
 
         cursor.execute("SELECT id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealer = cursor.fetchone()
-
         if dealer is not None:
             dealer_id = dealer[0]           
             cursor.execute("SELECT id FROM vehicle WHERE dealer_id=%s AND vin=%s", (
@@ -223,13 +207,11 @@ class ReyReyUpsertJob:
             vehicle = cursor.fetchone()
 
             if vehicle is None:
-
                 cursor.execute("""
                     INSERT INTO vehicle (dealer_id, vin)
                     VALUES (%s, %s)
                 """, (dealer_id, row['vin']))
             elif vehicle is None and catalog == 'fi_closed_deal':
-
                 cursor.execute("""
                     INSERT INTO vehicle (dealer_id, vin, vehicle_class, year)
                     VALUES (%s, %s, %s, %s)
@@ -250,22 +232,17 @@ class ReyReyUpsertJob:
 
         cursor.execute("SELECT id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealer = cursor.fetchone()
-
         cursor.execute("SELECT id FROM vehicle WHERE vin=%s", (row['vin'],))
         vehicle = cursor.fetchone()
-
         if dealer is not None and vehicle is not None:
             dealer_id = dealer[0]           
             vehicle_id = vehicle[0]           
             cursor.execute("SELECT id FROM consumer WHERE dealer_id=%s AND email=%s", (
                 dealer_id, email
                 ))
-
             consumer = cursor.fetchone()
-
             if consumer is not None:
                 consumer_id = consumer[0]           
-
                 cursor.execute("""
                     INSERT INTO vehicle_sale (
                         cost_of_vehicle, discount_on_price,
@@ -313,7 +290,6 @@ class ReyReyUpsertJob:
                 """, (vehicle_id, dealer_id, consumer_id))
 
                 existing_record = cursor.fetchone()
-
                 if existing_record is None:
                     cursor.execute("""
                         INSERT INTO service_repair_order (
@@ -468,14 +444,10 @@ class ReyReyUpsertJob:
 
             for table_name in self.upsert_table_order[catalog_table]:
                 datasource0 = self.read_data_from_catalog(database=database, catalog_table=catalog_table)
-
                 # Apply mappings to the DynamicFrame
                 df_transformed = self.apply_mappings(datasource0, table_name, catalog_table)
-
                 # Convert the DynamicFrame to a DataFrame
                 df = df_transformed.toDF()
-
-
                 # Perform upsert based on the table_name
                 self.upsert(df, table_name, catalog_table)
 

@@ -179,7 +179,7 @@ Resources:
       Description: Workflow for orchestrating glue universal integration jobs
       Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
 
-  # trigger crawler whenever there is new data
+
   # UniversalIntegrationGlueWorkflowStartTrigger:
   #   Type: AWS::Glue::Trigger
   #   Properties:
