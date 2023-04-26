@@ -1,0 +1,21 @@
+[Unit]
+Description=Universal Integrations (uWSGI)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/opt/impel/universal_integrations/app.env
+Type=notify
+ExecStart=/usr/local/bin/uwsgi --ini /opt/uwsgi.ini:uwsgi --ini :prod
+ExecReload=/bin/bash -c "echo w > /tmp/uwsgi.fifo"
+ExecStop=/bin/bash -c "echo q > /tmp/uwsgi.fifo"
+KillSignal=SIGQUIT
+StandardOutput=journal
+StandardError=inherit
+NotifyAccess=all
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+Alias = universal_integrations.service

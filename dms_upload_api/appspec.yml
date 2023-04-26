@@ -1,0 +1,40 @@
+# This is an appspec.yml template file for use with an EC2/On-Premises deployment in CodeDeploy.
+
+version: 0.0  # Do not change or delete this value. It is required by CodeDeploy and reserved for future use.
+os: linux
+
+files:
+  - source: app
+    destination: /opt/impel/universal_integrations
+
+permissions:
+  - object: /opt/impel/universal_integrations
+    owner: ubuntu
+    group: ubuntu
+    mode: 554
+
+hooks:
+  BeforeInstall:
+    - location: codedeploy/before_install.sh
+      timeout: 10
+      runas: root
+  AfterInstall:
+    - location: codedeploy/application_pkgs/config.sh
+      timeout: 120
+      runas: root
+    - location: codedeploy/webserver/config.sh
+      timeout: 10
+      runas: root
+    - location: codedeploy/systemd/config.sh
+      timeout: 10
+      runas: root
+    - location: codedeploy/compile_universal_integrations/config.sh
+      timeout: 10
+  ApplicationStart:
+    - location: codedeploy/start_app.sh
+      timeout: 10
+      runas: root
+  ValidateService:
+    - location: codedeploy/alive.sh
+      timeout: 60
+      runas: root
