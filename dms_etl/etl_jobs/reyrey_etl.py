@@ -104,6 +104,8 @@ class ReyReyUpsertJob:
                     col("FIDeal.FIDealFin.TransactionVehicle._InspectionDate").alias("date_of_state_inspection"),
                     col("FIDeal.FIDealFin.TransactionVehicle._DaysInStock").alias("days_in_stock"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin").alias("vin"),
+                    col("FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear").alias("miles_per_year"),
+                    col("FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual").alias("value_at_end_of_lease"),
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading").alias("mileage_on_vehicle"),
                     col("FIDeal.FIDealFin.TradeIn._ActualCashValue").alias("trade_in_value"),
                     col("FIDeal.FIDealFin.TradeIn._Payoff").alias("payoff_on_trade"),
@@ -178,13 +180,11 @@ class ReyReyUpsertJob:
     def upsert_consumer(self, cursor, row, phone, email, postal_code):
         """Upsert consumer data."""
 
-        #grab the dealer id we need
         cursor.execute("SELECT id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealers = cursor.fetchone()
 
         if dealers is not None:
             dealer_id = dealers[0]
-            #check if the consumer already exists
             cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND email=%s", (
                 dealer_id, email
                 ))
@@ -217,13 +217,11 @@ class ReyReyUpsertJob:
 
         if dealer is not None:
             dealer_id = dealer[0]           
-            #check if the vehicle already exists
             cursor.execute("SELECT id FROM vehicle WHERE dealer_id=%s AND vin=%s", (
                 dealer_id, row['vin']
                 ))
             vehicle = cursor.fetchone()
 
-            #if it doesn't add it. If it does and the catalog we're upsertting to is fi. We have additional data for vehicle. 
             if vehicle is None:
 
                 cursor.execute("""
@@ -275,53 +273,60 @@ class ReyReyUpsertJob:
                         mileage_on_vehicle, trade_in_value,
                         payoff_on_trade, profit_on_sale,
                         vehicle_gross, extended_warranty, is_new,
+                        value_at_end_of_lease, miles_per_year,
                         vehicle_id, dealer_id, consumer_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (vehicle_id, dealer_id, consumer_id) DO NOTHING
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT ON CONSTRAINT unique_vehicle_sale
+                    DO NOTHING;
                 """,
                 (row['cost_of_vehicle'], row['discount_on_price'],
                 date_of_state_inspection, row['days_in_stock'], row['mileage_on_vehicle'],
                 row['trade_in_value'], row['payoff_on_trade'], row['profit_on_sale'], 
                 row['vehicle_gross'], warranty_info, is_new,
+                row['value_at_end_of_lease'], row['miles_per_year'],
                 vehicle_id, dealer_id, consumer_id))
 
 
     def upsert_service_repair_order(self, cursor, row, email, phone, postal_code, repair_order_open_date, repair_order_close_date):
         """Upsert Service Repair Order to RDS."""
-       
         cursor.execute("SELECT id FROM dealer WHERE dms_id=%s", (row['DealerNumber'],))
         dealer = cursor.fetchone()
 
         cursor.execute("SELECT id FROM vehicle WHERE vin=%s", (row['vin'],))
         vehicle = cursor.fetchone()
-        if dealer is not None:
-            dealer_id = dealer[0]           
-            vehicle_id = vehicle[0]           
 
-            cursor.execute("SELECT id FROM consumer WHERE dealer_id=%s AND email=%s", (
-                dealer_id, email
-                ))
+        if dealer is not None and vehicle is not None:
+            dealer_id = dealer[0]
+            vehicle_id = vehicle[0]
+            # Get consumer ID or insert new consumer if not exists
+            cursor.execute("""
+                SELECT id FROM consumer WHERE dealer_id=%s AND email=%s
+            """, (dealer_id, email))
             consumer = cursor.fetchone()
             if consumer is not None:
                 consumer_id = consumer[0]
-
+                # Check for existing service repair order record
                 cursor.execute("""
-                    INSERT INTO service_repair_order (
-                        repair_order_no, ro_open_date,
-                        recommendation, ro_close_date,
-                        consumer_total_amount,
-                        vehicle_id, dealer_id, consumer_id,
-                        ON CONFLICT (vehicle_id, dealer_id, consumer_id) DO NOTHING
+                    SELECT id FROM service_repair_order
+                    WHERE vehicle_id = %s AND dealer_id = %s AND consumer_id = %s
+                """, (vehicle_id, dealer_id, consumer_id))
 
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (row['repair_order_no'], repair_order_open_date,
-                row['recommendation'], repair_order_close_date,
-                row['consumer_total_amount'],
-                vehicle_id, dealer_id, consumer_id
-                ))
+                existing_record = cursor.fetchone()
+
+                if existing_record is None:
+                    cursor.execute("""
+                        INSERT INTO service_repair_order (
+                            repair_order_no, ro_open_date,
+                            recommendation, ro_close_date,
+                            consumer_total_amount,
+                            vehicle_id, dealer_id, consumer_id
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (row['repair_order_no'], repair_order_open_date,
+                        row['recommendation'], repair_order_close_date,
+                        row['consumer_total_amount'],
+                        vehicle_id, dealer_id, consumer_id))
 
 
     def format_phone_number(self, row):
@@ -420,9 +425,15 @@ class ReyReyUpsertJob:
         upsert_functions = {
             'consumer': (self.upsert_consumer, ['phone', 'email', 'postal_code']),
             'vehicle': (self.upsert_vehicle, []),
-            'vehicle_sale': (self.upsert_vehicle_sale, ['warranty_info', 'date_of_state_inspection', 'is_new', 'phone', 'email', 'postal_code']),
+            'vehicle_sale': (self.upsert_vehicle_sale, [
+                'warranty_info', 
+                'date_of_state_inspection',
+                'is_new', 'phone', 'email', 
+                'postal_code']),
             'dealer': (self.upsert_dealer, []),
-            'service_repair_order': (self.upsert_service_repair_order, ['email', 'phone', 'postal_code', 'repair_order_open_date', 'repair_order_close_date'])
+            'service_repair_order': (self.upsert_service_repair_order, [
+                'email', 'phone', 'postal_code',
+                'repair_order_open_date', 'repair_order_close_date'])
         }
 
         upsert_function, format_args = upsert_functions[table_name]
@@ -479,8 +490,8 @@ if __name__ == "__main__":
     DB_CREDENTIALS = _load_secret()
 
     pool = psycopg2.pool.SimpleConnectionPool(
-        1,
-        5,
+        1, #Minimum number of connections 
+        5, #Maximum number of connections 
         dbname=DB_CREDENTIALS['db_name'],
         host=DB_CREDENTIALS['host'],
         port=DB_CREDENTIALS['port'],
