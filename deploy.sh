@@ -52,37 +52,9 @@ fi
 S3CFNInitArticfact=`$SCRIPT_DIR/deploy/build_cfninit_artifact.sh -a "$APP_NAME" -e "$ENVIRONMENT" -p "$PROFILE" -r "$REGION";`
 read DEPLOYMENT_BUCKET CFN_INIT_ARTIFACT < <(parse_s3_path "$S3CFNInitArticfact")
 
-<<<<<<< HEAD
-user=$(aws iam get-user --output json | jq -r .User.UserName)
-commit_id=$(git log -1 --format=%H)
-
-sam build --parallel
-
-if [[ $config_env == "prod" ]]; then
-  sam deploy --config-env "prod" \
-    --tags "Commit=\"$commit_id\" Environment=\"prod\" UserLastModified=\"$user\"" \
-    --region "$region" \
-    --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"prod\""
-elif [[ $config_env == "stage" ]]; then
-  sam deploy --config-env "stage" \
-    --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
-    --region "$region" \
-    --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"stage\""
-else
-  env="$user-$(git rev-parse --abbrev-ref HEAD)"
-  sam deploy \
-    --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "universal-integrations-$env" \
-    --region "$region" \
-    --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\""
-=======
 if [ -z "$S3CFNInitArticfact" ]
 then
   exit 1
->>>>>>> master
 fi
 
 echo "DEPLOYMENT_BUCKET: {$DEPLOYMENT_BUCKET}"
