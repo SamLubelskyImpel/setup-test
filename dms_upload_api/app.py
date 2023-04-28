@@ -1,14 +1,19 @@
 """DMS Upload API Flask app entry point."""
 from os import environ
+from json import loads
 import logging
 from flask import Flask
 from api.route.dms_upload import dms_upload_api
 from api.route.health_check import health_check_api
+from api.secrets_manager import get_secret
+
+REGION_NAME = environ.get("REGION_NAME", "us-east-1")
 
 
 def create_app():
     """Create DMS Upload API flask app."""
-    environ["ENV"] = "stage"
+    secret = get_secret('universal-integrations/deployment_info', REGION_NAME)
+    environ["ENV"] = loads(secret["SecretString"])['ENVIRONMENT']
     app = Flask(__name__)
     app.logger.setLevel(logging.INFO)
 

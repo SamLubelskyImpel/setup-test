@@ -202,8 +202,8 @@ Resources:
               - s3:PutObjectTagging
               - s3:PutObjectVersionAcl
             Resource: !
-              - If [ IsProd, 'arn:aws:s3:::prod-dms-uploads-us-east-1/*', 'arn:aws:s3:::stage-dms-uploads-us-east-1/*' ]
               - !Sub arn:aws:s3:::spincar-deploy-${AWS::Region}/*
+              - !Sub 'arn:aws:s3:::univ-integrations-${AWS::Region}-${Environment}/*'
           - Sid: SESPermission
             Effect: Allow
             Action:
@@ -235,6 +235,7 @@ Resources:
             Action: secretsmanager:GetSecretValue
             Resource:
               - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal-integrations/*"
+              - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/DMSUploadAPI*"
 
   LifecycleHookTerminate:
     Type: AWS::AutoScaling::LifecycleHook
@@ -527,6 +528,33 @@ Resources:
   #           - '${AWS::StackName}.${fqdn}'
   #           - fqdn: !If [ IsProd, 'impel.io.', 'testenv.impel.io.' ]
   #         Type: A
+
+  DeploymentInfo: 
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Universal Integrations Deployment Info
+      Name: 'universal-integrations/deployment_info'
+      SecretString: !Sub '{"ENVIRONMENT":"${Environment}"}'
+
+  UniversalIntegrationBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'univ-integrations-${AWS::Region}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: !If [ IsProd, Enabled, Suspended ]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
 Outputs:
   AutoScalingGroupId:

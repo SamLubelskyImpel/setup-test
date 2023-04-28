@@ -61,7 +61,9 @@ CREATE TABLE stage.vehicle (
 	model varchar(80) NULL,
 	"year" int4 NULL,
 	db_creation_date timestamp NOT NULL DEFAULT now(),
-	CONSTRAINT vehicle_pkey PRIMARY KEY (id)
+	dealer_id int4 NULL,
+	CONSTRAINT vehicle_pkey PRIMARY KEY (id),
+	CONSTRAINT vehicle_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES stage.dealer(id)
 );
 
 
@@ -73,15 +75,16 @@ CREATE TABLE stage.vehicle (
 
 CREATE TABLE stage.dealer (
 	id serial4 NOT NULL,
-	sfdc_account_id int4 NOT NULL,
-	dealer_group_id int4 NOT NULL,
-	"name" varchar(80) NOT NULL,
+	sfdc_account_id int4 NULL,
+	dealer_group_id int4 NULL,
+	"name" varchar(80) NULL,
 	location_name varchar(80) NULL,
 	state varchar(20) NULL,
 	city varchar(40) NULL,
 	zip_code varchar(20) NULL,
 	category varchar(40) NULL,
 	db_creation_date timestamp NOT NULL DEFAULT now(),
+	dms_id varchar(255) NULL,
 	CONSTRAINT dealer_pkey PRIMARY KEY (id),
 	CONSTRAINT dealer_dealer_group_id_fkey FOREIGN KEY (dealer_group_id) REFERENCES stage.dealer_group(id),
 	CONSTRAINT dealer_sfdc_account_id_fkey FOREIGN KEY (sfdc_account_id) REFERENCES stage.sfdc_account(id)
@@ -167,7 +170,7 @@ CREATE TABLE stage.consumer (
 
 CREATE TABLE stage.service_repair_order (
 	id serial4 NOT NULL,
-	partner_id int8 NOT NULL,
+	partner_id int8 NULL,
 	dealer_id int8 NOT NULL,
 	consumer_id int8 NOT NULL,
 	vehicle_id int8 NOT NULL,

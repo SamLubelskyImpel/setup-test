@@ -6,10 +6,7 @@ from json import loads
 from botocore.exceptions import ClientError
 from base64 import b64decode
 
-ENV = environ.get("ENV", "stage")
-REGION_NAME = environ.get("REGION_NAME", "us-east-1")
 
-SECRET_ID = f"{ENV}/DMSUploadAPI"
 
 
 def get_secret(secret_id: str, region_name: str):
@@ -39,6 +36,10 @@ def decode_basic_auth(basic_auth_str: str):
 
 def check_basic_auth(client_id: str, input_auth: str):
     """Check if an api key is valid."""
+    ENV = environ.get("ENV", "test")
+    REGION_NAME = environ.get("REGION_NAME", "us-east-1")
+
+    SECRET_ID = f"{ENV}/DMSUploadAPI"
     secret = get_secret(SECRET_ID, REGION_NAME)
 
     try:
