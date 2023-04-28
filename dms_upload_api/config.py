@@ -1,5 +1,6 @@
 """Flask app config file."""
 from os import environ, path
+
 from dotenv import load_dotenv
 
 ENV = environ.get("ENV", "test")

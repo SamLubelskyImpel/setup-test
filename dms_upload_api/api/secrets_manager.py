@@ -1,10 +1,13 @@
 """Secrets manager functionality."""
-from os import environ
-import boto3
-from json import loads
-from botocore.exceptions import ClientError
 from base64 import b64decode
+from json import loads
+from os import environ
+
+import boto3
+from botocore.exceptions import ClientError
+
 from api.cloudwatch import get_logger
+
 _logger = get_logger()
 
 
@@ -22,7 +25,7 @@ def get_secret(secret_id: str, region_name: str):
 
 
 def decode_basic_auth(basic_auth_str: str):
-    """ Decode a given basic auth. """
+    """Decode a given basic auth."""
     try:
         input_auth_encoded = basic_auth_str.split("Basic ")[1]
         input_auth_str = b64decode(input_auth_encoded).decode("utf-8")
@@ -50,9 +53,7 @@ def check_basic_auth(client_id: str, input_auth: str):
     try:
         expected_auth = loads(secret_value)["api_key"]
     except KeyError:
-        _logger.exception(
-            f"Malformed secret {secret_value} for client {client_id}"
-        )
+        _logger.exception(f"Malformed secret {secret_value} for client {client_id}")
         raise
 
     if input_auth != expected_auth:

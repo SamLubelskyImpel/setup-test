@@ -1,6 +1,8 @@
 """Routes for server health checks."""
-from flask import Blueprint, make_response, jsonify
+from flask import Blueprint, jsonify, make_response
+
 from api.cloudwatch import get_logger
+
 _logger = get_logger()
 
 health_check_api = Blueprint("health_check_api", __name__)
