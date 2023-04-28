@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: dms etl
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 505055843994
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  SslCertificates:
+    us-east-1:
+      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
+      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
+    eu-west-1:
+      '505055843994': 'arn:aws:acm:eu-west-1:505055843994:certificate/1eb09e7e-118a-400b-a5e0-0c48c15477c9'
+      '901863237878': 'arn:aws:acm:eu-west-1:901863237878:certificate/6699a86f-af92-40a8-b8b4-e4fb4019a162'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+  UniversalIntegrationsGlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+      Policies:
+        - PolicyName: UniversalIntegrationsGluePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SMPolicy
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If [ IsProd, 
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB-*"
+                      ]
+        - PolicyName: UniversalIntegrationsGlueS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource: 
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*'
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
+                  - !Sub "arn:aws:s3:::stage-dms-uploads-us-east-1/*"
+        - PolicyName: UniversalIntegrationsGlueSSMPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SSMPolicy
+                Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: "*"
+
+  UniversalIntegrationCrawlerDB:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "universalintegrationcrawler"
+        Description: "universalintegrationDB"
+
+  ReyReyRepairOrderClassifier:
+    Type: AWS::Glue::Classifier
+    Properties:
+      XMLClassifier:
+        Name: "ReyReyRepairOrderClassifier"
+        Classification: "xml"
+        RowTag: "rey_ImpelRepairOrder"
+
+  ReyReyFIClassifier:
+    Type: AWS::Glue::Classifier
+    Properties:
+      XMLClassifier:
+        Name: "ReyReyFIClassifier"
+        Classification: "xml"
+        RowTag: "rey_ImpelFIClosedDeal"
+
+
+  UniversalIntegrationLakeFormationPermissionRaw:
+    Type: AWS::LakeFormation::Permissions
+    Properties:
+      DataLakePrincipal:
+        DataLakePrincipalIdentifier: !GetAtt UniversalIntegrationsGlueRole.Arn
+      Resource:
+        DatabaseResource:
+          Name: !Ref UniversalIntegrationCrawlerDB
+        TableResource:
+          DatabaseName: !Ref UniversalIntegrationCrawlerDB
+          TableWildcard: {}
+      Permissions:
+        - 'ALL'
+      PermissionsWithGrantOption: []
+
+  UniversalIntegrationCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub 'universal-integration-crawler-${Environment}'
+      Description: Crawl raw xml data for universal integrations
+      Role: !GetAtt UniversalIntegrationsGlueRole.Arn
+      TablePrefix: !Sub 'UniversalIntegrationCrawlerDB_'
+      DatabaseName: !Ref UniversalIntegrationCrawlerDB
+      Classifiers:
+        - !Ref ReyReyRepairOrderClassifier
+        - !Ref ReyReyFIClassifier
+      Targets:
+        S3Targets:
+          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/fi_closed_deal/"
+          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
+
+      SchemaChangePolicy:
+        UpdateBehavior: 'UPDATE_IN_DATABASE'
+        DeleteBehavior: 'LOG'
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+
+  UniversalIntegrationETL:
+    Type: AWS::Glue::Job
+    Properties:
+      Description: ETL job to run after the universal integration crawler
+      Name: !Sub 'universal-integration-etl-${Environment}'
+      Role: !GetAtt UniversalIntegrationsGlueRole.Arn
+      GlueVersion: 3.0
+      Command:
+        Name: glueetl
+        PythonVersion: 3
+        ScriptLocation: !Sub 's3://aws-glue-assets-universal-integrations/glue_etl_job/reyrey_etl.py'
+      DefaultArguments: 
+        '--job-bookmark-option': 'job-bookmark-enable'
+        '--TempDir': !Sub 's3://aws-glue-assets-universal-integrations/temporary/'
+        '--db_name': !Ref UniversalIntegrationCrawlerDB
+        '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal,universalintegrationcrawlerdb_repair_order"
+        '--catalog_connection': !Ref RDSConnection
+        '--environment': !Ref Environment
+        '--additional-python-modules': 'psycopg2-binary==2.9.3'
+
+  UniversalIntegrationGlueWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties: 
+      Description: Workflow for orchestrating glue universal integration jobs
+      Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
+
+  UniversalIntegrationGlueWorkflowStartTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'universal-integrations-glue-start-${Environment}'
+      Type: SCHEDULED
+      Description: Trigger for starting the universal integration glue workflow
+      Schedule: cron(0 10 * * ? *)
+      StartOnCreation: true
+      Actions:
+        - CrawlerName: !Ref UniversalIntegrationCrawler
+      WorkflowName: !Ref UniversalIntegrationGlueWorkflow
+
+  UniversalIntegrationGlueWorkflowJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'universal-integration-glue-crawler-success-${Environment}'
+      Type: CONDITIONAL
+      Description: Trigger to start the unverisal integration glue job
+      StartOnCreation: true
+      Actions:
+        - JobName: !Ref UniversalIntegrationETL
+      Predicate:
+        Conditions:
+          - LogicalOperator: EQUALS
+            CrawlerName: !Ref UniversalIntegrationCrawler
+            CrawlState: SUCCEEDED
+      WorkflowName: !Ref UniversalIntegrationGlueWorkflow
+
+  RDSConnection:
+    Type: AWS::Glue::Connection
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput: 
+        ConnectionProperties:
+          Name: 'UniversalIntegrationConnection'
+          Type: JDBC
+          JDBC_CONNECTION_URL: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:jdbc_url}}'
+          USERNAME: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:user}}'
+          PASSWORD: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:password}}'
+        ConnectionType: JDBC
+
+  ReyreyCrawlerAlert:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Alert for when ReyRey Glue Crawler fails
+      State: !If [ IsProd, ENABLED, DISABLED ]
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - "Glue Crawler State Change"
+        detail:
+          state:
+            - "Failed"
+          crawlerName:
+            - !Ref UniversalIntegrationCrawler
+      Targets:
+        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+          Id: !Sub ReyreyCrawlerAlert-target-${Environment}
+
+  ReyreyETLAlert:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Alert for when ReyRey Glue ETL fails
+      State: !If [ IsProd, ENABLED, DISABLED ]
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - "Glue Job State Change"
+        detail:
+          state:
+            - "Failed"
+          jobName:
+            - !Ref UniversalIntegrationETL
+      Targets:
+        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+          Id: !Sub ReyreyETLAlert-target-${Environment}
+
+  AlertTopicPolicy:
+    Type: 'AWS::SNS::TopicPolicy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: AllowSNS
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sns:Publish'
+            Resource:
+              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+      Topics:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+

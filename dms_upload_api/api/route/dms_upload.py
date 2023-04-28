@@ -1,21 +1,23 @@
 """Routes for uploading DMS files."""
 import uuid
+from datetime import datetime, timezone
+
+from flask import Blueprint, jsonify, request
+
+from api.cloudwatch import get_logger
+from api.flask_common import log_and_return_response
 from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_basic_auth, decode_basic_auth
-from api.flask_common import log_and_return_response
-from datetime import datetime, timezone
-from flask import Blueprint, jsonify, current_app, request
+
+_logger = get_logger()
 
 dms_upload_api = Blueprint("dms_upload_api", __name__)
 
 
 def get_reyrey_file_type(filename: str):
-    """ Categorize ReyRey file types by filename.
-    Filenames are _ deliminated with the 3rd parameter specifying type. """
-    reyrey_file_type_mappings = {
-        "RO": "repair_order",
-        "DH": "fi_closed_deal"
-    }
+    """Categorize ReyRey file types by filename.
+    Filenames are _ deliminated with the 3rd parameter specifying type."""
+    reyrey_file_type_mappings = {"RO": "repair_order", "DH": "fi_closed_deal"}
     file_type = None
     filename_sections = filename.split("_")
     if len(filename_sections) >= 3:
@@ -29,9 +31,7 @@ def post_dms_upload():
     request_id = str(uuid.uuid4())
     try:
         now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-        current_app.logger.info(
-            f"ID: {request_id} Request: {request} Headers: {request.headers}"
-        )
+        _logger.info(f"ID: {request_id} Request: {request} Headers: {request.headers}")
 
         auth = request.headers.get("Authorization", None)
         if not auth:
@@ -49,7 +49,11 @@ def post_dms_upload():
             return log_and_return_response(jsonify(response), 400)
 
         client_id, input_auth = decode_basic_auth(auth)
-        if not client_id or not input_auth or not check_basic_auth(client_id, input_auth):
+        if (
+            not client_id
+            or not input_auth
+            or not check_basic_auth(client_id, input_auth)
+        ):
             response = {
                 "message": "This request is unauthorized",
                 "request_id": request_id,
@@ -84,7 +88,7 @@ def post_dms_upload():
         }
         return log_and_return_response(jsonify(response), 200)
     except Exception:
-        current_app.logger.exception("Error running dms_upload endpoint")
+        _logger.exception("Error running dms_upload endpoint")
         response = {
             "message": "Internal Server Error. Please contact Impel support",
             "request_id": request_id,

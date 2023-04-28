@@ -16,17 +16,20 @@ Parameters:
     Default: ""
 
 Conditions:
-  IsProd: !Equals [ !Ref 'AWS::AccountId', '196800776222' ]
-  IsStage: !Equals [ !Ref Environment, stage ]
-  IsProdOrStage: !Or
+  IsProd: !Equals [ !Ref 'AWS::AccountId', '505055843994' ]
+  IsTest: !Equals [ !Ref Environment, test ]
+  IsProdOrTest: !Or
     - !Condition IsProd
-    - !Condition IsStage
+    - !Condition IsTest
 
 Mappings:
   SslCertificates:
     us-east-1:
       '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
       '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
+      # TODO migrate to univ
+      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
+      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
 
 Globals:
   Function:
@@ -41,7 +44,7 @@ Globals:
 Resources:
   DbSecretReadWrite:  # TODO: This secret is just a shell. Must manually add the secret after deploying this template.
     Type: AWS::SecretsManager::Secret
-    Condition: IsProdOrStage  # Application should be written so that Staging secret is used in non-prod, non-stage.
+    Condition: IsProdOrTest  # Application should be written so that Test secret is used in non-prod.
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -141,7 +144,7 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DmsDataService*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*"
                       ]
 
   RepairOrderInbound:
@@ -167,9 +170,8 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
-
 
   VehicleSaleInbound:
     Type: AWS::Serverless::Function
@@ -194,7 +196,7 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
 
   DealerInbound:
@@ -220,7 +222,7 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
 
   IntegrationPartner:
@@ -246,5 +248,5 @@ Resources:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
