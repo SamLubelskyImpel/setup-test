@@ -220,7 +220,7 @@ Resources:
     Type: 'AWS::Events::Rule'
     Properties:
       Description: Alert for when ReyRey Glue Crawler fails
-      State: !If [ IsProd, ENABLED, DISABLED ]
+      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
       EventPattern:
         source:
           - aws.glue
@@ -239,7 +239,7 @@ Resources:
     Type: 'AWS::Events::Rule'
     Properties:
       Description: Alert for when ReyRey Glue ETL fails
-      State: !If [ IsProd, ENABLED, DISABLED ]
+      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
       EventPattern:
         source:
           - aws.glue
