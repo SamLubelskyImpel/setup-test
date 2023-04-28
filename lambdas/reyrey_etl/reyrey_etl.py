@@ -415,6 +415,7 @@ class ReyReyUpsertJob:
         upsert_function, format_args = upsert_functions[table_name]
 
         try:
+            total_upload = 0
             with self.pool.getconn() as conn:
                 with conn.cursor() as cursor:
                     for row in df.rdd.toLocalIterator():
@@ -426,10 +427,13 @@ class ReyReyUpsertJob:
                                 upsert_function(cursor, row, **formatted_data)
 
                             conn.commit()
+                            total_upload += cursor.rowcount
                         except Exception as e:
                             logging.error(f"Error processing row: {row}. Error: {e}")
                             conn.rollback()
                             raise e
+                if total_upload <= 0:
+                    raise RuntimeError(f"Error ETL Job upserted {total_upload} rows")
         except Exception as e:
             logging.error(f"Error getting connection from pool: {e}")
             raise e

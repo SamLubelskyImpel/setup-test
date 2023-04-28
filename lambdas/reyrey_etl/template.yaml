@@ -181,7 +181,7 @@ Resources:
       Name: !Sub 'universal-integrations-glue-start-${Environment}'
       Type: SCHEDULED
       Description: Trigger for starting the universal integration glue workflow
-      Schedule: cron(0 0 * * ? *)
+      Schedule: cron(0 10 * * ? *)
       StartOnCreation: true
       Actions:
         - CrawlerName: !Ref UniversalIntegrationCrawler

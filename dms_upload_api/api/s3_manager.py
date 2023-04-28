@@ -1,9 +1,10 @@
 """S3 manager functionality."""
 from os import environ
 import boto3
-from flask import current_app
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
+from api.cloudwatch import get_logger
+_logger = get_logger()
 
 
 def upload_dms_data(client_id: str, file_type: str, filename: str, data: str):
@@ -19,7 +20,7 @@ def upload_dms_data(client_id: str, file_type: str, filename: str, data: str):
         s3_client = boto3.client("s3")
         s3_client.put_object(Body=data, Bucket=DMS_UPLOAD_BUCKET, Key=key)
     except ClientError:
-        current_app.logger.exception(
+        _logger.exception(
             f"Error uploading {filename} to {key} for client {client_id}"
         )
         raise

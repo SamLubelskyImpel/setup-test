@@ -4,7 +4,9 @@ from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_basic_auth, decode_basic_auth
 from api.flask_common import log_and_return_response
 from datetime import datetime, timezone
-from flask import Blueprint, jsonify, current_app, request
+from flask import Blueprint, jsonify, request
+from api.cloudwatch import get_logger
+_logger = get_logger()
 
 dms_upload_api = Blueprint("dms_upload_api", __name__)
 
@@ -29,7 +31,7 @@ def post_dms_upload():
     request_id = str(uuid.uuid4())
     try:
         now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-        current_app.logger.info(
+        _logger.info(
             f"ID: {request_id} Request: {request} Headers: {request.headers}"
         )
 
@@ -84,7 +86,7 @@ def post_dms_upload():
         }
         return log_and_return_response(jsonify(response), 200)
     except Exception:
-        current_app.logger.exception("Error running dms_upload endpoint")
+        _logger.exception("Error running dms_upload endpoint")
         response = {
             "message": "Internal Server Error. Please contact Impel support",
             "request_id": request_id,

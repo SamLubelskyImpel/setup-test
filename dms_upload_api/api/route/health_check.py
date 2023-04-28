@@ -1,5 +1,7 @@
 """Routes for server health checks."""
-from flask import Blueprint, make_response, current_app, jsonify
+from flask import Blueprint, make_response, jsonify
+from api.cloudwatch import get_logger
+_logger = get_logger()
 
 health_check_api = Blueprint("health_check_api", __name__)
 
@@ -10,7 +12,7 @@ def get_health_check():
     try:
         return make_response(jsonify(success=True), 201)
     except Exception:
-        current_app.logger.exception("Error making request")
+        _logger.exception("Error making request")
         return make_response(
             "Internal Server Error. Please contact Impel support.", 500
         )

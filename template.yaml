@@ -184,6 +184,15 @@ Resources:
             Action: cloudformation:SignalResource
             Resource:
               - !Ref AWS::StackId
+          - Sid: Cloudwatch
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogStreams
+            Resource:
+            - "*"
           - Sid: S3General
             Effect: Allow
             Action:
@@ -528,6 +537,11 @@ Resources:
   #           - '${AWS::StackName}.${fqdn}'
   #           - fqdn: !If [ IsProd, 'impel.io.', 'testenv.impel.io.' ]
   #         Type: A
+
+  DmsUploadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: 'dms_upload_api'
 
   DeploymentInfo: 
     Type: AWS::SecretsManager::Secret
