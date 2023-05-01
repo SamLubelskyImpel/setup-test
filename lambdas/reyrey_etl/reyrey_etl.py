@@ -45,6 +45,7 @@ class ReyReyUpsertJob:
         self.upsert_table_order = self.get_upsert_table_order()
         self.pool = pool
 
+
     def get_upsert_table_order(self):
         """Return a list of tables to upsert by order of dependency."""
         upsert_table_order = {}
@@ -68,7 +69,7 @@ class ReyReyUpsertJob:
                 current_df = current_df.select("ApplicationArea.Sender.DealerNumber")                        
             elif tablename == 'consumer':
                 current_df = current_df.select(
-                    explode("FIDeal").alias("FIDeal")
+                    explode("FIDeal.array").alias("FIDeal")
                 )
                 current_df = current_df.select(
                     col("FIDeal.Buyer.CustRecord.ContactInfo.Email").alias("email"),
@@ -79,7 +80,7 @@ class ReyReyUpsertJob:
                 ).withColumn("DealerNumber", lit(dealer_number))
             elif tablename == 'vehicle':
                 current_df = current_df.select(
-                    explode("FIDeal").alias("FIDeal")
+                    explode("FIDeal.array").alias("FIDeal")
                 )
                 current_df = current_df.select(
                     col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin").alias("vin"),
@@ -88,7 +89,7 @@ class ReyReyUpsertJob:
                 ).withColumn("DealerNumber", lit(dealer_number))
             elif tablename == 'vehicle_sale':
                 current_df = current_df.select(
-                    explode("FIDeal").alias("FIDeal")
+                    explode("FIDeal.array").alias("FIDeal")
                 )
                 current_df = current_df.select(
                     col("FIDeal.FIDealFin.TransactionVehicle._VehCost").alias("cost_of_vehicle"),
@@ -155,12 +156,12 @@ class ReyReyUpsertJob:
         return current_dyf
 
 
-    def read_data_from_catalog(self, database, catalog_table):
+    def read_data_from_catalog(self, database, catalog_table, transformation_ctx):
         """Read data from the AWS catalog and return a dynamic frame."""
         return self.glueContext.create_dynamic_frame.from_catalog(
             database=database,
             table_name=catalog_table,
-            transformation_ctx="datasource0"
+            transformation_ctx=transformation_ctx
         )
 
 
@@ -445,15 +446,22 @@ class ReyReyUpsertJob:
         """Run ETL for each table in our catalog."""
 
         for catalog_table in self.catalog_table_names:
+            transformation_ctx = 'datasource0_' + catalog_table
+            datasource0 = self.read_data_from_catalog(database=database, catalog_table=catalog_table, transformation_ctx=transformation_ctx)
+            if datasource0.count() != 0:
+                for table_name in self.upsert_table_order[catalog_table]:
+                    # Apply mappings to the DynamicFrame
+                    df_transformed = self.apply_mappings(datasource0, table_name, catalog_table)
+                    # Convert the DynamicFrame to a DataFrame
+                    df = df_transformed.toDF()
+                    # Perform upsert based on the table_name
+                    df.show()
+                    self.upsert(df, table_name, catalog_table)
+            else:
+                logging.error(f"There is no new data for the job to process.")
 
-            for table_name in self.upsert_table_order[catalog_table]:
-                datasource0 = self.read_data_from_catalog(database=database, catalog_table=catalog_table)
-                # Apply mappings to the DynamicFrame
-                df_transformed = self.apply_mappings(datasource0, table_name, catalog_table)
-                # Convert the DynamicFrame to a DataFrame
-                df = df_transformed.toDF()
-                # Perform upsert based on the table_name
-                self.upsert(df, table_name, catalog_table)
+        self.job.commit()
+
 
 
 
@@ -477,3 +485,4 @@ if __name__ == "__main__":
 
     job = ReyReyUpsertJob(args, pool=pool)    
     job.run(database=args["db_name"])
+    
