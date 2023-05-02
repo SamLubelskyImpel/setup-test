@@ -8,12 +8,7 @@ Parameters:
     Type: String
     AllowedPattern: '^[a-zA-z0-9-]+$'
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
-  DomainSuffix:
-    Description: The domain suffix of the API Gateway
-    Type: String
-    AllowedPattern: '^[a-zA-z0-9-]+$|'
-    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
-    Default: ""
+
 
 Conditions:
   IsProd:
@@ -43,13 +38,13 @@ Globals:
 
 Resources:
   # Child stacks
-  DmsDataService:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: dms_data_service/template.yaml
-      Parameters:
-        Environment: !Ref Environment
-        DomainSuffix: !Ref DomainSuffix
+  # DmsDataService:
+  #   Type: AWS::Serverless::Application
+  #   Properties:
+  #     Location: dms_data_service/template.yaml
+  #     Parameters:
+  #       Environment: !Ref Environment
+  #       DomainSuffix: !Ref DomainSuffix
   
   ReyReyETL:
     Type: AWS::Serverless::Application
