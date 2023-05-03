@@ -87,25 +87,25 @@ Resources:
                 Action:
                   - ssm:GetParameters
                 Resource: "*"
-        - PolicyName: UniversalIntegrationsGlueSQSPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: SQSPolicy
-                Effect: Allow
-                Action:
-                  - sqs:DeleteMessage
-                  - sqs:GetQueueUrl
-                  - sqs:ListDeadLetterSourceQueues
-                  - sqs:ChangeMessageVisibility
-                  - sqs:PurgeQueue
-                  - sqs:ReceiveMessage
-                  - sqs:GetQueueAttributes
-                  - sqs:ListQueueTags
-                  - sqs:SetQueueAttributes
-                Resource: 
-                  - !Ref ReyReyQueue
-                  - !Ref ReyReyDLQ
+        # - PolicyName: UniversalIntegrationsGlueSQSPolicy
+        #   PolicyDocument:
+        #     Version: '2012-10-17'
+        #     Statement:
+        #       - Sid: SQSPolicy
+        #         Effect: Allow
+        #         Action:
+        #           - sqs:DeleteMessage
+        #           - sqs:GetQueueUrl
+        #           - sqs:ListDeadLetterSourceQueues
+        #           - sqs:ChangeMessageVisibility
+        #           - sqs:PurgeQueue
+        #           - sqs:ReceiveMessage
+        #           - sqs:GetQueueAttributes
+        #           - sqs:ListQueueTags
+        #           - sqs:SetQueueAttributes
+        #         Resource: 
+        #           - !Ref ReyReyQueue
+        #           - !Ref ReyReyDLQ
 
 
   UniversalIntegrationCrawlerDB:
@@ -162,17 +162,17 @@ Resources:
       Targets:
         S3Targets:
           - Path: "s3://stage-dms-uploads-us-east-1/reyrey/fi_closed_deal/"
-            DlqEventQueueArn: !Ref ReyReyDLQ
-            EventQueueArn: !Ref ReyReyQueue      
           - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
-            DlqEventQueueArn: !Ref ReyReyDLQ
-            EventQueueArn: !Ref ReyReyQueue
+            # DlqEventQueueArn: !Ref ReyReyDLQ
+            # EventQueueArn: !Ref ReyReyQueue      
+            # DlqEventQueueArn: !Ref ReyReyDLQ
+            # EventQueueArn: !Ref ReyReyQueue
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
-      RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVENT_MODE'
+      # RecrawlPolicy:
+      #   RecrawlBehavior: 'CRAWL_EVENT_MODE'
 
   UniversalIntegrationETL:
     Type: AWS::Glue::Job
@@ -200,17 +200,17 @@ Resources:
       Description: Workflow for orchestrating glue universal integration jobs
       Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
 
-  UniversalIntegrationGlueWorkflowStartTrigger:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'universal-integrations-glue-start-${Environment}'
-      Type: SCHEDULED
-      Description: Trigger for starting the universal integration glue workflow
-      Schedule: cron(0 10 * * ? *)
-      StartOnCreation: true
-      Actions:
-        - CrawlerName: !Ref UniversalIntegrationCrawler
-      WorkflowName: !Ref UniversalIntegrationGlueWorkflow
+  # UniversalIntegrationGlueWorkflowStartTrigger:
+  #   Type: AWS::Glue::Trigger
+  #   Properties:
+  #     Name: !Sub 'universal-integrations-glue-start-${Environment}'
+  #     Type: SCHEDULED
+  #     Description: Trigger for starting the universal integration glue workflow
+  #     Schedule: cron(0 10 * * ? *)
+  #     StartOnCreation: true
+  #     Actions:
+  #       - CrawlerName: !Ref UniversalIntegrationCrawler
+  #     WorkflowName: !Ref UniversalIntegrationGlueWorkflow
 
   UniversalIntegrationGlueWorkflowJobTrigger:
     Type: AWS::Glue::Trigger
@@ -241,37 +241,37 @@ Resources:
           PASSWORD: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:password}}'
         ConnectionType: JDBC
 
-  ReyReyQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: Rey Rey Queue
+  # ReyReyQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: Rey Rey Queue
 
-  ReyReyDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: MRey Rey DLQ
+  # ReyReyDLQ:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: MRey Rey DLQ
 
 
-  SqsQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref ReyReyQueue
-      PolicyDocument:
-        Version: '2008-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS:
-                - !Sub arn:aws:iam::${AWS::AccountId}:root
-                - !GetAtt UniversalIntegrationsGlueRole.Arn
-            Action: sqs:*
-            Resource: !GetAtt ReyReyQueue.Arn
-          - Effect: Allow
-            Principal:
-              Service: s3.amazonaws.com
-            Action: sqs:*
-            Resource: !GetAtt ReyReyQueue.Arn
+  # SqsQueuePolicy:
+  #   Type: AWS::SQS::QueuePolicy
+  #   Properties:
+  #     Queues:
+  #       - !Ref ReyReyQueue
+  #     PolicyDocument:
+  #       Version: '2008-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             AWS:
+  #               - !Sub arn:aws:iam::${AWS::AccountId}:root
+  #               - !GetAtt UniversalIntegrationsGlueRole.Arn
+  #           Action: sqs:*
+  #           Resource: !GetAtt ReyReyQueue.Arn
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: s3.amazonaws.com
+  #           Action: sqs:*
+  #           Resource: !GetAtt ReyReyQueue.Arn
     
   # ReyreyCrawlerAlert:
   #   Type: 'AWS::Events::Rule'

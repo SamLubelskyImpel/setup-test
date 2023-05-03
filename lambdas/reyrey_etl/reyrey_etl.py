@@ -104,6 +104,12 @@ class ReyReyUpsertJob:
                     col("FIDeal.Buyer.CustRecord.ContactInfo._FirstName").alias("firstname"),
                     col("FIDeal.Buyer.CustRecord.ContactInfo.Address").alias("address"),
                     col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
+                    col("FIDeal.FIDealFin.TransactionVehicle._MSRP").alias("oem_msrp"),
+                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr").alias("year"),
+                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass").alias("vehicle_class"),
+                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc").alias("model"),
+                    col("FIDeal.FIDealFin._Category").alias("deal_type"),
+                    col("FIDeal.FIDealFin._CloseDealDate").alias("sale_date"),
                 ).withColumn("DealerNumber", lit(dealer_number))
         elif 'repair_order' in catalog_table:
             if tablename == 'dealer':
@@ -244,7 +250,10 @@ class ReyReyUpsertJob:
                 ))
             consumer = cursor.fetchone()
             if consumer is not None:
-                consumer_id = consumer[0]           
+                consumer_id = consumer[0] 
+                year = None
+                if row['year'] is not None:
+                    year = int(row['year'])
                 cursor.execute("""
                     INSERT INTO vehicle_sale (
                         cost_of_vehicle, discount_on_price,
@@ -253,9 +262,11 @@ class ReyReyUpsertJob:
                         payoff_on_trade, profit_on_sale,
                         vehicle_gross, extended_warranty, is_new,
                         value_at_end_of_lease, miles_per_year, has_service_contract,
-                        dealer_id, consumer_id
+                        oem_msrp, year, vehicle_class, model, deal_type,
+                        warranty_expiration_date,
+                        sale_date, vin, dealer_id, consumer_id
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT ON CONSTRAINT unique_vehicle_sale
                     DO NOTHING;
                 """,
@@ -264,7 +275,8 @@ class ReyReyUpsertJob:
                 row['trade_in_value'], row['payoff_on_trade'], row['profit_on_sale'], 
                 row['vehicle_gross'], warranty_info['warranty_info_json'], is_new,
                 row['value_at_end_of_lease'], row['miles_per_year'], warranty_info['service_cont'],
-                dealer_id, consumer_id))
+                row['oem_msrp'],year,row['vehicle_class'],row['model'], row['deal_type'],
+                warranty_info['warranty_expiration_date'], row['sale_date'], row['vin'], dealer_id, consumer_id))
 
 
     def upsert_service_repair_order(self, cursor, row, email, phone, postal_code, repair_order_open_date, repair_order_close_date):
@@ -339,16 +351,23 @@ class ReyReyUpsertJob:
         has_struct = False
         warranty_info = {
             'warranty_info_json' : None,
-            'service_cont': False
+            'service_cont': False,
+            'warranty_expiration_date': None
         }
         if hasattr(row, 'warranty_info') and row.warranty_info is not None:
 
             if hasattr(row.warranty_info, 'array') and row.warranty_info.array is not None:
                 warranty_info['service_cont']  = bool(next((item for item in row.warranty_info.array if item.ServiceCont and item.ServiceCont._ServContYN == 'Y'), None))
                 warranty_info['warranty_info_json'] = dumps([item.asDict(True) for item in row.warranty_info.array]) 
+                expiration_dates = [item.ExtWarranty.VehExtWarranty._ExpirationDate for item in row.warranty_info.array if item.ExtWarranty and item.ExtWarranty.VehExtWarranty]
+                warranty_expiration_date = next((ed for ed in expiration_dates if ed is not None), None)
+                warranty_info['warranty_expiration_date'] = self.convert_date(warranty_expiration_date) if warranty_expiration_date is not None else None
+
             elif hasattr(row.warranty_info, 'struct') and row.warranty_info.struct is not None:
                 warranty_info['service_cont']  = bool(row.warranty_info.struct.ServiceCont._ServContYN == 'Y')
                 warranty_info['warranty_info_json'] = dumps(row.warranty_info.struct.asDict(True)) 
+                warranty_expiration_date = row.warranty_info.struct.ExtWarranty.VehExtWarranty._ExpirationDate
+                warranty_info['warranty_expiration_date'] = self.convert_date(warranty_expiration_date) if warranty_expiration_date is not None else None
 
         return warranty_info
 
@@ -436,6 +455,7 @@ class ReyReyUpsertJob:
         upsert_function, format_args = upsert_functions[table_name]
 
         try:
+            total_upload = 0
             with self.pool.getconn() as conn:
                 with conn.cursor() as cursor:
                     for row in df.rdd.toLocalIterator():
@@ -448,10 +468,14 @@ class ReyReyUpsertJob:
                             upsert_function(cursor, row, **formatted_data)
 
                             conn.commit()
+                            total_upload += cursor.rowcount
+
                         except Exception as e:
                             logging.error(f"Error processing row: {row}. Error: {e}")
                             conn.rollback()
                             raise e
+                if total_upload <= 0:
+                    raise RuntimeError(f"Error ETL Job upserted {total_upload} rows")
         except Exception as e:
             logging.error(f"Error getting connection from pool: {e}")
             raise e
@@ -476,7 +500,7 @@ class ReyReyUpsertJob:
             else:
                 logging.error(f"There is no new data for the job to process.")
 
-        # self.job.commit()
+        self.job.commit()
 
 
 
