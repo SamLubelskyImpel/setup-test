@@ -14,7 +14,7 @@ def upload_dms_data(client_id: str, file_type: str, filename: str, data: str):
     """Upload file to s3 dms uploads bucket."""
     ENV = environ.get("ENV", "test")
     REGION_NAME = environ.get("REGION_NAME", "us-east-1")
-    DMS_UPLOAD_BUCKET = f"univ-integrations-{REGION_NAME}-{ENV}"
+    DMS_UPLOAD_BUCKET = f"integrations-{REGION_NAME}-{ENV}"
 
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
     key = f"{client_id}/{file_type}/{now.year}/{now.month}/{now.day}/{filename}"
