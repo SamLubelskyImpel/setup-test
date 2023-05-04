@@ -174,24 +174,19 @@ class ReyReyUpsertJob:
         dealers = cursor.fetchone()
         if dealers is not None:
             dealer_id = dealers[0]
-            cursor.execute("SELECT COUNT(*) FROM consumer WHERE dealer_id=%s AND email=%s", (
-                dealer_id, email
-                ))
-            result = cursor.fetchone()
-            if result[0] == 0:
-                if opt_in:
-                    cursor.execute("""
-                        INSERT INTO consumer (
-                            first_name, last_name, home_phone, postal_code, 
-                            email, dealer_id, dealer_customer_no, 
-                            email_optin_flag)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (row['firstname'], row['lastname'], phone, postal_code, email, dealer_id, row['dealer_customer_no'], opt_in))
-                else:
-                    cursor.execute("""
-                        INSERT INTO consumer (first_name, last_name, home_phone, postal_code, email, dealer_id, dealer_customer_no)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, (row['firstname'], row['lastname'], phone, postal_code, email, dealer_id, row['dealer_customer_no']))                  
+            if opt_in:
+                cursor.execute("""
+                    INSERT INTO consumer (
+                        first_name, last_name, home_phone, postal_code, 
+                        email, dealer_id, dealer_customer_no, 
+                        email_optin_flag)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (row['firstname'], row['lastname'], phone, postal_code, email, dealer_id, row['dealer_customer_no'], opt_in))
+            else:
+                cursor.execute("""
+                    INSERT INTO consumer (first_name, last_name, home_phone, postal_code, email, dealer_id, dealer_customer_no)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (row['firstname'], row['lastname'], phone, postal_code, email, dealer_id, row['dealer_customer_no']))                  
 
     def upsert_dealer(self, cursor, row):
         """Upsert dealer data."""
