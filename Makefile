@@ -27,7 +27,7 @@ clean-pycache:
 
 venv:
 	${INFO} "Creating Python Virtual Environment"
-	@ python3 -m venv envrr
+	@ python3 -m venv .venv
 	${SUCCESS} "Virtual Environment has be created successfully, run ' source .venv/bin/activate' to activate it"
 	${INFO} "Run 'make start' command, when its done, visit http://localhost:8090 to access the app"
 	${INFO} "If you encounter any issues, contact your team lead or platform-infra-devops team"

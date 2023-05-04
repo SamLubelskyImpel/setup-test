@@ -398,7 +398,7 @@ Resources:
               wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
               dpkg -i /tmp/amazon-cloudwatch-agent.deb
               apt-get update
-              apt-get install -y build-essential python3-pip wget ruby-full nginx libpcre3 libpcre3-dev net-tools
+              apt-get install -y build-essential python3-pip wget ruby-full nginx libpcre3 libpcre3-dev net-tools jq
               apt-get install -y python-setuptools
               pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
               pip3 install awscli
