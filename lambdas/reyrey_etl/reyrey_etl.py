@@ -221,15 +221,12 @@ class ReyReyUpsertJob:
                     cursor.execute("""
                         INSERT INTO op_code (dealer_id, op_code, op_code_desc)
                         VALUES (%s, %s, %s)
-                        ON CONFLICT ON CONSTRAINT unique_op_code DO NOTHING
+                        ON CONFLICT ON CONSTRAINT unique_op_code DO UPDATE
+                        SET op_code_desc = excluded.op_code_desc
                         RETURNING id
                     """, (dealer_id, code, desc))
                     
                     op_code_row = cursor.fetchone()
-
-                    if op_code_row is None:
-                        cursor.execute("SELECT id FROM op_code WHERE dealer_id=%s AND op_code=%s", (dealer_id, code))
-                        op_code_row = cursor.fetchone()
 
                     if op_code_row:
                         cursor.execute("""

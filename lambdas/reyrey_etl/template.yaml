@@ -36,7 +36,7 @@ Globals:
         LOGLEVEL: INFO
 
 Resources:
-  UniversalIntegrationsGlueRole:
+  ReyReyGlueRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -51,7 +51,7 @@ Resources:
       ManagedPolicyArns:
           - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
       Policies:
-        - PolicyName: UniversalIntegrationsGluePolicy
+        - PolicyName: ReyReyGluePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -63,7 +63,7 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB-*"
                       ]
-        - PolicyName: UniversalIntegrationsGlueS3Policy
+        - PolicyName: ReyReyGlueS3Policy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -78,7 +78,7 @@ Resources:
                   - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*'
                   - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
                   - !Sub "arn:aws:s3:::stage-dms-uploads-us-east-1/*"
-        - PolicyName: UniversalIntegrationsGlueSSMPolicy
+        - PolicyName: ReyReySSMPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -87,34 +87,39 @@ Resources:
                 Action:
                   - ssm:GetParameters
                 Resource: "*"
-        # - PolicyName: UniversalIntegrationsGlueSQSPolicy
-        #   PolicyDocument:
-        #     Version: '2012-10-17'
-        #     Statement:
-        #       - Sid: SQSPolicy
-        #         Effect: Allow
-        #         Action:
-        #           - sqs:DeleteMessage
-        #           - sqs:GetQueueUrl
-        #           - sqs:ListDeadLetterSourceQueues
-        #           - sqs:ChangeMessageVisibility
-        #           - sqs:PurgeQueue
-        #           - sqs:ReceiveMessage
-        #           - sqs:GetQueueAttributes
-        #           - sqs:ListQueueTags
-        #           - sqs:SetQueueAttributes
-        #         Resource: 
-        #           - !Ref ReyReyQueue
-        #           - !Ref ReyReyDLQ
+        - PolicyName: ReyReyGlueSQSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SQSPolicy
+                Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueUrl
+                  - sqs:CreateQueue
+                  - sqs:SendMessage
+                  - sqs:SendMessageBatch
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:ChangeMessageVisibility
+                  - sqs:PurgeQueue
+                  - sqs:ReceiveMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ListQueueTags
+                  - sqs:SetQueueAttributes
+                Resource: 
+                  - !GetAtt ReyReyROQueue.Arn
+                  - !GetAtt ReyReyRODLQ.Arn
+                  - !GetAtt ReyReyFIQueue.Arn
+                  - !GetAtt ReyReyFIDLQ.Arn
 
 
-  UniversalIntegrationCrawlerDB:
+  ReyReyCrawlerDB:
     Type: AWS::Glue::Database
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
-        Name: "universalintegrationcrawlerdb"
-        Description: "universalintegrationDB"
+        Name: "reyreycrawlerdb"
+        Description: "ReyReyDB"
 
   ReyReyRepairOrderClassifier:
     Type: AWS::Glue::Classifier
@@ -133,53 +138,73 @@ Resources:
         RowTag: "rey_ImpelFIClosedDeal"
 
 
-  UniversalIntegrationLakeFormationPermissionRaw:
+  ReyReyLakeFormationPermissionRaw:
     Type: AWS::LakeFormation::Permissions
     Properties:
       DataLakePrincipal:
-        DataLakePrincipalIdentifier: !GetAtt UniversalIntegrationsGlueRole.Arn
+        DataLakePrincipalIdentifier: !GetAtt ReyReyGlueRole.Arn
       Resource:
         DatabaseResource:
-          Name: !Ref UniversalIntegrationCrawlerDB
+          Name: !Ref ReyReyCrawlerDB
         TableResource:
-          DatabaseName: !Ref UniversalIntegrationCrawlerDB
+          DatabaseName: !Ref ReyReyCrawlerDB
           TableWildcard: {}
       Permissions:
         - 'ALL'
       PermissionsWithGrantOption: []
 
-  UniversalIntegrationCrawler:
+  ReyReyFICrawler:
     Type: AWS::Glue::Crawler
     Properties:
-      Name: !Sub 'universal-integration-crawler-${Environment}'
-      Description: Crawl raw xml data for universal integrations
-      Role: !GetAtt UniversalIntegrationsGlueRole.Arn
-      TablePrefix: !Sub 'UniversalIntegrationCrawlerDB_'
-      DatabaseName: !Ref UniversalIntegrationCrawlerDB
+      Name: !Sub 'rey-rey-crawler-fi-${Environment}'
+      Description: Crawl raw xml data for rey rey fi folder
+      Role: !GetAtt ReyReyGlueRole.Arn
+      TablePrefix: !Sub 'ReyReyCrawlerDB_'
+      DatabaseName: !Ref ReyReyCrawlerDB
       Classifiers:
         - !Ref ReyReyRepairOrderClassifier
         - !Ref ReyReyFIClassifier
       Targets:
         S3Targets:
           - Path: "s3://stage-dms-uploads-us-east-1/reyrey/fi_closed_deal/"
-          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
-            # DlqEventQueueArn: !Ref ReyReyDLQ
-            # EventQueueArn: !Ref ReyReyQueue      
-            # DlqEventQueueArn: !Ref ReyReyDLQ
-            # EventQueueArn: !Ref ReyReyQueue
+            DlqEventQueueArn: !GetAtt ReyReyFIDLQ.Arn
+            EventQueueArn: !GetAtt ReyReyFIQueue.Arn    
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
-      # RecrawlPolicy:
-      #   RecrawlBehavior: 'CRAWL_EVENT_MODE'
+      RecrawlPolicy:
+        RecrawlBehavior: 'CRAWL_EVENT_MODE'
+        
+  ReyReyROCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub 'rey-rey-crawler-ro-${Environment}'
+      Description: Crawl raw xml data for rey rey repair order folder
+      Role: !GetAtt ReyReyGlueRole.Arn
+      TablePrefix: !Sub 'ReyReyCrawlerDB_'
+      DatabaseName: !Ref ReyReyCrawlerDB
+      Classifiers:
+        - !Ref ReyReyRepairOrderClassifier
+        - !Ref ReyReyFIClassifier
+      Targets:
+        S3Targets:    
+          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
+            DlqEventQueueArn: !GetAtt ReyReyRODLQ.Arn
+            EventQueueArn: !GetAtt ReyReyROQueue.Arn
+      SchemaChangePolicy:
+        UpdateBehavior: 'UPDATE_IN_DATABASE'
+        DeleteBehavior: 'LOG'
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+      RecrawlPolicy:
+        RecrawlBehavior: 'CRAWL_EVENT_MODE'
 
-  UniversalIntegrationETL:
+  ReyReyETL:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the universal integration crawler
-      Name: !Sub 'universal-integration-etl-${Environment}'
-      Role: !GetAtt UniversalIntegrationsGlueRole.Arn
+      Description: ETL job to run after the rey rey crawler
+      Name: !Sub 'rey-rey-etl-${Environment}'
+      Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
       Command:
         Name: glueetl
@@ -188,45 +213,36 @@ Resources:
       DefaultArguments: 
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !Sub 's3://aws-glue-assets-universal-integrations/temporary/'
-        '--db_name': !Ref UniversalIntegrationCrawlerDB
-        '--catalog_table_names': "universalintegrationcrawlerdb_fi_closed_deal,universalintegrationcrawlerdb_repair_order"
+        '--db_name': !Ref ReyReyCrawlerDB
+        '--catalog_table_names': "reyreycrawlerdb_fi_closed_deal,reyreycrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
-  UniversalIntegrationGlueWorkflow:
+  ReyReyGlueWorkflow:
     Type: AWS::Glue::Workflow
     Properties: 
-      Description: Workflow for orchestrating glue universal integration jobs
-      Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
+      Description: Workflow for orchestrating glue rey rey jobs
+      Name: !Sub 'rey-rey-glue-workflow-${Environment}'
 
-  # UniversalIntegrationGlueWorkflowStartTrigger:
-  #   Type: AWS::Glue::Trigger
-  #   Properties:
-  #     Name: !Sub 'universal-integrations-glue-start-${Environment}'
-  #     Type: SCHEDULED
-  #     Description: Trigger for starting the universal integration glue workflow
-  #     Schedule: cron(0 10 * * ? *)
-  #     StartOnCreation: true
-  #     Actions:
-  #       - CrawlerName: !Ref UniversalIntegrationCrawler
-  #     WorkflowName: !Ref UniversalIntegrationGlueWorkflow
-
-  UniversalIntegrationGlueWorkflowJobTrigger:
+  ReyReyGlueWorkflowJobTrigger:
     Type: AWS::Glue::Trigger
     Properties:
-      Name: !Sub 'universal-integration-glue-crawler-success-${Environment}'
+      Name: !Sub 'rey-rey-glue-crawler-success-${Environment}'
       Type: CONDITIONAL
       Description: Trigger to start the unverisal integration glue job
       StartOnCreation: true
       Actions:
-        - JobName: !Ref UniversalIntegrationETL
+        - JobName: !Ref ReyReyETL
       Predicate:
+        Logical: AND
         Conditions:
-          - LogicalOperator: EQUALS
-            CrawlerName: !Ref UniversalIntegrationCrawler
-            CrawlState: SUCCEEDED
-      WorkflowName: !Ref UniversalIntegrationGlueWorkflow
+            - LogicalOperator: EQUALS
+              CrawlerName: !Ref ReyReyFICrawler
+              CrawlState: SUCCEEDED
+            - LogicalOperator: EQUALS
+              CrawlerName: !Ref ReyReyROCrawler
+              CrawlState: SUCCEEDED
 
   RDSConnection:
     Type: AWS::Glue::Connection
@@ -234,96 +250,114 @@ Resources:
       CatalogId: !Ref AWS::AccountId
       ConnectionInput: 
         ConnectionProperties:
-          Name: 'UniversalIntegrationConnection'
+          Name: 'ReyReyConnection'
           Type: JDBC
           JDBC_CONNECTION_URL: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:jdbc_url}}'
           USERNAME: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:user}}'
           PASSWORD: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:password}}'
         ConnectionType: JDBC
+        
+  ReyReyFIDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ReyReyFIDLQ
 
-  # ReyReyQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: Rey Rey Queue
+  ReyReyRODLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ReyReyRODLQ
 
-  # ReyReyDLQ:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: MRey Rey DLQ
+  ReyReyROQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ReyReyRODLQ
+    Properties:
+      QueueName: ReyReyROQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReyReyRODLQ.Arn
+        maxReceiveCount: 1
+
+  ReyReyFIQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ReyReyFIDLQ
+    Properties:
+      QueueName: ReyReyFIQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReyReyFIDLQ.Arn
+        maxReceiveCount: 1
 
 
-  # SqsQueuePolicy:
-  #   Type: AWS::SQS::QueuePolicy
-  #   Properties:
-  #     Queues:
-  #       - !Ref ReyReyQueue
-  #     PolicyDocument:
-  #       Version: '2008-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             AWS:
-  #               - !Sub arn:aws:iam::${AWS::AccountId}:root
-  #               - !GetAtt UniversalIntegrationsGlueRole.Arn
-  #           Action: sqs:*
-  #           Resource: !GetAtt ReyReyQueue.Arn
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: s3.amazonaws.com
-  #           Action: sqs:*
-  #           Resource: !GetAtt ReyReyQueue.Arn
-    
-  # ReyreyCrawlerAlert:
-  #   Type: 'AWS::Events::Rule'
-  #   Properties:
-  #     Description: Alert for when ReyRey Glue Crawler fails
-  #     State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-  #     EventPattern:
-  #       source:
-  #         - aws.glue
-  #       detail-type:
-  #         - "Glue Crawler State Change"
-  #       detail:
-  #         state:
-  #           - "Failed"
-  #         crawlerName:
-  #           - !Ref UniversalIntegrationCrawler
-  #     Targets:
-  #       - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
-  #         Id: !Sub ReyreyCrawlerAlert-target-${Environment}
+  ReyreyROCrawlerAlert:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Alert for when ReyRey RO Glue Crawler fails
+      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - "Glue Crawler State Change"
+        detail:
+          state:
+            - "Failed"
+          crawlerName:
+            - !Ref ReyReyROCrawler
+      Targets:
+        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+          Id: !Sub ReyreyCrawlerAlert-target-${Environment}
 
-  # ReyreyETLAlert:
-  #   Type: 'AWS::Events::Rule'
-  #   Properties:
-  #     Description: Alert for when ReyRey Glue ETL fails
-  #     State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-  #     EventPattern:
-  #       source:
-  #         - aws.glue
-  #       detail-type:
-  #         - "Glue Job State Change"
-  #       detail:
-  #         state:
-  #           - "Failed"
-  #         jobName:
-  #           - !Ref UniversalIntegrationETL
-  #     Targets:
-  #       - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
-  #         Id: !Sub ReyreyETLAlert-target-${Environment}
 
-  # AlertTopicPolicy:
-  #   Type: 'AWS::SNS::TopicPolicy'
-  #   Properties:
-  #     PolicyDocument:
-  #       Statement:
-  #         - Sid: AllowSNS
-  #           Effect: Allow
-  #           Principal:
-  #             Service:
-  #               - events.amazonaws.com
-  #           Action: 'sns:Publish'
-  #           Resource:
-  #             - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
-  #     Topics:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+  ReyreyFICrawlerAlert:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Alert for when ReyRey FI Glue Crawler fails
+      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - "Glue Crawler State Change"
+        detail:
+          state:
+            - "Failed"
+          crawlerName:
+            - !Ref ReyReyFICrawler
+      Targets:
+        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+          Id: !Sub ReyreyCrawlerAlert-target-${Environment}
+
+
+  ReyreyETLAlert:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: Alert for when ReyRey Glue ETL fails
+      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
+      EventPattern:
+        source:
+          - aws.glue
+        detail-type:
+          - "Glue Job State Change"
+        detail:
+          state:
+            - "Failed"
+          jobName:
+            - !Ref ReyReyETL
+      Targets:
+        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+          Id: !Sub ReyreyETLAlert-target-${Environment}
+
+  AlertTopicPolicy:
+    Type: 'AWS::SNS::TopicPolicy'
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: AllowSNS
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sns:Publish'
+            Resource:
+              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+      Topics:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
 
