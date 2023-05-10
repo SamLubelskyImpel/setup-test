@@ -13,17 +13,14 @@ Conditions:
   IsProd:
     Fn::Equals:
     - Ref: AWS::AccountId
-    - 505055843994
+    - 196800776222
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
 
 Mappings:
   SslCertificates:
     us-east-1:
-      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
-      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
-    eu-west-1:
-      '505055843994': 'arn:aws:acm:eu-west-1:505055843994:certificate/1eb09e7e-118a-400b-a5e0-0c48c15477c9'
-      '901863237878': 'arn:aws:acm:eu-west-1:901863237878:certificate/6699a86f-af92-40a8-b8b4-e4fb4019a162'
+      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
+      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
 
 Globals:
   Function:
@@ -60,8 +57,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB-*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
                       ]
         - PolicyName: UniversalIntegrationsGlueS3Policy
           PolicyDocument:
@@ -75,9 +72,12 @@ Resources:
                   - s3:ListBucket
                   - s3:*Object
                 Resource: 
-                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*'
-                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py'
-                  - !Sub "arn:aws:s3:::stage-dms-uploads-us-east-1/*"
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/raw_data/*' # TODO: migrate univ
+                  - !Sub 'arn:aws:s3:::aws-glue-assets-universal-integrations/glue_etl_job/s3_glue_job.py' # TODO: migrate univ
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
         - PolicyName: UniversalIntegrationsGlueSSMPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -112,7 +112,6 @@ Resources:
         Classification: "xml"
         RowTag: "rey_ImpelFIClosedDeal"
 
-
   UniversalIntegrationLakeFormationPermissionRaw:
     Type: AWS::LakeFormation::Permissions
     Properties:
@@ -136,14 +135,23 @@ Resources:
       Role: !GetAtt UniversalIntegrationsGlueRole.Arn
       TablePrefix: !Sub 'UniversalIntegrationCrawlerDB_'
       DatabaseName: !Ref UniversalIntegrationCrawlerDB
+      RecrawlPolicy: 
+        RecrawlBehavior: "CRAWL_EVENT_MODE"
       Classifiers:
         - !Ref ReyReyRepairOrderClassifier
         - !Ref ReyReyFIClassifier
       Targets:
         S3Targets:
-          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/fi_closed_deal/"
-          - Path: "s3://stage-dms-uploads-us-east-1/reyrey/repair_order/"
-
+          - Path: !If [ IsProd, 
+                    !Sub "s3://integrations-${AWS::Region}-prod/reyrey/fi_closed_deal/",
+                    !Sub "s3://integrations-${AWS::Region}-test/reyrey/fi_closed_deal/",
+                  ]
+            EventQueueArn: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:integrations-s3-queue-${AWS::Region}-${Environment}'
+          - Path: !If [ IsProd, 
+                    !Sub "s3://integrations-${AWS::Region}-prod/reyrey/repair_order/",
+                    !Sub "s3://integrations-${AWS::Region}-test/reyrey/repair_order/",
+                  ]
+            EventQueueArn: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:integrations-s3-queue-${AWS::Region}-${Environment}'
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
@@ -175,17 +183,17 @@ Resources:
       Description: Workflow for orchestrating glue universal integration jobs
       Name: !Sub 'universal-integrations-glue-workflow-${Environment}'
 
-  UniversalIntegrationGlueWorkflowStartTrigger:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'universal-integrations-glue-start-${Environment}'
-      Type: SCHEDULED
-      Description: Trigger for starting the universal integration glue workflow
-      Schedule: cron(0 10 * * ? *)
-      StartOnCreation: true
-      Actions:
-        - CrawlerName: !Ref UniversalIntegrationCrawler
-      WorkflowName: !Ref UniversalIntegrationGlueWorkflow
+  # UniversalIntegrationGlueWorkflowStartTrigger:
+  #   Type: AWS::Glue::Trigger
+  #   Properties:
+  #     Name: !Sub 'universal-integrations-glue-start-${Environment}'
+  #     Type: SCHEDULED
+  #     Description: Trigger for starting the universal integration glue workflow
+  #     Schedule: cron(0 10 * * ? *)
+  #     StartOnCreation: true
+  #     Actions:
+  #       - CrawlerName: !Ref UniversalIntegrationCrawler
+  #     WorkflowName: !Ref UniversalIntegrationGlueWorkflow
 
   UniversalIntegrationGlueWorkflowJobTrigger:
     Type: AWS::Glue::Trigger
@@ -211,16 +219,16 @@ Resources:
         ConnectionProperties:
           Name: 'UniversalIntegrationConnection'
           Type: JDBC
-          JDBC_CONNECTION_URL: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:jdbc_url}}'
-          USERNAME: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:user}}'
-          PASSWORD: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:stage/DMSDB-W7wRh9:SecretString:password}}'
+          JDBC_CONNECTION_URL: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:jdbc_url}}' # TODO: migrate univ
+          USERNAME: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:user}}' # TODO: migrate univ
+          PASSWORD: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:password}}' # TODO: migrate univ
         ConnectionType: JDBC
 
   ReyreyCrawlerAlert:
     Type: 'AWS::Events::Rule'
     Properties:
       Description: Alert for when ReyRey Glue Crawler fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
+      State: ENABLED
       EventPattern:
         source:
           - aws.glue
@@ -232,14 +240,14 @@ Resources:
           crawlerName:
             - !Ref UniversalIntegrationCrawler
       Targets:
-        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
           Id: !Sub ReyreyCrawlerAlert-target-${Environment}
 
   ReyreyETLAlert:
     Type: 'AWS::Events::Rule'
     Properties:
       Description: Alert for when ReyRey Glue ETL fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
+      State: ENABLED
       EventPattern:
         source:
           - aws.glue
@@ -251,7 +259,7 @@ Resources:
           jobName:
             - !Ref UniversalIntegrationETL
       Targets:
-        - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
           Id: !Sub ReyreyETLAlert-target-${Environment}
 
   AlertTopicPolicy:
@@ -266,7 +274,18 @@ Resources:
                 - events.amazonaws.com
             Action: 'sns:Publish'
             Resource:
-              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+              - !Ref TopicUnivClientEngineeringAlertTopic
       Topics:
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability'
+        - !Ref TopicUnivClientEngineeringAlertTopic
 
+  TopicUnivClientEngineeringAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: alert_client_engineering
+      Subscription:
+        - Endpoint: !If [ IsProd, 
+                    "impel_alert_client_engineering@impel.io",
+                    "ken@impel.io",
+                  ]
+          Protocol: email
+      TopicName: alert_client_engineering

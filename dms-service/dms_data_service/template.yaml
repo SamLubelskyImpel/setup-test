@@ -16,20 +16,13 @@ Parameters:
     Default: ""
 
 Conditions:
-  IsProd: !Equals [ !Ref 'AWS::AccountId', '505055843994' ]
-  IsTest: !Equals [ !Ref Environment, test ]
-  IsProdOrTest: !Or
-    - !Condition IsProd
-    - !Condition IsTest
+  IsProd: !Equals [ !Ref 'AWS::AccountId', '196800776222' ]
 
 Mappings:
   SslCertificates:
     us-east-1:
       '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
       '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
-      # TODO migrate to univ
-      '505055843994': 'arn:aws:acm:us-east-1:505055843994:certificate/5853192a-215d-4d84-8146-d59780bd5f61'
-      '901863237878': 'arn:aws:acm:us-east-1:901863237878:certificate/72cad2db-24a3-494e-bd69-b9cd306f032e'
 
 Globals:
   Function:
@@ -42,15 +35,6 @@ Globals:
         LOGLEVEL: INFO
 
 Resources:
-  DbSecretReadWrite:  # TODO: This secret is just a shell. Must manually add the secret after deploying this template.
-    Type: AWS::SecretsManager::Secret
-    Condition: IsProdOrTest  # Application should be written so that Test secret is used in non-prod.
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      Description: Database credentials for DMS Data Service
-      Name: 'dms/db/rw'
-
   DmsDataServiceGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -147,6 +131,21 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*"
                       ]
 
+  # DmsDataServiceSecret: 
+  #   Type: AWS::SecretsManager::Secret
+  #   DeletionPolicy: Retain
+  #   UpdateReplacePolicy: Retain
+  #   Properties:
+  #     Description: Secrets for DMS Data Service API
+  #     Name: !If [ IsProd, 
+  #             'prod/DmsDataService',
+  #             'test/DmsDataService'
+  #           ]
+  #     SecretString: !If [ IsProd, 
+  #                     '{"impel":"{\"api_key\": \"5d9407b722e04fbaa42e7bd6549ff0ad\"}"}',
+  #                     '{"impel":"{\"api_key\": \"test_5d9407b722e04fbaa42e7bd6549ff0ad\"}"}'
+  #                   ]
+
   RepairOrderInbound:
     Type: AWS::Serverless::Function
     Properties:
@@ -169,8 +168,8 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*", # TODO: migrate univ
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*" # TODO: migrate univ
                       ]
 
   VehicleSaleInbound:
@@ -195,8 +194,8 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*", # TODO: migrate univ
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*" # TODO: migrate univ
                       ]
 
   DealerInbound:
@@ -221,8 +220,8 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*", # TODO: migrate univ
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*" # TODO: migrate univ
                       ]
 
   IntegrationPartner:
@@ -247,6 +246,6 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*", # TODO: migrate univ
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*" # TODO: migrate univ
                       ]

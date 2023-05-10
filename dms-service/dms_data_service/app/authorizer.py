@@ -33,7 +33,7 @@ def _lambda_handler(event, context):
     }
 
     try:
-        secret = SM_CLIENT.get_secret_value(SecretId=f"{'prod' if IS_PROD else 'stage'}/DmsDataService")
+        secret = SM_CLIENT.get_secret_value(SecretId=f"{'prod' if IS_PROD else 'test'}/DmsDataService")
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceNotFoundException':
             return {

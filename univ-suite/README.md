@@ -45,5 +45,5 @@ bash deploy.sh -h
 Deployment example:
 
 ```
-bash deploy.sh -p unified-data-test-dev -e test
+bash deploy.sh -p unified-test -e test
 ```

@@ -8,7 +8,7 @@ function help() {
     Usage:
      ./deploy.sh <parameters>
     Options:
-     -e       REQUIRED: environment to deploy to, e.g. test, stage, prod
+     -e       REQUIRED: environment to deploy to, e.g. dev, test, prod
      -r       an an Impel region, e.g. us, eu
      -h       display this help
     "
@@ -36,8 +36,6 @@ else
     exit 2
 fi
 
-python3 ./dms_data_service/oas_interpolator.py
-
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 
@@ -49,17 +47,17 @@ if [[ $config_env == "prod" ]]; then
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"prod\""
-elif [[ $config_env == "stage" ]]; then
-  sam deploy --config-env "stage" \
-    --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
+elif [[ $config_env == "test" ]]; then
+  sam deploy --config-env "test" \
+    --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"stage\""
+    --parameter-overrides "Environment=\"test\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "universal-integrations-$env" \
+    --stack-name "reyrey-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
