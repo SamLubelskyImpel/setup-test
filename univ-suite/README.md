@@ -1,5 +1,5 @@
 # universal_integrations
-Re-usable integrations for sourcing data from third-parties (e.g. DMS)
+Re-usable integrations for sourcing data from third-parties which require an EC2 instance (e.g. dms_upload_api) 
 
 ### Running the application
 

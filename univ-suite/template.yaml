@@ -579,39 +579,70 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
       NotificationConfiguration:
-        QueueConfigurations:
-          - Event: s3:ObjectCreated:Put
-            Queue: !GetAtt S3PutQueue.Arn
-    DependsOn: S3PutQueuePolicy
+        TopicConfigurations:
+          - Event: s3:ObjectCreated:*
+            Topic: !Ref S3ToSNSTopic
+    DependsOn: S3TopicPolicy
 
-  S3PutQueue:
-    Type: "AWS::SQS::Queue"
+  S3ToSNSTopic:
+    Type: AWS::SNS::Topic
     Properties:
-      VisibilityTimeout: 21600
-      QueueName: !Sub 'integrations-s3-queue-${AWS::Region}-${Environment}'
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt S3PutDLQ.Arn
-        maxReceiveCount: 1
-  
-  S3PutDLQ:
-    Type: AWS::SQS::Queue
+      DisplayName: !Sub 'sns-s3-univ-topic-${AWS::Region}-${Environment}'
+      TopicName: !Sub 'sns-s3-univ-topic-${AWS::Region}-${Environment}'
 
-  S3PutQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
+  S3TopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties: 
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: !Sub 'sns-s3-univ-policy-${AWS::Region}-${Environment}'
+        Statement:
+        - Sid: S3ToSNS
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+            - SNS:Publish
+          Resource: !Ref S3ToSNSTopic
+          Condition:
+            ArnLike:
+              aws:SourceArn: !Sub 'arn:aws:s3:::integrations-${AWS::Region}-${Environment}'
+      Topics: 
+        - Ref: S3ToSNSTopic
+
+  UniversalIntegrationGlueBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !Sub 'integrations-etl-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: !If [ IsProd, Enabled, Suspended ]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  UniversalIntegrationGlueBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UniversalIntegrationGlueBucket
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource: !Sub 'arn:aws:s3:::${UniversalIntegrationGlueBucket}/*'
             Principal:
-              Service: "s3.amazonaws.com"
-            Action: SQS:SendMessage
-            Resource: !GetAtt S3PutQueue.Arn
-            Condition:
-              ArnLike:
-                aws:SourceArn: !Sub 'arn:aws:s3:::integrations-${AWS::Region}-${Environment}'
-      Queues:
-        - Ref: S3PutQueue
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:role/dev"
 
 Outputs:
   AutoScalingGroupId:

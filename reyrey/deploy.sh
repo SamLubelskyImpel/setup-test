@@ -36,6 +36,13 @@ else
     exit 2
 fi
 
+
+if [[ $config_env == "prod" ]]; then
+  aws --profile unified-prod s3 cp reyrey_etl.py s3://integrations-etl-prod/glue_etl_job/reyrey_glue_job.py
+else
+  aws --profile unified-test s3 cp reyrey_etl.py s3://integrations-etl-test/glue_etl_job/reyrey_glue_job.py
+fi
+
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 

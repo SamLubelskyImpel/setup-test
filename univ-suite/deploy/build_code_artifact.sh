@@ -57,10 +57,10 @@ tmpconfig="$tmpcodedir/app/uiapp.env"  # This is the file that will store the ap
 trap 'rm --preserve-root --one-file-system -rf "$tmptar"' EXIT  # Clean up on exit, as safely as possible.
 
 cd $tmpcodedir
-ln -s "$HOME/universal_integrations/dms_upload_api" ./app
+ln -s "$HOME/universal_integrations/univ-suite/dms_upload_api" ./app
 ln -s ./app/dms_upload_api/appspec.yml .  # appspec.yaml MUST be at the root of the artifact.
-cp -r "$HOME/universal_integrations/deploy/dms_upload_api/bootstrap/codedeploy" .  # Copy the general codedeploy scripts.
-\cp -r "$HOME/universal_integrations/dms_upload_api/bootstrap/codedeploy" .  # Now copy the app's codedeploy scripts. Many shells force interactive cp; using \cp circumvents this.
+cp -r "$HOME/universal_integrations/univ-suite/deploy/dms_upload_api/bootstrap/codedeploy" .  # Copy the general codedeploy scripts.
+\cp -r "$HOME/universal_integrations/univ-suite/dms_upload_api/bootstrap/codedeploy" .  # Now copy the app's codedeploy scripts. Many shells force interactive cp; using \cp circumvents this.
 
 files=(
 	.gitignore
