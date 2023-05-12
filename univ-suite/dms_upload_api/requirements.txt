@@ -3,7 +3,7 @@ boto3==1.26.102
 botocore==1.29.102
 click==8.1.3
 flasgger==0.9.5
-Flask==2.2.3
+Flask==2.2.5
 gunicorn==20.1.0
 importlib-metadata==6.1.0
 itsdangerous==2.1.2
