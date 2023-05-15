@@ -65,7 +65,7 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !If [ IsProd, 
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
         - PolicyName: ReyReyGlueS3Policy
           PolicyDocument:
@@ -167,7 +167,7 @@ Resources:
   ReyReyFICrawler:
     Type: AWS::Glue::Crawler
     Properties:
-      Name: !Sub 'rey-rey-crawler-fi-${Environment}'
+      Name: !Sub 'reyrey-crawler-fi-${Environment}'
       Description: Crawl raw xml data for rey rey fi folder
       Role: !GetAtt ReyReyGlueRole.Arn
       TablePrefix: !Sub 'ReyReyCrawlerDB_'
@@ -193,7 +193,7 @@ Resources:
   ReyReyROCrawler:
     Type: AWS::Glue::Crawler
     Properties:
-      Name: !Sub 'rey-rey-crawler-ro-${Environment}'
+      Name: !Sub 'reyrey-crawler-ro-${Environment}'
       Description: Crawl raw xml data for rey rey repair order folder
       Role: !GetAtt ReyReyGlueRole.Arn
       TablePrefix: !Sub 'ReyReyCrawlerDB_'
@@ -220,9 +220,14 @@ Resources:
     Type: AWS::Glue::Job
     Properties:
       Description: ETL job to run after the rey rey crawler
-      Name: !Sub 'rey-rey-etl-${Environment}'
+      Name: !Sub 'reyrey-etl-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      Connections:
+        Connections:
+            - !Sub 'dms-rds-connection-${Environment}'
       Command:
         Name: glueetl
         PythonVersion: 3
@@ -242,18 +247,182 @@ Resources:
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
-  ReyReyGlueWorkflow:
+  GlueTriggerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - glue:notifyEvent
+          Resource:
+          - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
+          - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
+
+  ReyReyEventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub reyrey-eventbridge-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NotifyGlueWorkflow
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                - glue:notifyEvent
+                Resource:
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
+
+  ReyReyWorkflowRO:
     Type: AWS::Glue::Workflow
     Properties: 
-      Description: Workflow for orchestrating glue rey rey jobs
-      Name: !Sub 'rey-rey-glue-workflow-${Environment}'
+      Description: Workflow for orchestrating glue rey rey RO jobs
+      Name: !Sub 'reyrey-glue-workflow-ro-${Environment}'
 
-  ReyReyGlueWorkflowJobTrigger:
+  ReyReyWorkflowRORule:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'reyrey-glue-workflow-ro-rule-${Environment}'
+      AlarmDescription: There are messages in the ReyRey RO queue
+      ActionsEnabled: true
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ReyReyROQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 900
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  ReyReyWorkflowRORuleEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
+      EventPattern:
+        source:
+        - aws.cloudwatch
+        detail-type:
+        - CloudWatch Alarm State Change
+        detail:
+          alarmName:
+            - !Sub 'reyrey-glue-workflow-ro-rule-${Environment}'
+          state:
+            value:
+            - ALARM
+      Description: Runs on reyrey RO alarm triggered
+      Targets:
+        - Id: !Sub reyrey-workflow-ro-target-${Environment}
+          Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
+          RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
+
+  ReyReyWorkflowROStart:
     Type: AWS::Glue::Trigger
     Properties:
-      Name: !Sub 'rey-rey-glue-crawler-success-${Environment}'
+      Name: !Sub 'reyrey-workflow-start-ro-${Environment}'
+      Type: EVENT
+      EventBatchingCondition:
+        BatchSize: 100
+        BatchWindow: 500
+      WorkflowName: !Ref ReyReyWorkflowRO
+      Actions:
+        - CrawlerName: !Ref ReyReyROCrawler
+
+  ReyReyWorkflowROJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'reyrey-ro-crawler-glue-success-${Environment}'
       Type: CONDITIONAL
-      Description: Trigger to start the unverisal integration glue job
+      Description: Trigger to start the universal integration glue job
+      WorkflowName: !Ref ReyReyWorkflowRO
+      StartOnCreation: true
+      Actions:
+        - JobName: !Ref ReyReyETL
+      Predicate:
+        Logical: ANY
+        Conditions:
+            - LogicalOperator: EQUALS
+              CrawlerName: !Ref ReyReyROCrawler
+              CrawlState: SUCCEEDED
+
+  ReyReyWorkflowFI:
+    Type: AWS::Glue::Workflow
+    Properties: 
+      Description: Workflow for orchestrating glue rey rey FI jobs
+      Name: !Sub 'reyrey-glue-workflow-fi-${Environment}'
+
+  ReyReyWorkflowFIRule:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'reyrey-glue-workflow-fi-rule-${Environment}'
+      AlarmDescription: There are messages in the ReyRey FI queue
+      ActionsEnabled: true
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ReyReyFIQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 900
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  ReyReyWorkflowFIRuleEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      State: ENABLED
+      RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
+      EventPattern:
+        source:
+        - aws.cloudwatch
+        detail-type:
+        - CloudWatch Alarm State Change
+        detail:
+          alarmName:
+            - !Sub 'reyrey-glue-workflow-fi-rule-${Environment}'
+          state:
+            value:
+            - ALARM
+      Description: Runs on reyrey FI alarm triggered
+      Targets:
+        - Id: !Sub reyrey-workflow-fi-target-${Environment}
+          Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
+          RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
+
+  ReyReyWorkflowFIStart:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'reyrey-workflow-start-fi-${Environment}'
+      Type: EVENT
+      EventBatchingCondition:
+        BatchSize: 100
+        BatchWindow: 500
+      WorkflowName: !Ref ReyReyWorkflowFI
+      Actions:
+        - CrawlerName: !Ref ReyReyFICrawler
+
+  ReyReyWorkflowFIJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'reyrey-fi-crawler-glue-success-${Environment}'
+      Type: CONDITIONAL
+      Description: Trigger to start the universal integration glue job
+      WorkflowName: !Ref ReyReyWorkflowFI
       StartOnCreation: true
       Actions:
         - JobName: !Ref ReyReyETL
@@ -263,17 +432,19 @@ Resources:
             - LogicalOperator: EQUALS
               CrawlerName: !Ref ReyReyFICrawler
               CrawlState: SUCCEEDED
-            - LogicalOperator: EQUALS
-              CrawlerName: !Ref ReyReyROCrawler
-              CrawlState: SUCCEEDED
 
   RDSConnection:
     Type: AWS::Glue::Connection
     Properties: 
       CatalogId: !Ref AWS::AccountId
-      ConnectionInput: 
+      ConnectionInput:
+        Name: !Sub 'dms-rds-connection-${Environment}'
+        PhysicalConnectionRequirements:
+          AvailabilityZone: 'us-east-1b'
+          SecurityGroupIdList: 
+            - 'sg-00b911ee260ce5153'
+          SubnetId: 'subnet-030d57e39ec0df603'
         ConnectionProperties:
-          Name: 'ReyReyConnection'
           Type: JDBC
           JDBC_CONNECTION_URL: !If [ IsProd, 
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:jdbc_url}}',
@@ -304,6 +475,7 @@ Resources:
     DependsOn: ReyReyRODLQ
     Properties:
       QueueName: ReyReyROQueue
+      DelaySeconds: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ReyReyRODLQ.Arn
         maxReceiveCount: 1
