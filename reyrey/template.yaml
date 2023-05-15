@@ -168,7 +168,7 @@ Resources:
     Type: AWS::Glue::Crawler
     Properties:
       Name: !Sub 'reyrey-crawler-fi-${Environment}'
-      Description: Crawl raw xml data for rey rey fi folder
+      Description: Crawl raw xml data for rey rey fi folder.
       Role: !GetAtt ReyReyGlueRole.Arn
       TablePrefix: !Sub 'ReyReyCrawlerDB_'
       DatabaseName: !Ref ReyReyCrawlerDB
