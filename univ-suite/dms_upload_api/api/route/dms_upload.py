@@ -2,12 +2,11 @@
 import uuid
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify, request
-
 from api.cloudwatch import get_logger
 from api.flask_common import log_and_return_response
 from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_basic_auth, decode_basic_auth
+from flask import Blueprint, jsonify, request
 
 _logger = get_logger()
 

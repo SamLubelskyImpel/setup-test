@@ -1,7 +1,6 @@
 """Shared Flask functions."""
-from flask import make_response
-
 from api.cloudwatch import get_logger
+from flask import make_response
 
 _logger = get_logger()
 

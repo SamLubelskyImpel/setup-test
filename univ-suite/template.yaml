@@ -628,6 +628,7 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  # Allow dev to upload glue etl files on deployment
   UniversalIntegrationGlueBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -643,6 +644,19 @@ Resources:
             Principal:
               AWS:
                 - !Sub "arn:aws:iam::${AWS::AccountId}:role/dev"
+
+  AthenaResultsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'athena-results-${Environment}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: !If [ IsProd, Enabled, Suspended ]
 
 Outputs:
   AutoScalingGroupId:

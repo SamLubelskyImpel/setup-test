@@ -9,7 +9,7 @@ from sqlalchemy import Column, Integer, String
 class SFDCAccount(BaseForModels):
     """SFDC Account Model."""
 
-    __tablename__ = 'sfdc_account'
+    __tablename__ = "sfdc_account"
 
     id = Column(Integer)
     sfdc_account_id = Column(String, primary_key=True)
@@ -18,6 +18,7 @@ class SFDCAccount(BaseForModels):
     def as_dict(self):
         """Return attributes of the keys in the table."""
         return {
-            key.name: getattr(self, key.name) for key in self.__table__.columns
+            key.name: getattr(self, key.name)
+            for key in self.__table__.columns
             if getattr(self, key.name) is not None
         }

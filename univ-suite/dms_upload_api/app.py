@@ -3,11 +3,10 @@ import logging
 from json import loads
 from os import environ
 
-from flask import Flask
-
 from api.route.dms_upload import dms_upload_api
 from api.route.health_check import health_check_api
 from api.secrets_manager import get_secret
+from flask import Flask
 
 REGION_NAME = environ.get("REGION_NAME", "us-east-1")
 

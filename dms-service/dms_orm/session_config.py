@@ -1,17 +1,17 @@
 """Create reusable sqlalchemy session object."""
 
+import sys
+import traceback
 from builtins import object
 from os import environ
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import sys
-import traceback
 
+assert environ["ENVIRONMENT"], "Environment variable `ENVIRONMENT` was not defined"
 
-assert environ['ENVIRONMENT'], 'Environment variable `ENVIRONMENT` was not defined'
-
-env = environ['ENVIRONMENT']
+env = environ["ENVIRONMENT"]
 
 
 from dms_orm.create_db_uri import create_db_uri
@@ -33,23 +33,23 @@ class DBSession(object):
             self.engine = create_engine(
                 self.uri,
                 # TODO: unsure how long connections are open for in our database (look into this)
-                pool_recycle=300
+                pool_recycle=300,
             )
             self.Session = sessionmaker(bind=self.engine)
             _Sessions[self.uri] = (self.engine, self.Session)
-        self.__state = 'pre-open'
- 
+        self.__state = "pre-open"
+
     def __enter__(self):
         """Initialize DB Session."""
-        if self.__state != 'pre-open':
-            raise RuntimeError('this session was already used in a context manager')
+        if self.__state != "pre-open":
+            raise RuntimeError("this session was already used in a context manager")
         self.session = self.Session()
-        self.__state = 'open'
+        self.__state = "open"
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Close DB Session."""
-        self.__state = 'closed'
+        self.__state = "closed"
         try:
             self.session.close()
         except Exception:
@@ -57,8 +57,8 @@ class DBSession(object):
 
     def __getattr__(self, name):
         """Return DB session attributes."""
-        if self.__state != 'open':
-            raise RuntimeError('using session that is not open')
+        if self.__state != "open":
+            raise RuntimeError("using session that is not open")
         return getattr(self.session, name)
 
     def query(self, *args, **kwds):

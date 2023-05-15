@@ -4,9 +4,8 @@ from json import loads
 from os import environ
 
 import boto3
-from botocore.exceptions import ClientError
-
 from api.cloudwatch import get_logger
+from botocore.exceptions import ClientError
 
 _logger = get_logger()
 

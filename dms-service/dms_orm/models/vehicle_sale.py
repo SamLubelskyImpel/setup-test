@@ -2,22 +2,23 @@
 
 import sys
 
-from dms_orm.session_config import BaseForModels
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String
 from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.vehicle import Vehicle
+from dms_orm.session_config import BaseForModels
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey,
+                        Integer, String)
 
 
 class VehicleSale(BaseForModels):
     """Vehicle Sale Model."""
 
-    __tablename__ = 'vehicle_sale'
+    __tablename__ = "vehicle_sale"
 
     id = Column(Integer, primary_key=True)
-    consumer_id = Column(Integer, ForeignKey('consumer.id'))
-    dealer_id = Column(Integer, ForeignKey('dealer.id'))
-    vehicle_id = Column(Integer, ForeignKey('vehicle.id'))
+    consumer_id = Column(Integer, ForeignKey("consumer.id"))
+    dealer_id = Column(Integer, ForeignKey("dealer.id"))
+    vehicle_id = Column(Integer, ForeignKey("vehicle.id"))
     sale_date = Column(DateTime)
     listed_price = Column(Float)
     sales_tax = Column(Float)
@@ -43,6 +44,7 @@ class VehicleSale(BaseForModels):
     def as_dict(self):
         """Return attributes of the keys in the table."""
         return {
-            key.name: getattr(self, key.name) for key in self.__table__.columns
+            key.name: getattr(self, key.name)
+            for key in self.__table__.columns
             if getattr(self, key.name) is not None
         }

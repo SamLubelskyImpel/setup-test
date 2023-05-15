@@ -9,7 +9,7 @@ from sqlalchemy import Column, Integer, String
 class Vehicle(BaseForModels):
     """Vehicle Model."""
 
-    __tablename__ = 'vehicle'
+    __tablename__ = "vehicle"
 
     id = Column(Integer, primary_key=True)
     vin = Column(String)
@@ -24,6 +24,7 @@ class Vehicle(BaseForModels):
     def as_dict(self):
         """Return attributes of the keys in the table."""
         return {
-            key.name: getattr(self, key.name) for key in self.__table__.columns
+            key.name: getattr(self, key.name)
+            for key in self.__table__.columns
             if getattr(self, key.name) is not None
         }
