@@ -1,719 +1,562 @@
 """Rey Rey ETL Job."""
-import datetime
 import logging
 import sys
+import uuid
 from json import dumps, loads
 
 import boto3
-import psycopg2.pool
+import psycopg2
+import pyspark
+import pyspark.sql.functions as F
 from awsglue.context import GlueContext
-from awsglue.dynamicframe import DynamicFrame
 from awsglue.job import Job
-from awsglue.transforms import ApplyMapping, Relationalize, RenameField
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
-from pyspark.sql.functions import col, explode, flatten, lit, input_file_name
-
-logging.basicConfig(
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
-def _load_secret():
-    """Get DMS DB configuration from Secrets Manager."""
+class RDSInstance:
+    """Manage RDS connection."""
 
-    secret_string = loads(
-        SM_CLIENT.get_secret_value(SecretId="prod/DMSDB" if isprod else "test/DMSDB")[
-            "SecretString"
-        ]
-    )
-    db_config = {
-        "db_name": secret_string["db_name"],
-        "host": secret_string["host"],
-        "user": secret_string["user"],
-        "password": secret_string["password"],
-        "port": "5432",
-    }
-    return db_config
+    def __init__(self, is_prod, schema, integration):
+        self.integration = integration
+        self.is_prod = is_prod
+        self.schema = schema
+        self.rds_connection = self.get_rds_connection()
+
+    def get_rds_connection(self):
+        """Get connection to RDS database."""
+        sm_client = boto3.client("secretsmanager")
+        secret_string = loads(
+            sm_client.get_secret_value(
+                SecretId="prod/DMSDB" if self.is_prod else "test/DMSDB"
+            )["SecretString"]
+        )
+        return psycopg2.connect(
+            user=secret_string["user"],
+            password=secret_string["password"],
+            host=secret_string["host"],
+            port=secret_string["port"],
+            database=secret_string["db_name"],
+        )
+
+    def execute_rds(self, query_str):
+        """Execute query on RDS and return cursor."""
+        cursor = self.rds_connection.cursor()
+        cursor.execute(query_str)
+        return cursor
+
+    def commit_rds(self, query_str):
+        """Execute and commit query on RDS and return cursor."""
+        cursor = self.execute_rds(query_str)
+        self.rds_connection.commit()
+        return cursor
+
+    def get_multi_insert_query(self, records, columns, table_name, additional_query=""):
+        """Commit several records to the database.
+        columns is an array of strings of the column names to insert into
+        records is an array of tuples in the same order as columns
+        table_name is the 'schema."table_name"'
+        additional_query is any query text to append after the insertion
+        """
+        if len(records) >= 1:
+            cursor = self.rds_connection.cursor()
+            values_str = f"({''.join('%s, ' for _ in range(len(records[0])))[:-2]})"
+            args_str = ",".join(
+                cursor.mogrify(values_str, x).decode("utf-8") for x in records
+            )
+            columns_str = ",".join(columns)
+            query = f"""INSERT INTO {table_name} ({columns_str}) VALUES {args_str} {additional_query}"""
+            return query
+        else:
+            return None
+
+    def get_insert_query_from_df(self, df, table, additional_query=""):
+        """Get query from df where df column names are db column names for the given table."""
+        column_names = df.columns
+        column_data = []
+        for row in df.collect():
+            column_data.append(tuple(row))
+        table_name = f'{self.schema}."{table}"'
+        query = self.get_multi_insert_query(
+            column_data, column_names, table_name, additional_query
+        )
+        return query
 
 
 class ReyReyUpsertJob:
     """Create object to perform ETL."""
 
-    def __init__(self, args, pool):
+    def __init__(self, job_id, args):
         self.sc = SparkContext()
-        self.glueContext = GlueContext(self.sc)
-        self.spark = self.glueContext.spark_session
-        self.job = Job(self.glueContext)
+        self.glue_context = GlueContext(self.sc)
+        self.spark = self.glue_context.spark_session
+        self.job = Job(self.glue_context)
         self.job.init(args["JOB_NAME"], args)
+        self.job_id = job_id
         self.catalog_table_names = args["catalog_table_names"].split(",")
-        self.upsert_table_order = self.get_upsert_table_order()
-        self.pool = pool
-        self.isprod = isprod
-        self.schema = 'prod' if self.isprod else 'stage'
-
-    def get_upsert_table_order(self):
-        """Return a list of tables to upsert by order of dependency."""
-        upsert_table_order = {}
-        for name in self.catalog_table_names:
-            if "fi_closed_deal" in name:
-                upsert_table_order[name] = ["dealer", "consumer", "vehicle_sale"]
-            elif "repair_order" in name:
-                upsert_table_order[name] = [
-                    "dealer",
-                    "consumer",
-                    "service_repair_order",
-                    "op_code",
-                ]
-
-        return upsert_table_order
-
-    def apply_mappings(self, df, tablename, catalog_table):
-        """Apply appropriate mapping to dynamic frame."""
-        current_df = df.toDF().withColumn('input_file_name', input_file_name())
-
-
-        dealer_number = current_df.select(
-            "ApplicationArea.Sender.DealerNumber"
-        ).collect()[0][0]
-
-        boid = current_df.select(
-            "ApplicationArea.BODId"
-        ).collect()[0][0]
-
-        if "fi_closed_deal" in catalog_table:
-            if tablename == "dealer":
-                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
-            elif tablename == "consumer":
-                current_df = current_df.select(explode("FIDeal.array").alias("FIDeal"))
-                current_df = current_df.select(
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.Email").alias("email"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo._LastName").alias(
-                        "lastname"
-                    ),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo._FirstName").alias(
-                        "firstname"
-                    ),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.Address").alias("address"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo._NameRecId").alias(
-                        "dealer_customer_no"
-                    ),
-                    col("FIDeal.Buyer.CustRecord.CustPersonal._OptOut").alias(
-                        "opt_out_flag"
-                    ),
-                ).withColumn("DealerNumber", lit(dealer_number))
-            elif tablename == "vehicle_sale":
-                current_df = current_df.select(explode("FIDeal.array").alias("FIDeal"))
-                current_df = current_df.select(
-                    col("FIDeal.FIDealFin.TransactionVehicle._VehCost").alias(
-                        "cost_of_vehicle"
-                    ),
-                    col("FIDeal.FIDealFin.TransactionVehicle._Discount").alias(
-                        "discount_on_price"
-                    ),
-                    col("FIDeal.FIDealFin.TransactionVehicle._InspectionDate").alias(
-                        "date_of_state_inspection"
-                    ),
-                    col("FIDeal.FIDealFin.TransactionVehicle._DaysInStock").alias(
-                        "days_in_stock"
-                    ),
-                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin").alias(
-                        "vin"
-                    ),
-                    col("FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear").alias(
-                        "miles_per_year"
-                    ),
-                    col(
-                        "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual"
-                    ).alias("value_at_end_of_lease"),
-                    col(
-                        "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading"
-                    ).alias("mileage_on_vehicle"),
-                    col("FIDeal.FIDealFin.TradeIn._ActualCashValue").alias(
-                        "trade_in_value"
-                    ),
-                    col("FIDeal.FIDealFin.TradeIn._Payoff").alias("payoff_on_trade"),
-                    col("FIDeal.FIDealFin.Recap.Reserves._NetProfit").alias(
-                        "profit_on_sale"
-                    ),
-                    col("FIDeal.FIDealFin.Recap.Reserves._VehicleGross").alias(
-                        "vehicle_gross"
-                    ),
-                    col("FIDeal.FIDealFin.WarrantyInfo").alias("warranty_info"),
-                    col(
-                        "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed"
-                    ).alias("NewUsed"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.Email").alias("email"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo._LastName").alias(
-                        "lastname"
-                    ),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo._FirstName").alias(
-                        "firstname"
-                    ),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.Address").alias("address"),
-                    col("FIDeal.Buyer.CustRecord.ContactInfo.phone").alias("phone"),
-                    col("FIDeal.FIDealFin.TransactionVehicle._MSRP").alias("oem_msrp"),
-                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr").alias(
-                        "year"
-                    ),
-                    col(
-                        "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass"
-                    ).alias("vehicle_class"),
-                    col("FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc").alias(
-                        "model"
-                    ),
-                    col("FIDeal.FIDealFin._Category").alias("deal_type"),
-                    col("FIDeal.FIDealFin._CloseDealDate").alias("sale_date"),
-                ).withColumn("DealerNumber", lit(dealer_number))
-        elif "repair_order" in catalog_table:
-            if tablename == "dealer":
-                current_df = current_df.select("ApplicationArea.Sender.DealerNumber")
-            elif tablename == "op_code":
-                current_df = current_df.select(
-                    explode("RepairOrder.array").alias("RepairOrder")
-                )
-                current_df = current_df.select(
-                    col("RepairOrder.RoRecord.Rogen._RoNo").alias("repair_order_no"),
-                    col("RepairOrder.RoRecord.Rogen.RecommendedServc").alias("opcodes"),
-                ).withColumn("DealerNumber", lit(dealer_number))
-
-            elif tablename == "consumer":
-                current_df = current_df.select(
-                    explode("RepairOrder.array").alias("RepairOrder")
-                )
-                current_df = current_df.select(
-                    col("RepairOrder.CustRecord.ContactInfo._FirstName").alias(
-                        "firstname"
-                    ),
-                    col("RepairOrder.CustRecord.ContactInfo._LastName").alias(
-                        "lastname"
-                    ),
-                    col("RepairOrder.CustRecord.ContactInfo.phone").alias("phone"),
-                    col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
-                    col("RepairOrder.CustRecord.ContactInfo.Address").alias("address"),
-                    col("RepairOrder.CustRecord.ContactInfo._NameRecId").alias(
-                        "dealer_customer_no"
-                    ),
-                ).withColumn("DealerNumber", lit(dealer_number))
-            elif tablename == "service_repair_order":
-                current_df = current_df.select(
-                    explode("RepairOrder.array").alias("RepairOrder")
-                )
-                current_df = current_df.select(
-                    col("RepairOrder.RoRecord.Rogen._Vin").alias("vin"),
-                    col("RepairOrder.RoRecord.Rogen._RoNo").alias("repair_order_no"),
-                    col("RepairOrder.RoRecord.Rogen._CustRoTotalAmt").alias(
-                        "consumer_total_amount"
-                    ),
-                    col("RepairOrder.RoRecord.Rogen._RoCreateDate").alias(
-                        "repair_order_open_date"
-                    ),
-                    col(
-                        "RepairOrder.RoRecord.Rogen.TechRecommends._TechRecommend"
-                    ).alias("recommendation"),
-                    col("RepairOrder.ServVehicle.VehicleServInfo._LastRODate").alias(
-                        "repair_order_close_date"
-                    ),
-                    col("RepairOrder.CustRecord.ContactInfo.Email").alias("email"),
-                    col("RepairOrder.CustRecord.ContactInfo._FirstName").alias(
-                        "firstname"
-                    ),
-                    col("RepairOrder.CustRecord.ContactInfo._LastName").alias(
-                        "lastname"
-                    ),
-                ).withColumn("DealerNumber", lit(dealer_number))
-
-        # Convert the flattened DataFrame back to a DynamicFrame
-        current_dyf = DynamicFrame.fromDF(current_df, self.glueContext, "current_dyf")
-        return current_dyf
-
-    def upsert_consumer(self, cursor, row, phone, email, postal_code, opt_in=None):
-        """Upsert consumer data."""
-        cursor.execute(f"SELECT id FROM {self.schema}.dealer WHERE dms_id=%s", (row["DealerNumber"],))
-        dealers = cursor.fetchone()
-        if dealers is not None:
-            dealer_id = dealers[0]
-            if opt_in:
-                cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema}.consumer (
-                        first_name, last_name, home_phone, postal_code, 
-                        email, dealer_id, dealer_customer_no, 
-                        email_optin_flag)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        row["firstname"],
-                        row["lastname"],
-                        phone,
-                        postal_code,
-                        email,
-                        dealer_id,
-                        row["dealer_customer_no"],
-                        opt_in,
-                    ),
-                )
-            else:
-                cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema}.consumer (first_name, last_name, home_phone, postal_code, email, dealer_id, dealer_customer_no)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        row["firstname"],
-                        row["lastname"],
-                        phone,
-                        postal_code,
-                        email,
-                        dealer_id,
-                        row["dealer_customer_no"]
-                    ),
-                )
-
-    def upsert_dealer(self, cursor, row):
-        """Upsert dealer data."""
-        cursor.execute(
-            f"SELECT COUNT(*) FROM {self.schema}.dealer WHERE dms_id=%s", (row["DealerNumber"],)
+        self.dlq_url = args["dlq_url"]
+        self.database = args["db_name"]
+        self.integration = "reyrey"
+        self.is_prod = args["environment"] == "prod"
+        self.schema = f"{'prod' if self.is_prod else 'stage'}"
+        self.bucket_name = (
+            f"integrations-us-east-1-{'prod' if self.is_prod else 'test'}"
         )
-        result = cursor.fetchone()
-        if result[0] == 0:
-            cursor.execute(
-                f"""
-                INSERT INTO {self.schema}.dealer (dms_id)
-                VALUES (%s)
-            """,
-                (row["DealerNumber"],),
-            )
-
-    def upsert_op_code(self, cursor, row, op_code):
-        """Upsert op code and op_code_repair_order data."""
-
-        cursor.execute(f"SELECT id FROM {self.schema}.dealer WHERE dms_id=%s", (row["DealerNumber"],))
-        dealer = cursor.fetchone()
-
-        if dealer is not None:
-            dealer_id = dealer[0]
-            cursor.execute(
-                f"SELECT id FROM {self.schema}.service_repair_order WHERE repair_order_no=%s AND dealer_id=%s",
-                (str(row["repair_order_no"]), dealer_id),
-            )
-            service_repair = cursor.fetchone()
-
-            if service_repair is not None:
-                service_repair_id = service_repair[0]
-                for code, desc in op_code.items():
-                    cursor.execute(
-                        f"""
-                        INSERT INTO {self.schema}.op_code (dealer_id, op_code, op_code_desc)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT ON CONSTRAINT unique_op_code DO UPDATE
-                        SET op_code_desc = excluded.op_code_desc
-                        RETURNING id
-                    """,
-                        (dealer_id, code, desc),
-                    )
-
-                    op_code_row = cursor.fetchone()
-
-                    if op_code_row:
-                        cursor.execute(
-                            f"""
-                            INSERT INTO {self.schema}.op_code_repair_order (op_code_id, repair_order_id)
-                            VALUES (%s, %s)
-                        """,
-                            (op_code_row[0], service_repair_id),
-                        )
-
-    def upsert_vehicle_sale(
-        self,
-        cursor,
-        row,
-        warranty_info,
-        date_of_state_inspection,
-        is_new,
-        phone,
-        email,
-        postal_code,
-    ):
-        """Upsert Vehicle Sale data."""
-        cursor.execute(f"SELECT id FROM {self.schema}.dealer WHERE dms_id=%s", (row["DealerNumber"],))
-        dealer = cursor.fetchone()
-        if dealer is not None:
-            dealer_id = dealer[0]
-            cursor.execute(
-                f"SELECT id FROM {self.schema}.consumer WHERE dealer_id=%s AND email=%s",
-                (dealer_id, email),
-            )
-            consumer = cursor.fetchone()
-            if consumer is not None:
-                consumer_id = consumer[0]
-                year = None
-                if row["year"] is not None:
-                    year = int(row["year"])
-                cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema}.vehicle_sale (
-                        cost_of_vehicle, discount_on_price,
-                        date_of_state_inspection, days_in_stock,
-                        mileage_on_vehicle, trade_in_value,
-                        payoff_on_trade, profit_on_sale,
-                        vehicle_gross, extended_warranty, is_new,
-                        value_at_end_of_lease, miles_per_year, has_service_contract,
-                        oem_msrp, year, vehicle_class, model, deal_type,
-                        warranty_expiration_date,
-                        sale_date, vin, dealer_id, consumer_id
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT ON CONSTRAINT unique_vehicle_sale
-                    DO NOTHING;
-                """,
-                    (
-                        row["cost_of_vehicle"],
-                        row["discount_on_price"],
-                        date_of_state_inspection,
-                        row["days_in_stock"],
-                        row["mileage_on_vehicle"],
-                        row["trade_in_value"],
-                        row["payoff_on_trade"],
-                        row["profit_on_sale"],
-                        row["vehicle_gross"],
-                        warranty_info["warranty_info_json"],
-                        is_new,
-                        row["value_at_end_of_lease"],
-                        row["miles_per_year"],
-                        warranty_info["service_cont"],
-                        row["oem_msrp"],
-                        year,
-                        row["vehicle_class"],
-                        row["model"],
-                        row["deal_type"],
-                        warranty_info["warranty_expiration_date"],
-                        row["sale_date"],
-                        row["vin"],
-                        dealer_id,
-                        consumer_id,
-                    ),
-                )
-
-    def upsert_service_repair_order(
-        self,
-        cursor,
-        row,
-        email,
-        phone,
-        postal_code,
-        repair_order_open_date,
-        repair_order_close_date,
-    ):
-        """Upsert Service Repair Order to RDS."""
-        cursor.execute(f"SELECT id FROM {self.schema}.dealer WHERE dms_id=%s", (row["DealerNumber"],))
-        dealer = cursor.fetchone()
-
-        if dealer is not None:
-            dealer_id = dealer[0]
-            cursor.execute(
-                f"""
-                SELECT id FROM {self.schema}.consumer WHERE dealer_id=%s AND email=%s
-            """,
-                (dealer_id, email),
-            )
-            consumer = cursor.fetchone()
-            if consumer is not None:
-                consumer_id = consumer[0]
-                cursor.execute(
-                    f"""
-                    INSERT INTO {self.schema}.service_repair_order (
-                        repair_order_no, ro_open_date,
-                        recommendation, ro_close_date,
-                        consumer_total_amount,
-                        dealer_id, consumer_id
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
-                    SET ro_open_date = excluded.ro_open_date,
-                        recommendation = excluded.recommendation,
-                        ro_close_date = excluded.ro_close_date,
-                        consumer_total_amount = excluded.consumer_total_amount,
-                        consumer_id = excluded.consumer_id
-                """,
-                    (
-                        row["repair_order_no"],
-                        repair_order_open_date,
-                        row["recommendation"],
-                        repair_order_close_date,
-                        row["consumer_total_amount"],
-                        dealer_id,
-                        consumer_id,
-                    ),
-                )
-
-    def format_phone_number(self, row):
-        """Get phone_number struct or array and return string."""
-        phone = None
-        if hasattr(row, "phone"):
-            if hasattr(row.phone, "array") and row.phone.array is not None:
-                phone = next(
-                    (
-                        phone_row._Num.long
-                        for phone_row in row.phone.array
-                        if phone_row._Type == "H"
-                    ),
-                    None,
-                )
-            elif hasattr(row.phone, "struct") and row.phone.struct is not None:
-                if row.phone.struct._Type == "H":
-                    phone = row.phone.struct._Num
-
-        return str(phone) if phone is not None else phone
-
-    def format_email(self, row):
-        """Get email tuple and return string."""
-        email = None
-        if hasattr(row, "email") and row.email is not None:
-            email = row.email._MailTo
-        return str(email) if email is not None else email
-
-    def format_postal_code(self, row):
-        """Get address struct or array and return postal_code."""
-        postal_code = None
-        if hasattr(row, "address") and row.address is not None:
-            if hasattr(row.address, "struct") and row.address.struct is not None:
-                postal_code = row.address.struct._Zip
-            elif hasattr(row.address, "array") and row.address.array is not None:
-                postal_code = next(
-                    (address_row._Zip for address_row in row.address.array), None
-                )
-
-        return str(postal_code) if postal_code is not None else postal_code
-
-    def format_warranty_info(self, row):
-        """Get warranty data struct or array and return JSON."""
-        warranty_info = {
-            "warranty_info_json": None,
-            "service_cont": False,
-            "warranty_expiration_date": None,
-        }
-        if hasattr(row, "warranty_info") and row.warranty_info is not None:
-            if (
-                hasattr(row.warranty_info, "array")
-                and row.warranty_info.array is not None
-            ):
-                warranty_info["service_cont"] = bool(
-                    next(
-                        (
-                            item
-                            for item in row.warranty_info.array
-                            if item.ServiceCont and item.ServiceCont._ServContYN == "Y"
-                        ),
-                        None,
-                    )
-                )
-                warranty_info["warranty_info_json"] = dumps(
-                    [item.asDict(True) for item in row.warranty_info.array]
-                )
-                expiration_dates = [
-                    item.ExtWarranty.VehExtWarranty._ExpirationDate
-                    for item in row.warranty_info.array
-                    if item.ExtWarranty and item.ExtWarranty.VehExtWarranty
-                ]
-                warranty_expiration_date = next(
-                    (ed for ed in expiration_dates if ed is not None), None
-                )
-                warranty_info["warranty_expiration_date"] = (
-                    self.convert_date(warranty_expiration_date)
-                    if warranty_expiration_date is not None
-                    else None
-                )
-
-            elif (
-                hasattr(row.warranty_info, "struct")
-                and row.warranty_info.struct is not None
-            ):
-                warranty_info["service_cont"] = bool(
-                    row.warranty_info.struct.ServiceCont._ServContYN == "Y"
-                )
-                warranty_info["warranty_info_json"] = dumps(
-                    row.warranty_info.struct.asDict(True)
-                )
-                warranty_expiration_date = (
-                    row.warranty_info.struct.ExtWarranty.VehExtWarranty._ExpirationDate
-                )
-                warranty_info["warranty_expiration_date"] = (
-                    self.convert_date(warranty_expiration_date)
-                    if warranty_expiration_date is not None
-                    else None
-                )
-
-        return warranty_info
-
-    def format_is_new(self, row):
-        """Get NewUsed, determine and return is_new Boolean."""
-        is_new = False
-        if hasattr(row, "NewUsed"):
-            is_new = True if row.NewUsed == "N" else False
-        return is_new
-
-    def convert_date(
-        self, date_string, input_format="%m/%d/%Y", output_format="%Y-%m-%d"
-    ):
-        """Convert date object to string."""
-        dt_obj = datetime.datetime.strptime(date_string, input_format)
-        return dt_obj.strftime(output_format)
-
-    def format_date(self, row, attribute_name):
-        """Format and return string datetime value."""
-        ro_date = None
-        if hasattr(row, attribute_name):
-            date_value = getattr(row, attribute_name)
-            if date_value is not None:
-                ro_date = self.convert_date(date_value)
-
-        return ro_date
-
-    def format_opt_in(self, row):
-        opt_in = False
-        if hasattr(row, "OptOut"):
-            opt_in = True if row.OptOut == "N" else False
-
-        return opt_in
-
-    def format_op(self, row):
-        """Format and return dictonary of OP Codes and Descriptions."""
-
-        op_codes_dict = {}
-        if hasattr(row, "opcodes") and row.opcodes is not None:
-            opcodes = row.opcodes
-            for opcode in opcodes:
-                op_codes_dict[opcode._RecSvcOpCode] = opcode._RecSvcOpCdDesc
-
-        return op_codes_dict
-
-    def upsert(self, df, table_name, catalog_table):
-        """Upsert ReyRey data to RDS."""
-        def format_data(row, *args):
-            data = {}
-            for arg in args:
-                if arg == "phone":
-                    data[arg] = self.format_phone_number(row)
-                elif arg == "email":
-                    data[arg] = self.format_email(row)
-                elif arg == "postal_code":
-                    data[arg] = self.format_postal_code(row)
-                elif arg == "warranty_info":
-                    data[arg] = self.format_warranty_info(row)
-                elif arg == "date_of_state_inspection":
-                    data[arg] = self.format_date(row, "date_of_state_inspection")
-                elif arg == "is_new":
-                    data[arg] = self.format_is_new(row)
-                elif arg == "repair_order_open_date":
-                    data[arg] = self.format_date(row, "repair_order_open_date")
-                elif arg == "repair_order_close_date":
-                    data[arg] = self.format_date(row, "repair_order_close_date")
-                elif arg == "op_code":
-                    data[arg] = self.format_op(row)
-                elif arg == "opt_in":
-                    data[arg] = self.format_opt_in(row)
-            return data
-
-        upsert_functions = {
-            "consumer": (self.upsert_consumer, ["phone", "email", "postal_code"]),
-            "vehicle_sale": (
-                self.upsert_vehicle_sale,
-                [
-                    "warranty_info",
-                    "date_of_state_inspection",
-                    "is_new",
-                    "phone",
-                    "email",
-                    "postal_code",
-                ],
-            ),
-            "op_code": (self.upsert_op_code, ["op_code"]),
-            "dealer": (self.upsert_dealer, []),
-            "service_repair_order": (
-                self.upsert_service_repair_order,
-                [
-                    "email",
-                    "phone",
-                    "postal_code",
-                    "repair_order_open_date",
-                    "repair_order_close_date",
-                ],
-            ),
+        self.rds = RDSInstance(self.is_prod, self.schema, self.integration)
+        self.mappings = {
+            "reyreycrawlerdb_fi_closed_deal": {
+                "dealer": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
+                "consumer": {
+                    "dealer_customer_no": "FIDeal.Buyer.CustRecord.ContactInfo._NameRecId",
+                    "first_name": "FIDeal.Buyer.CustRecord.ContactInfo._FirstName",
+                    "last_name": "FIDeal.Buyer.CustRecord.ContactInfo._LastName",
+                    "email": "FIDeal.Buyer.CustRecord.ContactInfo.Email._MailTo",
+                    "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
+                    "city": "FIDeal.Buyer.CustRecord.ContactInfo.Address._City",
+                    "state": "FIDeal.Buyer.CustRecord.ContactInfo.Address._State",
+                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address._Zip",
+                    "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
+                },
+                "vehicle_sale": {
+                    "sale_date": "FIDeal.FIDealFin._CloseDealDate",
+                    "listed_price": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
+                    "sales_tax": "FIDeal.FIDealFin.FinanceInfo.TaxAmounts.TotTaxes",
+                    "mileage_on_vehicle": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading",
+                    "deal_type": "FIDeal.FIDealFin._Category",
+                    "cost_of_vehicle": "FIDeal.FIDealFin.TransactionVehicle._VehCost",
+                    "oem_msrp": "FIDeal.FIDealFin.TransactionVehicle._MSRP",
+                    "adjustment_on_price": "FIDeal.FIDealFin.TransactionVehicle._Discount",
+                    "days_in_stock": "FIDeal.FIDealFin.TransactionVehicle._DaysInStock",
+                    "date_of_state_inspection": "FIDeal.FIDealFin.TransactionVehicle._InspectionDate",
+                    "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
+                    "trade_in_value": "FIDeal.FIDealFin.TradeIn._ActualCashValue",
+                    "payoff_on_trade": "FIDeal.FIDealFin.TradeIn._Payoff",
+                    "value_at_end_of_lease": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual",
+                    "miles_per_year": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear",
+                    "profit_on_sale": "FIDeal.FIDealFin.Recap.Reserves._NetProfit",
+                    "has_service_contract": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
+                    "vehicle_gross": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
+                    "warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
+                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont.CompanyName",
+                    "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
+                    "make": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehicleMake",
+                    "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
+                    "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
+                    "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
+                },
+            },
+            "reyreycrawlerdb_repair_order": {
+                "dealer": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
+                "op_codes": {
+                    "repair_order_no": "RepairOrder.RoRecord.Rogen._RoNo",
+                    "opcodes": "RepairOrder.RoRecord.Rogen.RecommendedServc",
+                },
+                "consumer": {
+                    "dealer_customer_no": "RepairOrder.CustRecord.ContactInfo._NameRecId",
+                    "first_name": "RepairOrder.CustRecord.ContactInfo._FirstName",
+                    "last_name": "RepairOrder.CustRecord.ContactInfo._LastName",
+                    "email": "RepairOrder.CustRecord.ContactInfo.Email._MailTo",
+                    "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
+                    "city": "RepairOrder.CustRecord.ContactInfo.Address._City,",
+                    "state": "RepairOrder.CustRecord.ContactInfo.Address._State",
+                    "postal_code": "RepairOrder.CustRecord.ContactInfo.Address._Zip",
+                    "home_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
+                },
+                "service_repair_order": {
+                    "ro_open_date": "RepairOrder.RoRecord.Rogen._RoCreateDate",
+                    "ro_close_date": "RepairOrder.ServVehicle.VehicleServInfo._LastRODate",
+                    "txn_pay_type": "RepairOrder.RoRecord.Rolabor.RoAmts._PayType",
+                    "repair_order_no": "RepairOrder.RoRecord.Rogen._RoNo",
+                    "advisor_name": "RepairOrder.RoRecord.Rogen._AdvName",
+                    "total_amount": "RepairOrder.RoRecord.Rolabor.RoAmts._TxblAmt",
+                    "consumer_total_amount": "RepairOrder.RoRecord.Rogen._CustRoTotalAmt",
+                    "warranty_total_amount": "RepairOrder.RoRecord.Rogen._WarrRoTotalAmt",
+                    "comment": "RepairOrder.RoRecord.Rogen.RoCommentInfo",
+                    "recommendation": "RepairOrder.RoRecord.Rogen.TechRecommends._TechRecommend",
+                },
+            },
         }
 
-        upsert_function, format_args = upsert_functions[table_name]
+    def select_columns(self, df, table_to_mappings):
+        """Select valid db columns from a dataframe using dms column mappings, log and skip missing data."""
+        ignore_columns = []
+        selected_columns = []
+        selected_column_names = []
+        for db_columns_to_dms_columns in table_to_mappings.values():
+            for db_column, dms_column in db_columns_to_dms_columns.items():
+                try:
+                    df.select(dms_column)
+                except pyspark.sql.utils.AnalysisException:
+                    logger.warning(
+                        f"Column: {db_column} with mapping: {dms_column} not found, default to null."
+                    )
+                    ignore_columns.append(db_column)
 
-        total_upload = 0
+            for db_column, dms_column in db_columns_to_dms_columns.items():
+                if (
+                    db_column not in ignore_columns
+                    and db_column not in selected_column_names
+                ):
+                    selected_columns.append(F.col(dms_column).alias(db_column))
+                    selected_column_names.append(db_column)
+        return df.select(selected_columns)
+
+    def apply_mappings(self, df, catalog_name):
+        """Map the raw data to the unified column and return as a dataframe."""
+        if "reyreycrawlerdb_fi_closed_deal" == catalog_name:
+            data_column_name = "FIDeal"
+        elif "reyreycrawlerdb_repair_order" == catalog_name:
+            data_column_name = "RepairOrder"
+        else:
+            raise RuntimeError(f"Unexpected catalog {catalog_name}")
+
+        # Log data with null values
+        null_data = df.where(F.col(f"{data_column_name}.Array").isNull()).select(
+            "Year",
+            "Month",
+            "Date",
+            "ApplicationArea.Sender.DealerNumber",
+            "ApplicationArea.BODId",
+        )
+        null_data_json = null_data.toJSON().collect()
+        logging.warning(f"Skip processing null data: {null_data_json}")
+
+        # Log and select data without null values
+        valid_data = df.where(F.col(f"{data_column_name}.Array").isNotNull()).select(
+            "Year",
+            "Month",
+            "Date",
+            "ApplicationArea",
+            F.explode(f"{data_column_name}.Array").alias(data_column_name),
+        )
+        valid_data_json = (
+            valid_data.select(
+                "Year",
+                "Month",
+                "Date",
+                "ApplicationArea.Sender.DealerNumber",
+                "ApplicationArea.BODId",
+            )
+            .toJSON()
+            .collect()
+        )
+        logging.info(f"Processing data: {valid_data_json}")
+
+        # Select columns raw data by mapping
+        table_data = self.select_columns(valid_data, self.mappings[catalog_name])
+        return table_data
+
+    def format_df(self, df):
+        """Format the raw data to match the database schema."""
+        if "cell_phone" in df.columns:
+            # Convert cell_phone column from Array[Struct(_Num, _Type)] to LongType
+            get_cell_phone = F.filter(
+                F.col("cell_phone"), lambda x: x["_Type"].isin(["C", "O"])
+            )["_Num"][0]
+            df = df.withColumn("cell_phone", get_cell_phone)
+        if "home_phone" in df.columns:
+            # Convert home_phone column from Array[Struct(_Num, _Type)] to LongType
+            get_home_phone = F.filter(
+                F.col("home_phone"), lambda x: x["_Type"].isin(["H"])
+            )["_Num"][0]
+            df = df.withColumn("home_phone", get_home_phone)
+        if ("op_codes" in df.columns):
+            # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
+            df = df.withColumn(
+                "op_codes",
+                F.expr(
+                    "transform(op_codes, x -> struct(x._RecSvcOpCode as op_code, x._RecSvcOpCdDesc as op_code_desc))"
+                ),
+            )
+        return df
+
+    def add_list_to_df(
+        self, df, add_list, add_list_column_name, temp_col_name="order_temp"
+    ):
+        """Given a dataframe and a list, add the list as a column to the dataframe preserving order."""
+        temp_df = self.spark.createDataFrame(
+            [[x] for x in add_list], [add_list_column_name]
+        ).withColumn(temp_col_name, F.monotonically_increasing_id())
+        df = df.withColumn(temp_col_name, F.monotonically_increasing_id())
+        return df.join(temp_df, [temp_col_name]).drop(F.col(temp_col_name))
+
+    def insert_consumer(self, dealer_df, catalog_name):
+        """Given a dataframe of dealer data insert into consumer table and return created ids."""
+        desired_consumer_columns = self.mappings[catalog_name]["consumer"].keys()
+        actual_consumer_columns = [
+            x for x in desired_consumer_columns if x in dealer_df.columns
+        ]
+        actual_consumer_columns.append("dealer_id")
+
+        consumer_df = dealer_df.select(actual_consumer_columns)
+        insert_consumer_query = self.rds.get_insert_query_from_df(
+            consumer_df, "consumer", "RETURNING id"
+        )
+
         try:
-            with self.pool.getconn() as conn:
-                with conn.cursor() as cursor:
-                    for row in df.rdd.toLocalIterator():
-                        try:
-                            # Repair Order does not have Customer Opt In
-                            if (
-                                table_name == "consumer"
-                                and "fi_closed_deal" in catalog_table
-                            ):
-                                format_args.append("opt_in")
+            results = self.rds.commit_rds(insert_consumer_query)
+            inserted_consumer_ids = [x[0] for x in results.fetchall()]
+            return inserted_consumer_ids
+        except Exception:
+            logger.exception(f"Error running query: {insert_consumer_query}")
+            raise
 
-                            formatted_data = format_data(row, *format_args)
-                            upsert_function(cursor, row, **formatted_data)
+    def insert_vehicle_sale(self, dealer_df, catalog_name):
+        """Given a dataframe of dealer data insert into vehicle sale table and return row count."""
+        desired_vehicle_sale_columns = self.mappings[catalog_name][
+            "vehicle_sale"
+        ].keys()
+        actual_vehicle_sale_columns = [
+            x for x in desired_vehicle_sale_columns if x in dealer_df.columns
+        ]
+        actual_vehicle_sale_columns.append("dealer_id")
+        actual_vehicle_sale_columns.append("consumer_id")
 
-                            conn.commit()
-                            total_upload += cursor.rowcount
+        vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
+        insert_vehicle_sale_query = self.rds.get_insert_query_from_df(
+            vehicle_sale_df,
+            "vehicle_sale",
+            "ON CONFLICT ON CONSTRAINT unique_vehicle_sale DO NOTHING RETURNING id",
+        )
+        try:
+            results = self.rds.commit_rds(insert_vehicle_sale_query)
+            inserted_vehicle_sale_ids = [x[0] for x in results.fetchall()]
+            return inserted_vehicle_sale_ids
+        except Exception:
+            logger.exception(f"Error running query: {insert_vehicle_sale_query}")
+            raise
 
-                        except Exception as e:
-                            logger.exception(f"Error processing row: {row}. Error: {e}")
-                            conn.rollback()
-                            raise e
-        except Exception as e:
-            logger.exception(f"Error upserting data: {e}")
-            raise e
-        finally:
-            self.pool.putconn(conn)
-        
-        return total_upload
+    def insert_service_repair_order(self, dealer_df, catalog_name):
+        """Given a dataframe of dealer data insert into service repair order table and return row count."""
+        desired_service_repair_order_columns = self.mappings[catalog_name][
+            "service_repair_order"
+        ].keys()
+        actual_service_repair_order_columns = [
+            x for x in desired_service_repair_order_columns if x in dealer_df.columns
+        ]
+        actual_service_repair_order_columns.append("dealer_id")
+        actual_service_repair_order_columns.append("consumer_id")
 
-    def read_data_from_catalog(self, database, catalog_table, transformation_ctx):
-        """Read data from the AWS catalog and return a dynamic frame."""
-        return self.glueContext.create_dynamic_frame.from_catalog(
-            database=database,
-            table_name=catalog_table,
-            transformation_ctx=transformation_ctx,
-            groupFiles='none'
+        service_repair_order_df = dealer_df.select(actual_service_repair_order_columns)
+        insert_service_repair_order_query = self.rds.get_insert_query_from_df(
+            service_repair_order_df,
+            "service_repair_order",
+            f"""ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
+            SET {', '.join([x + ' = excluded.' + x for x in desired_service_repair_order_columns])}
+            RETURNING id""",
         )
 
-    def run(self, database):
-        """Run ETL for each table in our catalog."""
-        for catalog_table in self.catalog_table_names:
-            transformation_ctx = "datasource0_" + catalog_table
-            datasource0 = self.read_data_from_catalog(
-                database=database,
-                catalog_table=catalog_table,
-                transformation_ctx=transformation_ctx,
+        try:
+            results = self.rds.commit_rds(insert_service_repair_order_query)
+            inserted_service_repair_order_ids = [x[0] for x in results.fetchall()]
+            return inserted_service_repair_order_ids
+        except Exception:
+            logger.exception(
+                f"Error running query: {insert_service_repair_order_query}"
             )
+            raise
 
-            if datasource0.count() != 0:
-                total_upload_count = 0
-                for table_name in self.upsert_table_order[catalog_table]:
-                    # Apply mappings to the DynamicFrame
-                    df_transformed = self.apply_mappings(
-                        datasource0, table_name, catalog_table
+    def insert_op_codes(self, dealer_df, catalog_name):
+        """Given a dataframe of dealer data insert into op code table and return row count."""
+        desired_op_code_columns = self.mappings[catalog_name]["op_codes"].keys()
+        actual_op_code_columns = [
+            x for x in desired_op_code_columns if x in dealer_df.columns
+        ]
+        actual_op_code_columns.append("dealer_id")
+
+        combined_op_code_df = dealer_df.select(actual_op_code_columns).withColumn(
+            "op_codes", F.explode("op_codes")
+        )
+        op_code_df = combined_op_code_df.select(
+            F.col("op_codes.op_code").alias("op_code"),
+            F.col("op_codes.op_code_desc").alias("op_code_desc"),
+            "dealer_id",
+        )
+        insert_op_code_query = self.rds.get_insert_query_from_df(
+            op_code_df,
+            "op_code",
+            f"""ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
+            SET {', '.join([x + ' = excluded.' + x for x in desired_op_code_columns])}
+            RETURNING id""",
+        )
+
+        try:
+            results = self.rds.commit_rds(insert_op_code_query)
+            inserted_op_code_ids = [x[0] for x in results.fetchall()]
+            return inserted_op_code_ids
+        except Exception:
+            logger.exception(f"Error running query: {insert_op_code_query}")
+            raise
+
+    def insert_op_code_repair_order(self, dealer_df):
+        """Given a dataframe of dealer data insert into op code repair order table and return row count."""
+        desired_op_code_repair_order_columns = ["op_codes", "repair_order_no"]
+        actual_op_code_repair_order_columns = [
+            x for x in desired_op_code_repair_order_columns if x in dealer_df.columns
+        ]
+        actual_op_code_repair_order_columns.append("dealer_id")
+
+        op_code_repair_order_df = dealer_df.select(
+            actual_op_code_repair_order_columns
+        ).withColumn("op_codes", F.explode("op_codes"))
+        op_code_repair_order_df = op_code_repair_order_df.select(
+            F.col("op_codes.op_code").alias("op_code"), "dealer_id"
+        )
+
+        conditions_list = []
+        for row in op_code_repair_order_df.collect():
+            condition = f"""
+                sro.dealer_id = {row['dealer_id']} 
+                and sro.repair_order_no = '{row['repair_order_no']}' 
+                and oc.op_code = '{row['op_code']}'
+            """
+            conditions_list.append(condition)
+        conditions_str = ") or (".join(conditions_list)
+        insert_op_code_repair_order_query = f"""
+            insert into {self.schema}.op_code_repair_order (op_code_id, repair_order_id)
+            select oc.id as op_code_id, sro.id as repair_order_id
+            from {self.schema}.service_repair_order sro
+            join {self.schema}.op_code oc on oc.dealer_id=sro.dealer_id
+            where ({conditions_str})
+        """
+        try:
+            results = self.rds.commit_rds(insert_op_code_repair_order_query)
+            inserted_op_code_ids = [x[0] for x in results.fetchall()]
+            return inserted_op_code_ids
+        except Exception:
+            logger.exception(
+                f"Error running query: {insert_op_code_repair_order_query}"
+            )
+            raise
+
+    def select_db_dealer_id(self, dms_id):
+        """Get the db dealer id for the given dms id."""
+        db_dealer_id_query = f"""
+            select d.id from {self.schema}."dealer" d 
+            join {self.schema}."integration_partner" i on d.integration_id = i.id 
+            where d.dms_id = '{dms_id}' and i.name = '{self.integration}';"""
+        results = self.rds.execute_rds(db_dealer_id_query).fetchone()
+        if results is None:
+            raise RuntimeError(
+                f"No dealer {dms_id} found with query {db_dealer_id_query}."
+            )
+        else:
+            return results[0]
+
+    def upsert_df(self, df, catalog_name):
+        """Upsert dataframe to RDS table."""
+        insert_count = 0
+        dealers = df.select("dms_id").distinct().collect()
+        for dealer in dealers:
+            dealer_df = df.filter(df.dms_id == dealer.dms_id)
+            db_dealer_id = None
+            try:
+                db_dealer_id = self.select_db_dealer_id(dealer.dms_id)
+                dealer_df = dealer_df.withColumn("dealer_id", F.lit(db_dealer_id))
+
+                if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+                    # Vehicle sale must insert into consumer table first
+                    inserted_consumer_ids = self.insert_consumer(
+                        dealer_df, catalog_name
                     )
-                    # Convert the DynamicFrame to a DataFrame
-                    df = df_transformed.toDF()
+                    count = len(inserted_consumer_ids)
+                    logger.info(
+                        f"Added {count} rows to consumer for dealer {db_dealer_id}"
+                    )
 
-                    # Perform upsert based on the table_name
-                    upload_count = self.upsert(df, table_name, catalog_table)
-                    logger.info(f"Uploaded {upload_count} rows for table {table_name}")
-                    total_upload_count += upload_count
-                if total_upload_count <= 0:
-                    raise RuntimeError(f"Uploaded {total_upload_count} rows in total for this run.")
+                    # Then insert to vehicle sale with consumer ids
+                    vehicle_sale_df = self.add_list_to_df(
+                        dealer_df, inserted_consumer_ids, "consumer_id"
+                    )
+                    vehicle_sale_ids = self.insert_vehicle_sale(
+                        vehicle_sale_df, catalog_name
+                    )
+                    count = len(vehicle_sale_ids)
+                    logger.info(
+                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_id}"
+                    )
+                    insert_count += count
+
+                elif catalog_name == "reyreycrawlerdb_repair_order":
+                    # Service repair order must insert into consumer table first
+                    inserted_consumer_ids = self.insert_consumer(
+                        dealer_df, catalog_name
+                    )
+                    count = len(inserted_consumer_ids)
+                    logger.info(
+                        f"Added {count} rows to consumer for dealer {db_dealer_id}"
+                    )
+
+                    # Then insert to service repair order with consumer ids
+                    service_repair_order_df = self.add_list_to_df(
+                        dealer_df, inserted_consumer_ids, "consumer_id"
+                    )
+                    service_repair_order_ids = self.insert_service_repair_order(
+                        service_repair_order_df, catalog_name
+                    )
+                    count = len(service_repair_order_ids)
+                    logger.info(
+                        f"Added {count} rows to service_repair_order for dealer {db_dealer_id}"
+                    )
+                    insert_count += count
+
+                    # Create op codes
+                    inserted_op_code_ids = self.insert_op_codes(
+                        service_repair_order_df, catalog_name
+                    )
+                    count = len(inserted_op_code_ids)
+                    logger.info(
+                        f"Added {count} rows to op_code for dealer {db_dealer_id}"
+                    )
+
+                    # Link op codes
+                    inserted_op_code_repair_order_ids = (
+                        self.insert_op_code_repair_order(service_repair_order_df)
+                    )
+                    count = len(inserted_op_code_repair_order_ids)
+                    logger.info(
+                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_id}"
+                    )
+                raise RuntimeError("Force test exception")
+            except Exception:
+                logger.exception(
+                    f"""Error: db_dealer_id {db_dealer_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
+                )
+                # Send dealer_df to s3 and then sqs
+                s3_uri = f"s3://{self.bucket_name}/{self.integration}/errors/{self.job_id}/{uuid.uuid4().hex}.csv"
+                if "op_codes" in df.columns:
+                    df = df.withColumn("op_codes", F.col("op_codes").cast("string"))
+                df.write.options(header="True").csv(s3_uri, mode="overwrite")
+                sqs_client = boto3.client("sqs")
+                sqs_client.send_message(
+                    QueueUrl=self.dlq_url, MessageBody=dumps({"path": s3_uri})
+                )
+
+        return insert_count
+
+    def run(self):
+        """Run ETL for each table in our catalog."""
+        for catalog_name in self.catalog_table_names:
+            logger.info(f"The catalog is {catalog_name} and database is {self.database}")
+            transformation_ctx = "datasource5_" + catalog_name
+            datasource = self.glue_context.create_dynamic_frame.from_catalog(
+                database=self.database,
+                table_name=catalog_name,
+                transformation_ctx=transformation_ctx,
+                groupFiles="none",
+            )
+            if datasource.count() != 0:
+                df = (
+                    datasource.toDF()
+                    .withColumnRenamed("partition_0", "Year")
+                    .withColumnRenamed("partition_1", "Month")
+                    .withColumnRenamed("partition_2", "Date")
+                )
+                logger.info(df.schema)
+                mapped_df = self.apply_mappings(df, catalog_name)
+                formatted_df = self.format_df(mapped_df)
+                upsert_count = self.upsert_df(formatted_df, catalog_name)
+                logger.info(f"Added {upsert_count} rows.")
             else:
                 logger.error("There is no new data for the job to process.")
 
@@ -721,35 +564,29 @@ class ReyReyUpsertJob:
 
 
 if __name__ == "__main__":
+    args = getResolvedOptions(
+        sys.argv,
+        [
+            "JOB_NAME",
+            "db_name",
+            "catalog_table_names",
+            "catalog_connection",
+            "environment",
+            "dlq_url",
+        ],
+    )
+
+    job_id = args["JOB_RUN_ID"]
+    logging.basicConfig(
+        format=str(job_id) + " %(asctime)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     try:
-        args = getResolvedOptions(
-            sys.argv,
-            [
-                "JOB_NAME",
-                "db_name",
-                "catalog_table_names",
-                "catalog_connection",
-                "environment",
-            ],
-        )
-        SM_CLIENT = boto3.client("secretsmanager")
-        isprod = args["environment"] == "prod"
-
-        # Create database connection pool
-        DB_CREDENTIALS = _load_secret()
-
-        pool = psycopg2.pool.SimpleConnectionPool(
-            1,  # Minimum number of connections
-            5,  # Maximum number of connections
-            dbname=DB_CREDENTIALS["db_name"],
-            host=DB_CREDENTIALS["host"],
-            port=DB_CREDENTIALS["port"],
-            user=DB_CREDENTIALS["user"],
-            password=DB_CREDENTIALS["password"],
-        )
-
-        job = ReyReyUpsertJob(args, pool=pool)
-        job.run(database=args["db_name"])
+        job = ReyReyUpsertJob(job_id, args)
+        job.run()
     except Exception:
         logger.exception("Error running ReyRey ETL.")
         raise
