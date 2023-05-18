@@ -1,0 +1,66 @@
+from .base import BaseTransformer
+from ..mappings.vehicle_sale import VehicleSaleTableMapping
+from ..mappings.consumer import ConsumerTableMapping
+
+
+class CDKTransformer(BaseTransformer):
+
+    vehicle_sale_table_mapping = VehicleSaleTableMapping(
+        sale_date='importedData.DealEvent1Date',
+        listed_price='importedData.OutTheDoorPrice',
+        sales_tax='importedData.Tax1Amount',
+        mileage_on_vehicle='importedData.VehicleMileage',
+        deal_type='importedData.SaleType',
+        cost_of_vehicle='importedData.CostPrice',
+        oem_msrp='importedData.MSRP',
+        adjustment_on_price='importedData.AdjustedCostofVehicle',
+        is_new='importedData.FIDealType',
+        trade_in_value='importedData.NetTrade1',
+        value_at_end_of_lease='importedData.LeaseEndValue',
+        miles_per_year='importedData.LeaseMileageAllowance',
+        profit_on_sale='importedData.FrontEndGrossProfit',
+        vehicle_gross='importedData.SalePriceWithWeOwes',
+        vin='importedData.VIN',
+        make='importedData.MakeName',
+        model='importedData.ModelName',
+        year='importedData.Year',
+        delivery_date='importedData.PickupDate1',
+        finance_rate='importedData.APR',
+        finance_term='importedData.Term',
+        finance_amount='importedData.FeeOption10Amount',
+        date_of_inventory=None,
+        date_of_state_inspection=None,
+        payoff_on_trade=None,
+        warranty_expiration_date=None,
+        has_service_contract='importedData.Insurance1Name',
+        service_package_flag='importedData.Insurance1Name'
+    )
+
+    consumer_table_mapping = ConsumerTableMapping(
+        dealer_customer_no=None,
+        first_name='importedData.user.firstName',
+        last_name='importedData.user.lastName',
+        email='importedData.Email1',
+        ip_address=None,
+        cell_phone='importedData.user.sms',
+        city=None,
+        state='importedData.State',
+        metro=None,
+        postal_code='importedData.ZipOrPostalCode',
+        home_phone='importedData.HomePhone',
+        email_optin_flag='importedData.user.doNotContact.email',
+        phone_optin_flag='importedData.user.doNotContact.ever',
+        postal_mail_optin_flag='importedData.user.doNotContact.ever',
+        sms_optin_flag='importedData.user.doNotContact.sms',
+        master_consumer_id=None,
+        address='importedData.Address'
+    )
+
+    def pre_process_data(self):
+        for _, field in self.vehicle_sale_table_mapping.fields:
+            if isinstance(self.carlabs_data[field], list):
+                self.carlabs_data[field] = self.carlabs_data[field][0]
+
+        for _, field in self.consumer_table_mapping.fields:
+            if isinstance(self.carlabs_data[field], list):
+                self.carlabs_data[field] = self.carlabs_data[field][0]
