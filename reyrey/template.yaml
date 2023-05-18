@@ -220,7 +220,7 @@ Resources:
   ReyReyETLFI:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the rey rey fi crawler.
+      Description: ETL job to run after the reyrey fi crawler
       Name: !Sub 'reyrey-etl-fi-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
@@ -253,7 +253,7 @@ Resources:
   ReyReyETLRO:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the rey rey RO crawler.
+      Description: ETL job to run after the reyrey RO crawler
       Name: !Sub 'reyrey-etl-ro-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
@@ -283,7 +283,7 @@ Resources:
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
-  GlueTriggerPolicy:
+  GlueTriggerReyReyPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       PolicyDocument:
@@ -725,17 +725,3 @@ Resources:
       Targets:
         - Arn: !Ref TopicUnivClientEngineeringAlertTopic
           Id: !Sub ReyreyETLDLQAlert-target-${Environment}
-
-  GlueTriggerPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowDevGlue
-            Effect: Allow
-            Action:
-              - glue:*
-            Resource: '*'
-      Roles: 
-        - "dev"
