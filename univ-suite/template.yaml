@@ -590,8 +590,40 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
       NotificationConfiguration:
+        # Only eventbridge can trigger glue workflows
         EventBridgeConfiguration:
           EventBridgeEnabled: true
+        # Only SNS can trigger glue crawlers
+        TopicConfigurations:
+          - Event: s3:ObjectCreated:*
+            Topic: !Ref IntegrationsS3ToSNSTopic
+    DependsOn: IntegrationsS3ToSNSPolicy
+
+  IntegrationsS3ToSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub 'integrations-sns-s3-topic-${AWS::Region}-${Environment}'
+      TopicName: !Sub 'integrations-sns-s3-topic-${AWS::Region}-${Environment}'
+
+  IntegrationsS3ToSNSPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties: 
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: !Sub 'integrations-sns-s3-policy-${AWS::Region}-${Environment}'
+        Statement:
+        - Sid: S3ToSNS
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+            - SNS:Publish
+          Resource: !Ref IntegrationsS3ToSNSTopic
+          Condition:
+            ArnLike:
+              aws:SourceArn: !Sub 'arn:aws:s3:::integrations-${AWS::Region}-${Environment}'
+      Topics: 
+        - Ref: IntegrationsS3ToSNSTopic
 
   UniversalIntegrationGlueBucket:
     Type: AWS::S3::Bucket

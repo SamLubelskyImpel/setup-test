@@ -331,19 +331,16 @@ Resources:
       EventPattern: 
         source:
         - "aws.s3"
+        detail-type:
+        - "Object Created"
         detail:
-          eventSource:
-          - "s3.amazonaws.com"
-          eventName:
-          - "PutObject"
-          - "CopyObject"
-          - "CompleteMultipartUpload"
-          requestParameters:
-            bucketName:
+          bucket:
+            name:
             - !If [ IsProd, 
                     !Sub "integrations-${AWS::Region}-prod",
                     !Sub "integrations-${AWS::Region}-test",
                   ]
+          object:
             key:
             - prefix: "reyrey/repair_order/"
       Targets:
@@ -392,19 +389,16 @@ Resources:
       EventPattern: 
         source:
         - "aws.s3"
+        detail-type:
+        - "Object Created"
         detail:
-          eventSource:
-          - "s3.amazonaws.com"
-          eventName:
-          - "PutObject"
-          - "CopyObject"
-          - "CompleteMultipartUpload"
-          requestParameters:
-            bucketName:
+          bucket:
+            name:
             - !If [ IsProd, 
                     !Sub "integrations-${AWS::Region}-prod",
                     !Sub "integrations-${AWS::Region}-test",
                   ]
+          object:
             key:
             - prefix: "reyrey/fi_closed_deal/"
       Targets:
@@ -498,43 +492,42 @@ Resources:
         deadLetterTargetArn: !GetAtt ReyReyRODLQ.Arn
         maxReceiveCount: 1
 
-  ReyReyROQueueRule: 
-    Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
-        source:
-        - "aws.s3"
-        detail:
-          eventSource:
-          - "s3.amazonaws.com"
-          eventName:
-          - "PutObject"
-          - "CopyObject"
-          - "CompleteMultipartUpload"
-          requestParameters:
-            bucketName:
-            - !If [ IsProd, 
-                    !Sub "integrations-${AWS::Region}-prod",
-                    !Sub "integrations-${AWS::Region}-test",
+  ReyReyFIQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd, 
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
-            key:
-            - prefix: "reyrey/repair_order/"
-      Targets: 
-        - Arn: !GetAtt ReyReyROQueue.Arn
-          Id: "ReyReyROQueueTarget"
+      Protocol: sqs
+      RawMessageDelivery: true 
+      Endpoint: !GetAtt ReyReyFIQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  ReyReyROQueueRulePolicy:
+  ReyReyFIQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
-      PolicyDocument:
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service: events.amazonaws.com
-          Action: SQS:SendMessage
-          Resource:  !GetAtt ReyReyROQueue.Arn
       Queues:
-        - Ref: ReyReyROQueue
+        - !Ref ReyReyFIQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ReyReyFIQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ReyReyFIQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd, 
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
 
   ReyReyFIQueue:
     Type: AWS::SQS::Queue
@@ -545,43 +538,42 @@ Resources:
         deadLetterTargetArn: !GetAtt ReyReyFIDLQ.Arn
         maxReceiveCount: 1
 
-  ReyReyFIQueueRule: 
-    Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
-        source:
-        - "aws.s3"
-        detail:
-          eventSource:
-          - "s3.amazonaws.com"
-          eventName:
-          - "PutObject"
-          - "CopyObject"
-          - "CompleteMultipartUpload"
-          requestParameters:
-            bucketName:
-            - !If [ IsProd, 
-                    !Sub "integrations-${AWS::Region}-prod",
-                    !Sub "integrations-${AWS::Region}-test",
+  ReyReyROQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd, 
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
-            key:
-            - prefix: "reyrey/fi_closed_deal/"
-      Targets: 
-        - Arn: !GetAtt ReyReyFIQueue.Arn
-          Id: "ReyReyFIQueueTarget"
+      Protocol: sqs
+      RawMessageDelivery: true 
+      Endpoint: !GetAtt ReyReyROQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  ReyReyFIQueueRulePolicy:
+  ReyReyROQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
-      PolicyDocument:
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service: events.amazonaws.com
-          Action: SQS:SendMessage
-          Resource:  !GetAtt ReyReyFIQueue.Arn
       Queues:
-        - Ref: ReyReyFIQueue
+        - !Ref ReyReyROQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ReyReyROQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ReyReyROQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd, 
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
 
   ReyreyROCrawlerAlert:
     Type: 'AWS::Events::Rule'
@@ -725,3 +717,30 @@ Resources:
       Targets:
         - Arn: !Ref TopicUnivClientEngineeringAlertTopic
           Id: !Sub ReyreyETLDLQAlert-target-${Environment}
+
+  ReyReyDevPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowDevGlueROWorkflow
+            Effect: Allow
+            Action: 'glue:*'
+            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
+          - Sid: AllowDevGlueFIWorkflow
+            Effect: Allow
+            Action: 'glue:*'
+            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
+          - Sid: ReyReyDevGlueCrawlerRI
+            Effect: Allow
+            Action:
+              - glue:*
+            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${ReyReyROCrawler}
+          - Sid: ReyReyDevGlueCrawlerFI
+            Effect: Allow
+            Action:
+              - glue:*
+            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${ReyReyFICrawler}
+      Roles: 
+        - "dev"

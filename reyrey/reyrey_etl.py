@@ -244,7 +244,6 @@ class RDSInstance:
 
 class ReyReyUpsertJob:
     """Create object to perform ETL."""
-
     def __init__(self, job_id, args):
         self.sc = SparkContext()
         self.glue_context = GlueContext(self.sc)
@@ -270,15 +269,12 @@ class ReyReyUpsertJob:
                     "last_name": "FIDeal.Buyer.CustRecord.ContactInfo._LastName",
                     "email": "FIDeal.Buyer.CustRecord.ContactInfo.Email._MailTo",
                     "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
-                    "city": "FIDeal.Buyer.CustRecord.ContactInfo.Address._City",
-                    "state": "FIDeal.Buyer.CustRecord.ContactInfo.Address._State",
                     "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address._Zip",
                     "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
                     "listed_price": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
-                    "sales_tax": "FIDeal.FIDealFin.FinanceInfo.TaxAmounts.TotTaxes",
                     "mileage_on_vehicle": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading",
                     "deal_type": "FIDeal.FIDealFin._Category",
                     "cost_of_vehicle": "FIDeal.FIDealFin.TransactionVehicle._VehCost",
@@ -291,13 +287,10 @@ class ReyReyUpsertJob:
                     "payoff_on_trade": "FIDeal.FIDealFin.TradeIn._Payoff",
                     "value_at_end_of_lease": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual",
                     "miles_per_year": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear",
-                    "profit_on_sale": "FIDeal.FIDealFin.Recap.Reserves._NetProfit",
                     "service_package": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
                     "vehicle_gross": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
                     "extended_warranty": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
-                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont.CompanyName",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
-                    "make": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleMake",
                     "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
                     "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
                     "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
@@ -315,8 +308,6 @@ class ReyReyUpsertJob:
                     "last_name": "RepairOrder.CustRecord.ContactInfo._LastName",
                     "email": "RepairOrder.CustRecord.ContactInfo.Email._MailTo",
                     "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
-                    "city": "RepairOrder.CustRecord.ContactInfo.Address._City,",
-                    "state": "RepairOrder.CustRecord.ContactInfo.Address._State",
                     "postal_code": "RepairOrder.CustRecord.ContactInfo.Address._Zip",
                     "home_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
                 },
@@ -345,10 +336,9 @@ class ReyReyUpsertJob:
                 try:
                     df.select(dms_column)
                 except pyspark.sql.utils.AnalysisException:
-                    logger.warning(
-                        f"Column: {db_column} with mapping: {dms_column} not found, default to null."
-                    )
                     ignore_columns.append(db_column)
+                    logger.exception(f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema}.")
+                    raise
 
             for db_column, dms_column in db_columns_to_dms_columns.items():
                 if (
@@ -617,7 +607,7 @@ class ReyReyUpsertJob:
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
-            transformation_ctx = "datasource36_" + catalog_name
+            transformation_ctx = "bookmark_" + catalog_name
             datasource = self.glue_context.create_dynamic_frame.from_catalog(
                 database=self.database,
                 table_name=catalog_name,
@@ -660,7 +650,7 @@ if __name__ == "__main__":
 
     job_id = args["JOB_RUN_ID"]
     logging.basicConfig(
-        format=str(job_id) + " %(asctime)s %(levelname)s: %(message)s",
+        format="reyrey_" + str(job_id) + " %(asctime)s %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger = logging.getLogger(__name__)
