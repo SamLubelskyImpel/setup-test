@@ -87,16 +87,16 @@ class RDSInstance:
         )
         return query
 
-    def select_db_dealer_id(self, dms_id):
+    def select_db_dealer_integration_partner_id(self, dms_id):
         """Get the db dealer id for the given dms id."""
-        db_dealer_id_query = f"""
-            select d.id from {self.schema}."dealer" d 
-            join {self.schema}."integration_partner" i on d.integration_id = i.id 
-            where d.dms_id = '{dms_id}' and i.name = '{self.integration}';"""
-        results = self.execute_rds(db_dealer_id_query).fetchone()
+        db_dealer_integration_partner_id_query = f"""
+            select dip.id from {self.schema}."dealer_integration_partner" dip
+            join {self.schema}."integration_partner" i on dip.integration_id = i.id 
+            where dip.dms_id = '{dms_id}' and i.name = '{self.integration}' and dip.is_active = true;"""
+        results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
             raise RuntimeError(
-                f"No dealer {dms_id} found with query {db_dealer_id_query}."
+                f"No active dealer {dms_id} found with query {db_dealer_integration_partner_id_query}."
             )
         else:
             return results[0]
@@ -107,7 +107,7 @@ class RDSInstance:
         actual_consumer_columns = [
             x for x in desired_consumer_columns if x in dealer_df.columns
         ]
-        actual_consumer_columns.append("dealer_id")
+        actual_consumer_columns.append("dealer_integration_partner_id")
 
         consumer_df = dealer_df.select(actual_consumer_columns)
         insert_consumer_query = self.get_insert_query_from_df(
@@ -146,7 +146,7 @@ class TekionUpsertJob:
         self.rds = RDSInstance(self.is_prod, self.integration)
         self.mappings = {
             "tekioncrawlerdb_customer": {
-                # TODO: get dealer_id from the onboarding team
+                # TODO: get dealer_integration_partner_id from the onboarding team
                 "dealer": {"dms_id": "techmotors_4"},
                 "consumer": {
                     "first_name": "data.firstname",
@@ -267,10 +267,10 @@ class TekionUpsertJob:
         dealers = df.select("dms_id").distinct().collect()
         for dealer in dealers:
             dealer_df = df.filter(df.dms_id == dealer.dms_id)
-            db_dealer_id = None
+            db_dealer_integration_partner_id = None
             try:
-                db_dealer_id = self.rds.select_db_dealer_id(dealer.dms_id)
-                dealer_df = dealer_df.withColumn("dealer_id", F.lit(db_dealer_id))
+                db_dealer_integration_partner_id = self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
+                dealer_df = dealer_df.withColumn("dealer_integration_partner_id", F.lit(db_dealer_integration_partner_id))
                 if catalog_name == "tekioncrawlerdb_customer":
                     # Vehicle sale must insert into consumer table first
                     inserted_consumer_ids = self.rds.insert_consumer(
@@ -278,12 +278,12 @@ class TekionUpsertJob:
                     )
                     count = len(inserted_consumer_ids)
                     logger.warning(
-                        f"Added {count} rows to consumer for dealer {db_dealer_id}"
+                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
                     )
                     insert_count += count
             except Exception:
                 logger.exception(
-                    f"""Error: db_dealer_id {db_dealer_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
+                    f"""Error: db_dealer_integration_partner_id {db_dealer_integration_partner_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
                 )
 
                 schema_json = loads(dealer_df.schema.json())
@@ -339,7 +339,7 @@ class TekionUpsertJob:
 
                 # If you've properly formatted your df the next function should run without needing modifications per integration
                 upsert_count = self.upsert_df(formatted_df, catalog_name)
-                logger.info(
+                logger.warning(
                     f"Added {upsert_count} total rows to primary table for {catalog_name}."
                 )
             else:

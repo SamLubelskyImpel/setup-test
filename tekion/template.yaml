@@ -124,6 +124,7 @@ Resources:
                 Resource: 
                   - !GetAtt TekionQueue.Arn
                   - !GetAtt TekionDLQ.Arn
+                  - !GetAtt TekionETLDLQ.Arn
 
 
   TekionCrawlerDB:
@@ -156,11 +157,11 @@ Resources:
         - 'ALL'
       PermissionsWithGrantOption: []
 
-  TekionCrawler:
+  TekionCrawlerCustomer:
     Type: AWS::Glue::Crawler
     Properties:
-      Name: !Sub 'tekion-crawler-${Environment}'
-      Description: Crawl raw json data for tekion
+      Name: !Sub 'tekion-crawler-customer-${Environment}'
+      Description: Crawl raw json data for tekion customer folder.
       Role: !GetAtt TekionGlueRole.Arn
       TablePrefix: !Sub 'TekionCrawlerDB_'
       DatabaseName: !Ref TekionCrawlerDB
@@ -169,12 +170,38 @@ Resources:
       Targets:
         S3Targets:
           # - Path: !If [ IsProd, 
-          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/",
-          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/",
+          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/customer",
+          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/customer",
           #         ]
-          #   DlqEventQueueArn: !GetAtt TekionDLQ.Arn
-          #   EventQueueArn: !GetAtt TekionQueue.Arn    
+          #   DlqEventQueueArn: !GetAtt TekionCustomerDLQ.Arn
+          #   EventQueueArn: !GetAtt TekionCustomerQueue.Arn    
           - Path: "s3://integrations-etl-test/tekion/data/customer/"
+      SchemaChangePolicy:
+        UpdateBehavior: 'UPDATE_IN_DATABASE'
+        DeleteBehavior: 'LOG'
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+      RecrawlPolicy:
+        RecrawlBehavior: 'CRAWL_EVERYTHING'
+  
+  TekionCrawlerVehicle:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub 'tekion-crawler-vehicle-${Environment}'
+      Description: Crawl raw json data for tekion vehicle folder.
+      Role: !GetAtt TekionGlueRole.Arn
+      TablePrefix: !Sub 'TekionCrawlerDB_'
+      DatabaseName: !Ref TekionCrawlerDB
+      Classifiers:
+        - !Ref TekionClassifier
+      Targets:
+        S3Targets:
+          # - Path: !If [ IsProd, 
+          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/vehicle",
+          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/vehicle",
+          #         ]
+          #   DlqEventQueueArn: !GetAtt TekionCustomerDLQ.Arn
+          #   EventQueueArn: !GetAtt TekionCustomerQueue.Arn    
+          - Path: "s3://integrations-etl-test/tekion/data/vehicle/"
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
@@ -210,7 +237,7 @@ Resources:
                     ]
         '--dlq_url': !Ref TekionETLDLQ
         '--db_name': !Ref TekionCrawlerDB
-        '--catalog_table_names': "tekioncrawlerdb_customer"
+        '--catalog_table_names': "tekioncrawlerdb_customer, tekioncrawlerdb_vehicle"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
@@ -234,7 +261,10 @@ Resources:
         Logical: ANY
         Conditions:
             - LogicalOperator: EQUALS
-              CrawlerName: !Ref TekionCrawler
+              CrawlerName: !Ref TekionCrawlerCustomer
+              CrawlState: SUCCEEDED
+            - LogicalOperator: EQUALS
+              CrawlerName: !Ref TekionCrawlerVehicle
               CrawlState: SUCCEEDED
 
   RDSConnection:
@@ -393,6 +423,8 @@ Resources:
               - "s3:GetObject"
               - "s3:PutObject"
               - "s3:ListBucket"
-            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionCrawler}
+            Resource: 
+              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionCrawlerCustomer}
+              - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionCrawlerVehicle}
       Roles: 
         - "dev"
