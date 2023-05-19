@@ -1,8 +1,10 @@
-from ..orm.models.shared_dms.consumer import Consumer
+from ...orm.models.shared_dms.vehicle_sale import VehicleSale
+from ...orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
-from ..mappings.vehicle_sale import VehicleSaleTableMapping
-from ..mappings.consumer import ConsumerTableMapping
-from ..mappings.vehicle import VehicleTableMapping
+from ...mappings.vehicle_sale import VehicleSaleTableMapping
+from ...mappings.consumer import ConsumerTableMapping
+from ...mappings.vehicle import VehicleTableMapping
+from ...mappings.service_contract import ServiceContractTableMapping
 
 
 class CDKTransformer(BaseTransformer):
@@ -69,6 +71,18 @@ class CDKTransformer(BaseTransformer):
         year='importedData.Year'
     )
 
+    service_contract_table_mapping = ServiceContractTableMapping(
+        contract_name='importedData.Insurance1Name',
+        start_date='importedData.ContractDate',
+        amount='importedData.Ins1Income',
+        cost='importedData.Ins1Cost',
+        deductible='importedData.Insurance1Deductible',
+        expiration_months='importedData.Term',
+        expiration_miles='importedData.Insurance1LimitMiles'
+    )
+
+    date_format = '%Y-%m-%d'
+
     def pre_process_data(self):
         # TODO dict comprehension
         for _, field in self.vehicle_sale_table_mapping.fields:
@@ -76,6 +90,10 @@ class CDKTransformer(BaseTransformer):
                 self.carlabs_data[field] = self.carlabs_data[field][0]
 
         for _, field in self.consumer_table_mapping.fields:
+            if isinstance(self.carlabs_data[field], list):
+                self.carlabs_data[field] = self.carlabs_data[field][0]
+
+        for _, field in self.vehicle_table_mapping.fields:
             if isinstance(self.carlabs_data[field], list):
                 self.carlabs_data[field] = self.carlabs_data[field][0]
 
@@ -89,4 +107,7 @@ class CDKTransformer(BaseTransformer):
         orm.phone_optin_flag = not never_contact
         orm.postal_mail_optin_flag = not never_contact
 
+        return orm
+
+    def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
         return orm

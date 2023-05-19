@@ -1,9 +1,11 @@
 # TODO improve these imports
-from ..orm.models.shared_dms.consumer import Consumer
+from ...orm.models.shared_dms.vehicle_sale import VehicleSale
+from ...orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
-from ..mappings.vehicle_sale import VehicleSaleTableMapping
-from ..mappings.consumer import ConsumerTableMapping
-from ..mappings.vehicle import VehicleTableMapping
+from ...mappings.vehicle_sale import VehicleSaleTableMapping
+from ...mappings.consumer import ConsumerTableMapping
+from ...mappings.vehicle import VehicleTableMapping
+from ...mappings.service_contract import ServiceContractTableMapping
 
 
 class DealertrackTransformer(BaseTransformer):
@@ -35,8 +37,8 @@ class DealertrackTransformer(BaseTransformer):
         finance_amount='importedData.deal.detail.AmountFinanced',
         date_of_inventory='importedData.vehicle.DateInInventory',
         date_of_state_inspection=None,
-        has_service_contract='importedData.deal.detail.ServiceContracts.ServiceContract',
-        service_package_flag='importedData.deal.detail.ServiceContracts.ServiceContract'
+        has_service_contract='importedData.deal.detail.ServiceContracts.ServiceContract.ContractName',
+        service_package_flag='importedData.deal.detail.ServiceContracts.ServiceContract.ContractName'
     )
 
     consumer_table_mapping = ConsumerTableMapping(
@@ -70,6 +72,16 @@ class DealertrackTransformer(BaseTransformer):
         year='importedData.ModelYear'
     )
 
+    service_contract_table_mapping = ServiceContractTableMapping(
+        contract_name='importedData.deal.detail.ServiceContracts.ServiceContract.ContractName',
+        start_date='importedData.deal.detail.ServiceContracts.ServiceContract.ContractStartDate',
+        amount='importedData.deal.detail.ServiceContractAmount',
+        cost='importedData.deal.detail.ServiceContractCost',
+        deductible='importedData.deal.detail.ServiceContracts.ServiceContract.ContractDeductible',
+        expiration_months='importedData.deal.detail.ServiceContracts.ServiceContract.ContractExpirationMonths',
+        expiration_miles='importedData.deal.detail.ServiceContracts.ServiceContract.ContractExpirationMiles'
+    )
+
     date_format = '%Y%m%d'
 
     def post_process_consumer(self, orm: Consumer) -> Consumer:
@@ -78,6 +90,11 @@ class DealertrackTransformer(BaseTransformer):
         orm.postal_mail_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPostal'] == 'Y'
         orm.sms_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPhone'] == 'Y'
 
+        return orm
+
+    def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
+        orm.has_service_contract = self.carlabs_data[self.vehicle_sale_table_mapping.has_service_contract] is not None
+        orm.service_package_flag = self.carlabs_data[self.vehicle_sale_table_mapping.service_package_flag] is not None
         return orm
 
     def pre_process_data(self):

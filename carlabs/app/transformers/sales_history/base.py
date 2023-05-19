@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
-from ..orm.models.shared_dms.vehicle_sale import VehicleSale
-from ..orm.models.shared_dms.consumer import Consumer
-from ..orm.models.shared_dms.vehicle import Vehicle
+from ...orm.models.shared_dms.vehicle_sale import VehicleSale
+from ...orm.models.shared_dms.consumer import Consumer
+from ...orm.models.shared_dms.vehicle import Vehicle
+from ...orm.models.shared_dms.service_contract import ServiceContract
 from pandas import DataFrame, json_normalize
 from datetime import datetime, date
-from ..mappings.vehicle_sale import VehicleSaleTableMapping
-from ..mappings.consumer import ConsumerTableMapping
-from ..mappings.vehicle import VehicleTableMapping
-from ..mappings.base import BaseMapping
+from ...mappings.vehicle_sale import VehicleSaleTableMapping
+from ...mappings.consumer import ConsumerTableMapping
+from ...mappings.vehicle import VehicleTableMapping
+from ...mappings.service_contract import ServiceContractTableMapping
+from ...mappings.base import BaseMapping
 
 
 class BaseTransformer(ABC):
@@ -15,6 +17,7 @@ class BaseTransformer(ABC):
     vehicle_sale_table_mapping: VehicleSaleTableMapping
     consumer_table_mapping: ConsumerTableMapping
     vehicle_table_mapping: VehicleTableMapping
+    service_contract_table_mapping: ServiceContractTableMapping
     carlabs_data: DataFrame
     date_format: str
 
@@ -22,6 +25,7 @@ class BaseTransformer(ABC):
         assert self.vehicle_sale_table_mapping is not None
         assert self.consumer_table_mapping is not None
         assert self.vehicle_table_mapping is not None
+        assert self.service_contract_table_mapping is not None
 
         self.carlabs_data = json_normalize(carlabs_data).iloc[0]
         self.pre_process_data()
@@ -32,6 +36,10 @@ class BaseTransformer(ABC):
 
     @abstractmethod
     def post_process_consumer(self, orm: Consumer) -> Consumer:
+        ...
+
+    @abstractmethod
+    def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
         ...
 
     def parsed_date(self, raw_date: str) -> date:
@@ -67,7 +75,7 @@ class BaseTransformer(ABC):
         # TODO what to put here
         orm.si_load_process = ''
 
-        return orm
+        return self.post_process_vehicle_sale(orm)
 
     @property
     def consumer(self) -> Consumer:
@@ -93,3 +101,17 @@ class BaseTransformer(ABC):
         orm.si_load_process = ''
 
         return orm
+
+    @property
+    def service_contract(self) -> ServiceContract:
+        mapped = self.__get_mapped_data(self.service_contract_table_mapping)
+
+        orm = ServiceContract(**mapped)
+
+        # TODO avoid this repetition
+        orm.si_load_timestamp = datetime.utcnow()
+        # TODO what to put here
+        orm.si_load_process = ''
+
+        return orm
+

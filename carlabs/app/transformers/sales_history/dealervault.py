@@ -1,8 +1,10 @@
-from ..orm.models.shared_dms.consumer import Consumer
+from ...orm.models.shared_dms.vehicle_sale import VehicleSale
+from ...orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
-from ..mappings.vehicle_sale import VehicleSaleTableMapping
-from ..mappings.consumer import ConsumerTableMapping
-from ..mappings.vehicle import VehicleTableMapping
+from ...mappings.vehicle_sale import VehicleSaleTableMapping
+from ...mappings.consumer import ConsumerTableMapping
+from ...mappings.vehicle import VehicleTableMapping
+from ...mappings.service_contract import ServiceContractTableMapping
 
 
 class DealervaultTransformer(BaseTransformer):
@@ -69,6 +71,16 @@ class DealervaultTransformer(BaseTransformer):
         year='importedData.Year'
     )
 
+    service_contract_table_mapping = ServiceContractTableMapping(
+        contract_name='importedData.Warranty 1 Name',
+        start_date='importedData.Contract Date',
+        amount='importedData.Warranty 1 Sale',
+        cost='importedData.Warranty 1 Cost',
+        deductible=None,
+        expiration_months='importedData.Warranty 1 Term',
+        expiration_miles='importedData.Warranty 1 Miles'
+    )
+
     date_format = '%m/%d/%Y'
 
     def post_process_consumer(self, orm: Consumer) -> Consumer:
@@ -77,6 +89,9 @@ class DealervaultTransformer(BaseTransformer):
         orm.postal_mail_optin_flag = self.carlabs_data['importedData.Block Mail'] == 'N'
         orm.sms_optin_flag = self.carlabs_data['importedData.Block Phone'] == 'N'
 
+        return orm
+
+    def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
         return orm
 
     def pre_process_data(self):

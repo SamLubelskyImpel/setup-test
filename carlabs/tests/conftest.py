@@ -3,10 +3,10 @@ from pandas import DataFrame
 from .data.cdk import CDK_DATA
 from .data.dealertrack import DEALERTRACK_DATA
 from .data.dealervault import DEALERVAULT_DATA
-from app.orm.models.shared_dms.vehicle_sale import VehicleSale
-from app.transformers.cdk import CDKTransformer
-from app.transformers.dealertrack import DealertrackTransformer
-from app.transformers.dealervault import DealervaultTransformer
+from app.transformers.sales_history.cdk import CDKTransformer
+from app.transformers.sales_history.dealertrack import DealertrackTransformer
+from app.transformers.sales_history.dealervault import DealervaultTransformer
+import copy
 
 @fixture
 def cdk_data():
@@ -15,7 +15,9 @@ def cdk_data():
 
 @fixture
 def dealertrack_data():
-    return DEALERTRACK_DATA
+    data = copy.deepcopy(DEALERTRACK_DATA)
+    data['importedData']['deal']['detail']['ServiceContracts']['ServiceContract'] = data['importedData']['deal']['detail']['ServiceContracts']['ServiceContract'][0]
+    return data
 
 @fixture
 def dealervault_data():
