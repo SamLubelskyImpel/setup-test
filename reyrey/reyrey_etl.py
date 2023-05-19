@@ -85,16 +85,16 @@ class RDSInstance:
         )
         return query
 
-    def select_db_dealer_id(self, dms_id):
+    def select_db_dealer_integration_partner_id(self, dms_id):
         """Get the db dealer id for the given dms id."""
-        db_dealer_id_query = f"""
-            select d.id from {self.schema}."dealer" d 
-            join {self.schema}."integration_partner" i on d.integration_id = i.id 
-            where d.dms_id = '{dms_id}' and i.name = '{self.integration}';"""
-        results = self.execute_rds(db_dealer_id_query).fetchone()
+        db_dealer_integration_partner_id_query = f"""
+            select dip.id from {self.schema}."dealer_integration_partner" dip
+            join {self.schema}."integration_partner" i on dip.integration_id = i.id 
+            where dip.dms_id = '{dms_id}' and i.name = '{self.integration}' and dip.is_active = true;"""
+        results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
             raise RuntimeError(
-                f"No dealer {dms_id} found with query {db_dealer_id_query}."
+                f"No active dealer {dms_id} found with query {db_dealer_integration_partner_id_query}."
             )
         else:
             return results[0]
@@ -105,14 +105,14 @@ class RDSInstance:
         actual_op_code_repair_order_columns = [
             x for x in desired_op_code_repair_order_columns if x in dealer_df.columns
         ]
-        actual_op_code_repair_order_columns.append("dealer_id")
+        actual_op_code_repair_order_columns.append("dealer_integration_partner_id")
 
         op_code_repair_order_df = (
             dealer_df.select(actual_op_code_repair_order_columns)
             .withColumn("op_codes", F.explode("op_codes"))
             .select(
                 F.col("op_codes.op_code").alias("op_code"),
-                "dealer_id",
+                "dealer_integration_partner_id",
                 "repair_order_no",
             )
         )
@@ -120,7 +120,7 @@ class RDSInstance:
         conditions_list = []
         for row in op_code_repair_order_df.collect():
             condition = f"""
-                sro.dealer_id = {row['dealer_id']} 
+                sro.dealer_integration_partner_id = {row['dealer_integration_partner_id']} 
                 and sro.repair_order_no = '{row['repair_order_no']}' 
                 and oc.op_code = '{row['op_code']}'
             """
@@ -130,7 +130,7 @@ class RDSInstance:
             insert into {self.schema}.op_code_repair_order (op_code_id, repair_order_id)
             select oc.id as op_code_id, sro.id as repair_order_id
             from {self.schema}.service_repair_order sro
-            join {self.schema}.op_code oc on oc.dealer_id=sro.dealer_id
+            join {self.schema}.op_code oc on oc.dealer_integration_partner_id=sro.dealer_integration_partner_id
             where ({conditions_str})
             RETURNING id
         """
@@ -146,16 +146,16 @@ class RDSInstance:
         actual_op_code_columns = [
             x for x in desired_op_code_columns if x in dealer_df.columns
         ]
-        actual_op_code_columns.append("dealer_id")
+        actual_op_code_columns.append("dealer_integration_partner_id")
 
         combined_op_code_df = dealer_df.select(actual_op_code_columns).withColumn(
             "op_codes", F.explode("op_codes")
         )
-        unique_op_code_cols = ["dealer_id", "op_code", "op_code_desc"]
+        unique_op_code_cols = ["dealer_integration_partner_id", "op_code", "op_code_desc"]
         op_code_df = combined_op_code_df.select(
             F.col("op_codes.op_code").alias("op_code"),
             F.col("op_codes.op_code_desc").alias("op_code_desc"),
-            "dealer_id",
+            "dealer_integration_partner_id",
         ).dropDuplicates(subset=unique_op_code_cols)
         insert_op_code_query = self.get_insert_query_from_df(
             op_code_df,
@@ -179,10 +179,10 @@ class RDSInstance:
         actual_service_repair_order_columns = [
             x for x in desired_service_repair_order_columns if x in dealer_df.columns
         ]
-        actual_service_repair_order_columns.append("dealer_id")
+        actual_service_repair_order_columns.append("dealer_integration_partner_id")
         actual_service_repair_order_columns.append("consumer_id")
 
-        unique_ros_dms_cols = ["repair_order_no", "dealer_id"]
+        unique_ros_dms_cols = ["repair_order_no", "dealer_integration_partner_id"]
         service_repair_order_df = dealer_df.select(
             actual_service_repair_order_columns
         ).dropDuplicates(subset=unique_ros_dms_cols)
@@ -206,7 +206,7 @@ class RDSInstance:
         actual_vehicle_sale_columns = [
             x for x in desired_vehicle_sale_columns if x in dealer_df.columns
         ]
-        actual_vehicle_sale_columns.append("dealer_id")
+        actual_vehicle_sale_columns.append("dealer_integration_partner_id")
         actual_vehicle_sale_columns.append("consumer_id")
 
         vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
@@ -228,7 +228,7 @@ class RDSInstance:
         actual_consumer_columns = [
             x for x in desired_consumer_columns if x in dealer_df.columns
         ]
-        actual_consumer_columns.append("dealer_id")
+        actual_consumer_columns.append("dealer_integration_partner_id")
 
         consumer_df = dealer_df.select(actual_consumer_columns)
         insert_consumer_query = self.get_insert_query_from_df(
@@ -269,7 +269,7 @@ class ReyReyUpsertJob:
                     "last_name": "FIDeal.Buyer.CustRecord.ContactInfo._LastName",
                     "email": "FIDeal.Buyer.CustRecord.ContactInfo.Email._MailTo",
                     "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
-                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address._Zip",
+                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address",
                     "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
                 },
                 "vehicle_sale": {
@@ -326,7 +326,7 @@ class ReyReyUpsertJob:
             },
         }
 
-    def select_columns(self, df, table_to_mappings):
+    def apply_mappings(self, df, table_to_mappings):
         """Select valid db columns from a dataframe using dms column mappings, log and skip missing data."""
         ignore_columns = []
         selected_columns = []
@@ -337,7 +337,7 @@ class ReyReyUpsertJob:
                     df.select(dms_column)
                 except pyspark.sql.utils.AnalysisException:
                     ignore_columns.append(db_column)
-                    logger.exception(f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema}.")
+                    logger.exception(f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema.json()}.")
                     raise
 
             for db_column, dms_column in db_columns_to_dms_columns.items():
@@ -349,7 +349,7 @@ class ReyReyUpsertJob:
                     selected_column_names.append(db_column)
         return df.select(selected_columns)
 
-    def apply_mappings(self, df, catalog_name):
+    def filter_null(self, df, catalog_name):
         """Map the raw data to the unified column and return as a dataframe."""
         if "reyreycrawlerdb_fi_closed_deal" == catalog_name:
             data_column_name = "FIDeal"
@@ -389,10 +389,7 @@ class ReyReyUpsertJob:
             .collect()
         )
         logging.info(f"Processing data: {valid_data_json}")
-
-        # Select columns raw data by mapping
-        table_data = self.select_columns(valid_data, self.mappings[catalog_name])
-        return table_data
+        return valid_data
 
     def format_df(self, df, catalog_name):
         """Format the raw data to match the database schema."""
@@ -508,10 +505,10 @@ class ReyReyUpsertJob:
         dealers = df.select("dms_id").distinct().collect()
         for dealer in dealers:
             dealer_df = df.filter(df.dms_id == dealer.dms_id)
-            db_dealer_id = None
+            db_dealer_integration_partner_id = None
             try:
-                db_dealer_id = self.rds.select_db_dealer_id(dealer.dms_id)
-                dealer_df = dealer_df.withColumn("dealer_id", F.lit(db_dealer_id))
+                db_dealer_integration_partner_id = self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
+                dealer_df = dealer_df.withColumn("dealer_integration_partner_id", F.lit(db_dealer_integration_partner_id))
                 if catalog_name == "reyreycrawlerdb_fi_closed_deal":
                     # Vehicle sale must insert into consumer table first
                     inserted_consumer_ids = self.rds.insert_consumer(
@@ -519,7 +516,7 @@ class ReyReyUpsertJob:
                     )
                     count = len(inserted_consumer_ids)
                     logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_id}"
+                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
                     )
 
                     # Then insert to vehicle sale with consumer ids
@@ -532,7 +529,7 @@ class ReyReyUpsertJob:
                     )
                     count = len(vehicle_sale_ids)
                     logger.info(
-                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_id}"
+                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
                     )
                     insert_count += count
 
@@ -543,7 +540,7 @@ class ReyReyUpsertJob:
                     )
                     count = len(inserted_consumer_ids)
                     logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_id}"
+                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
                     )
 
                     # Then insert to service repair order with consumer ids
@@ -556,7 +553,7 @@ class ReyReyUpsertJob:
                     )
                     count = len(service_repair_order_ids)
                     logger.info(
-                        f"Added {count} rows to service_repair_order for dealer {db_dealer_id}"
+                        f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
                     )
                     insert_count += count
 
@@ -566,7 +563,7 @@ class ReyReyUpsertJob:
                     )
                     count = len(inserted_op_code_ids)
                     logger.info(
-                        f"Added {count} rows to op_code for dealer {db_dealer_id}"
+                        f"Added {count} rows to op_code for dealer {db_dealer_integration_partner_id}"
                     )
 
                     # Link op codes
@@ -575,60 +572,68 @@ class ReyReyUpsertJob:
                     )
                     count = len(inserted_op_code_repair_order_ids)
                     logger.info(
-                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_id}"
+                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
                     )
             except Exception:
                 logger.exception(
-                    f"""Error: db_dealer_id {db_dealer_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
+                    f"""Error: db_dealer_integration_partner_id {db_dealer_integration_partner_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
                 )
-
-                schema_json = loads(dealer_df.schema.json())
-                data_json = [row.asDict(recursive=True) for row in dealer_df.collect()]
-                s3_key = f"{self.integration}/errors/{datetime.now().strftime('%Y-%m-%d')}/{dealer.dms_id}_{self.job_id}/{uuid.uuid4().hex}.json"
-                s3_client = boto3.client("s3")
-                s3_client.put_object(
-                    Bucket=self.bucket_name,
-                    Key=s3_key,
-                    Body=dumps({"schema": schema_json, "data": data_json}),
-                    ContentType="application/json",
-                )
-
-                # To rebuild df from the json data
-                # df = spark.read.schema(StructType.fromJson(schema_json)).json(spark.sparkContext.parallelize([json.dumps(data_json)]))
-
-                sqs_client = boto3.client("sqs")
-                sqs_client.send_message(
-                    QueueUrl=self.dlq_url,
-                    MessageBody=dumps({"bucket": self.bucket_name, "key": s3_key}),
-                )
+                s3_key = f"{self.integration}/errors/{dealer.dms_id}/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
+                self.save_df_notify(df, s3_key)
+                raise
 
         return insert_count
+    
+    def save_df_notify(self, df, s3_key):
+        """ Save schema and data to s3, notify of error. """
+        schema_json = loads(df.schema.json())
+        data_json = [row.asDict(recursive=True) for row in df.collect()]
+        s3_client = boto3.client("s3")
+        s3_client.put_object(
+            Bucket=self.bucket_name,
+            Key=s3_key,
+            Body=dumps({"schema": schema_json, "data": data_json}),
+            ContentType="application/json",
+        )
+        logger.info(f"Uploaded df info to {s3_key}")
+        sqs_client = boto3.client("sqs")
+        sqs_client.send_message(
+            QueueUrl=self.dlq_url,
+            MessageBody=dumps({"bucket": self.bucket_name, "key": s3_key}),
+        )
 
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
-            transformation_ctx = "bookmark_" + catalog_name
+            transformation_ctx = "bookmark2_" + catalog_name
             datasource = self.glue_context.create_dynamic_frame.from_catalog(
                 database=self.database,
                 table_name=catalog_name,
                 transformation_ctx=transformation_ctx,
             )
             if datasource.count() != 0:
-                df = (
-                    datasource.toDF()
-                    .withColumnRenamed("partition_0", "Year")
-                    .withColumnRenamed("partition_1", "Month")
-                    .withColumnRenamed("partition_2", "Date")
-                )
-                # Get the base fields in a df via self.mappings
-                mapped_df = self.apply_mappings(df, catalog_name)
-                # Format necessary base fields to get a standardized df format
-                formatted_df = self.format_df(mapped_df, catalog_name)
-                # If you've properly formatted your df the next function should run without needing modifications per integration
-                upsert_count = self.upsert_df(formatted_df, catalog_name)
-                logger.info(
-                    f"Added {upsert_count} total rows to primary table for {catalog_name}."
-                )
+                try:
+                    df = (
+                        datasource.toDF()
+                        .withColumnRenamed("partition_0", "Year")
+                        .withColumnRenamed("partition_1", "Month")
+                        .withColumnRenamed("partition_2", "Date")
+                    )
+                    # Filter rows with no data
+                    df = self.filter_null(df, catalog_name)
+                    # Get the base fields in a df via self.mappings
+                    df = self.apply_mappings(df, self.mappings[catalog_name])
+                    # Format necessary base fields to get a standardized df format
+                    df = self.format_df(df, catalog_name)
+                    # If you've properly formatted your df the next function should run without needing modifications per integration
+                    upsert_count = self.upsert_df(df, catalog_name)
+                    logger.info(
+                        f"Added {upsert_count} total rows to primary table for {catalog_name}."
+                    )
+                except Exception:
+                    s3_key = f"{self.integration}/errors/job/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
+                    self.save_df_notify(df, s3_key)
+                    raise
             else:
                 logger.error("There is no new data for the job to process.")
 
