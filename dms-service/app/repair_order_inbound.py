@@ -27,23 +27,12 @@ def json_serial(obj):
     return str(obj)
 
 
-def build_query_filters(params):
-    """Build appropriate filters for query."""
-
-    filters = {}
-    if params:
-        for attr, value in params.items():
-            filters[attr] = value
-
-    return filters
-
-
 def lambda_handler(event, context):
     """Run repair order API."""
 
     logger.info(f"Event: {event}")
     try:
-        filters = build_query_filters(event["queryStringParameters"])
+        filters = event.get("queryStringParameters", {})
         results = []
         max_results = 1000
 
@@ -101,7 +90,22 @@ def lambda_handler(event, context):
             )
 
             if filters:
+                tables = [
+                    ServiceRepairOrder,
+                    Consumer,
+                    DealerIntegrationPartner,
+                    Dealer,
+                    IntegrationPartner,
+                    Vehicle,
+                ]
                 for attr, value in filters.items():
+                    filtered_table = None
+                    for table in tables:
+                        if attr in table.__table__.columns:
+                            filtered_table = table
+                    if not filtered_table:
+                        raise RuntimeError(f"No column found {attr}")
+                    
                     if attr == "ro_open_date_start":
                         query = query.filter(
                             getattr(ServiceRepairOrder, "ro_open_date") >= value

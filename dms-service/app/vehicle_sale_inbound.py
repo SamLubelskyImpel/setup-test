@@ -23,22 +23,11 @@ def json_serial(obj):
     return str(obj)
 
 
-def build_query_filters(params):
-    """Build appropriate filters for query."""
-
-    filters = {}
-    if params:
-        for attr, value in params.items():
-            filters[attr] = value
-
-    return filters
-
-
 def lambda_handler(event, context):
     """Run vehicle sale API."""
     logger.info(f"Event: {event}")
     try:
-        filters = build_query_filters(event["queryStringParameters"])
+        filters = event.get("queryStringParameters", {})
         results = []
         max_results = 1000
 
@@ -69,17 +58,33 @@ def lambda_handler(event, context):
                 )
             )
             if filters:
+                tables = [
+                    VehicleSale,
+                    Consumer,
+                    DealerIntegrationPartner,
+                    Dealer,
+                    IntegrationPartner,
+                    Vehicle
+                ]
                 for attr, value in filters.items():
+                    filtered_table = None
+                    for table in tables:
+                        if attr in table.__table__.columns:
+                            filtered_table = table
+                    
+                    if not filtered_table:
+                        raise RuntimeError(f"No column found {attr}")
+
                     if attr == "sale_date_start":
-                        query = query.filter(getattr(VehicleSale, "sale_date") >= value)
+                        query = query.filter(getattr(filtered_table, "sale_date") >= value)
                     elif attr == "ro_open_date_end":
-                        query = query.filter(getattr(VehicleSale, "sale_date") <= value)
+                        query = query.filter(getattr(filtered_table, "sale_date") <= value)
                     elif attr == "next_fetch_key":
-                        query = query.filter(getattr(VehicleSale, "id") > value)
+                        query = query.filter(getattr(filtered_table, "id") > value)
                     elif attr == "result_count":
                         max_results = value
                     else:
-                        query = query.filter(getattr(VehicleSale, attr) == value)
+                        query = query.filter(getattr(filtered_table, attr) == value)
 
             vehicle_sales = query.order_by(VehicleSale.id).limit(max_results).all()
 
