@@ -5,7 +5,7 @@ import traceback
 from builtins import object
 from os import environ
 
-from sqlalchemy import create_engine
+from sqlalchemy import MetaData, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -17,7 +17,9 @@ env = environ["ENVIRONMENT"]
 from dms_orm.create_db_uri import create_db_uri
 
 _Sessions = {}
-BaseForModels = declarative_base()
+BaseForModels = declarative_base(
+    metadata=MetaData(schema="prod" if env == "prod" else "stage")
+)
 
 
 class DBSession(object):

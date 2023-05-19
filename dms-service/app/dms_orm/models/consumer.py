@@ -13,7 +13,9 @@ class Consumer(BaseForModels):
     __tablename__ = "consumer"
 
     id = Column(Integer, primary_key=True)
-    dealer_id = Column(Integer, ForeignKey("dealer.id"))
+    dealer_integration_partner_id = Column(
+        Integer, ForeignKey("dealer_integration_partner.id")
+    )
     dealer_customer_no = Column(String)
     first_name = Column(String)
     last_name = Column(String)
@@ -29,7 +31,6 @@ class Consumer(BaseForModels):
     phone_optin_flag = Column(Boolean)
     postal_mail_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
-    master_consumer_id = Column(Integer)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

@@ -33,6 +33,6 @@ def interpolate_yaml_file(file_path: str, interpolation_dict: dict):
 
 
 interpolate_yaml_file(
-    "dms_data_service/swagger/dms-data-service-oas.yaml",
+    "swagger/dms-data-service-oas.yaml",
     DMS_DATA_SERVICE_INTERPOLATION_DATA,
 )

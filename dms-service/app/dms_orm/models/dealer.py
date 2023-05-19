@@ -5,7 +5,7 @@ import sys
 from dms_orm.models.dealer_group import DealerGroup
 from dms_orm.models.sfdc_account import SFDCAccount
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 
 
 class Dealer(BaseForModels):
@@ -14,14 +14,13 @@ class Dealer(BaseForModels):
     __tablename__ = "dealer"
 
     id = Column(Integer, primary_key=True)
-    sfdc_account_id = Column(Integer, ForeignKey("sfdc_account.sdfc_account_id"))
     dealer_group_id = Column(Integer, ForeignKey("dealer_group.id"))
-    name = Column(String)
+    impel_id = Column(String)
     location_name = Column(String)
     state = Column(String)
     city = Column(String)
     zip_code = Column(String)
-    category = Column(String)
+    __table_args__ = (UniqueConstraint("impel_id", name="unique_impel_id"),)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

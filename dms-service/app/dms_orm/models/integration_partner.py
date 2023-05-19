@@ -1,4 +1,4 @@
-"""Vehicle Model."""
+"""Integration Partner Model."""
 
 import sys
 
@@ -6,20 +6,14 @@ from dms_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String
 
 
-class Vehicle(BaseForModels):
-    """Vehicle Model."""
+class IntegrationPartner(BaseForModels):
+    """Integration Partner Model."""
 
-    __tablename__ = "vehicle"
+    __tablename__ = "integration_partner"
 
     id = Column(Integer, primary_key=True)
-    vin = Column(String)
-    oem_name = Column(String)
+    name = Column(String)
     type = Column(String)
-    vehicle_class = Column(String)
-    mileage = Column(Integer)
-    make = Column(String)
-    model = Column(String)
-    year = Column(Integer)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

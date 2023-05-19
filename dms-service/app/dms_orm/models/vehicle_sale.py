@@ -6,8 +6,17 @@ from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey,
-                        Integer, String)
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 
 
 class VehicleSale(BaseForModels):
@@ -16,9 +25,11 @@ class VehicleSale(BaseForModels):
     __tablename__ = "vehicle_sale"
 
     id = Column(Integer, primary_key=True)
-    consumer_id = Column(Integer, ForeignKey("consumer.id"))
-    dealer_id = Column(Integer, ForeignKey("dealer.id"))
+    dealer_integration_partner_id = Column(
+        Integer, ForeignKey("dealer_integration_partner.id")
+    )
     vehicle_id = Column(Integer, ForeignKey("vehicle.id"))
+    consumer_id = Column(Integer, ForeignKey("consumer.id"))
     sale_date = Column(DateTime)
     listed_price = Column(Float)
     sales_tax = Column(Float)
@@ -26,10 +37,10 @@ class VehicleSale(BaseForModels):
     deal_type = Column(String)
     cost_of_vehicle = Column(Float)
     oem_msrp = Column(Float)
-    discount_on_price = Column(Float)
+    adjustment_on_price = Column(Float)
     days_in_stock = Column(Integer)
     date_of_state_inspection = Column(DateTime)
-    is_new = Column(Boolean)
+    new_or_used = Column(String)
     trade_in_value = Column(Float)
     payoff_on_trade = Column(Float)
     value_at_end_of_lease = Column(Float)
@@ -40,6 +51,20 @@ class VehicleSale(BaseForModels):
     warranty_expiration_date = Column(DateTime)
     service_package = Column(JSON)
     extended_warranty = Column(JSON)
+    vin = Column(String)
+    vehicle_class = Column(String)
+    make = Column(String)
+    model = Column(String)
+    year = Column(Integer)
+    delivery_date = Column(DateTime)
+    __table_args__ = (
+        UniqueConstraint(
+            "dealer_integration_partner_id",
+            "sale_date",
+            "vin",
+            name="dealer_group_name_key",
+        ),
+    )
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

@@ -13,7 +13,7 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
-from pyspark.sql.types import StringType
+from pyspark.sql.types import DoubleType, StringType
 from pyspark.sql.window import Window
 
 
@@ -151,7 +151,11 @@ class RDSInstance:
         combined_op_code_df = dealer_df.select(actual_op_code_columns).withColumn(
             "op_codes", F.explode("op_codes")
         )
-        unique_op_code_cols = ["dealer_integration_partner_id", "op_code", "op_code_desc"]
+        unique_op_code_cols = [
+            "dealer_integration_partner_id",
+            "op_code",
+            "op_code_desc",
+        ]
         op_code_df = combined_op_code_df.select(
             F.col("op_codes.op_code").alias("op_code"),
             F.col("op_codes.op_code_desc").alias("op_code_desc"),
@@ -181,6 +185,7 @@ class RDSInstance:
         ]
         actual_service_repair_order_columns.append("dealer_integration_partner_id")
         actual_service_repair_order_columns.append("consumer_id")
+        actual_service_repair_order_columns.append("metadata")
 
         unique_ros_dms_cols = ["repair_order_no", "dealer_integration_partner_id"]
         service_repair_order_df = dealer_df.select(
@@ -208,6 +213,7 @@ class RDSInstance:
         ]
         actual_vehicle_sale_columns.append("dealer_integration_partner_id")
         actual_vehicle_sale_columns.append("consumer_id")
+        actual_vehicle_sale_columns.append("metadata")
 
         vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
         insert_vehicle_sale_query = self.get_insert_query_from_df(
@@ -229,6 +235,7 @@ class RDSInstance:
             x for x in desired_consumer_columns if x in dealer_df.columns
         ]
         actual_consumer_columns.append("dealer_integration_partner_id")
+        actual_consumer_columns.append("metadata")
 
         consumer_df = dealer_df.select(actual_consumer_columns)
         insert_consumer_query = self.get_insert_query_from_df(
@@ -244,6 +251,7 @@ class RDSInstance:
 
 class ReyReyUpsertJob:
     """Create object to perform ETL."""
+
     def __init__(self, job_id, args):
         self.sc = SparkContext()
         self.glue_context = GlueContext(self.sc)
@@ -254,6 +262,7 @@ class ReyReyUpsertJob:
         self.catalog_table_names = args["catalog_table_names"].split(",")
         self.dlq_url = args["dlq_url"]
         self.database = args["db_name"]
+        self.region = args["region"]
         self.is_prod = args["environment"] == "prod"
         self.integration = "reyrey"
         self.bucket_name = (
@@ -269,7 +278,7 @@ class ReyReyUpsertJob:
                     "last_name": "FIDeal.Buyer.CustRecord.ContactInfo._LastName",
                     "email": "FIDeal.Buyer.CustRecord.ContactInfo.Email._MailTo",
                     "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
-                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address",
+                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address.Array._Zip",
                     "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
                 },
                 "vehicle_sale": {
@@ -287,9 +296,9 @@ class ReyReyUpsertJob:
                     "payoff_on_trade": "FIDeal.FIDealFin.TradeIn._Payoff",
                     "value_at_end_of_lease": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual",
                     "miles_per_year": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear",
-                    "service_package": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
+                    "service_package": "FIDeal.FIDealFin.WarrantyInfo.Array.ServiceCont._ServContYN",
                     "vehicle_gross": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
-                    "extended_warranty": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
+                    "extended_warranty": "FIDeal.FIDealFin.WarrantyInfo.Array.ExtWarranty.VehExtWarranty._ExpirationDate",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
                     "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
                     "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
@@ -337,7 +346,9 @@ class ReyReyUpsertJob:
                     df.select(dms_column)
                 except pyspark.sql.utils.AnalysisException:
                     ignore_columns.append(db_column)
-                    logger.exception(f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema.json()}.")
+                    logger.exception(
+                        f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema.json()}."
+                    )
                     raise
 
             for db_column, dms_column in db_columns_to_dms_columns.items():
@@ -347,6 +358,7 @@ class ReyReyUpsertJob:
                 ):
                     selected_columns.append(F.col(dms_column).alias(db_column))
                     selected_column_names.append(db_column)
+        selected_columns.append("metadata")
         return df.select(selected_columns)
 
     def filter_null(self, df, catalog_name):
@@ -370,12 +382,21 @@ class ReyReyUpsertJob:
         logging.warning(f"Skip processing null data: {null_data_json}")
 
         # Log and select data without null values
-        valid_data = df.filter(F.col(f"{data_column_name}.Array").isNotNull()).select(
-            "Year",
-            "Month",
-            "Date",
-            "ApplicationArea",
-            F.explode(f"{data_column_name}.Array").alias(data_column_name),
+        valid_data = (
+            df.filter(F.col(f"{data_column_name}.Array").isNotNull())
+            .select(
+                "Year",
+                "Month",
+                "Date",
+                F.col("ApplicationArea.BODId").alias("BODId"),
+                "ApplicationArea",
+                F.explode(f"{data_column_name}.Array").alias(data_column_name),
+            )
+            .withColumn("Region", F.lit(self.region))
+            .withColumn(
+                "metadata",
+                F.to_json(F.struct("Region", "Year", "Month", "Date", "BODId")),
+            )
         )
         valid_data_json = (
             valid_data.select(
@@ -410,6 +431,20 @@ class ReyReyUpsertJob:
             if catalog_name == "reyreycrawlerdb_fi_closed_deal":
                 get_home_phone = get_home_phone["long"]
             df = df.withColumn("home_phone", get_home_phone)
+        if "postal_code" in df.columns:
+            # Convert postal_code column from Array[String] to String
+            def calculate_postal_code(pyspark_arr):
+                if pyspark_arr:
+                    for raw_reyrey_str in pyspark_arr:
+                        if raw_reyrey_str != "null":
+                            return raw_reyrey_str
+                    return None
+                else:
+                    return None
+
+            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+                get_postal_code = F.udf(calculate_postal_code, StringType())
+                df = df.withColumn("postal_code", get_postal_code(F.col("postal_code")))
         if "extended_warranty" in df.columns:
             # Convert extended_warranty column from Array[String] to JSON String
             def calculate_extended_warranty(pyspark_arr):
@@ -460,10 +495,15 @@ class ReyReyUpsertJob:
             # Convert Array[String] to String
             df = df.withColumn("txn_pay_type", F.concat_ws(",", F.col("txn_pay_type")))
         if "total_amount" in df.columns:
-            df = df.withColumn(
-                "total_amount",
-                F.aggregate("total_amount", F.lit(0.0), lambda acc, x: acc + x),
-            )
+            # Convert Array[Double] to Double
+            def calculate_sum_array(arr):
+                if arr is not None:
+                    return sum(x for x in arr if x is not None)
+                else:
+                    return None
+
+            get_sum_array = F.udf(calculate_sum_array, DoubleType())
+            df = df.withColumn("total_amount", get_sum_array(F.col("total_amount")))
         if "op_codes" in df.columns:
             # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
             df = df.withColumn(
@@ -472,6 +512,7 @@ class ReyReyUpsertJob:
                     "transform(op_codes, x -> struct(x._RecSvcOpCode as op_code, x._RecSvcOpCdDesc as op_code_desc))"
                 ),
             )
+
         if starting_count != df.count():
             raise RuntimeError(
                 f"Error formatting lost data from {starting_count} rows to {df.count()}"
@@ -507,8 +548,13 @@ class ReyReyUpsertJob:
             dealer_df = df.filter(df.dms_id == dealer.dms_id)
             db_dealer_integration_partner_id = None
             try:
-                db_dealer_integration_partner_id = self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
-                dealer_df = dealer_df.withColumn("dealer_integration_partner_id", F.lit(db_dealer_integration_partner_id))
+                db_dealer_integration_partner_id = (
+                    self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
+                )
+                dealer_df = dealer_df.withColumn(
+                    "dealer_integration_partner_id",
+                    F.lit(db_dealer_integration_partner_id),
+                )
                 if catalog_name == "reyreycrawlerdb_fi_closed_deal":
                     # Vehicle sale must insert into consumer table first
                     inserted_consumer_ids = self.rds.insert_consumer(
@@ -583,9 +629,9 @@ class ReyReyUpsertJob:
                 raise
 
         return insert_count
-    
+
     def save_df_notify(self, df, s3_key):
-        """ Save schema and data to s3, notify of error. """
+        """Save schema and data to s3, notify of error."""
         schema_json = loads(df.schema.json())
         data_json = [row.asDict(recursive=True) for row in df.collect()]
         s3_client = boto3.client("s3")
@@ -605,7 +651,7 @@ class ReyReyUpsertJob:
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
-            transformation_ctx = "bookmark2_" + catalog_name
+            transformation_ctx = "bookmark_" + catalog_name
             datasource = self.glue_context.create_dynamic_frame.from_catalog(
                 database=self.database,
                 table_name=catalog_name,
@@ -650,6 +696,7 @@ if __name__ == "__main__":
             "catalog_connection",
             "environment",
             "dlq_url",
+            "region",
         ],
     )
 

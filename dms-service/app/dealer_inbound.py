@@ -1,17 +1,23 @@
 """Runs the dealer API"""
 import logging
-import sys
-from datetime import datetime, timezone
-from json import dumps, loads
+from datetime import date, datetime, timezone
+from json import dumps
 from os import environ
 
-from sqlalchemy import desc
+from dms_orm.models.dealer import Dealer
+from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from dms_orm.models.integration_partner import IntegrationPartner
+from dms_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-from dms_orm.models.dealer import Dealer
-from dms_orm.session_config import DBSession
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    return str(obj)
 
 
 def build_query_filters(params):
@@ -34,7 +40,15 @@ def lambda_handler(event, context):
         max_results = 1000
 
         with DBSession() as session:
-            query = session.query(Dealer)
+            query = (
+                session.query(DealerIntegrationPartner, Dealer, IntegrationPartner)
+                .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
+                .outerjoin(
+                    IntegrationPartner,
+                    DealerIntegrationPartner.integration_id == IntegrationPartner.id,
+                )
+            )
+
             if filters:
                 for attr, value in filters.items():
                     if attr == "next_fetch_key":
@@ -45,7 +59,12 @@ def lambda_handler(event, context):
                         query = query.filter(getattr(Dealer, attr) == value)
 
             dealers = query.order_by(Dealer.id).limit(max_results).all()
-            results = [dealer.as_dict() for dealer in dealers]
+            results = []
+            for dealer_integration_partner, dealer, integration_partner in dealers:
+                result_dict = dealer_integration_partner.as_dict()
+                result_dict["dealer"] = dealer.as_dict()
+                result_dict["integration_partner"] = integration_partner.as_dict()
+                results.append(result_dict)
 
         next_fetch_key = None
 
@@ -63,7 +82,7 @@ def lambda_handler(event, context):
                     "dealers": results,
                     "next_fetch_key": next_fetch_key,
                 },
-                default=str,
+                default=json_serial,
             ),
         }
     except Exception:

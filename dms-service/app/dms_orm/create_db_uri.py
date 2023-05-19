@@ -20,7 +20,7 @@ def __get_db_secrets(secretId):
 
 def create_db_uri(env):
     """Construct and return database URI."""
-    sm_env = f"{env}/DMSDB"
+    sm_env = f"{'prod' if env == 'prod' else 'test'}/DMSDB"
     uri = __get_db_secrets(sm_env)
 
     return uri

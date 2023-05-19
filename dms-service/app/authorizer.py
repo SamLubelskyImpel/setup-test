@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 
-IS_PROD = int(os.environ.get("IS_PROD", 0)) == 1
+is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
 
 def _lambda_handler(event, context):
@@ -31,7 +31,7 @@ def _lambda_handler(event, context):
 
     try:
         secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if IS_PROD else 'test'}/DmsDataService"
+            SecretId=f"{'prod' if is_prod else 'test'}/DmsDataService"
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":

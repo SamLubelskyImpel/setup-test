@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, UniqueConstraint
 
 
 class SFDCAccount(BaseForModels):
@@ -11,9 +11,12 @@ class SFDCAccount(BaseForModels):
 
     __tablename__ = "sfdc_account"
 
-    id = Column(Integer)
-    sfdc_account_id = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    sfdc_account_id = Column(String)
     customer_type = Column(String)
+    __table_args__ = (
+        UniqueConstraint("sfdc_account_id", name="sfdc_account_sfdc_account_id_key"),
+    )
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

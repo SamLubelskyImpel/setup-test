@@ -24,6 +24,10 @@ Conditions:
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
 
 Mappings:
+  VpcId:
+    us-east-1:
+      '196800776222': vpc-03417e688cee5bc07
+      '143813444726': vpc-0b28df8980a1905d5
   SslCertificates:
     us-east-1:
       '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
@@ -220,7 +224,7 @@ Resources:
   ReyReyETLFI:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the reyrey fi crawler
+      Description: ETL job to run after the reyrey fi crawler.
       Name: !Sub 'reyrey-etl-fi-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
@@ -244,6 +248,7 @@ Resources:
                       's3://integrations-etl-test/temporary/'
                     ]
         '--dlq_url': !Ref ReyReyETLDLQ
+        '--region': !Ref AWS::Region
         '--db_name': !Ref ReyReyCrawlerDB
         '--catalog_table_names': "reyreycrawlerdb_fi_closed_deal"
         '--catalog_connection': !Ref RDSConnection
@@ -253,7 +258,7 @@ Resources:
   ReyReyETLRO:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the reyrey RO crawler
+      Description: ETL job to run after the reyrey RO crawler.
       Name: !Sub 'reyrey-etl-ro-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
@@ -277,6 +282,7 @@ Resources:
                       's3://integrations-etl-test/temporary/'
                     ]
         '--dlq_url': !Ref ReyReyETLDLQ
+        '--region': !Ref AWS::Region
         '--db_name': !Ref ReyReyCrawlerDB
         '--catalog_table_names': "reyreycrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
@@ -435,6 +441,45 @@ Resources:
               CrawlerName: !Ref ReyReyFICrawler
               CrawlState: SUCCEEDED
 
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: Permit traffic from the reyrey glue etl
+      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      SecurityGroupEgress:
+        - Description: AllowAll
+          CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Product
+          Value: reyrey-glue-job
+
+  SelfInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "reyrey glue rds self reference"
+      GroupId: !GetAtt SecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
+  RDSInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "reyrey glue rds access"
+      GroupId: !If [ IsProd, 
+                      'sg-00e12bc4c116eb820',
+                      'sg-00b911ee260ce5153'
+                    ]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
   RDSConnection:
     Type: AWS::Glue::Connection
     Properties: 
@@ -444,10 +489,7 @@ Resources:
         PhysicalConnectionRequirements:
           AvailabilityZone: 'us-east-1b'
           SecurityGroupIdList: 
-            - !If [ IsProd, 
-                'sg-00e12bc4c116eb820',
-                'sg-00b911ee260ce5153'
-              ] 
+            - !GetAtt SecurityGroup.GroupId
           SubnetId: !If [ IsProd, 
                   'subnet-0b1555d5fa3c8ba8e',
                   'subnet-030d57e39ec0df603'
