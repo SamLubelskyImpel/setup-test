@@ -15,15 +15,19 @@ class BaseTransformer(ABC):
     carlabs_data: DataFrame
     date_format: str
 
-    def __init__(self, carlabs_data: DataFrame) -> None:
+    def __init__(self, carlabs_data: dict) -> None:
         assert self.vehicle_sale_table_mapping is not None
         assert self.consumer_table_mapping is not None
 
-        self.carlabs_data = json_normalize(carlabs_data.to_dict()).iloc[0]
+        self.carlabs_data = json_normalize(carlabs_data).iloc[0]
         self.pre_process_data()
 
     @abstractmethod
     def pre_process_data(self):
+        ...
+
+    @abstractmethod
+    def post_process_consumer(self, orm: Consumer) -> Consumer:
         ...
 
     def parsed_date(self, raw_date: str) -> date:
@@ -35,13 +39,14 @@ class BaseTransformer(ABC):
     def __get_mapped_data(self, mapping: BaseMapping):
         mapped = {}
 
+        # TODO use dict comprehension
         for dms_field, carlabs_field in mapping.fields:
             mapped[dms_field] = self.carlabs_data[carlabs_field]
 
         return mapped
 
     @property
-    def vehicle_sale(self):
+    def vehicle_sale(self) -> VehicleSale:
         mapped = self.__get_mapped_data(self.vehicle_sale_table_mapping)
 
         orm = VehicleSale(**mapped)
@@ -60,9 +65,8 @@ class BaseTransformer(ABC):
 
         return orm
 
-    # TODO add logic to deal with optin flags
     @property
-    def consumer(self):
+    def consumer(self) -> Consumer:
         mapped = self.__get_mapped_data(self.consumer_table_mapping)
 
         orm = Consumer(**mapped)
@@ -71,4 +75,4 @@ class BaseTransformer(ABC):
         # TODO what to put here
         orm.si_load_process = ''
 
-        return orm
+        return self.post_process_consumer(orm)

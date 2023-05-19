@@ -1,3 +1,4 @@
+from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
@@ -48,15 +49,23 @@ class DealervaultTransformer(BaseTransformer):
         metro=None,
         postal_code='importedData.Zip',
         home_phone='importedData.Home Phone',
-        email_optin_flag='importedData.Block Email',
-        phone_optin_flag='importedData.Block Phone',
-        postal_mail_optin_flag='importedData.Block Mail',
+        email_optin_flag=None,
+        phone_optin_flag=None,
+        postal_mail_optin_flag=None,
         sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.Address Line 1'
     )
 
     date_format = '%m/%d/%Y'
+
+    def post_process_consumer(self, orm: Consumer) -> Consumer:
+        orm.email_optin_flag = self.carlabs_data['importedData.Block Email'] == 'N'
+        orm.phone_optin_flag = self.carlabs_data['importedData.Block Phone'] == 'N'
+        orm.postal_mail_optin_flag = self.carlabs_data['importedData.Block Mail'] == 'N'
+        orm.sms_optin_flag = self.carlabs_data['importedData.Block Phone'] == 'N'
+
+        return orm
 
     def pre_process_data(self):
         ...

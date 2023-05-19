@@ -1,3 +1,4 @@
+from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
@@ -48,15 +49,16 @@ class CDKTransformer(BaseTransformer):
         metro=None,
         postal_code='importedData.ZipOrPostalCode',
         home_phone='importedData.HomePhone',
-        email_optin_flag='importedData.user.doNotContact.email',
-        phone_optin_flag='importedData.user.doNotContact.ever',
-        postal_mail_optin_flag='importedData.user.doNotContact.ever',
-        sms_optin_flag='importedData.user.doNotContact.sms',
+        email_optin_flag=None,
+        phone_optin_flag=None,
+        postal_mail_optin_flag=None,
+        sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.Address'
     )
 
     def pre_process_data(self):
+        # TODO dict comprehension
         for _, field in self.vehicle_sale_table_mapping.fields:
             if isinstance(self.carlabs_data[field], list):
                 self.carlabs_data[field] = self.carlabs_data[field][0]
@@ -64,3 +66,15 @@ class CDKTransformer(BaseTransformer):
         for _, field in self.consumer_table_mapping.fields:
             if isinstance(self.carlabs_data[field], list):
                 self.carlabs_data[field] = self.carlabs_data[field][0]
+
+    def post_process_consumer(self, orm: Consumer) -> Consumer:
+        never_contact = self.carlabs_data['importedData.user.doNotContact.ever']
+        sms_contact = False if never_contact else not self.carlabs_data['importedData.user.doNotContact.sms']
+        email_contact = False if never_contact else not self.carlabs_data['importedData.user.doNotContact.email']
+
+        orm.sms_optin_flag = sms_contact
+        orm.email_optin_flag = email_contact
+        orm.phone_optin_flag = not never_contact
+        orm.postal_mail_optin_flag = not never_contact
+
+        return orm

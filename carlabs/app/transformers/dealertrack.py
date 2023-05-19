@@ -1,3 +1,4 @@
+from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
@@ -48,15 +49,23 @@ class DealertrackTransformer(BaseTransformer):
         metro=None,
         postal_code='importedData.customerInformation.ZipCode',
         home_phone='importedData.customerInformation.PhoneNumber',
-        email_optin_flag='importedData.customerInformation.AllowContactByEmail',
-        phone_optin_flag='importedData.customerInformation.AllowContactByPhone',
-        postal_mail_optin_flag='importedData.customerInformation.AllowContactByPostal',
+        email_optin_flag=None,
+        phone_optin_flag=None,
+        postal_mail_optin_flag=None,
         sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.customerInformation.Address1'
     )
 
     date_format = '%Y%m%d'
+
+    def post_process_consumer(self, orm: Consumer) -> Consumer:
+        orm.email_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByEmail'] == 'Y'
+        orm.phone_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPhone'] == 'Y'
+        orm.postal_mail_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPostal'] == 'Y'
+        orm.sms_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPhone'] == 'Y'
+
+        return orm
 
     def pre_process_data(self):
         ...
