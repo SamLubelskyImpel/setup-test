@@ -1,0 +1,398 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Tekion DMS ETL
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+  DomainSuffix:
+    Description: The domain suffix of the API Gateway
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$|'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+    Default: ""
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  SslCertificates:
+    us-east-1:
+      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
+      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+  TekionGlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
+      Policies:
+        - PolicyName: TekionGluePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SMPolicy
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If [ IsProd, 
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                      ]
+        - PolicyName: TekionGlueS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SPolicy
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource: 
+                  - !If [ IsProd, 
+                      'arn:aws:s3:::integrations-etl-prod/raw_data/*',
+                      'arn:aws:s3:::integrations-etl-test/raw_data/*'
+                    ]
+                  - !If [ IsProd, 
+                      'arn:aws:s3:::integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
+                      'arn:aws:s3:::integrations-etl-test/*'
+                      # 'arn:aws:s3:::integrations-etl-test/glue_etl_job/tekion_glue_job.py'
+                    ]
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
+                  - !Sub "arn:aws:s3:::elena-temp-test/*"
+        - PolicyName: TekionSSMPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SSMPolicy
+                Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource: '*'
+        - PolicyName: TekionGlueSQSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SQSPolicy
+                Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueUrl
+                  - sqs:CreateQueue
+                  - sqs:SendMessage
+                  - sqs:SendMessageBatch
+                  - sqs:ListDeadLetterSourceQueues
+                  - sqs:ChangeMessageVisibility
+                  - sqs:PurgeQueue
+                  - sqs:ReceiveMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ListQueueTags
+                  - sqs:SetQueueAttributes
+                Resource: 
+                  - !GetAtt TekionQueue.Arn
+                  - !GetAtt TekionDLQ.Arn
+
+
+  TekionCrawlerDB:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "tekioncrawlerdb"
+        Description: "TekionDB"
+
+  TekionClassifier:
+    Type: AWS::Glue::Classifier
+    Properties:
+      JsonClassifier:
+        Name: TekionClassifier
+        JsonPath: "$[*]"
+
+  TekionLakeFormationPermissionRaw:
+    Type: AWS::LakeFormation::Permissions
+    Properties:
+      DataLakePrincipal:
+        DataLakePrincipalIdentifier: !GetAtt TekionGlueRole.Arn
+      Resource:
+        DatabaseResource:
+          Name: !Ref TekionCrawlerDB
+        TableResource:
+          DatabaseName: !Ref TekionCrawlerDB
+          TableWildcard: {}
+      Permissions:
+        - 'ALL'
+      PermissionsWithGrantOption: []
+
+  TekionCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub 'tekion-crawler-${Environment}'
+      Description: Crawl raw json data for tekion
+      Role: !GetAtt TekionGlueRole.Arn
+      TablePrefix: !Sub 'TekionCrawlerDB_'
+      DatabaseName: !Ref TekionCrawlerDB
+      Classifiers:
+        - !Ref TekionClassifier
+      Targets:
+        S3Targets:
+          # - Path: !If [ IsProd, 
+          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/",
+          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/",
+          #         ]
+          #   DlqEventQueueArn: !GetAtt TekionDLQ.Arn
+          #   EventQueueArn: !GetAtt TekionQueue.Arn    
+          - Path: "s3://integrations-etl-test/tekion/data/customer/"
+      SchemaChangePolicy:
+        UpdateBehavior: 'UPDATE_IN_DATABASE'
+        DeleteBehavior: 'LOG'
+      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
+      RecrawlPolicy:
+        RecrawlBehavior: 'CRAWL_EVERYTHING'
+
+  TekionETL:
+    Type: AWS::Glue::Job
+    Properties:
+      Description: ETL job to run after the tekion crawler.
+      Name: !Sub 'tekion-etl-${Environment}'
+      Role: !GetAtt TekionGlueRole.Arn
+      GlueVersion: 3.0
+      MaxCapacity: 2
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      Connections:
+        Connections:
+            - !Sub 'dms-rds-connection-${Environment}'
+      Command:
+        Name: glueetl
+        PythonVersion: 3
+        ScriptLocation: !If [ IsProd, 
+                      's3://integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
+                      's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
+                    ]
+      DefaultArguments: 
+        '--job-bookmark-option': 'job-bookmark-enable'
+        '--TempDir': !If [ IsProd, 
+                      's3://integrations-etl-prod/temporary/',
+                      's3://integrations-etl-test/temporary/'
+                    ]
+        '--dlq_url': !Ref TekionETLDLQ
+        '--db_name': !Ref TekionCrawlerDB
+        '--catalog_table_names': "tekioncrawlerdb_customer"
+        '--catalog_connection': !Ref RDSConnection
+        '--environment': !Ref Environment
+        '--additional-python-modules': 'psycopg2-binary==2.9.3'
+
+  TekionGlueWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties: 
+      Description: Workflow for orchestrating glue tekion jobs
+      Name: !Sub 'tekion-glue-workflow-${Environment}'
+
+  TekionGlueWorkflowJobTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub 'tekion-glue-crawler-success-${Environment}'
+      Type: CONDITIONAL
+      Description: Trigger to start the unverisal integration glue job
+      StartOnCreation: true
+      Actions:
+        - JobName: !Ref TekionETL
+      Predicate:
+        Logical: ANY
+        Conditions:
+            - LogicalOperator: EQUALS
+              CrawlerName: !Ref TekionCrawler
+              CrawlState: SUCCEEDED
+
+  RDSConnection:
+    Type: AWS::Glue::Connection
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput: 
+        ConnectionProperties:
+          Name: 'TekionConnection'
+          Type: JDBC
+          JDBC_CONNECTION_URL: !If [ IsProd, 
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:jdbc_url}}',
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:jdbc_url}}'
+                  ]
+          USERNAME: !If [ IsProd, 
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:user}}',
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:user}}'
+                  ]
+          PASSWORD: !If [ IsProd, 
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:password}}',
+                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:password}}'
+                  ]
+        ConnectionType: JDBC
+  
+  TekionETLDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionETLDLQ
+
+  TekionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionDLQ
+
+  TekionQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: TekionDLQ
+    Properties:
+      QueueName: TekionQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionDLQ.Arn
+        maxReceiveCount: 1
+
+  # TekionQueueSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     TopicArn: !If [ IsProd, 
+  #                   !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sns-s3-univ-topic-${AWS::Region}-prod',
+  #                   !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sns-s3-univ-topic-${AWS::Region}-test'
+  #                 ]
+  #     Protocol: sqs
+  #     RawMessageDelivery: true 
+  #     Endpoint: !GetAtt TekionQueue.Arn
+  #     FilterPolicyScope: MessageBody
+  #     FilterPolicy:
+  #       '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  TekionQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: TekionQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt TekionQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd, 
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sns-s3-univ-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sns-s3-univ-topic-${AWS::Region}-test'
+                          ]
+  # TekionCrawlerAlert:
+  #   Type: 'AWS::Events::Rule'
+  #   Properties:
+  #     Description: Alert for when Tekion Glue Crawler fails
+  #     State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once Tekion sends data to avoid alert spam
+  #     EventPattern:
+  #       source:
+  #         - aws.glue
+  #       detail-type:
+  #         - "Glue Crawler State Change"
+  #       detail:
+  #         state:
+  #           - "Failed"
+  #         crawlerName:
+  #           - !Ref TekionCrawler
+  #     Targets:
+  #       - Arn: !Ref TopicUnivClientEngineeringAlertTopic
+  #         Id: !Sub TekionCrawlerAlert-target-${Environment}
+
+  # TekionETLAlert:
+  #   Type: 'AWS::Events::Rule'
+  #   Properties:
+  #     Description: Alert for when Tekion Glue ETL fails
+  #     State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once Tekion sends data to avoid alert spam
+  #     EventPattern:
+  #       source:
+  #         - aws.glue
+  #       detail-type:
+  #         - "Glue Job State Change"
+  #       detail:
+  #         state:
+  #           - "Failed"
+  #         jobName:
+  #           - !Ref TekionETL
+  #     Targets:
+  #       - Arn: !Ref TopicUnivClientEngineeringAlertTopic
+  #         Id: !Sub TekionETLAlert-target-${Environment}
+
+  # AlertTopicPolicy:
+  #   Type: 'AWS::SNS::TopicPolicy'
+  #   Properties:
+  #     PolicyDocument:
+  #       Statement:
+  #         - Sid: AllowSNS
+  #           Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - events.amazonaws.com
+  #           Action: 'sns:Publish'
+  #           Resource:
+  #             - !Ref TopicUnivClientEngineeringAlertTopic
+  #     Topics:
+  #       - !Ref TopicUnivClientEngineeringAlertTopic
+
+  # TopicUnivClientEngineeringAlertTopic:
+  #   Type: AWS::SNS::Topic
+  #   Properties:
+  #     DisplayName: alert_client_engineering
+  #     Subscription:
+  #       - Endpoint: !If [ IsProd, 
+  #                   "impel_alert_client_engineering@impel.io",
+  #                   "elena@impel.io",
+  #                 ]
+  #         Protocol: email
+  #     TopicName: alert_client_engineering
+
+  GlueTriggerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowDevGlue
+            Effect: Allow
+            Action:
+              - glue:*
+              - "s3:GetObject"
+              - "s3:PutObject"
+              - "s3:ListBucket"
+            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionCrawler}
+      Roles: 
+        - "dev"
