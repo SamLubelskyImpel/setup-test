@@ -2,6 +2,7 @@ from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
+from ..mappings.vehicle import VehicleTableMapping
 
 
 class DealervaultTransformer(BaseTransformer):
@@ -55,6 +56,17 @@ class DealervaultTransformer(BaseTransformer):
         sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.Address Line 1'
+    )
+
+    vehicle_table_mapping = VehicleTableMapping(
+        vin='importedData.VIN',
+        oem_name=None,
+        type=None,
+        vehicle_class=None,
+        mileage='importedData.Mileage',
+        make='importedData.Make',
+        model='importedData.Model',
+        year='importedData.Year'
     )
 
     date_format = '%m/%d/%Y'

@@ -1,13 +1,15 @@
-from app.transformers.dealervault import DealervaultTransformer
 from app.orm.models.shared_dms.vehicle_sale import VehicleSale
 from app.orm.models.shared_dms.consumer import Consumer
+from app.orm.models.shared_dms.vehicle import Vehicle
+
 
 # TODO check for content rightness
 
-def test_vehicle_sale(dealervault_data):
-    transformer = DealervaultTransformer(carlabs_data=dealervault_data)
-    assert isinstance(transformer.vehicle_sale, VehicleSale)
+def test_vehicle_sale(dealervault_transformer):
+    assert isinstance(dealervault_transformer.vehicle_sale, VehicleSale)
 
-def test_consumer(dealervault_data):
-    transformer = DealervaultTransformer(carlabs_data=dealervault_data)
-    assert isinstance(transformer.consumer, Consumer)
+def test_consumer(dealervault_transformer):
+    assert isinstance(dealervault_transformer.consumer, Consumer)
+
+def test_vehicle(dealervault_transformer):
+    assert isinstance(dealervault_transformer.vehicle, Vehicle)

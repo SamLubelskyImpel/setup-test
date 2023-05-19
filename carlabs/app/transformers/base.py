@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 from ..orm.models.shared_dms.vehicle_sale import VehicleSale
 from ..orm.models.shared_dms.consumer import Consumer
+from ..orm.models.shared_dms.vehicle import Vehicle
 from pandas import DataFrame, json_normalize
 from datetime import datetime, date
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
+from ..mappings.vehicle import VehicleTableMapping
 from ..mappings.base import BaseMapping
 
 
@@ -12,12 +14,14 @@ class BaseTransformer(ABC):
 
     vehicle_sale_table_mapping: VehicleSaleTableMapping
     consumer_table_mapping: ConsumerTableMapping
+    vehicle_table_mapping: VehicleTableMapping
     carlabs_data: DataFrame
     date_format: str
 
     def __init__(self, carlabs_data: dict) -> None:
         assert self.vehicle_sale_table_mapping is not None
         assert self.consumer_table_mapping is not None
+        assert self.vehicle_table_mapping is not None
 
         self.carlabs_data = json_normalize(carlabs_data).iloc[0]
         self.pre_process_data()
@@ -76,3 +80,16 @@ class BaseTransformer(ABC):
         orm.si_load_process = ''
 
         return self.post_process_consumer(orm)
+
+    @property
+    def vehicle(self) -> Vehicle:
+        mapped = self.__get_mapped_data(self.vehicle_table_mapping)
+
+        orm = Vehicle(**mapped)
+
+        # TODO avoid this repetition
+        orm.si_load_timestamp = datetime.utcnow()
+        # TODO what to put here
+        orm.si_load_process = ''
+
+        return orm

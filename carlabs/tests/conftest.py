@@ -4,6 +4,9 @@ from .data.cdk import CDK_DATA
 from .data.dealertrack import DEALERTRACK_DATA
 from .data.dealervault import DEALERVAULT_DATA
 from app.orm.models.shared_dms.vehicle_sale import VehicleSale
+from app.transformers.cdk import CDKTransformer
+from app.transformers.dealertrack import DealertrackTransformer
+from app.transformers.dealervault import DealervaultTransformer
 
 @fixture
 def cdk_data():
@@ -17,6 +20,18 @@ def dealertrack_data():
 @fixture
 def dealervault_data():
     return DEALERVAULT_DATA
+
+@fixture
+def cdk_transformer(cdk_data):
+    return CDKTransformer(carlabs_data=cdk_data)
+
+@fixture
+def dealertrack_transformer(dealertrack_data):
+    return DealertrackTransformer(carlabs_data=dealertrack_data)
+
+@fixture
+def dealervault_transformer(dealervault_data):
+    return DealervaultTransformer(carlabs_data=dealervault_data)
 
 # @fixture
 # def expected_cdk_vehicle_sale():

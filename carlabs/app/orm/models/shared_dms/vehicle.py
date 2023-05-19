@@ -3,7 +3,7 @@
 import sys
 
 from ..base_model import BaseForModels
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 
 
 class Vehicle(BaseForModels):
@@ -12,6 +12,7 @@ class Vehicle(BaseForModels):
     __tablename__ = "vehicle"
 
     id = Column(Integer, primary_key=True)
+    dealer_id = Column(Integer, ForeignKey("dealer.id"))
     vin = Column(String)
     oem_name = Column(String)
     type = Column(String)
@@ -20,6 +21,10 @@ class Vehicle(BaseForModels):
     make = Column(String)
     model = Column(String)
     year = Column(Integer)
+    db_creation_date = Column(DateTime)
+    si_load_process = Column(String)
+    si_load_timestamp = Column(DateTime)
+
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

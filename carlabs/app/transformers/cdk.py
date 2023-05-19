@@ -2,6 +2,7 @@ from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
+from ..mappings.vehicle import VehicleTableMapping
 
 
 class CDKTransformer(BaseTransformer):
@@ -55,6 +56,17 @@ class CDKTransformer(BaseTransformer):
         sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.Address'
+    )
+
+    vehicle_table_mapping = VehicleTableMapping(
+        vin='importedData.VIN',
+        oem_name=None,
+        type=None,
+        vehicle_class=None,
+        mileage='importedData.VehicleMileage',
+        make='importedData.MakeName',
+        model='importedData.ModelName',
+        year='importedData.Year'
     )
 
     def pre_process_data(self):

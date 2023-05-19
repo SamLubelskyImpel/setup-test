@@ -1,7 +1,9 @@
+# TODO improve these imports
 from ..orm.models.shared_dms.consumer import Consumer
 from .base import BaseTransformer
 from ..mappings.vehicle_sale import VehicleSaleTableMapping
 from ..mappings.consumer import ConsumerTableMapping
+from ..mappings.vehicle import VehicleTableMapping
 
 
 class DealertrackTransformer(BaseTransformer):
@@ -55,6 +57,17 @@ class DealertrackTransformer(BaseTransformer):
         sms_optin_flag=None,
         master_consumer_id=None,
         address='importedData.customerInformation.Address1'
+    )
+
+    vehicle_table_mapping = VehicleTableMapping(
+        vin='importedData.VIN',
+        oem_name=None,
+        type='importedData.VehicleType',
+        vehicle_class=None,
+        mileage='importedData.vehicle.Odometer',
+        make='importedData.Make',
+        model='importedData.Model',
+        year='importedData.ModelYear'
     )
 
     date_format = '%Y%m%d'
