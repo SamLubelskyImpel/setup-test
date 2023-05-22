@@ -97,6 +97,10 @@ class CDKTransformer(BaseTransformer):
             if isinstance(self.carlabs_data[field], list):
                 self.carlabs_data[field] = self.carlabs_data[field][0]
 
+        for _, field in self.service_contract_table_mapping.fields:
+            if isinstance(self.carlabs_data[field], list):
+                self.carlabs_data[field] = self.carlabs_data[field][0]
+
     def post_process_consumer(self, orm: Consumer) -> Consumer:
         never_contact = self.carlabs_data['importedData.user.doNotContact.ever']
         sms_contact = False if never_contact else not self.carlabs_data['importedData.user.doNotContact.sms']
