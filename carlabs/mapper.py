@@ -13,7 +13,6 @@ class DMSDataSource(str, Enum):
     DEALERTRACK = 'DEALERTRACK'
 
 
-# TODO make it a sqlalchemy model?
 @dataclass
 class VehicleSale:
     data_source: DMSDataSource
@@ -61,7 +60,6 @@ def date_from_str(raw_date: str):
         return None
     return datetime.strptime(raw_date, '%Y%m%d').date()
 
-# TODO refactor these to avoid code repetition
 class DealertrackMapper(VehicleSaleMapper):
 
     def date_from_str(self, raw_date: str):

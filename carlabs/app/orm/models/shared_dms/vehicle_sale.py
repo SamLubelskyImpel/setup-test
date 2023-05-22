@@ -5,6 +5,7 @@ import sys
 from ..base_model import BaseForModels
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey,
                         Integer, String)
+from datetime import datetime
 
 
 class VehicleSale(BaseForModels):
@@ -46,8 +47,8 @@ class VehicleSale(BaseForModels):
     finance_term = Column(Float)
     finance_amount = Column(Float)
     date_of_inventory = Column(DateTime)
-    si_load_process = Column(String)
-    si_load_timestamp = Column(DateTime)
+    si_load_process = Column(String, default='carlabs_integration')
+    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
 
 
     def as_dict(self):

@@ -15,9 +15,7 @@ def cdk_data():
 
 @fixture
 def dealertrack_data():
-    data = copy.deepcopy(DEALERTRACK_DATA)
-    data['importedData']['deal']['detail']['ServiceContracts']['ServiceContract'] = data['importedData']['deal']['detail']['ServiceContracts']['ServiceContract'][0]
-    return data
+    return DEALERTRACK_DATA
 
 @fixture
 def dealervault_data():

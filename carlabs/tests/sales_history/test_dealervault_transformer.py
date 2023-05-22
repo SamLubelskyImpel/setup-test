@@ -1,7 +1,7 @@
-from app.orm.models.shared_dms.vehicle_sale import VehicleSale
-from app.orm.models.shared_dms.consumer import Consumer
-from app.orm.models.shared_dms.vehicle import Vehicle
-from app.orm.models.shared_dms.service_contract import ServiceContract
+from orm.models.shared_dms.vehicle_sale import VehicleSale
+from orm.models.shared_dms.consumer import Consumer
+from orm.models.shared_dms.vehicle import Vehicle
+from orm.models.shared_dms.service_contract import ServiceContract
 
 
 def test_vehicle_sale(dealervault_transformer):
@@ -36,7 +36,6 @@ def test_vehicle_sale(dealervault_transformer):
         'finance_term': '1',
         'finance_amount': '2800.00',
         'date_of_inventory': '',
-        'si_load_process': '',
         'days_in_stock': None
     }
     assert isinstance(dealervault_transformer.vehicle_sale, VehicleSale)

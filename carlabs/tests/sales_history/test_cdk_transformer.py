@@ -1,7 +1,7 @@
-from app.orm.models.shared_dms.vehicle_sale import VehicleSale
-from app.orm.models.shared_dms.consumer import Consumer
-from app.orm.models.shared_dms.vehicle import Vehicle
-from app.orm.models.shared_dms.service_contract import ServiceContract
+from orm.models.shared_dms.vehicle_sale import VehicleSale
+from orm.models.shared_dms.consumer import Consumer
+from orm.models.shared_dms.vehicle import Vehicle
+from orm.models.shared_dms.service_contract import ServiceContract
 
 
 def test_vehicle_sale(cdk_transformer):
@@ -36,8 +36,7 @@ def test_vehicle_sale(cdk_transformer):
         'finance_rate': '',
         'finance_term': '',
         'finance_amount': '',
-        'date_of_inventory': None,
-        'si_load_process': '',
+        'date_of_inventory': None
     }
     assert isinstance(cdk_transformer.vehicle_sale, VehicleSale)
     for attribute, expected_value in expected_values.items():

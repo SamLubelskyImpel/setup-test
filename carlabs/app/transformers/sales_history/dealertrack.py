@@ -1,11 +1,6 @@
-# TODO improve these imports
-from ...orm.models.shared_dms.vehicle_sale import VehicleSale
-from ...orm.models.shared_dms.consumer import Consumer
+from orm.models.shared_dms import VehicleSale, Consumer
 from .base import BaseTransformer
-from ...mappings.vehicle_sale import VehicleSaleTableMapping
-from ...mappings.consumer import ConsumerTableMapping
-from ...mappings.vehicle import VehicleTableMapping
-from ...mappings.service_contract import ServiceContractTableMapping
+from mappings import VehicleTableMapping, VehicleSaleTableMapping, ConsumerTableMapping, ServiceContractTableMapping
 
 
 class DealertrackTransformer(BaseTransformer):
@@ -98,4 +93,9 @@ class DealertrackTransformer(BaseTransformer):
         return orm
 
     def pre_process_data(self):
-        ...
+        service_contract = self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract'][0]
+        self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractName'] = service_contract['ContractName']
+        self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractStartDate'] = service_contract['ContractStartDate']
+        self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractDeductible'] = service_contract['ContractDeductible']
+        self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractExpirationMonths'] = service_contract['ContractExpirationMonths']
+        self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractExpirationMiles'] = service_contract['ContractExpirationMiles']

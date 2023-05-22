@@ -4,6 +4,7 @@ import sys
 
 from ..base_model import BaseForModels
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from datetime import datetime
 
 
 class Vehicle(BaseForModels):
@@ -22,8 +23,8 @@ class Vehicle(BaseForModels):
     model = Column(String)
     year = Column(Integer)
     db_creation_date = Column(DateTime)
-    si_load_process = Column(String)
-    si_load_timestamp = Column(DateTime)
+    si_load_process = Column(String, default='carlabs_integration')
+    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
 
 
     def as_dict(self):

@@ -1,10 +1,6 @@
-from ...orm.models.shared_dms.vehicle_sale import VehicleSale
-from ...orm.models.shared_dms.consumer import Consumer
+from orm.models.shared_dms import VehicleSale, Consumer
 from .base import BaseTransformer
-from ...mappings.vehicle_sale import VehicleSaleTableMapping
-from ...mappings.consumer import ConsumerTableMapping
-from ...mappings.vehicle import VehicleTableMapping
-from ...mappings.service_contract import ServiceContractTableMapping
+from mappings import VehicleTableMapping, VehicleSaleTableMapping, ConsumerTableMapping, ServiceContractTableMapping
 
 
 class CDKTransformer(BaseTransformer):
@@ -84,7 +80,6 @@ class CDKTransformer(BaseTransformer):
     date_format = '%Y-%m-%d'
 
     def pre_process_data(self):
-        # TODO dict comprehension
         for _, field in self.vehicle_sale_table_mapping.fields:
             if isinstance(self.carlabs_data[field], list):
                 self.carlabs_data[field] = self.carlabs_data[field][0]

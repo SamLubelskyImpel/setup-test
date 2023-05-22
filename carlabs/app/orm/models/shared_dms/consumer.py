@@ -2,6 +2,7 @@
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
 from ..base_model import BaseForModels
+from datetime import datetime
 
 
 class Consumer(BaseForModels):
@@ -29,8 +30,8 @@ class Consumer(BaseForModels):
     master_consumer_id = Column(Integer)
     address = Column(String)
     db_creation_date = Column(DateTime)
-    si_load_process = Column(String)
-    si_load_timestamp = Column(DateTime)
+    si_load_process = Column(String, default='carlabs_integration')
+    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
 
 
     def as_dict(self):

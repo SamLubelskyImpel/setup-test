@@ -1,10 +1,6 @@
-from ...orm.models.shared_dms.vehicle_sale import VehicleSale
-from ...orm.models.shared_dms.consumer import Consumer
+from orm.models.shared_dms import VehicleSale, Consumer
 from .base import BaseTransformer
-from ...mappings.vehicle_sale import VehicleSaleTableMapping
-from ...mappings.consumer import ConsumerTableMapping
-from ...mappings.vehicle import VehicleTableMapping
-from ...mappings.service_contract import ServiceContractTableMapping
+from mappings import VehicleTableMapping, VehicleSaleTableMapping, ConsumerTableMapping, ServiceContractTableMapping
 
 
 class DealervaultTransformer(BaseTransformer):

@@ -1,5 +1,6 @@
 from ..base_model import BaseForModels
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float
+from datetime import datetime
 
 
 class ServiceContract(BaseForModels):
@@ -21,8 +22,8 @@ class ServiceContract(BaseForModels):
     expiration_months = Column(String)
     expiration_miles = Column(Float)
     db_creation_date = Column(DateTime)
-    si_load_process = Column(String)
-    si_load_timestamp = Column(DateTime)
+    si_load_process = Column(String, default='carlabs_integration')
+    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
 
 
     def as_dict(self):

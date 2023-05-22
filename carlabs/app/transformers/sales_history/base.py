@@ -1,15 +1,8 @@
 from abc import ABC, abstractmethod
-from ...orm.models.shared_dms.vehicle_sale import VehicleSale
-from ...orm.models.shared_dms.consumer import Consumer
-from ...orm.models.shared_dms.vehicle import Vehicle
-from ...orm.models.shared_dms.service_contract import ServiceContract
+from orm.models.shared_dms import VehicleSale, Consumer, Vehicle, ServiceContract
 from pandas import DataFrame, json_normalize
 from datetime import datetime, date
-from ...mappings.vehicle_sale import VehicleSaleTableMapping
-from ...mappings.consumer import ConsumerTableMapping
-from ...mappings.vehicle import VehicleTableMapping
-from ...mappings.service_contract import ServiceContractTableMapping
-from ...mappings.base import BaseMapping
+from mappings import VehicleSaleTableMapping, ConsumerTableMapping, VehicleTableMapping, ServiceContractTableMapping, BaseMapping
 
 
 class BaseTransformer(ABC):
@@ -49,13 +42,7 @@ class BaseTransformer(ABC):
             return None
 
     def __get_mapped_data(self, mapping: BaseMapping):
-        mapped = {}
-
-        # TODO use dict comprehension
-        for dms_field, carlabs_field in mapping.fields:
-            mapped[dms_field] = self.carlabs_data[carlabs_field]
-
-        return mapped
+        return { dms_field: self.carlabs_data[carlabs_field] for dms_field, carlabs_field in mapping.fields }
 
     @property
     def vehicle_sale(self) -> VehicleSale:
@@ -71,47 +58,24 @@ class BaseTransformer(ABC):
 
         orm.has_service_contract = orm.has_service_contract is not None and len(orm.has_service_contract) > 0
         orm.service_package_flag = orm.service_package_flag is not None and len(orm.service_package_flag) > 0
-        orm.si_load_timestamp = datetime.utcnow()
-        # TODO what to put here
-        orm.si_load_process = ''
 
         return self.post_process_vehicle_sale(orm)
 
     @property
     def consumer(self) -> Consumer:
         mapped = self.__get_mapped_data(self.consumer_table_mapping)
-
         orm = Consumer(**mapped)
-
-        orm.si_load_timestamp = datetime.utcnow()
-        # TODO what to put here
-        orm.si_load_process = ''
-
         return self.post_process_consumer(orm)
 
     @property
     def vehicle(self) -> Vehicle:
         mapped = self.__get_mapped_data(self.vehicle_table_mapping)
-
         orm = Vehicle(**mapped)
-
-        # TODO avoid this repetition
-        orm.si_load_timestamp = datetime.utcnow()
-        # TODO what to put here
-        orm.si_load_process = ''
-
         return orm
 
     @property
     def service_contract(self) -> ServiceContract:
         mapped = self.__get_mapped_data(self.service_contract_table_mapping)
-
         orm = ServiceContract(**mapped)
-
-        # TODO avoid this repetition
-        orm.si_load_timestamp = datetime.utcnow()
-        # TODO what to put here
-        orm.si_load_process = ''
-
         return orm
 

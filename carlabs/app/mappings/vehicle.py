@@ -14,6 +14,5 @@ class VehicleTableMapping(BaseMapping):
     make: str
     model: str
     year: str
-    # TODO can it be in the BaseMapping?
     dealer_id: Optional[str] = 'dealerCode'
     db_creation_date: Optional[str] = 'creationDate'
