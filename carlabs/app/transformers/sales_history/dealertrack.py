@@ -14,7 +14,6 @@ class DealertrackTransformer(BaseTransformer):
         cost_of_vehicle='importedData.vehicle.VehicleCost',
         oem_msrp='importedData.deal.detail.MSRP',
         adjustment_on_price='importedData.deal.detail.AdjCapitalizedCost',
-        is_new='importedData.VehicleType',
         trade_in_value=None,
         payoff_on_trade='importedData.deal.detail.TradePayoff',
         value_at_end_of_lease=None,
@@ -22,10 +21,6 @@ class DealertrackTransformer(BaseTransformer):
         profit_on_sale=None,
         vehicle_gross='importedData.deal.detail.RetailPrice',
         warranty_expiration_date='importedData.vehicle.WarrantyMonths',
-        vin='importedData.deal.VIN',
-        make='importedData.deal.Make',
-        model='importedData.deal.Model',
-        year='importedData.deal.ModelYear',
         delivery_date='importedData.vehicle.DateDelivered',
         finance_rate='importedData.deal.detail.APR',
         finance_term='importedData.deal.detail.RetailTerm',
@@ -64,7 +59,8 @@ class DealertrackTransformer(BaseTransformer):
         mileage='importedData.vehicle.Odometer',
         make='importedData.Make',
         model='importedData.Model',
-        year='importedData.ModelYear'
+        year='importedData.ModelYear',
+        new_or_used='importedData.VehicleType',
     )
 
     service_contract_table_mapping = ServiceContractTableMapping(
@@ -88,8 +84,8 @@ class DealertrackTransformer(BaseTransformer):
         return orm
 
     def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
-        orm.has_service_contract = self.carlabs_data[self.vehicle_sale_table_mapping.has_service_contract] is not None
-        orm.service_package_flag = self.carlabs_data[self.vehicle_sale_table_mapping.service_package_flag] is not None
+        orm.has_service_contract = self.carlabs_data.get(self.vehicle_sale_table_mapping.has_service_contract) is not None
+        orm.service_package_flag = self.carlabs_data.get(self.vehicle_sale_table_mapping.service_package_flag) is not None
         return orm
 
     def pre_process_data(self):

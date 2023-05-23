@@ -23,5 +23,4 @@ class ConsumerTableMapping(BaseMapping):
     sms_optin_flag: str
     master_consumer_id: str
     address: str
-    dealer_id: Optional[str] = 'dealerCode'
-    db_creation_date: Optional[str] = 'creationDate'
+    # dealer_integration_partner_id: Optional[str] = 'dealerCode'

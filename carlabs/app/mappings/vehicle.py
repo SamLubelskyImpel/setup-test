@@ -14,5 +14,5 @@ class VehicleTableMapping(BaseMapping):
     make: str
     model: str
     year: str
-    dealer_id: Optional[str] = 'dealerCode'
-    db_creation_date: Optional[str] = 'creationDate'
+    new_or_used: str
+    # dealer_integration_partner_id: Optional[str] = 'dealerCode'

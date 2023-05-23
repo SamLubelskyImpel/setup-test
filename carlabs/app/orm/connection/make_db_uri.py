@@ -1,3 +1,4 @@
+from typing import Literal
 # TODO refactor this according to this project needs
 # import os
 
@@ -34,17 +35,34 @@
 #     }
 # }[FLAVOR]
 
-DB_USERNAME = 'integrator'
-DB_PASSWORD = 'CarLabs2022!'
-DB_HOST = 'postgres.proxy.carlabs.com:45432'
-DB_NAME = 'data_integrations'
+
+DB = {
+    'CARLABS': {
+        'DB_USERNAME': 'integrator',
+        'DB_PASSWORD': 'CarLabs2022!',
+        'DB_HOST': 'postgres.proxy.carlabs.com:45432',
+        'DB_NAME': 'data_integrations'
+    },
+    'SHARED_DMS': {
+        'DB_USERNAME': 'postgres',
+        'DB_PASSWORD': 'root',
+        'DB_HOST': 'localhost:54321',
+        'DB_NAME': 'dms'
+    }
+    # 'SHARED_DMS': {
+    #     'DB_USERNAME': 'developer',
+    #     'DB_PASSWORD': '31eeeb5d8805f3f6e0ee686a47f47bd5',
+    #     'DB_HOST': 'unified-data-test-1.c8eqxn0581ih.us-east-1.rds.amazonaws.com:5432',
+    #     'DB_NAME': 'dms'
+    # }
+}
 
 
-def make_db_uri(region=None):
+def make_db_uri(db: Literal['CARLABS', 'SHARED_DMS'], region=None):
     app_name = 'carlabs-integration'
     return 'postgresql://{}:{}@{}/{}?application_name={}'.format(
-        DB_USERNAME,
-        DB_PASSWORD,
-        DB_HOST,
-        DB_NAME,
+        DB[db]['DB_USERNAME'],
+        DB[db]['DB_PASSWORD'],
+        DB[db]['DB_HOST'],
+        DB[db]['DB_NAME'],
         app_name)

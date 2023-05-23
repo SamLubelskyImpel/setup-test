@@ -2,18 +2,18 @@ from builtins import object
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import traceback
-
 from .make_db_uri import make_db_uri
+from typing import Literal
 
 
 _Sessions = {}
 
-engine = create_engine(make_db_uri())
+# engine = create_engine(make_db_uri())
 
 
 class SQLSession(object):
-    def __init__(self, region=None, pool_size=5):
-        self.uri = make_db_uri(region)
+    def __init__(self, db: Literal['CARLABS', 'SHARED_DMS'], region=None, pool_size=5):
+        self.uri = make_db_uri(db, region)
         if self.uri in _Sessions:
             self.engine = _Sessions[self.uri][0]
             self.Session = _Sessions[self.uri][1]

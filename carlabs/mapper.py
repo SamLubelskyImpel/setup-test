@@ -26,7 +26,7 @@ class VehicleSale:
     adjustment_on_price: Optional[str] = ''
     days_in_stock: Optional[str] = ''
     date_of_state_inspection: Optional[str] = ''
-    is_new: Optional[str] = ''
+    new_or_used: Optional[str] = ''
     trade_in_value: Optional[str] = ''
     payoff_on_trade: Optional[str] = ''
     value_at_end_of_lease: Optional[str] = ''
@@ -87,7 +87,7 @@ class DealertrackMapper(VehicleSaleMapper):
             oem_msrp=imported_data['deal']['detail']['MSRP'],
             adjustment_on_price=imported_data['deal']['detail']['AdjCapitalizedCost'],
             days_in_stock=days_in_stock,
-            is_new=imported_data['VehicleType'],
+            new_or_used=imported_data['VehicleType'],
             payoff_on_trade=imported_data['deal']['detail']['TradePayoff'],
             miles_per_year=imported_data['deal']['detail']['MilesYearActual'],
             has_service_contract=len(imported_data['deal']['detail']['ServiceContracts']) != 0,
@@ -128,7 +128,7 @@ class CDKMapper(VehicleSaleMapper):
                 cost_of_vehicle=imported_data['CostPrice'][0],
                 oem_msrp=imported_data['MSRP'][0],
                 adjustment_on_price=imported_data['AdjustedCostofVehicle'][0],
-                is_new=imported_data['FIDealType'][0],
+                new_or_used=imported_data['FIDealType'][0],
                 trade_in_value=imported_data['NetTrade1'][0],
                 value_at_end_of_lease=imported_data['LeaseEndValue'][0],
                 miles_per_year=imported_data['LeaseMileageAllowance'][0],
@@ -174,7 +174,7 @@ class DealervaultMapper(VehicleSaleMapper):
                 oem_msrp=imported_data['MSRP'],
                 adjustment_on_price=imported_data['Adjusted Cost'],
                 days_in_stock=days_in_stock,
-                is_new=imported_data['New/Used'],
+                new_or_used=imported_data['New/Used'],
                 trade_in_value=imported_data['Trade 1 Actual Cash Value'],
                 value_at_end_of_lease=imported_data['Lease Depreciation Value'],
                 miles_per_year=imported_data['Allowed Miles'],

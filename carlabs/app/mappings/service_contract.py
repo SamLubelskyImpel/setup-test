@@ -13,5 +13,4 @@ class ServiceContractTableMapping(BaseMapping):
     deductible: str
     expiration_months: str
     expiration_miles: str
-    dealer_id: Optional[str] = 'dealerCode'
-    db_creation_date: Optional[str] = 'creationDate'
+    # dealer_integration_partner_id: Optional[str] = 'dealerCode'

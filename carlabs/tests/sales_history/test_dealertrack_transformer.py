@@ -6,7 +6,7 @@ from orm.models.shared_dms.service_contract import ServiceContract
 
 def test_vehicle_sale(dealertrack_transformer):
     expected_values = {
-        'dealer_id': 'white_motors-chevrolet_buick_gmc',
+        # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
         'sale_date': '20210316',
         'listed_price': '0.00',
         'sales_tax': '326.56',
@@ -16,7 +16,6 @@ def test_vehicle_sale(dealertrack_transformer):
         'oem_msrp': '0.00',
         'adjustment_on_price': '0.00',
         'date_of_state_inspection': None,
-        'is_new': 'U',
         'trade_in_value': None,
         'payoff_on_trade': '0.00',
         'value_at_end_of_lease': None,
@@ -26,11 +25,6 @@ def test_vehicle_sale(dealertrack_transformer):
         'vehicle_gross': '0.00',
         'warranty_expiration_date': '0',
         'service_package_flag': True,
-        'db_creation_date': '2022-04-26T12:55:43.030Z',
-        'vin': 'WP0CA29822U621573',
-        'make': 'PORSCHE',
-        'model': 'BOXSTER',
-        'year': '2002',
         'delivery_date': '20210316',
         'finance_rate': '8.500',
         'finance_term': '60',
@@ -45,7 +39,7 @@ def test_vehicle_sale(dealertrack_transformer):
 
 def test_consumer(dealertrack_transformer):
     expected_values = {
-        'dealer_id': 'white_motors-chevrolet_buick_gmc',
+        # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
         'first_name': 'ANOTHER',
         'last_name': 'TESTER',
         'email': 'blair.keck@autopoint.com',
@@ -61,7 +55,6 @@ def test_consumer(dealertrack_transformer):
         'postal_mail_optin_flag': True,
         'sms_optin_flag': True,
         'address': '1234 FORD RD',
-        'db_creation_date': '2022-04-26T12:55:43.030Z',
     }
     assert isinstance(dealertrack_transformer.consumer, Consumer)
     for attribute, expected_value in expected_values.items():
@@ -70,14 +63,14 @@ def test_consumer(dealertrack_transformer):
 
 def test_vehicle(dealertrack_transformer):
     expected_values = {
-        'dealer_id': 'white_motors-chevrolet_buick_gmc',
+        # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
         'vin': 'WP0CA29822U621573',
         'type': 'U',
         'mileage': '52000',
         'make': 'PORSCHE',
         'model': 'BOXSTER',
         'year': '2002',
-        'db_creation_date': '2022-04-26T12:55:43.030Z',
+        'new_or_used': 'U',
     }
     assert isinstance(dealertrack_transformer.vehicle, Vehicle)
     for attribute, expected_value in expected_values.items():
@@ -86,7 +79,7 @@ def test_vehicle(dealertrack_transformer):
 
 def test_service_contract(dealertrack_transformer):
     expected_values = {
-        'dealer_id': 'white_motors-chevrolet_buick_gmc',
+        # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
         'contract_name': 'The Service Contract',
         'start_date': '20210316',
         'amount': '5475.00',
@@ -94,7 +87,6 @@ def test_service_contract(dealertrack_transformer):
         'deductible': '0',
         'expiration_months': '0',
         'expiration_miles': '0',
-        'db_creation_date': '2022-04-26T12:55:43.030Z',
     }
     assert isinstance(dealertrack_transformer.service_contract, ServiceContract)
     for attribute, expected_value in expected_values.items():

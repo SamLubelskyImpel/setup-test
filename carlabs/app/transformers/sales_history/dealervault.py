@@ -14,7 +14,6 @@ class DealervaultTransformer(BaseTransformer):
         cost_of_vehicle='importedData.Cost',
         oem_msrp='importedData.MSRP',
         adjustment_on_price='importedData.Adjusted Cost',
-        is_new='importedData.New/Used',
         trade_in_value='importedData.Trade 1 Actual Cash Value',
         payoff_on_trade=None,
         value_at_end_of_lease='importedData.Lease Depreciation Value',
@@ -22,10 +21,6 @@ class DealervaultTransformer(BaseTransformer):
         profit_on_sale='importedData.Total Profit',
         vehicle_gross='importedData.Sales Price',
         warranty_expiration_date='importedData.Warranty 1 Term',
-        vin='importedData.VIN',
-        make='importedData.Make',
-        model='importedData.Model',
-        year='importedData.Year',
         delivery_date='importedData.Delivery Date',
         finance_rate='importedData.APR',
         finance_term='importedData.Term',
@@ -64,7 +59,8 @@ class DealervaultTransformer(BaseTransformer):
         mileage='importedData.Mileage',
         make='importedData.Make',
         model='importedData.Model',
-        year='importedData.Year'
+        year='importedData.Year',
+        new_or_used='importedData.New/Used',
     )
 
     service_contract_table_mapping = ServiceContractTableMapping(

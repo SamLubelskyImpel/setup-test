@@ -5,15 +5,17 @@ from ..base_model import BaseForModels
 from datetime import datetime
 
 
-class Consumer(BaseForModels):
+class DealerIntegrationPartner(BaseForModels):
     """Consumer Model."""
 
-    __tablename__ = "consumer"
+    __tablename__ = "dealer_integration_partner"
+    # TODO set schema according to environment
     __table_args__ = { "schema": "stage" }
 
     id = Column(Integer, primary_key=True)
-    # TODO ignore this for a while
-    # dealer_integration_partner_id = Column(Integer, ForeignKey("dealer_integration_partner.id"))
+    sfdc_account_id = Column(Integer, ForeignKey("sfdc_account.sdfc_account_id"))
+    interation_id = Column(Integer, ForeignKey("integration_partner.id"))
+    dealer_integration_partner_id = Column(Integer, ForeignKey("dealer_integration_partner.id"))
     dealer_customer_no = Column(String)
     first_name = Column(String)
     last_name = Column(String)
@@ -31,7 +33,7 @@ class Consumer(BaseForModels):
     sms_optin_flag = Column(Boolean)
     # TODO not in the DB
     address = Column(String)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    db_creation_date = Column(DateTime)
 
 
     def as_dict(self):

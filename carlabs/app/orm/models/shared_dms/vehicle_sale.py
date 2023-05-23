@@ -6,17 +6,19 @@ from ..base_model import BaseForModels
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey,
                         Integer, String)
 from datetime import datetime
+from sqlalchemy.orm import relationship
 
 
 class VehicleSale(BaseForModels):
     """Vehicle Sale Model."""
 
     __tablename__ = "vehicle_sale"
+    __table_args__ = { "schema": "stage" }
 
     id = Column(Integer, primary_key=True)
-    consumer_id = Column(Integer, ForeignKey("consumer.id"))
-    dealer_id = Column(Integer, ForeignKey("dealer.id"))
-    vehicle_id = Column(Integer, ForeignKey("vehicle.id"))
+    consumer_id = Column(Integer, ForeignKey("stage.consumer.id"))
+    # dealer_integration_partner_id = Column(Integer, ForeignKey("dealer_integration_partner.id"))
+    vehicle_id = Column(Integer, ForeignKey("stage.vehicle.id"))
     sale_date = Column(DateTime)
     listed_price = Column(Float)
     sales_tax = Column(Float)
@@ -27,7 +29,6 @@ class VehicleSale(BaseForModels):
     adjustment_on_price = Column(Float)
     days_in_stock = Column(Integer)
     date_of_state_inspection = Column(DateTime)
-    is_new = Column(Boolean)
     trade_in_value = Column(Float)
     payoff_on_trade = Column(Float)
     value_at_end_of_lease = Column(Float)
@@ -36,19 +37,18 @@ class VehicleSale(BaseForModels):
     has_service_contract = Column(Boolean)
     vehicle_gross = Column(Float)
     warranty_expiration_date = Column(DateTime)
+    # TODO column changed during mapping
     service_package_flag = Column(Boolean)
-    db_creation_date = Column(DateTime)
-    vin = Column(String)
-    make = Column(String)
-    model = Column(String)
-    year = Column(Integer)
+    db_creation_date = Column(DateTime, default=datetime.utcnow())
     delivery_date = Column(DateTime)
+    # TODO all below are missing in the DB
     finance_rate = Column(Float)
     finance_term = Column(Float)
     finance_amount = Column(Float)
     date_of_inventory = Column(DateTime)
-    si_load_process = Column(String, default='carlabs_integration')
-    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
+
+    consumer = relationship('Consumer')
+    vehicle = relationship('Vehicle')
 
 
     def as_dict(self):

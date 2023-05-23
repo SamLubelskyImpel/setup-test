@@ -1,5 +1,6 @@
 import sqlalchemy as db
 from orm.connection.make_db_uri import make_db_uri
+from orm.connection.session import SQLSession
 import pandas
 from orm.models.carlabs import DataImports
 from orm.models.shared_dms import Vehicle, VehicleSale, Consumer, ServiceContract
@@ -20,12 +21,15 @@ class TransformedData:
 
 
 def extract_from_carlabs(limit: int = 10):
-    engine = db.create_engine(make_db_uri())
+    engine = db.create_engine(make_db_uri(db='CARLABS'))
     df = pandas.read_sql_query(
-        sql=db.select(DataImports).where(DataImports.data_type == 'SALES').limit(limit),
+        sql=db.select(DataImports).where(
+            (DataImports.data_type == 'SALES') &
+            (~DataImports.dealer_code.in_(['undefined', 'N/A']))
+        ).limit(limit),
         con=engine)
-
     breakpoint()
+
     for r in df.to_dict('records'):
         if isinstance(r['importedData'], list):
             for i in r['importedData']:
@@ -61,25 +65,33 @@ def transform(record: dict):
 
 
 def load_into_shared_dms(transformed: TransformedData):
-    # TODO create other necessary models
-    # TODO fill foreign keys
-    # TODO load all into DB
-    ...
+    transformed.vehicle_sale.vehicle = transformed.vehicle
+    transformed.vehicle_sale.consumer = transformed.consumer
+
+    transformed.service_contract.vehicle = transformed.vehicle
+    transformed.service_contract.consumer = transformed.consumer
+    transformed.service_contract.sale = transformed.vehicle_sale
+
+    with SQLSession(db='SHARED_DMS') as session:
+        session.add(transformed.vehicle)
+        session.add(transformed.consumer)
+        session.add(transformed.vehicle_sale)
+        session.add(transformed.service_contract)
+
 
 import logging
 logger = logging.getLogger()
 
-records = extract_from_carlabs()
+records = extract_from_carlabs(limit=5)
 n_transformed = 0
 failed = 0
 
 for r in records:
     try:
-        transform(r)
+        load_into_shared_dms(transform(r))
         n_transformed += 1
     except Exception as e:
         logger.exception(f'failed to transform {r["id"]}')
         failed += 1
 
-
-breakpoint()
+print(f'loaded {n_transformed}, failed {failed}')

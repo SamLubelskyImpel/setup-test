@@ -50,11 +50,14 @@ class BaseTransformer(ABC):
 
         orm = VehicleSale(**mapped)
 
-        sale_date = self.parsed_date(orm.sale_date)
-        date_of_inventory = self.parsed_date(orm.date_of_inventory)
+        orm.sale_date = self.parsed_date(orm.sale_date)
+        orm.date_of_inventory = self.parsed_date(orm.date_of_inventory)
+        orm.date_of_state_inspection = self.parsed_date(orm.date_of_state_inspection)
+        orm.warranty_expiration_date = self.parsed_date(orm.warranty_expiration_date)
+        orm.delivery_date = self.parsed_date(orm.delivery_date)
 
-        if sale_date and date_of_inventory:
-            orm.days_in_stock = (sale_date - date_of_inventory).days
+        if orm.sale_date and orm.date_of_inventory:
+            orm.days_in_stock = (orm.sale_date - orm.date_of_inventory).days
 
         orm.has_service_contract = orm.has_service_contract is not None and len(orm.has_service_contract) > 0
         orm.service_package_flag = orm.service_package_flag is not None and len(orm.service_package_flag) > 0

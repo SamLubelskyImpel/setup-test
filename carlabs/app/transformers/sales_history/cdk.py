@@ -14,16 +14,11 @@ class CDKTransformer(BaseTransformer):
         cost_of_vehicle='importedData.CostPrice',
         oem_msrp='importedData.MSRP',
         adjustment_on_price='importedData.AdjustedCostofVehicle',
-        is_new='importedData.FIDealType',
         trade_in_value='importedData.NetTrade1',
         value_at_end_of_lease='importedData.LeaseEndValue',
         miles_per_year='importedData.LeaseMileageAllowance',
         profit_on_sale='importedData.FrontEndGrossProfit',
         vehicle_gross='importedData.SalePriceWithWeOwes',
-        vin='importedData.VIN',
-        make='importedData.MakeName',
-        model='importedData.ModelName',
-        year='importedData.Year',
         delivery_date='importedData.PickupDate1',
         finance_rate='importedData.APR',
         finance_term='importedData.Term',
@@ -64,7 +59,8 @@ class CDKTransformer(BaseTransformer):
         mileage='importedData.VehicleMileage',
         make='importedData.MakeName',
         model='importedData.ModelName',
-        year='importedData.Year'
+        year='importedData.Year',
+        new_or_used='importedData.FIDealType',
     )
 
     service_contract_table_mapping = ServiceContractTableMapping(

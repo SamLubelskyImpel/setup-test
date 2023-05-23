@@ -3,7 +3,7 @@
 import sys
 
 from ..base_model import BaseForModels
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
 from datetime import datetime
 
 
@@ -11,9 +11,10 @@ class Vehicle(BaseForModels):
     """Vehicle Model."""
 
     __tablename__ = "vehicle"
+    __table_args__ = { "schema": "stage" }
 
     id = Column(Integer, primary_key=True)
-    dealer_id = Column(Integer, ForeignKey("dealer.id"))
+    # dealer_integration_partner_id = Column(Integer, ForeignKey("dealer_integration_partner.id"))
     vin = Column(String)
     oem_name = Column(String)
     type = Column(String)
@@ -22,9 +23,8 @@ class Vehicle(BaseForModels):
     make = Column(String)
     model = Column(String)
     year = Column(Integer)
-    db_creation_date = Column(DateTime)
-    si_load_process = Column(String, default='carlabs_integration')
-    si_load_timestamp = Column(DateTime, default=datetime.utcnow())
+    new_or_used = Column(String)
+    db_creation_date = Column(DateTime, default=datetime.utcnow())
 
 
     def as_dict(self):

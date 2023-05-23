@@ -6,7 +6,7 @@ from orm.models.shared_dms.service_contract import ServiceContract
 
 def test_vehicle_sale(dealervault_transformer):
     expected_values = {
-        'dealer_id': 'yellowstone_country_motors-service',
+        # 'dealer_id': 'yellowstone_country_motors-service',
         'sale_date': '03/29/2022',
         'listed_price': '',
         'sales_tax': '',
@@ -16,7 +16,6 @@ def test_vehicle_sale(dealervault_transformer):
         'oem_msrp': '',
         'adjustment_on_price': '',
         'date_of_state_inspection': None,
-        'is_new': 'U',
         'trade_in_value': '',
         'payoff_on_trade': None,
         'value_at_end_of_lease': '',
@@ -26,11 +25,6 @@ def test_vehicle_sale(dealervault_transformer):
         'vehicle_gross': '2800.00',
         'warranty_expiration_date': '',
         'service_package_flag': True,
-        'db_creation_date': '2022-05-25T17:26:30.798Z',
-        'vin': 'JF1GH63638G835772',
-        'make': 'SUBARU',
-        'model': 'IMPREZA',
-        'year': '2008',
         'delivery_date': '',
         'finance_rate': '0.0000',
         'finance_term': '1',
@@ -46,7 +40,7 @@ def test_vehicle_sale(dealervault_transformer):
 def test_consumer(dealervault_transformer):
     expected_values = {
         'dealer_customer_no': '5S115435',
-        'dealer_id': 'yellowstone_country_motors-service',
+        # 'dealer_id': 'yellowstone_country_motors-service',
         'first_name': '',
         'last_name': 'WHOLESALE REMARKETING INC',
         'email': 'SHAWN@WHOLESALEREMARKETING.COM',
@@ -62,7 +56,6 @@ def test_consumer(dealervault_transformer):
         'postal_mail_optin_flag': True,
         'sms_optin_flag': False,
         'address': '2424 1ST AVE S',
-        'db_creation_date': '2022-05-25T17:26:30.798Z',
     }
     assert isinstance(dealervault_transformer.consumer, Consumer)
     for attribute, expected_value in expected_values.items():
@@ -71,14 +64,14 @@ def test_consumer(dealervault_transformer):
 
 def test_vehicle(dealervault_transformer):
     expected_values = {
-        'dealer_id': 'yellowstone_country_motors-service',
+        # 'dealer_id': 'yellowstone_country_motors-service',
         'vin': 'JF1GH63638G835772',
         'type': None,
         'mileage': '121275',
         'make': 'SUBARU',
         'model': 'IMPREZA',
         'year': '2008',
-        'db_creation_date': '2022-05-25T17:26:30.798Z',
+        'new_or_used': 'U',
     }
     assert isinstance(dealervault_transformer.vehicle, Vehicle)
     for attribute, expected_value in expected_values.items():
@@ -87,7 +80,7 @@ def test_vehicle(dealervault_transformer):
 
 def test_service_contract(dealervault_transformer):
     expected_values = {
-        'dealer_id': 'yellowstone_country_motors-service',
+        # 'dealer_id': 'yellowstone_country_motors-service',
         'contract_name': 'NONE',
         'start_date': '03/29/2022',
         'amount': '',
@@ -95,7 +88,6 @@ def test_service_contract(dealervault_transformer):
         'deductible': None,
         'expiration_months': '',
         'expiration_miles': '121275',
-        'db_creation_date': '2022-05-25T17:26:30.798Z',
     }
     assert isinstance(dealervault_transformer.service_contract, ServiceContract)
     for attribute, expected_value in expected_values.items():

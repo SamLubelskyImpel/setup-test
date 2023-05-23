@@ -46,7 +46,7 @@ def dealervault_transformer(dealervault_data):
 #         adjustment_on_price="0.00",
 #         days_in_stock = Column(Integer)
 #         date_of_state_inspection = Column(DateTime)
-#         is_new="Used",
+#         new_or_used="Used",
 #         trade_in_value="2000.00",
 #         payoff_on_trade = Column(Float)
 #         value_at_end_of_lease="",
