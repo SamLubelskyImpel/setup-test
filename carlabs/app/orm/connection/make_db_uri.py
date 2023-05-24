@@ -44,9 +44,9 @@ DB = {
         'DB_NAME': 'data_integrations'
     },
     'SHARED_DMS': {
-        'DB_USERNAME': 'postgres',
-        'DB_PASSWORD': 'root',
-        'DB_HOST': 'localhost:54321',
+        'DB_USERNAME': 'master',
+        'DB_PASSWORD': 'jJKty7j7yhHH67uy',
+        'DB_HOST': 'localhost:5432',
         'DB_NAME': 'dms'
     }
     # 'SHARED_DMS': {

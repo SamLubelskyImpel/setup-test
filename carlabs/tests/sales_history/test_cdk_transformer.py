@@ -2,12 +2,13 @@ from orm.models.shared_dms.vehicle_sale import VehicleSale
 from orm.models.shared_dms.consumer import Consumer
 from orm.models.shared_dms.vehicle import Vehicle
 from orm.models.shared_dms.service_contract import ServiceContract
+from datetime import datetime
 
 
 def test_vehicle_sale(cdk_transformer):
     expected_values = {
         # 'dealer_id': 'dealer-code',
-        'sale_date': '2023-01-04',
+        'sale_date': datetime(2023, 1, 4, 0, 0),
         'listed_price': '27709.24',
         'sales_tax': '1329.24',
         'mileage_on_vehicle': '10003',
@@ -26,7 +27,7 @@ def test_vehicle_sale(cdk_transformer):
         'vehicle_gross': '23900.00',
         'warranty_expiration_date': None,
         'service_package_flag': False,
-        'delivery_date': '',
+        'delivery_date': None,
         'finance_rate': '',
         'finance_term': '',
         'finance_amount': '',
@@ -77,7 +78,7 @@ def test_service_contract(cdk_transformer):
     expected_values = {
         # 'dealer_id': 'dealer-code',
         'contract_name': '',
-        'start_date': '2023-01-04',
+        'start_date': datetime(2023, 1, 4, 0, 0),
         'amount': '',
         'cost': '0.00',
         'deductible': '',

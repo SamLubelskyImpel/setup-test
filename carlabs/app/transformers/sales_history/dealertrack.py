@@ -76,10 +76,10 @@ class DealertrackTransformer(BaseTransformer):
     date_format = '%Y%m%d'
 
     def post_process_consumer(self, orm: Consumer) -> Consumer:
-        orm.email_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByEmail'] == 'Y'
-        orm.phone_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPhone'] == 'Y'
-        orm.postal_mail_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPostal'] == 'Y'
-        orm.sms_optin_flag = self.carlabs_data['importedData.customerInformation.AllowContactByPhone'] == 'Y'
+        orm.email_optin_flag = self.carlabs_data.get('importedData.customerInformation.AllowContactByEmail') == 'Y'
+        orm.phone_optin_flag = self.carlabs_data.get('importedData.customerInformation.AllowContactByPhone') == 'Y'
+        orm.postal_mail_optin_flag = self.carlabs_data.get('importedData.customerInformation.AllowContactByPostal') == 'Y'
+        orm.sms_optin_flag = self.carlabs_data.get('importedData.customerInformation.AllowContactByPhone') == 'Y'
 
         return orm
 
@@ -89,6 +89,9 @@ class DealertrackTransformer(BaseTransformer):
         return orm
 
     def pre_process_data(self):
+        if 'importedData.deal.detail.ServiceContracts.ServiceContract' not in self.carlabs_data:
+            return
+
         service_contract = self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract'][0]
         self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractName'] = service_contract['ContractName']
         self.carlabs_data['importedData.deal.detail.ServiceContracts.ServiceContract.ContractStartDate'] = service_contract['ContractStartDate']

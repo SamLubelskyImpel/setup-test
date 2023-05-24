@@ -2,12 +2,13 @@ from orm.models.shared_dms.vehicle_sale import VehicleSale
 from orm.models.shared_dms.consumer import Consumer
 from orm.models.shared_dms.vehicle import Vehicle
 from orm.models.shared_dms.service_contract import ServiceContract
+from datetime import datetime
 
 
 def test_vehicle_sale(dealervault_transformer):
     expected_values = {
         # 'dealer_id': 'yellowstone_country_motors-service',
-        'sale_date': '03/29/2022',
+        'sale_date': datetime(2022, 3, 29, 0, 0),
         'listed_price': '',
         'sales_tax': '',
         'mileage_on_vehicle': '121275',
@@ -23,13 +24,13 @@ def test_vehicle_sale(dealervault_transformer):
         'profit_on_sale': '',
         'has_service_contract': False,
         'vehicle_gross': '2800.00',
-        'warranty_expiration_date': '',
+        'warranty_expiration_date': None,
         'service_package_flag': True,
-        'delivery_date': '',
+        'delivery_date': None,
         'finance_rate': '0.0000',
         'finance_term': '1',
         'finance_amount': '2800.00',
-        'date_of_inventory': '',
+        'date_of_inventory': None,
         'days_in_stock': None
     }
     assert isinstance(dealervault_transformer.vehicle_sale, VehicleSale)
@@ -82,7 +83,7 @@ def test_service_contract(dealervault_transformer):
     expected_values = {
         # 'dealer_id': 'yellowstone_country_motors-service',
         'contract_name': 'NONE',
-        'start_date': '03/29/2022',
+        'start_date': datetime(2022, 3, 29, 0, 0),
         'amount': '',
         'cost': '',
         'deductible': None,

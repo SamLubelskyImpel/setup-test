@@ -20,12 +20,11 @@ class TransformedData:
     service_contract: ServiceContract
 
 
-def extract_from_carlabs(limit: int = 10):
+def extract_from_carlabs(limit: int = 100):
     engine = db.create_engine(make_db_uri(db='CARLABS'))
     df = pandas.read_sql_query(
         sql=db.select(DataImports).where(
-            (DataImports.data_type == 'SALES') &
-            (~DataImports.dealer_code.in_(['undefined', 'N/A']))
+            (DataImports.data_type == 'SALES')
         ).limit(limit),
         con=engine)
     breakpoint()
@@ -76,13 +75,14 @@ def load_into_shared_dms(transformed: TransformedData):
         session.add(transformed.vehicle)
         session.add(transformed.consumer)
         session.add(transformed.vehicle_sale)
-        session.add(transformed.service_contract)
+        if transformed.vehicle_sale.has_service_contract:
+            session.add(transformed.service_contract)
 
 
 import logging
 logger = logging.getLogger()
 
-records = extract_from_carlabs(limit=5)
+records = extract_from_carlabs()
 n_transformed = 0
 failed = 0
 

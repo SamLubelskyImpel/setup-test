@@ -3,7 +3,7 @@ from orm.models.shared_dms import VehicleSale, Consumer, Vehicle, ServiceContrac
 from pandas import DataFrame, json_normalize
 from datetime import datetime, date
 from mappings import VehicleSaleTableMapping, ConsumerTableMapping, VehicleTableMapping, ServiceContractTableMapping, BaseMapping
-
+from numpy import int64
 
 class BaseTransformer(ABC):
 
@@ -41,8 +41,13 @@ class BaseTransformer(ABC):
         except Exception:
             return None
 
+    def __parsed(self, v):
+        if isinstance(v, int64):
+            return int(v)
+        return v
+
     def __get_mapped_data(self, mapping: BaseMapping):
-        return { dms_field: self.carlabs_data[carlabs_field] for dms_field, carlabs_field in mapping.fields }
+        return { dms_field: self.__parsed(self.carlabs_data.get(carlabs_field)) for dms_field, carlabs_field in mapping.fields }
 
     @property
     def vehicle_sale(self) -> VehicleSale:
@@ -80,5 +85,6 @@ class BaseTransformer(ABC):
     def service_contract(self) -> ServiceContract:
         mapped = self.__get_mapped_data(self.service_contract_table_mapping)
         orm = ServiceContract(**mapped)
+        orm.start_date = self.parsed_date(orm.start_date)
         return orm
 

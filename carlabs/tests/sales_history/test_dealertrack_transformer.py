@@ -2,12 +2,13 @@ from orm.models.shared_dms.vehicle_sale import VehicleSale
 from orm.models.shared_dms.consumer import Consumer
 from orm.models.shared_dms.vehicle import Vehicle
 from orm.models.shared_dms.service_contract import ServiceContract
+from datetime import datetime
 
 
 def test_vehicle_sale(dealertrack_transformer):
     expected_values = {
         # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
-        'sale_date': '20210316',
+        'sale_date': datetime(2021, 3, 16, 0, 0),
         'listed_price': '0.00',
         'sales_tax': '326.56',
         'mileage_on_vehicle': '52000',
@@ -23,13 +24,13 @@ def test_vehicle_sale(dealertrack_transformer):
         'profit_on_sale': None,
         'has_service_contract': True,
         'vehicle_gross': '0.00',
-        'warranty_expiration_date': '0',
+        'warranty_expiration_date': None,
         'service_package_flag': True,
-        'delivery_date': '20210316',
+        'delivery_date': datetime(2021, 3, 16, 0, 0),
         'finance_rate': '8.500',
         'finance_term': '60',
         'finance_amount': '6108.56',
-        'date_of_inventory': '20170928',
+        'date_of_inventory': datetime(2017, 9, 28, 0, 0),
         'days_in_stock': 1265
     }
     assert isinstance(dealertrack_transformer.vehicle_sale, VehicleSale)
@@ -81,7 +82,7 @@ def test_service_contract(dealertrack_transformer):
     expected_values = {
         # 'dealer_id': 'white_motors-chevrolet_buick_gmc',
         'contract_name': 'The Service Contract',
-        'start_date': '20210316',
+        'start_date': datetime(2021, 3, 16, 0, 0),
         'amount': '5475.00',
         'cost': '1250.00',
         'deductible': '0',
