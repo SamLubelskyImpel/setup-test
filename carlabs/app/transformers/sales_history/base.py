@@ -23,24 +23,29 @@ class BaseTransformer(ABC):
         self.carlabs_data = json_normalize(carlabs_data).iloc[0]
         self.pre_process_data()
 
+    # TODO rename to pre_process_carlabs_data
     @abstractmethod
     def pre_process_data(self):
         ...
 
+    # TODO rename to post_process_consumer_orm
     @abstractmethod
     def post_process_consumer(self, orm: Consumer) -> Consumer:
         ...
 
+    # TODO rename to post_process_vehicle_sale_orm
     @abstractmethod
     def post_process_vehicle_sale(self, orm: VehicleSale) -> VehicleSale:
         ...
 
+    # TODO rename to __parse_date
     def parsed_date(self, raw_date: str) -> date:
         try:
             return datetime.strptime(raw_date, self.date_format)
         except Exception:
             return None
 
+    # TODO rename to __parse_value
     def __parsed(self, v):
         if isinstance(v, int64):
             return int(v)

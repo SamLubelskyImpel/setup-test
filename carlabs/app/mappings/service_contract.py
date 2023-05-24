@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from .base import BaseMapping
-from typing import Optional
 
 
 @dataclass

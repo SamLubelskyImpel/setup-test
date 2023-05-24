@@ -7,8 +7,10 @@ from orm.models.shared_dms import Vehicle, VehicleSale, Consumer, ServiceContrac
 from transformers.sales_history import CDKTransformer, DealertrackTransformer, DealervaultTransformer
 from dataclasses import dataclass
 import logging
+import os
 
-logger = logging.getLogger()
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 
 class DMSNotMapped(Exception):
@@ -31,15 +33,19 @@ class SalesHistoryETLProcess:
 
 
     def __extract_from_carlabs(self):
-        engine = db.create_engine(make_db_uri(db='CARLABS'))
+        engine = db.create_engine(make_db_uri(db='CARLABS_DATA_INTEGRATIONS'))
         df = pandas.read_sql_query(
+            # TODO add condition to get the data of the day only
             sql=db.select(DataImports).where(
                 (DataImports.data_type == 'SALES')
-            ).limit(self.limit).offset(self.offset),
+            ).limit(self.limit+1).offset(self.offset),
             con=engine)
-        breakpoint()
 
-        for r in df.to_dict('records'):
+        records = df.to_dict('records')
+
+        self.__has_more_data = len(records) > self.limit
+
+        for r in records[:self.limit]:
             if isinstance(r['importedData'], list):
                 for i in r['importedData']:
                     yield {
@@ -81,12 +87,12 @@ class SalesHistoryETLProcess:
         transformed.service_contract.consumer = transformed.consumer
         transformed.service_contract.sale = transformed.vehicle_sale
 
-        with SQLSession(db='SHARED_DMS') as session:
-            session.add(transformed.vehicle)
-            session.add(transformed.consumer)
-            session.add(transformed.vehicle_sale)
-            if transformed.vehicle_sale.has_service_contract:
-                session.add(transformed.service_contract)
+        # with SQLSession(db='SHARED_DMS') as session:
+        #     session.add(transformed.vehicle)
+        #     session.add(transformed.consumer)
+        #     session.add(transformed.vehicle_sale)
+        #     if transformed.vehicle_sale.has_service_contract:
+        #         session.add(transformed.service_contract)
 
 
     def run(self):
@@ -99,7 +105,9 @@ class SalesHistoryETLProcess:
                 self.__load_into_shared_dms(self.__transform(r))
                 n_transformed += 1
             except Exception:
-                logger.exception(f'failed to transform {r["id"]}')
+                _logger.exception(f'failed to transform {r["id"]}')
                 failed += 1
 
-        print(f'loaded {n_transformed}, failed {failed}')
+        _logger.info(f'loaded {n_transformed}, failed {failed} (offset={self.offset})')
+
+        return self.__has_more_data

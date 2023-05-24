@@ -1,68 +1,45 @@
 from typing import Literal
-# TODO refactor this according to this project needs
-# import os
+from json import loads
+import boto3
+import os
 
-# from spincar_lib.get_secrets import get_secret, get_secret_using_role
-# from spincar_lib.regions import REGION
 
-# secret = get_secret('integrations/db', no_cache=True)
+IS_PROD = os.environ.get('ENVIRONMENT') == 'prod'
+SM_CLIENT = boto3.client('secretsmanager')
 
-# DB_HOST = {
-#     'us': secret['DB_HOST_US'],
-#     'eu': secret['DB_HOST_EU']
-# }
-# DB_USERNAME = {
-#     'us': secret['DB_USERNAME_US'],
-#     'eu': secret['DB_USERNAME_EU']
-# }
-# DB_PASSWORD = {
-#     'us': secret['DB_PASSWORD_US'],
-#     'eu': secret['DB_PASSWORD_EU']
-# }
 
-# DB_NAME = {
-#     'dev': {
-#         'us': 'integrations-dev',
-#         'eu': 'integrations-dev-eu'
-#     },
-#     'prod': {
-#         'us': 'integrations-prod',
-#         'eu': 'integrations-prod-eu'
-#     },
-#     'test': {
-#         'us': 'integrations-dev',
-#         'eu': 'integrations-dev-eu'
-#     }
-# }[FLAVOR]
+def __get_db_secret(secret_id):
+    return loads(SM_CLIENT.get_secret_value(SecretId=secret_id)['SecretString'])
+
+
+dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/DMSDB')
+carlabs_di_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/carlabs/data_integrations')
 
 
 DB = {
-    'CARLABS': {
-        'DB_USERNAME': 'integrator',
-        'DB_PASSWORD': 'CarLabs2022!',
-        'DB_HOST': 'postgres.proxy.carlabs.com:45432',
-        'DB_NAME': 'data_integrations'
+    'CARLABS_DATA_INTEGRATIONS': {
+        'DB_USERNAME': carlabs_di_secret['DB_USERNAME'],
+        'DB_PASSWORD': carlabs_di_secret['DB_PASSWORD'],
+        'DB_HOST': carlabs_di_secret['DB_HOST'],
+        'DB_PORT': carlabs_di_secret['DB_PORT'],
+        'DB_NAME': carlabs_di_secret['DB_NAME']
     },
     'SHARED_DMS': {
-        'DB_USERNAME': 'master',
-        'DB_PASSWORD': 'jJKty7j7yhHH67uy',
-        'DB_HOST': 'localhost:5432',
-        'DB_NAME': 'dms'
+        'DB_USERNAME': dms_secret['user'],
+        'DB_PASSWORD': dms_secret['password'],
+        'DB_HOST': dms_secret['host'],
+        'DB_PORT': dms_secret['port'],
+        'DB_NAME': dms_secret['db_name']
     }
-    # 'SHARED_DMS': {
-    #     'DB_USERNAME': 'developer',
-    #     'DB_PASSWORD': '31eeeb5d8805f3f6e0ee686a47f47bd5',
-    #     'DB_HOST': 'unified-data-test-1.c8eqxn0581ih.us-east-1.rds.amazonaws.com:5432',
-    #     'DB_NAME': 'dms'
-    # }
 }
 
 
-def make_db_uri(db: Literal['CARLABS', 'SHARED_DMS'], region=None):
-    app_name = 'carlabs-integration'
-    return 'postgresql://{}:{}@{}/{}?application_name={}'.format(
+def make_db_uri(db: Literal['CARLABS_DATA_INTEGRATIONS', 'SHARED_DMS'], region=None):
+    app_name = 'carlabs-etl'
+    return 'postgresql://{}:{}@{}:{}/{}?application_name={}'.format(
         DB[db]['DB_USERNAME'],
         DB[db]['DB_PASSWORD'],
         DB[db]['DB_HOST'],
+        DB[db]['DB_PORT'],
         DB[db]['DB_NAME'],
         app_name)

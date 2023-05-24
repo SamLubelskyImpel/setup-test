@@ -1,0 +1,43 @@
+{
+    "Comment": "State machine to pull sales history data from Carlabs",
+    "StartAt": "DATA_PULL",
+    "States": {
+      "DATA_PULL": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "${PullSalesHistoryFunction}"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException"
+            ],
+            "IntervalSeconds": 2,
+            "MaxAttempts": 6,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "KEEP_DATA_PULL"
+      },
+      "KEEP_DATA_PULL": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.keep_data_pull",
+            "BooleanEquals": true,
+            "Next": "DATA_PULL"
+          }
+        ],
+        "Default": "Pass"
+      },
+      "Pass": {
+        "Type": "Pass",
+        "End": true
+      }
+    }
+  }
