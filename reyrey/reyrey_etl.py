@@ -11,6 +11,8 @@ import pyspark
 import pyspark.sql.functions as F
 from awsglue.context import GlueContext
 from awsglue.job import Job
+from awsglue.dynamicframe import DynamicFrame
+from awsglue.gluetypes import ChoiceType, Field, StructType, ArrayType, NullType
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql.types import DoubleType, StringType
@@ -89,7 +91,7 @@ class RDSInstance:
         """Get the db dealer id for the given dms id."""
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
-            join {self.schema}."integration_partner" i on dip.integration_id = i.id 
+            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
             where dip.dms_id = '{dms_id}' and i.name = '{self.integration}' and dip.is_active = true;"""
         results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
@@ -185,6 +187,7 @@ class RDSInstance:
         ]
         actual_service_repair_order_columns.append("dealer_integration_partner_id")
         actual_service_repair_order_columns.append("consumer_id")
+        actual_service_repair_order_columns.append("vehicle_id")
         actual_service_repair_order_columns.append("metadata")
 
         unique_ros_dms_cols = ["repair_order_no", "dealer_integration_partner_id"]
@@ -213,6 +216,7 @@ class RDSInstance:
         ]
         actual_vehicle_sale_columns.append("dealer_integration_partner_id")
         actual_vehicle_sale_columns.append("consumer_id")
+        actual_vehicle_sale_columns.append("vehicle_id")
         actual_vehicle_sale_columns.append("metadata")
 
         vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
@@ -247,11 +251,236 @@ class RDSInstance:
             return []
         inserted_consumer_ids = [x[0] for x in results.fetchall()]
         return inserted_consumer_ids
+    
+    def insert_vehicle(self, dealer_df, catalog_name, mappings):
+        """Given a dataframe of dealer data insert into vehicle table and return created ids."""
+        desired_vehicle_columns = mappings[catalog_name]["vehicle"].keys()
+        actual_vehicle_columns = [
+            x for x in desired_vehicle_columns if x in dealer_df.columns
+        ]
+        actual_vehicle_columns.append("dealer_integration_partner_id")
+        actual_vehicle_columns.append("metadata")
+
+        vehicle_df = dealer_df.select(actual_vehicle_columns)
+        insert_vehicle_query = self.get_insert_query_from_df(
+            vehicle_df, "vehicle", "RETURNING id"
+        )
+
+        results = self.commit_rds(insert_vehicle_query)
+        if results is None:
+            return []
+        inserted_vehicle_ids = [x[0] for x in results.fetchall()]
+        return inserted_vehicle_ids
+    
+
+class DynamicFrameResolver:
+    """Resolve choices from a glue dynamic frame."""
+    def __init__(self, glue_context):
+        self.glue_context = glue_context
+
+    def get_resolved_choices(self, unresolved_columns):
+        """ Determine how to handle unresolved columns """
+        resolve_spec = []
+        for unresolved_column in unresolved_columns:
+            choices = unresolved_column[1].keys()
+            field_name = unresolved_column[0]
+            if 'struct' in choices and 'array' in choices:
+                resolve_spec.append((field_name, 'make_cols'))
+            else:
+                resolve_spec.append((field_name, 'cast:string'))
+        return resolve_spec
+
+    def get_unresolved_columns(self, schema):
+        """ Check dynamic frame for unresolved data types. """
+        def _recursion(field_map, unresolved_column_names, build_name=""):
+            for field in field_map.values():
+                field_name = f"{build_name + '.' if build_name else ''}{field.name if field.name else ''}"
+                if isinstance(field.dataType, StructType):
+                    _recursion(field.dataType.field_map, unresolved_column_names, field_name)
+                if isinstance(field.dataType, ArrayType):
+                    if not isinstance(field.dataType.elementType, NullType):
+                        if isinstance(field.dataType.elementType, StructType):
+                            field_name += "[]"
+                            _recursion(field.dataType.elementType.field_map, unresolved_column_names, field_name)
+                        if isinstance(field.dataType.elementType, ChoiceType):
+                            unresolved_column_names.append((field_name, field.dataType.elementType.choices))
+                if isinstance(field.dataType, ChoiceType):
+                    unresolved_column_names.append((field_name, field.dataType.choices))
+
+        unresolved_columns = []
+        _recursion(schema.field_map, unresolved_columns)
+        # Sort most nested to least nested
+        unresolved_columns = sorted(unresolved_columns, key=lambda x: len(x[0].split('.')), reverse=False)
+        return unresolved_columns
+
+    def replace_struct(self, df, source_col_name, full_split_field_rp, replaced_fields=[]):
+        """ For a given dataframe, replace fields inside a nested struct with a new field containing data from a source column. """
+        def recursive_struct_update(source_col_name, full_split_field_rp, index=0):
+            if len(full_split_field_rp) == index + 1:
+                # This struct field is getting replaced with the source column data
+                return F.col(source_col_name).alias(full_split_field_rp[-1])
+            else:
+                current_prefix = '.'.join(full_split_field_rp[:index + 1])
+                current_field = full_split_field_rp[index + 1]
+                if len(full_split_field_rp) == index + 2:
+                    # The next struct field is getting replaced, preserve all struct fields except the replaced fields
+                    logger.info(f"Getting {current_prefix}.* as {current_field} and next {full_split_field_rp[index]}")
+                    return F.struct(
+                        F.col(f"{current_prefix}.*"),
+                        recursive_struct_update(source_col_name, full_split_field_rp, index=index + 1)
+                    ).alias(current_field).dropFields(*replaced_fields)
+                else:
+                    # Preserve all fields in the current struct
+                    logger.info(f"Getting {current_prefix}.* as {current_field} and next {full_split_field_rp[index]}")
+                    logger.info(f"Getting {current_prefix}.*")
+                    return F.struct(
+                        F.col(f"{current_prefix}.*"),
+                        recursive_struct_update(source_col_name, full_split_field_rp, index=index + 1).alias(current_field)
+                    )
+
+        logger.info(f"setting {full_split_field_rp}.*")
+        return df.withColumn(
+            full_split_field_rp[0],
+            recursive_struct_update(source_col_name, full_split_field_rp)
+        ).drop(source_col_name)
+    
+    def convert_structs_to_arrays(self, df, spec):
+        """"""
+        spec = sorted(spec, key=lambda x: len(x[0].split('.')), reverse=False)
+        for field_path, resolution in spec:
+            if resolution != 'make_cols':
+                continue
+
+            field_path = field_path.replace("[]", "").replace("_struct", "").replace("_array", "")
+            temp_column_name = "temp"
+            struct_field = f"{field_path}_struct"
+            array_field = f"{field_path}_array"
+            temp_array_column = f"{temp_column_name}_array"
+            temp_struct_column = f"{temp_column_name}_struct"
+
+            combine_columns = lambda row: \
+                row[temp_array_column] if row[temp_array_column] is not None \
+                else row[temp_struct_column] if row[temp_struct_column] is not None \
+                else None
+            
+            logger.info(f"make cols field {field_path}")
+            df = df.withColumn(
+                # Move nested array data to a temp new column
+                temp_array_column, F.col(array_field)
+            ).withColumn(
+                # Move the nested struct data to a temp new column converted to an array
+                temp_struct_column, F.array(F.col(struct_field))
+            ).withColumn(
+                # Combine the two temp columns to a new column
+                temp_column_name, combine_columns(df)
+            ).drop(
+                # Remove the temp array column
+                temp_array_column
+            ).drop(
+                # Remove the temp struct column
+                temp_struct_column
+            )
+            logger.info("make the cols")
+            logger.info(df.printSchema())
+
+            # With the new column of combined array data, replace the original nested data
+            df = self.replace_struct(
+                df,
+                temp_column_name,
+                field_path.split("."),
+                replaced_fields=[array_field.split('.')[-1], struct_field.split('.')[-1]]
+            ).drop(struct_field).drop(array_field)
+        return df
+    
+    def resolve_nested(self, df, name):
+        """"""
+        i = 0
+        max_resolutions = 50
+        all_resolved_specs = []
+        unresolved_columns = self.get_unresolved_columns(df.schema())
+        while len(unresolved_columns) > 0:
+            if i > max_resolutions:
+                raise RuntimeError(f"Unable to resolve {name} with {unresolved_columns}")
+            resolved_spec = self.get_resolved_choices(unresolved_columns)
+            all_resolved_specs += resolved_spec
+            df = df.resolveChoice(specs=resolved_spec)
+            unresolved_columns = self.get_unresolved_columns(df.schema())
+            i += 1
+        return df, all_resolved_specs
+    
+    def resolve_reyrey_df(self, datasource, main_column_name):
+        """"""
+        # XML data makes no indication of arrays vs structs
+        # This causes the crawler to make choice columns where the column can be either an array or struct
+        # For each field where this occurs we want to convert it to be an array of structs
+        # The main data column is the exception where we instead convert arrays to structs where each row is then a struct
+        # Note we unfortunately can't use rowTag for the main data column because we would lose the ApplicationArea tag
+        array_column_name = f"{main_column_name}_array"
+        struct_column_name = f"{main_column_name}_struct"
+
+        # Split main data column into array and struct column
+        datasource = datasource.resolveChoice(
+            specs=(main_column_name, 'make_cols')
+        )
+
+        logger.info("resolve make cols")
+        logger.info(datasource.printSchema())
+
+        # Separate array and struct columns into different dataframes where they aren't null.
+        datasource_array = datasource.withColumnRenamed(
+            array_column_name, main_column_name
+        ).filter(
+            lambda row: row[main_column_name] is not None
+        ).drop(struct_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")#.drop("RepairOrder.RoRecord.Rolabor")
+        datasource_struct = datasource.withColumnRenamed(
+            struct_column_name, main_column_name
+        ).filter(
+            lambda row: row[main_column_name] is not None
+        ).drop(array_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")#.drop("RepairOrder.RoRecord.Rolabor")
+
+        # Resolve all possible field choices inside the frame and get the resolved choices
+        datasource_array, array_columns_spec = self.resolve_nested(datasource_array, array_column_name)
+        logger.info("finished resolve nested array")
+        logger.info(datasource.printSchema())
+        datasource_struct, struct_columns_spec = self.resolve_nested(datasource_struct, struct_column_name)
+
+        # Convert the array data into rows of structs
+        datasource_array = datasource_array.withColumn(main_column_name, F.explode(F.col(main_column_name)))
+        logger.info("explode nested array")
+        logger.info(datasource.printSchema())
+
+        # TODO this is new
+        datasource_array, array_columns_spec_nested = self.resolve_nested(datasource_array, main_column_name)
+        array_columns_spec = array_columns_spec_nested + array_columns_spec
+
+        logger.info("explode nested resolved")
+        logger.info(datasource.printSchema())
+
+        # Cast all array/struct choices to be arrays
+        logger.info(f"Convert the array {array_columns_spec}")
+        datasource_array = self.convert_structs_to_arrays(datasource_array, array_columns_spec)
+        logger.info("Array final schema")
+        logger.info(datasource.printSchema())
+
+        # Cast all array/struct choices to be arrays
+        logger.info(f"Convert the struct {struct_columns_spec}")
+        datasource_struct = self.convert_structs_to_arrays(datasource_struct, struct_columns_spec)
+        logger.info("Struct final schema")
+        logger.info(datasource.printSchema())
+
+        # Combine back into one dataframe
+        datasource = datasource_array.union(datasource_struct)
+        datasource, datasource_spec = self.resolve_nested(datasource, main_column_name)
+        logger.info(f"Convert the union {datasource_spec}")
+        datasource = self.convert_structs_to_arrays(datasource, datasource_spec)
+        logger.info("union final schema")
+        logger.info(datasource.printSchema())
+
+        return datasource
 
 
 class ReyReyUpsertJob:
     """Create object to perform ETL."""
-
     def __init__(self, job_id, args):
         self.sc = SparkContext()
         self.glue_context = GlueContext(self.sc)
@@ -260,6 +489,7 @@ class ReyReyUpsertJob:
         self.job.init(args["JOB_NAME"], args)
         self.job_id = job_id
         self.catalog_table_names = args["catalog_table_names"].split(",")
+        self.temp_dir = args["TempDir"]
         self.dlq_url = args["dlq_url"]
         self.database = args["db_name"]
         self.region = args["region"]
@@ -269,6 +499,7 @@ class ReyReyUpsertJob:
             f"integrations-us-east-1-{'prod' if self.is_prod else 'test'}"
         )
         self.rds = RDSInstance(self.is_prod, self.integration)
+        self.resolver = DynamicFrameResolver(self.glue_context)
         self.mappings = {
             "reyreycrawlerdb_fi_closed_deal": {
                 "dealer": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
@@ -277,9 +508,15 @@ class ReyReyUpsertJob:
                     "first_name": "FIDeal.Buyer.CustRecord.ContactInfo._FirstName",
                     "last_name": "FIDeal.Buyer.CustRecord.ContactInfo._LastName",
                     "email": "FIDeal.Buyer.CustRecord.ContactInfo.Email._MailTo",
-                    "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
-                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address.Array._Zip",
-                    "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone.Array",
+                    "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone",
+                    "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address._Zip",
+                    "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone",
+                },
+                "vehicle": {
+                    "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
+                    "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
+                    "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
+                    "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
@@ -291,18 +528,16 @@ class ReyReyUpsertJob:
                     "adjustment_on_price": "FIDeal.FIDealFin.TransactionVehicle._Discount",
                     "days_in_stock": "FIDeal.FIDealFin.TransactionVehicle._DaysInStock",
                     "date_of_state_inspection": "FIDeal.FIDealFin.TransactionVehicle._InspectionDate",
-                    "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
                     "trade_in_value": "FIDeal.FIDealFin.TradeIn._ActualCashValue",
                     "payoff_on_trade": "FIDeal.FIDealFin.TradeIn._Payoff",
                     "value_at_end_of_lease": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual",
                     "miles_per_year": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear",
-                    "service_package": "FIDeal.FIDealFin.WarrantyInfo.Array.ServiceCont._ServContYN",
+                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
                     "vehicle_gross": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
-                    "extended_warranty": "FIDeal.FIDealFin.WarrantyInfo.Array.ExtWarranty.VehExtWarranty._ExpirationDate",
-                    "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
-                    "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
-                    "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
+                    "warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
                     "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
+                    "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
+                    
                 },
             },
             "reyreycrawlerdb_repair_order": {
@@ -316,9 +551,12 @@ class ReyReyUpsertJob:
                     "first_name": "RepairOrder.CustRecord.ContactInfo._FirstName",
                     "last_name": "RepairOrder.CustRecord.ContactInfo._LastName",
                     "email": "RepairOrder.CustRecord.ContactInfo.Email._MailTo",
-                    "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
+                    "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone",
                     "postal_code": "RepairOrder.CustRecord.ContactInfo.Address._Zip",
-                    "home_phone": "RepairOrder.CustRecord.ContactInfo.phone.Array",
+                    "home_phone": "RepairOrder.CustRecord.ContactInfo.phone",
+                },
+                "vehicle": {
+                    "vin": "RepairOrder.RoRecord.Rogen._Vin",
                 },
                 "service_repair_order": {
                     "ro_open_date": "RepairOrder.RoRecord.Rogen._RoCreateDate",
@@ -358,147 +596,78 @@ class ReyReyUpsertJob:
                 ):
                     selected_columns.append(F.col(dms_column).alias(db_column))
                     selected_column_names.append(db_column)
-        selected_columns.append("metadata")
+        # Additional data not directly mapped to table
+        df = df.withColumn("s3_url", F.input_file_name())
+        df = df.withColumn("Region", F.lit(self.region))
+        df = df.withColumn("BODId", F.col("ApplicationArea.BODId"))
+        df = df.withColumn("metadata", F.lit(None))
+        selected_columns += [
+            "s3_url",
+            "Region",
+            "BODId",
+            "metadata",
+            "PartitionYear",
+            "PartitionMonth",
+            "PartitionDate"
+        ]
         return df.select(selected_columns)
-
-    def filter_null(self, df, catalog_name):
-        """Map the raw data to the unified column and return as a dataframe."""
-        if "reyreycrawlerdb_fi_closed_deal" == catalog_name:
-            data_column_name = "FIDeal"
-        elif "reyreycrawlerdb_repair_order" == catalog_name:
-            data_column_name = "RepairOrder"
-        else:
-            raise RuntimeError(f"Unexpected catalog {catalog_name}")
-
-        # Log data with null values
-        null_data = df.filter(F.col(f"{data_column_name}.Array").isNull()).select(
-            "Year",
-            "Month",
-            "Date",
-            "ApplicationArea.Sender.DealerNumber",
-            "ApplicationArea.BODId",
-        )
-        null_data_json = null_data.toJSON().collect()
-        logging.warning(f"Skip processing null data: {null_data_json}")
-
-        # Log and select data without null values
-        valid_data = (
-            df.filter(F.col(f"{data_column_name}.Array").isNotNull())
-            .select(
-                "Year",
-                "Month",
-                "Date",
-                F.col("ApplicationArea.BODId").alias("BODId"),
-                "ApplicationArea",
-                F.explode(f"{data_column_name}.Array").alias(data_column_name),
-            )
-            .withColumn("Region", F.lit(self.region))
-            .withColumn(
-                "metadata",
-                F.to_json(F.struct("Region", "Year", "Month", "Date", "BODId")),
-            )
-        )
-        valid_data_json = (
-            valid_data.select(
-                "Year",
-                "Month",
-                "Date",
-                "ApplicationArea.Sender.DealerNumber",
-                "ApplicationArea.BODId",
-            )
-            .toJSON()
-            .collect()
-        )
-        logging.info(f"Processing data: {valid_data_json}")
-        return valid_data
 
     def format_df(self, df, catalog_name):
         """Format the raw data to match the database schema."""
-        starting_count = df.count()
+        if "postal_code" in df.columns:
+            # Convert from Array to String
+            def calculate_postal_code(pyspark_arr):
+                if pyspark_arr:
+                    for raw_reyrey_str in pyspark_arr:
+                        if raw_reyrey_str and raw_reyrey_str != "null":
+                            return raw_reyrey_str
+                    return None
+                else:
+                    return None
+            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+                get_postal_code = F.udf(calculate_postal_code, StringType())
+                df = df.withColumn("postal_code", get_postal_code(F.col("postal_code")))
         if "cell_phone" in df.columns:
-            # Convert cell_phone column from Array[Struct(_Num, _Type)] to LongType
+            # Convert cell_phone column from Array[Struct(_Num, _Type)] to String
             get_cell_phone = F.filter(
                 F.col("cell_phone"), lambda x: x["_Type"].isin(["C", "O"])
             )["_Num"][0]
-            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                get_cell_phone = get_cell_phone["long"]
             df = df.withColumn("cell_phone", get_cell_phone)
         if "home_phone" in df.columns:
             # Convert home_phone column from Array[Struct(_Num, _Type)] to LongType
             get_home_phone = F.filter(
                 F.col("home_phone"), lambda x: x["_Type"].isin(["H"])
             )["_Num"][0]
-            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                get_home_phone = get_home_phone["long"]
             df = df.withColumn("home_phone", get_home_phone)
-        if "postal_code" in df.columns:
-            # Convert postal_code column from Array[String] to String
-            def calculate_postal_code(pyspark_arr):
-                if pyspark_arr:
-                    for raw_reyrey_str in pyspark_arr:
-                        if raw_reyrey_str != "null":
-                            return raw_reyrey_str
-                    return None
-                else:
-                    return None
-
-            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                get_postal_code = F.udf(calculate_postal_code, StringType())
-                df = df.withColumn("postal_code", get_postal_code(F.col("postal_code")))
-        if "extended_warranty" in df.columns:
-            # Convert extended_warranty column from Array[String] to JSON String
+        if "warranty_expiration_date" in df.columns:
+            # Convert extended_warranty column from Array[String] to String
             def calculate_extended_warranty(pyspark_arr):
                 if pyspark_arr:
-                    warranty_expiration_date_strs = []
                     for raw_reyrey_str in pyspark_arr:
-                        if raw_reyrey_str != "null":
-                            warranty_expiration_date_strs.append(
-                                f'{{"warranty_expiration_date":"{raw_reyrey_str}"}}'
-                            )
-                    return f"[{','.join(warranty_expiration_date_strs)}]"
+                        if raw_reyrey_str and raw_reyrey_str != "null":
+                            return raw_reyrey_str
                 else:
                     return None
-
             get_extended_warranty = F.udf(calculate_extended_warranty, StringType())
             df = df.withColumn(
-                "extended_warranty", get_extended_warranty(F.col("extended_warranty"))
+                "warranty_expiration_date", get_extended_warranty(F.col("warranty_expiration_date"))
             )
-        if "service_package" in df.columns:
-            # Convert service_package column from Array[String] to JSON String
-            def calculate_service_package(pyspark_arr):
+        if "service_package_flag" in df.columns:
+            # Convert service_package column from Array[String] to Bool
+            def calculate_service_package_flag(pyspark_arr):
                 if pyspark_arr:
-                    has_service_contract_strs = []
-                    for raw_reyrey_str in pyspark_arr:
-                        if raw_reyrey_str != "null":
-                            has_service_contract_strs.append(
-                                f'{{"has_service_contract":"{raw_reyrey_str}"}}'
-                            )
-                    return f"[{','.join(has_service_contract_strs)}]"
+                    return any(x == "Y" for x in pyspark_arr)
                 else:
                     return None
-
-            get_service_package = F.udf(calculate_service_package, StringType())
+            get_service_package_flag = F.udf(calculate_service_package_flag, StringType())
             df = df.withColumn(
-                "service_package", get_service_package(F.col("service_package"))
+                "service_package_flag", get_service_package_flag(F.col("service_package_flag"))
             )
-        if "dealer_customer_no" in df.columns:
-            if catalog_name == "reyreycrawlerdb_repair_order":
-                # Convert List(int, string) to String
-                df = df.withColumn(
-                    "dealer_customer_no",
-                    F.when(
-                        F.col("dealer_customer_no.int").isNotNull(),
-                        F.col("dealer_customer_no.int"),
-                    ).otherwise(F.col("dealer_customer_no.string")),
-                )
-        if "txn_pay_type" in df.columns:
-            # Convert Array[String] to String
-            df = df.withColumn("txn_pay_type", F.concat_ws(",", F.col("txn_pay_type")))
         if "total_amount" in df.columns:
             # Convert Array[Double] to Double
             def calculate_sum_array(arr):
                 if arr is not None:
-                    return sum(x for x in arr if x is not None)
+                    return sum(float(x) for x in arr if x is not None)
                 else:
                     return None
 
@@ -512,11 +681,15 @@ class ReyReyUpsertJob:
                     "transform(op_codes, x -> struct(x._RecSvcOpCode as op_code, x._RecSvcOpCdDesc as op_code_desc))"
                 ),
             )
-
-        if starting_count != df.count():
-            raise RuntimeError(
-                f"Error formatting lost data from {starting_count} rows to {df.count()}"
+        if "txn_pay_type" in df.columns:
+            # Convert Array[String] to String
+            df = df.withColumn("txn_pay_type", F.concat_ws(",", F.col("txn_pay_type")))
+        if "metadata" in df.columns:
+            df = df.withColumn(
+                "metadata",
+                F.to_json(F.struct("Region", "PartitionYear", "PartitionMonth", "PartitionDate", "BODId", "s3_url")),
             )
+
         return df
 
     def add_list_to_df(
@@ -524,7 +697,6 @@ class ReyReyUpsertJob:
     ):
         """Given a dataframe and a list, add the list as a column to the dataframe preserving order."""
         w = Window.partitionBy(F.lit(1)).orderBy(F.lit(1))
-        original_count = df.count()
         temp_df = self.spark.createDataFrame(
             [[x] for x in add_list], [add_list_column_name]
         ).withColumn(temp_col_name, F.row_number().over(w))
@@ -533,103 +705,121 @@ class ReyReyUpsertJob:
             .join(temp_df, [temp_col_name])
             .drop(F.col(temp_col_name))
         )
-
-        if original_count != df.count():
-            raise RuntimeError(
-                f"Error adding list to df lost rows {original_count} to {df.count()} given list {add_list}"
-            )
         return df
 
     def upsert_df(self, df, catalog_name):
         """Upsert dataframe to RDS table."""
         insert_count = 0
         dealers = df.select("dms_id").distinct().collect()
+        if len(dealers) == 0:
+            logger.error("No data found for any dealer")
         for dealer in dealers:
             dealer_df = df.filter(df.dms_id == dealer.dms_id)
             db_dealer_integration_partner_id = None
-            try:
-                db_dealer_integration_partner_id = (
-                    self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
+
+            db_dealer_integration_partner_id = (
+                self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
+            )
+            dealer_df = dealer_df.withColumn(
+                "dealer_integration_partner_id",
+                F.lit(db_dealer_integration_partner_id),
+            )
+            dealer_rows = dealer_df.count()
+            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+                # Vehicle sale must insert into consumer table first
+                inserted_consumer_ids = self.rds.insert_consumer(
+                    dealer_df, catalog_name, self.mappings
                 )
-                dealer_df = dealer_df.withColumn(
-                    "dealer_integration_partner_id",
-                    F.lit(db_dealer_integration_partner_id),
+                count = len(inserted_consumer_ids)
+                if count != dealer_rows:
+                    raise RuntimeError(f"Unable to insert consumers, expected {dealer_rows} got {count}")
+                logger.info(
+                    f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
                 )
-                if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                    # Vehicle sale must insert into consumer table first
-                    inserted_consumer_ids = self.rds.insert_consumer(
-                        dealer_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_consumer_ids)
-                    logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
-                    )
-
-                    # Then insert to vehicle sale with consumer ids
-                    vehicle_sale_df = self.add_list_to_df(
-                        dealer_df, inserted_consumer_ids, "consumer_id"
-                    )
-
-                    vehicle_sale_ids = self.rds.insert_vehicle_sale(
-                        vehicle_sale_df, catalog_name, self.mappings
-                    )
-                    count = len(vehicle_sale_ids)
-                    logger.info(
-                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
-                    )
-                    insert_count += count
-
-                elif catalog_name == "reyreycrawlerdb_repair_order":
-                    # Service repair order must insert into consumer table first
-                    inserted_consumer_ids = self.rds.insert_consumer(
-                        dealer_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_consumer_ids)
-                    logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
-                    )
-
-                    # Then insert to service repair order with consumer ids
-                    service_repair_order_df = self.add_list_to_df(
-                        dealer_df, inserted_consumer_ids, "consumer_id"
-                    )
-
-                    service_repair_order_ids = self.rds.insert_service_repair_order(
-                        service_repair_order_df, catalog_name, self.mappings
-                    )
-                    count = len(service_repair_order_ids)
-                    logger.info(
-                        f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
-                    )
-                    insert_count += count
-
-                    # Create op codes
-                    inserted_op_code_ids = self.rds.insert_op_codes(
-                        service_repair_order_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_op_code_ids)
-                    logger.info(
-                        f"Added {count} rows to op_code for dealer {db_dealer_integration_partner_id}"
-                    )
-
-                    # Link op codes
-                    inserted_op_code_repair_order_ids = (
-                        self.rds.insert_op_code_repair_order(service_repair_order_df)
-                    )
-                    count = len(inserted_op_code_repair_order_ids)
-                    logger.info(
-                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
-                    )
-            except Exception:
-                logger.exception(
-                    f"""Error: db_dealer_integration_partner_id {db_dealer_integration_partner_id}, dms_id {dealer.dms_id}, catalog {catalog_name} {df.schema}"""
+                vehicle_sale_df = self.add_list_to_df(
+                    dealer_df, inserted_consumer_ids, "consumer_id"
                 )
-                s3_key = f"{self.integration}/errors/{dealer.dms_id}/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
-                self.save_df_notify(df, s3_key)
-                raise
 
+                # Then insert into vehicle
+                inserted_vehicle_ids = self.rds.insert_vehicle(
+                    vehicle_sale_df, catalog_name, self.mappings
+                )
+                count = len(inserted_vehicle_ids)
+                if count != dealer_rows:
+                    raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
+                logger.info(
+                    f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
+                )
+                vehicle_sale_df = self.add_list_to_df(
+                    vehicle_sale_df, inserted_vehicle_ids, "vehicle_id"
+                )
+
+                # Then insert into vehicle sale
+                vehicle_sale_ids = self.rds.insert_vehicle_sale(
+                    vehicle_sale_df, catalog_name, self.mappings
+                )
+                count = len(vehicle_sale_ids)
+                logger.info(
+                    f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
+                )
+                insert_count += count
+
+            elif catalog_name == "reyreycrawlerdb_repair_order":
+                # Service repair order must insert into consumer table first
+                inserted_consumer_ids = self.rds.insert_consumer(
+                    dealer_df, catalog_name, self.mappings
+                )
+                count = len(inserted_consumer_ids)
+                logger.info(
+                    f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
+                )
+                service_repair_order_df = self.add_list_to_df(
+                    dealer_df, inserted_consumer_ids, "consumer_id"
+                )
+
+                # Then insert into vehicle
+                inserted_vehicle_ids = self.rds.insert_vehicle(
+                    service_repair_order_df, catalog_name, self.mappings
+                )
+                count = len(inserted_vehicle_ids)
+                if count != dealer_rows:
+                    raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
+                logger.info(
+                    f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
+                )
+                service_repair_order_df = self.add_list_to_df(
+                    service_repair_order_df, inserted_vehicle_ids, "vehicle_id"
+                )
+
+                # Then insert into service repair orders
+                service_repair_order_ids = self.rds.insert_service_repair_order(
+                    service_repair_order_df, catalog_name, self.mappings
+                )
+                count = len(service_repair_order_ids)
+                logger.info(
+                    f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
+                )
+                insert_count += count
+
+                # Create op codes
+                inserted_op_code_ids = self.rds.insert_op_codes(
+                    service_repair_order_df, catalog_name, self.mappings
+                )
+                count = len(inserted_op_code_ids)
+                logger.info(
+                    f"Added {count} rows to op_code for dealer {db_dealer_integration_partner_id}"
+                )
+
+                # Link op codes
+                inserted_op_code_repair_order_ids = (
+                    self.rds.insert_op_code_repair_order(service_repair_order_df)
+                )
+                count = len(inserted_op_code_repair_order_ids)
+                logger.info(
+                    f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
+                )
         return insert_count
-
+    
     def save_df_notify(self, df, s3_key):
         """Save schema and data to s3, notify of error."""
         schema_json = loads(df.schema.json())
@@ -651,40 +841,45 @@ class ReyReyUpsertJob:
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
-            transformation_ctx = "bookmark_" + catalog_name
+            if "reyreycrawlerdb_fi_closed_deal" == catalog_name:
+                main_column_name = "FIDeal"
+            elif "reyreycrawlerdb_repair_order" == catalog_name:
+                main_column_name = "RepairOrder"
+            else:
+                raise RuntimeError(f"Unexpected catalog {catalog_name}")
+            
+            # Retrieve data from the glue catalog
             datasource = self.glue_context.create_dynamic_frame.from_catalog(
                 database=self.database,
                 table_name=catalog_name,
-                transformation_ctx=transformation_ctx,
+                transformation_ctx=f"context_2fssdfdsdsr2q_{catalog_name}",
             )
-            if datasource.count() != 0:
-                try:
-                    df = (
-                        datasource.toDF()
-                        .withColumnRenamed("partition_0", "Year")
-                        .withColumnRenamed("partition_1", "Month")
-                        .withColumnRenamed("partition_2", "Date")
-                    )
-                    # Filter rows with no data
-                    df = self.filter_null(df, catalog_name)
-                    # Get the base fields in a df via self.mappings
-                    df = self.apply_mappings(df, self.mappings[catalog_name])
-                    # Format necessary base fields to get a standardized df format
-                    df = self.format_df(df, catalog_name)
-                    # If you've properly formatted your df the next function should run without needing modifications per integration
-                    upsert_count = self.upsert_df(df, catalog_name)
-                    logger.info(
-                        f"Added {upsert_count} total rows to primary table for {catalog_name}."
-                    )
-                except Exception:
-                    s3_key = f"{self.integration}/errors/job/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
-                    self.save_df_notify(df, s3_key)
-                    raise
-            else:
-                logger.error("There is no new data for the job to process.")
+            logger.info("starting")
+            logger.info(datasource.printSchema())
 
-        self.job.commit()
+            if datasource.count() == 0:
+                logger.info("No new data to parse")
+                return
+            
+            # Rename partitions from s3
+            datasource = datasource.withColumnRenamed(
+                "partition_0", "PartitionYear"
+            ).withColumnRenamed(
+                "partition_1", "PartitionMonth"
+            ).withColumnRenamed(
+                "partition_2", "PartitionDate"
+            )
 
+            # Resolve choices, flatten dataframe
+            datasource = self.resolver.resolve_reyrey_df(datasource, main_column_name).toDF()
+            # Get the base fields in a df via self.mappings
+            datasource = self.apply_mappings(datasource, self.mappings[catalog_name])
+            # Format necessary base fields to get a standardized df format
+            datasource = self.format_df(datasource, catalog_name)
+            # Insert tables to database
+            self.upsert_df(datasource, catalog_name)
+
+            self.job.commit()
 
 if __name__ == "__main__":
     args = getResolvedOptions(

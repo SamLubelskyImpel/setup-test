@@ -25,6 +25,7 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         filters = event.get("queryStringParameters", {})
+        page = int(event.get("queryStringParameters", {}).get("page", "1"))
         results = []
         max_results = 1000
 
@@ -34,7 +35,7 @@ def lambda_handler(event, context):
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
                 )
             )
 
@@ -45,29 +46,36 @@ def lambda_handler(event, context):
                     for table in tables:
                         if attr in table.__table__.columns:
                             filtered_table = table
-                    
-                    if not filtered_table:
-                        raise RuntimeError(f"No column found {attr}")
+
                 for attr, value in filters.items():
-                    if attr == "next_fetch_key":
-                        query = query.filter(getattr(Dealer, "id") > value)
-                    elif attr == "result_count":
+                    if attr == "db_creation_date_start":
+                        query = query.filter(
+                            getattr(DealerIntegrationPartner, "db_creation_date")
+                            >= value
+                        )
+                    elif attr == "db_creation_date_end":
+                        query = query.filter(
+                            getattr(DealerIntegrationPartner, "db_creation_date")
+                            <= value
+                        )
+                    elif attr == "result_count" and value < max_results:
                         max_results = value
                     else:
-                        query = query.filter(getattr(Dealer, attr) == value)
+                        query = query.filter(getattr(filtered_table, attr) == value)
 
-            dealers = query.order_by(Dealer.id).limit(max_results).all()
+            dealers = (
+                query.order_by(DealerIntegrationPartner.id)
+                .limit(max_results + 1)
+                .offset((page - 1) * max_results)
+                .all()
+            )
+
             results = []
-            for dealer_integration_partner, dealer, integration_partner in dealers:
+            for dealer_integration_partner, dealer, integration_partner in dealers[:max_results]:
                 result_dict = dealer_integration_partner.as_dict()
                 result_dict["dealer"] = dealer.as_dict()
                 result_dict["integration_partner"] = integration_partner.as_dict()
                 results.append(result_dict)
-
-        next_fetch_key = None
-
-        if len(results) and len(results) == int(max_results):
-            next_fetch_key = results[-1]["id"]
 
         return {
             "statusCode": "200",
@@ -78,7 +86,7 @@ def lambda_handler(event, context):
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
                     "dealers": results,
-                    "next_fetch_key": next_fetch_key,
+                    "has_next_page": len(results) > max_results,
                 },
                 default=json_serial,
             ),

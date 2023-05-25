@@ -224,11 +224,12 @@ Resources:
   ReyReyETLFI:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the reyrey fi crawler.
+      Description: ETL job to run after the reyrey fi crawler
       Name: !Sub 'reyrey-etl-fi-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
-      MaxCapacity: 2
+      WorkerType: G.8X
+      NumberOfWorkers: 2
       ExecutionProperty:
         MaxConcurrentRuns: 1
       Connections:
@@ -244,8 +245,8 @@ Resources:
       DefaultArguments: 
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
-                      's3://integrations-etl-prod/temporary/',
-                      's3://integrations-etl-test/temporary/'
+                      's3://integrations-etl-prod/reyrey/temporaryFI/',
+                      's3://integrations-etl-test/reyrey/temporaryFI/'
                     ]
         '--dlq_url': !Ref ReyReyETLDLQ
         '--region': !Ref AWS::Region
@@ -262,7 +263,8 @@ Resources:
       Name: !Sub 'reyrey-etl-ro-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
-      MaxCapacity: 2
+      WorkerType: G.8X
+      NumberOfWorkers: 2
       ExecutionProperty:
         MaxConcurrentRuns: 1
       Connections:
@@ -278,8 +280,8 @@ Resources:
       DefaultArguments: 
         '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
-                      's3://integrations-etl-prod/temporary/',
-                      's3://integrations-etl-test/temporary/'
+                      's3://integrations-etl-prod/reyrey/temporaryRO/',
+                      's3://integrations-etl-test/reyrey/temporaryRO/'
                     ]
         '--dlq_url': !Ref ReyReyETLDLQ
         '--region': !Ref AWS::Region

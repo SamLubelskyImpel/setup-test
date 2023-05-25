@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
 
 
 class DealerIntegrationPartner(BaseForModels):
@@ -13,10 +13,11 @@ class DealerIntegrationPartner(BaseForModels):
 
     id = Column(Integer, primary_key=True)
     sfdc_account_id = Column(Integer, ForeignKey("sfdc_account.id"))
-    integration_id = Column(Integer, ForeignKey("integration.id"))
+    integration_partner_id = Column(Integer, ForeignKey("integration.id"))
     dealer_id = Column(Integer, ForeignKey("dealer.id"))
     dms_id = Column(String)
     is_active = Column(Boolean)
+    db_creation_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

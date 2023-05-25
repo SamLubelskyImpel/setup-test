@@ -40,7 +40,6 @@ class VehicleSale(BaseForModels):
     adjustment_on_price = Column(Float)
     days_in_stock = Column(Integer)
     date_of_state_inspection = Column(DateTime)
-    new_or_used = Column(String)
     trade_in_value = Column(Float)
     payoff_on_trade = Column(Float)
     value_at_end_of_lease = Column(Float)
@@ -49,14 +48,10 @@ class VehicleSale(BaseForModels):
     has_service_contract = Column(Boolean)
     vehicle_gross = Column(Float)
     warranty_expiration_date = Column(DateTime)
-    service_package = Column(JSON)
+    service_package_flag = Column(Boolean)
     extended_warranty = Column(JSON)
-    vin = Column(String)
-    vehicle_class = Column(String)
-    make = Column(String)
-    model = Column(String)
-    year = Column(Integer)
     delivery_date = Column(DateTime)
+    db_creation_date = Column(DateTime)
     __table_args__ = (
         UniqueConstraint(
             "dealer_integration_partner_id",

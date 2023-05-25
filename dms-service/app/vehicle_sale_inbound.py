@@ -28,6 +28,7 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         filters = event.get("queryStringParameters", {})
+        page = int(event.get("queryStringParameters", {}).get("page", "1"))
         results = []
         max_results = 1000
 
@@ -50,7 +51,7 @@ def lambda_handler(event, context):
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
                 )
                 .outerjoin(
                     Vehicle,
@@ -64,29 +65,41 @@ def lambda_handler(event, context):
                     DealerIntegrationPartner,
                     Dealer,
                     IntegrationPartner,
-                    Vehicle
+                    Vehicle,
                 ]
                 for attr, value in filters.items():
                     filtered_table = None
                     for table in tables:
                         if attr in table.__table__.columns:
                             filtered_table = table
-                    
-                    if not filtered_table:
-                        raise RuntimeError(f"No column found {attr}")
 
                     if attr == "sale_date_start":
-                        query = query.filter(getattr(filtered_table, "sale_date") >= value)
-                    elif attr == "ro_open_date_end":
-                        query = query.filter(getattr(filtered_table, "sale_date") <= value)
-                    elif attr == "next_fetch_key":
-                        query = query.filter(getattr(filtered_table, "id") > value)
-                    elif attr == "result_count":
+                        query = query.filter(
+                            getattr(filtered_table, "sale_date") >= value
+                        )
+                    elif attr == "sale_date_end":
+                        query = query.filter(
+                            getattr(filtered_table, "sale_date") <= value
+                        )
+                    elif attr == "db_creation_date_start":
+                        query = query.filter(
+                            getattr(VehicleSale, "db_creation_date") >= value
+                        )
+                    elif attr == "db_creation_date_end":
+                        query = query.filter(
+                            getattr(VehicleSale, "db_creation_date") <= value
+                        )
+                    elif attr == "result_count" and value < max_results:
                         max_results = value
                     else:
                         query = query.filter(getattr(filtered_table, attr) == value)
 
-            vehicle_sales = query.order_by(VehicleSale.id).limit(max_results).all()
+            vehicle_sales = (
+                query.order_by(VehicleSale.id)
+                .limit(max_results + 1)
+                .offset((page - 1) * max_results)
+                .all()
+            )
 
             results = []
             for (
@@ -96,7 +109,7 @@ def lambda_handler(event, context):
                 dealer,
                 integration_partner,
                 vehicle,
-            ) in vehicle_sales:
+            ) in vehicle_sales[:max_results]:
                 result_dict = vehicle_sale.as_dict()
                 result_dict["consumer"] = consumer.as_dict()
                 result_dict[
@@ -107,11 +120,6 @@ def lambda_handler(event, context):
                 result_dict["vehicle"] = vehicle.as_dict() if vehicle else None
                 results.append(result_dict)
 
-        next_fetch_key = None
-
-        if len(results) and len(results) == int(max_results):
-            next_fetch_key = results[-1]["id"]
-
         return {
             "statusCode": "200",
             "body": dumps(
@@ -121,7 +129,7 @@ def lambda_handler(event, context):
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
                     "vehicle_sales": results,
-                    "next_fetch_key": next_fetch_key,
+                    "has_next_page": len(results) > max_results,
                 },
                 default=json_serial,
             ),

@@ -39,6 +39,7 @@ class ServiceRepairOrder(BaseForModels):
     warranty_total_amount = Column(Float)
     comment = Column(String)
     recommendation = Column(String)
+    db_creation_date = Column(DateTime)
     __table_args__ = (
         UniqueConstraint(
             "repair_order_no", "dealer_integration_partner_id", name="unique_ros_dms"

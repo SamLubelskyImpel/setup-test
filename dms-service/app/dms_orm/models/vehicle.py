@@ -23,6 +23,7 @@ class Vehicle(BaseForModels):
     make = Column(String)
     model = Column(String)
     year = Column(Integer)
+    new_or_used = Column(String)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

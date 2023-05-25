@@ -33,6 +33,7 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         filters = event.get("queryStringParameters", {})
+        page = int(event.get("queryStringParameters", {}).get("page", "1"))
         results = []
         max_results = 1000
 
@@ -80,7 +81,7 @@ def lambda_handler(event, context):
                 )
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
                 )
                 .outerjoin(
                     Vehicle,
@@ -103,9 +104,7 @@ def lambda_handler(event, context):
                     for table in tables:
                         if attr in table.__table__.columns:
                             filtered_table = table
-                    if not filtered_table:
-                        raise RuntimeError(f"No column found {attr}")
-                    
+
                     if attr == "ro_open_date_start":
                         query = query.filter(
                             getattr(ServiceRepairOrder, "ro_open_date") >= value
@@ -122,16 +121,26 @@ def lambda_handler(event, context):
                         query = query.filter(
                             getattr(ServiceRepairOrder, "ro_close_date") <= value
                         )
-                    elif attr == "next_fetch_key":
-                        query = query.filter(getattr(ServiceRepairOrder, "id") > value)
-                    elif attr == "result_count":
+                    elif attr == "db_creation_date_start":
+                        query = query.filter(
+                            getattr(ServiceRepairOrder, "db_creation_date") >= value
+                        )
+                    elif attr == "db_creation_date_end":
+                        query = query.filter(
+                            getattr(ServiceRepairOrder, "db_creation_date") <= value
+                        )
+                    elif attr == "result_count" and value < max_results:
                         max_results = value
                     else:
-                        query = query.filter(getattr(ServiceRepairOrder, attr) == value)
+                        query = query.filter(getattr(filtered_table, attr) == value)
 
             service_repair_orders = (
-                query.order_by(ServiceRepairOrder.id).limit(max_results).all()
+                query.order_by(ServiceRepairOrder.id)
+                .limit(max_results + 1)
+                .offset((page - 1) * max_results)
+                .all()
             )
+
             results = []
             for (
                 service_repair_order,
@@ -141,7 +150,7 @@ def lambda_handler(event, context):
                 integration_partner,
                 vehicle,
                 op_codes,
-            ) in service_repair_orders:
+            ) in service_repair_orders[:max_results]:
                 result_dict = service_repair_order.as_dict()
                 result_dict["consumer"] = consumer.as_dict()
                 result_dict[
@@ -153,11 +162,6 @@ def lambda_handler(event, context):
                 result_dict["op_codes"] = op_codes
                 results.append(result_dict)
 
-        next_fetch_key = None
-
-        if len(results) and len(results) == int(max_results):
-            next_fetch_key = results[-1]["id"]
-
         return {
             "statusCode": "200",
             "body": dumps(
@@ -167,7 +171,7 @@ def lambda_handler(event, context):
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
                     "repair_orders": results,
-                    "next_fetch_key": next_fetch_key,
+                    "has_next_page": len(results) > max_results,
                 },
                 default=json_serial,
             ),
