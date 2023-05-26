@@ -8,7 +8,7 @@
         "OutputPath": "$.Payload",
         "Parameters": {
           "Payload.$": "$",
-          "FunctionName": "${PullSalesHistoryFunction}"
+          "FunctionName": "${SalesHistoryETLFunction}"
         },
         "Retry": [
           {
@@ -28,8 +28,8 @@
         "Type": "Choice",
         "Choices": [
           {
-            "Variable": "$.keep_data_pull",
-            "BooleanEquals": true,
+            "Variable": "$.etl_finished",
+            "BooleanEquals": false,
             "Next": "DATA_PULL"
           }
         ],

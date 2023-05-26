@@ -1,26 +1,38 @@
+from etl.sales_history import SalesHistoryETL
+from etl.repair_order import RepairOrderETL
+from datetime import datetime
+from utils import load_progress
 import logging
 import os
-from etl import SalesHistoryETLProcess
-from datetime import datetime, timedelta
 
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(os.environ['LOGLEVEL'])
 
-QUERY_LIMIT=1
 
+def sales_history(event, context):
+    last_id = load_progress('sales_history_progress')
+    limit = 2
 
-def lambda_handler(event, context):
-    iteration_number = event.get('iteration_number', 0)
-    _logger.info(f'running iteration {iteration_number}')
+    etl = SalesHistoryETL(last_id=last_id, day=datetime.today().date(), limit=limit)
+    etl.run()
 
-    has_more_data = SalesHistoryETLProcess(
-        limit=QUERY_LIMIT,
-        day=(datetime.today()-timedelta(days=1)).date()).run()
-    iteration_number += 1
+    _logger.info(f'ETL loaded={etl.loaded}, failed={etl.failed}')
 
     return {
-        'iteration_number': iteration_number,
-        'keep_data_pull': has_more_data
+        'etl_finished': etl.finished
     }
 
+
+def repair_order(event, context):
+    last_id = load_progress('repair_order_progress')
+    limit = 1000
+
+    etl = RepairOrderETL(last_id=last_id, day=datetime.today().date(), limit=limit)
+    etl.run()
+
+    _logger.info(f'ETL loaded={etl.loaded}, failed={etl.failed}')
+
+    return {
+        'etl_finished': etl.finished
+    }

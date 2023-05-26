@@ -58,7 +58,7 @@ else
   env="$config_env"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "carlabs-integration-$env" \
+    --stack-name "carlabs-etl-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

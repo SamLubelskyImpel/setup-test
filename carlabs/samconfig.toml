@@ -19,7 +19,7 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "carlabs-integration-test"
+stack_name = "carlabs-etl-test"
 parameter_overrides = "Environment=\"test\""
 
 [prod.deploy.parameters]
@@ -27,7 +27,7 @@ profile = "unified-prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
-stack_name = "carlabs-integration-prod"
+stack_name = "carlabs-etl-prod"
 parameter_overrides = """\
     Environment=\"prod\"\
 """

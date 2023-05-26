@@ -25,13 +25,6 @@ DB = {
         'DB_PORT': carlabs_di_secret['DB_PORT'],
         'DB_NAME': carlabs_di_secret['DB_NAME']
     },
-    # 'CARLABS_DATA_INTEGRATIONS': {
-    #     'DB_USERNAME': 'integrator',
-    #     'DB_PASSWORD': 'CarLabs2022!',
-    #     'DB_HOST': 'postgres.proxy.carlabs.com',
-    #     'DB_PORT': '45432',
-    #     'DB_NAME': 'data_integrations'
-    # },
     'SHARED_DMS': {
         'DB_USERNAME': dms_secret['user'],
         'DB_PASSWORD': dms_secret['password'],
