@@ -6,8 +6,9 @@ from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import BaseForModels
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (
-    JSON,
+    text,
     Boolean,
     Column,
     DateTime,
@@ -47,11 +48,9 @@ class VehicleSale(BaseForModels):
     profit_on_sale = Column(Float)
     has_service_contract = Column(Boolean)
     vehicle_gross = Column(Float)
-    warranty_expiration_date = Column(DateTime)
-    service_package_flag = Column(Boolean)
-    extended_warranty = Column(JSON)
     delivery_date = Column(DateTime)
     db_creation_date = Column(DateTime)
+    vin = Column(String)
     __table_args__ = (
         UniqueConstraint(
             "dealer_integration_partner_id",

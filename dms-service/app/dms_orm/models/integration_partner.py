@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String
 
 
 class IntegrationPartner(BaseForModels):
@@ -12,8 +12,9 @@ class IntegrationPartner(BaseForModels):
     __tablename__ = "integration_partner"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    impel_integration_partner_id = Column(String)
     type = Column(String)
+    db_creation_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

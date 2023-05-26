@@ -15,7 +15,9 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text
 )
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class ServiceRepairOrder(BaseForModels):

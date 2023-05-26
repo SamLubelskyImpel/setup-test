@@ -3,7 +3,8 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, text, DateTime, ForeignKey, Integer, String
 
 
 class Vehicle(BaseForModels):
@@ -24,6 +25,7 @@ class Vehicle(BaseForModels):
     model = Column(String)
     year = Column(Integer)
     new_or_used = Column(String)
+    db_creation_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

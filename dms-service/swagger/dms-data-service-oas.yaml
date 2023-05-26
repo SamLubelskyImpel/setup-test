@@ -31,11 +31,12 @@ paths:
         required: true
         description: API Key provided by Impel
       - schema:
-          type: string
+          type: integer
+          minimum: 1
         in: query
-        name: next_fetch_key
+        name: page
         required: false
-        description: The pagination key.
+        description: The results page to retrieve.
       - schema:
           type: integer
           minimum: 1
@@ -43,37 +44,35 @@ paths:
         in: query
         name: result_count
         required: false
-        description: The number of results to return.
+        description: The number of results per page to return.
       - schema:
-          type: integer
+          type: string
         in: query
-        name: id
+        name: dms_id
         required: false
-        description: The repair order id of the repair order to query for.
+        description: The id of the dealer assigned by the dms of the repair order to query for.
       - schema:
-          type: integer
+          type: string
         in: query
-        name: partner_id
+        name: impel_integration_partner_id
         required: false
-        description: The partner id of the repair order to query for.
+        description: The id of the DMS assigned by Impel of the repair order to query for.
       - schema:
-          type: integer
+          type: string
+          format: date
+          example: 2023-01-01
         in: query
-        name: dealer_id
+        name: db_creation_date_start
         required: false
-        description: The dealer id of the repair order to query for.
+        description: The earliest db_creation_date of the repair order to query for in YYYY-MM-DD format.
       - schema:
-          type: integer
+          type: string
+          format: date
+          example: 2023-01-01
         in: query
-        name: consumer_id
+        name: db_creation_date_end
         required: false
-        description: The consumer id of the repair order to query for.
-      - schema:
-          type: integer
-        in: query
-        name: vehicle_id
-        required: false
-        description: The vehicle id of the repair order to query for.
+        description: The latest db_creation_date of the repair order to query for in YYYY-MM-DD format.
       - schema:
           type: string
           format: date
@@ -109,7 +108,7 @@ paths:
       - schema:
           type: string
         in: query
-        name: ro_number
+        name: repair_order_no
         required: false
         description: The repair order number to query for.
       responses:
@@ -125,7 +124,7 @@ paths:
                   repair_orders:
                     type: array
                     items:
-                      "$ref": "#/components/schemas/RepairOrder"
+                      "$ref": "#/components/schemas/RepairOrderResponse"
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
@@ -158,11 +157,12 @@ paths:
         required: true
         description: API Key provided by Impel
       - schema:
-          type: string
+          type: integer
+          minimum: 1
         in: query
-        name: next_fetch_key
+        name: page
         required: false
-        description: The pagination key.
+        description: The results page to retrieve.
       - schema:
           type: integer
           minimum: 1
@@ -170,25 +170,35 @@ paths:
         in: query
         name: result_count
         required: false
-        description: The number of results to return.
+        description: The number of results per page to return.
       - schema:
-          type: integer
+          type: string
         in: query
-        name: id
+        name: dms_id
         required: false
-        description: The vehicle sale id of the vehicle sale to query for.
+        description: The id of the dealer assigned by the dms of the vehicle sale to query for.
       - schema:
-          type: integer
+          type: string
         in: query
-        name: dealer_id
+        name: impel_integration_partner_id
         required: false
-        description: The dealer id of the vehicle sale to query for.
+        description: The id of the DMS assigned by Impel of the vehicle sale to query for.
       - schema:
-          type: integer
+          type: string
+          format: date
+          example: 2023-01-01
         in: query
-        name: consumer_id
+        name: db_creation_date_start
         required: false
-        description: The consumer id of the vehicle sale to query for.
+        description: The earliest db_creation_date of the vehicle sale to query for in YYYY-MM-DD format.
+      - schema:
+          type: string
+          format: date
+          example: 2023-01-01
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the vehicle sale to query for in YYYY-MM-DD format.
       - schema:
           type: string
           format: date
@@ -202,7 +212,7 @@ paths:
           format: date
           example: 2023-01-01
         in: query
-        name: ro_open_date_end
+        name: sale_date_end
         required: false
         description: The latest sale_date of the vehicle sale to query for in YYYY-MM-DD format.
       responses:
@@ -218,7 +228,7 @@ paths:
                   vehicle_sales:
                     type: array
                     items:
-                      "$ref": "#/components/schemas/VehicleSale"
+                      "$ref": "#/components/schemas/VehicleSaleResponse"
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
@@ -251,11 +261,12 @@ paths:
         required: true
         description: API Key provided by Impel
       - schema:
-          type: string
+          type: integer
+          minimum: 1
         in: query
-        name: next_fetch_key
+        name: page
         required: false
-        description: The pagination key.
+        description: The results page to retrieve.
       - schema:
           type: integer
           minimum: 1
@@ -263,61 +274,19 @@ paths:
         in: query
         name: result_count
         required: false
-        description: The number of results to return.
-      - schema:
-          type: integer
-        in: query
-        name: id
-        required: false
-        description: The dealer id of the dealer to query for.
-      - schema:
-          type: integer
-        in: query
-        name: sfdc_account_id
-        required: false
-        description: The sfdc account id of the dealer to query for.
-      - schema:
-          type: integer
-        in: query
-        name: dealer_group_id
-        required: false
-        description: The dealer group id of the dealer to query for.
+        description: The number of results per page to return.
       - schema:
           type: string
         in: query
-        name: name
+        name: dms_id
         required: false
-        description: The name of the dealer to query for.
+        description: The id of the dealer assigned by the dms to query for.
       - schema:
           type: string
         in: query
-        name: location_name
+        name: impel_integration_partner_id
         required: false
-        description: The location name of the dealer to query for.
-      - schema:
-          type: string
-        in: query
-        name: state
-        required: false
-        description: The state of the dealer to query for.
-      - schema:
-          type: string
-        in: query
-        name: city
-        required: false
-        description: The city of the dealer to query for.
-      - schema:
-          type: string
-        in: query
-        name: zip_code
-        required: false
-        description: The zip code of the dealer to query for.
-      - schema:
-          type: string
-        in: query
-        name: category
-        required: false
-        description: The category of the dealer to query for.
+        description: The id of the DMS assigned by Impel to query for.
       responses:
         '200':
           description: Success
@@ -331,7 +300,7 @@ paths:
                   dealers:
                     type: array
                     items:
-                      "$ref": "#/components/schemas/Dealer"
+                      "$ref": "#/components/schemas/DealerResponse"
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
@@ -346,15 +315,106 @@ paths:
       #{{DEALER_LAMBDA_INFO}}
 components:
   schemas:
+    RepairOrderResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/RepairOrder'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  consumer:
+                    $ref: '#/components/schemas/Consumer'
+              - type: object
+                properties:
+                  op_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpCode'
+    VehicleSaleResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/VehicleSale'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  consumer:
+                    $ref: '#/components/schemas/Consumer'
+        has_next_page:
+          type: boolean
+    DealerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+        has_next_page:
+          type: boolean
     IntegrationPartner:
       type: object
       properties:
         id:
           type: integer
-        name:
+        impel_integration_partner_id:
           type: string
         type:
           type: string
+        db_creation_date:
+          type: string
+          format: date-time
     Dealer:
       type: object
       properties:
@@ -364,7 +424,7 @@ components:
           type: integer
         dealer_group_id:
           type: integer
-        name:
+        impel_dealer_id:
           type: string
         location_name:
           type: string
@@ -374,8 +434,110 @@ components:
           type: string
         zip_code:
           type: string
-        category:
+        db_creation_date:
           type: string
+          format: date-time
+    DealerIntegrationPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        integration_partner_id:
+          type: integer
+        dealer_id:
+          type: integer
+        dms_id:
+          type: string
+        is_active:
+          type: boolean
+        db_creation_date:
+          type: string
+          format: date-time
+    OpCode:
+      type: object
+      properties:
+        id:
+          type: integer
+        op_code:
+            type: string
+        op_code_desc:
+            type: string
+        dealer_integration_partner_id:
+            type: string
+    Consumer:
+      type: object
+      properties:
+        id:
+          type: integer
+        dealer_integration_partner_id:
+            type: string
+        dealer_customer_no:
+            type: string
+        first_name:
+            type: string
+        last_name:
+            type: string
+        email:
+            type: string
+        ip_address:
+            type: string
+        cell_phone:
+            type: string
+        city:
+            type: string
+        state:
+            type: string
+        metro:
+            type: string
+        postal_code:
+            type: string
+        home_phone:
+            type: string
+        email_optin_flag:
+            type: boolean
+        phone_optin_flag:
+            type: boolean
+        postal_mail_optin_flag:
+            type: boolean
+        sms_optin_flag:
+            type: boolean
+        db_creation_date:
+          type: string
+          format: date-time
+        metadata:
+            type: string
+        master_consumer_id:
+            type: string
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: integer
+        vin:
+            type: string
+        oem_name:
+            type: string
+        type:
+            type: string
+        vehicle_class:
+            type: string
+        mileage:
+            type: string
+        make:
+            type: string
+        model:
+            type: string
+        year:
+            type: string
+        db_creation_date:
+            type: string
+            format: date-time
+        dealer_integration_partner_id:
+            type: integer
+        new_or_used:
+            type: string
+        metadata:
+            type: string
     VehicleSale:
       type: object
       properties:
@@ -450,9 +612,7 @@ components:
         properties:
           id:
             type: integer
-          partner_id:
-            type: integer
-          dealer_id:
+          dealer_integration_partner_id:
             type: integer
           consumer_id:
             type: integer
@@ -485,3 +645,8 @@ components:
             type: string
           recommendation:
             type: string
+          db_creation_date:
+              type: string
+              format: date-time
+          metadata:
+              type: string

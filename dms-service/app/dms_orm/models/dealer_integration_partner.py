@@ -12,7 +12,6 @@ class DealerIntegrationPartner(BaseForModels):
     __tablename__ = "dealer_integration_partner"
 
     id = Column(Integer, primary_key=True)
-    sfdc_account_id = Column(Integer, ForeignKey("sfdc_account.id"))
     integration_partner_id = Column(Integer, ForeignKey("integration.id"))
     dealer_id = Column(Integer, ForeignKey("dealer.id"))
     dms_id = Column(String)

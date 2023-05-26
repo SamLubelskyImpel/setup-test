@@ -22,6 +22,7 @@ class Inventory(BaseForModels):
     list_price = Column(Float)
     msrp = Column(Float)
     invoice_price = Column(Float)
+    db_creation_date = Column(DateTime)
     __table_args__ = (
         UniqueConstraint(
             "vehicle_id", "dealer_integration_partner_id", name="unique_inventory"

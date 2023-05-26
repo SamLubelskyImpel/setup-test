@@ -28,9 +28,11 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         filters = event.get("queryStringParameters", {})
-        page = int(event.get("queryStringParameters", {}).get("page", "1"))
+        page = 1 if not filters else int(filters.get("page", "1"))
         results = []
         max_results = 1000
+        result_count = max_results if not filters else int(filters.get("result_count", max_results))
+        max_results = min(max_results, result_count)
 
         with DBSession() as session:
             query = (
@@ -73,29 +75,30 @@ def lambda_handler(event, context):
                         if attr in table.__table__.columns:
                             filtered_table = table
 
+                    if not filtered_table:
+                        continue
+
                     if attr == "sale_date_start":
                         query = query.filter(
-                            getattr(filtered_table, "sale_date") >= value
+                            getattr(VehicleSale, attr) >= value
                         )
                     elif attr == "sale_date_end":
                         query = query.filter(
-                            getattr(filtered_table, "sale_date") <= value
+                            getattr(VehicleSale, attr) <= value
                         )
                     elif attr == "db_creation_date_start":
                         query = query.filter(
-                            getattr(VehicleSale, "db_creation_date") >= value
+                            getattr(VehicleSale, attr) >= value
                         )
                     elif attr == "db_creation_date_end":
                         query = query.filter(
-                            getattr(VehicleSale, "db_creation_date") <= value
+                            getattr(VehicleSale, attr) <= value
                         )
-                    elif attr == "result_count" and value < max_results:
-                        max_results = value
                     else:
                         query = query.filter(getattr(filtered_table, attr) == value)
 
             vehicle_sales = (
-                query.order_by(VehicleSale.id)
+                query.order_by(VehicleSale.db_creation_date)
                 .limit(max_results + 1)
                 .offset((page - 1) * max_results)
                 .all()
@@ -128,7 +131,7 @@ def lambda_handler(event, context):
                     .replace(microsecond=0)
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
-                    "vehicle_sales": results,
+                    "results": results,
                     "has_next_page": len(results) > max_results,
                 },
                 default=json_serial,

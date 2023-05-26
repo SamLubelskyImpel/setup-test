@@ -4,7 +4,8 @@ import sys
 
 from dms_orm.models.dealer_group import DealerGroup
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, text
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class Consumer(BaseForModels):
@@ -31,6 +32,7 @@ class Consumer(BaseForModels):
     phone_optin_flag = Column(Boolean)
     postal_mail_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
+    master_consumer_id = Column(String)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

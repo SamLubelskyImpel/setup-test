@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Integer, String, UniqueConstraint
 
 
 class DealerGroup(BaseForModels):
@@ -12,9 +12,10 @@ class DealerGroup(BaseForModels):
     __tablename__ = "dealer_group"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    impel_dealer_group_id = Column(String)
     duns_no = Column(String)
-    __table_args__ = (UniqueConstraint("name", name="dealer_group_name_key"),)
+    db_creation_date = Column(DateTime)
+    __table_args__ = (UniqueConstraint("impel_dealer_group_id", name="dealer_group_name_key"),)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

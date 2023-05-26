@@ -4,7 +4,7 @@ import sys
 
 from dms_orm.models.dealer import Dealer
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 
 
 class OpCode(BaseForModels):
@@ -18,6 +18,7 @@ class OpCode(BaseForModels):
     )
     op_code = Column(String)
     op_code_desc = Column(String)
+    db_creation_date = Column(DateTime)
     __table_args__ = (
         UniqueConstraint(
             "dealer_integration_partner_id",

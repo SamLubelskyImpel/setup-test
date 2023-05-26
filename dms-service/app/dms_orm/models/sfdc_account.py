@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Integer, String, UniqueConstraint
 
 
 class SFDCAccount(BaseForModels):
@@ -14,6 +14,7 @@ class SFDCAccount(BaseForModels):
     id = Column(Integer, primary_key=True)
     sfdc_account_id = Column(String)
     customer_type = Column(String)
+    db_creation_date = Column(DateTime)
     __table_args__ = (
         UniqueConstraint("sfdc_account_id", name="sfdc_account_sfdc_account_id_key"),
     )

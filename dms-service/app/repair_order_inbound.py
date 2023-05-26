@@ -33,9 +33,11 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         filters = event.get("queryStringParameters", {})
-        page = int(event.get("queryStringParameters", {}).get("page", "1"))
+        page = 1 if not filters else int(filters.get("page", "1"))
         results = []
         max_results = 1000
+        result_count = max_results if not filters else int(filters.get("result_count", max_results))
+        max_results = min(max_results, result_count)
 
         with DBSession() as session:
             op_code_1 = aliased(OpCode)
@@ -105,6 +107,9 @@ def lambda_handler(event, context):
                         if attr in table.__table__.columns:
                             filtered_table = table
 
+                    if not filtered_table:
+                        continue
+
                     if attr == "ro_open_date_start":
                         query = query.filter(
                             getattr(ServiceRepairOrder, "ro_open_date") >= value
@@ -129,13 +134,11 @@ def lambda_handler(event, context):
                         query = query.filter(
                             getattr(ServiceRepairOrder, "db_creation_date") <= value
                         )
-                    elif attr == "result_count" and value < max_results:
-                        max_results = value
                     else:
                         query = query.filter(getattr(filtered_table, attr) == value)
 
             service_repair_orders = (
-                query.order_by(ServiceRepairOrder.id)
+                query.order_by(ServiceRepairOrder.db_creation_date)
                 .limit(max_results + 1)
                 .offset((page - 1) * max_results)
                 .all()
@@ -170,7 +173,7 @@ def lambda_handler(event, context):
                     .replace(microsecond=0)
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
-                    "repair_orders": results,
+                    "results": results,
                     "has_next_page": len(results) > max_results,
                 },
                 default=json_serial,
