@@ -2,15 +2,26 @@ import sqlalchemy as db
 from orm.connection.make_db_uri import make_db_uri
 from orm.connection.session import SQLSession
 import pandas
-from orm.models.carlabs import DataImports
+from orm.models.carlabs.data_imports import DataImports
 from orm.models.shared_dms import Vehicle, VehicleSale, Consumer, ServiceContract
 from transformers.sales_history import CDKTransformer, DealertrackTransformer, DealervaultTransformer
 from dataclasses import dataclass
 import logging
 import os
+import boto3
+import traceback
+from datetime import datetime
+from botocore.exceptions import ClientError
+
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(os.environ['LOGLEVEL'])
+
+FAILURES_QUEUE = os.environ.get('FAILURES_QUEUE')
+BUCKET = os.environ.get('BUCKET')
+
+SQS = boto3.client('sqs')
+S3 = boto3.client('s3')
 
 
 class DMSNotMapped(Exception):
@@ -29,24 +40,29 @@ class SalesHistoryTransformedData:
 class SalesHistoryETLProcess:
 
     limit: int
-    offset: int
+    day: datetime
 
 
     def __extract_from_carlabs(self):
         engine = db.create_engine(make_db_uri(db='CARLABS_DATA_INTEGRATIONS'))
-        df = pandas.read_sql_query(
-            # TODO add condition to get the data of the day only
-            sql=db.select(DataImports).where(
-                (DataImports.data_type == 'SALES')
-            ).limit(self.limit+1).offset(self.offset),
-            con=engine)
-
+        last_id = self.__get_last_processed()
+        query = db.select(DataImports).where(
+                    (DataImports.data_type == 'SALES') &
+                    (DataImports.creation_date >= self.day) &
+                    (DataImports.id > last_id)
+                ).order_by(
+                    DataImports.id.asc()
+                ).limit(self.limit+1)
+        df = pandas.read_sql_query(sql=query, con=engine)
         records = df.to_dict('records')
-
         self.__has_more_data = len(records) > self.limit
 
         for r in records[:self.limit]:
+            _logger.info(f'record of id {r["id"]}')
             if isinstance(r['importedData'], list):
+                _logger.info(f'has {len(r["importedData"])} inner records')
+                if len(r['importedData']) == 0:
+                    yield r
                 for i in r['importedData']:
                     yield {
                         'id': r['id'],
@@ -95,6 +111,41 @@ class SalesHistoryETLProcess:
         #         session.add(transformed.service_contract)
 
 
+    def __send_to_failures_queue(self, record: dict, err: str):
+        SQS.send_message(
+            QueueUrl=FAILURES_QUEUE,
+            MessageAttributes={
+                'Table': {
+                    'DataType': 'String',
+                    'StringValue': 'dataImports'
+                },
+                'RecordId': {
+                    'DataType': 'String',
+                    'StringValue': str(record['id'])
+                }
+            },
+            MessageBody=err
+        )
+
+
+    def __save_progress(self, record: dict):
+        S3.put_object(
+            Body=str(record['id']),
+            Bucket=BUCKET,
+            Key='sales_history_progress'
+        )
+
+
+    def __get_last_processed(self):
+        try:
+            return S3.get_object(
+                Bucket=BUCKET,
+                Key='sales_history_progress'
+            )['Body'].read().decode('utf-8')
+        except Exception:
+            return 0
+
+
     def run(self):
         records = self.__extract_from_carlabs()
         n_transformed = 0
@@ -105,9 +156,11 @@ class SalesHistoryETLProcess:
                 self.__load_into_shared_dms(self.__transform(r))
                 n_transformed += 1
             except Exception:
-                _logger.exception(f'failed to transform {r["id"]}')
+                self.__send_to_failures_queue(r, traceback.format_exc())
                 failed += 1
+            finally:
+                self.__save_progress(r)
 
-        _logger.info(f'loaded {n_transformed}, failed {failed} (offset={self.offset})')
+        _logger.info(f'ETL loaded={n_transformed}, failed={failed}')
 
         return self.__has_more_data

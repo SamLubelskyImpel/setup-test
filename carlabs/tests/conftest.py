@@ -3,9 +3,11 @@ from pandas import DataFrame
 from .data.cdk import CDK_DATA
 from .data.dealertrack import DEALERTRACK_DATA
 from .data.dealervault import DEALERVAULT_DATA
+from .data.repair_order import REPAIR_ORDER
 from app.transformers.sales_history.cdk import CDKTransformer
 from app.transformers.sales_history.dealertrack import DealertrackTransformer
 from app.transformers.sales_history.dealervault import DealervaultTransformer
+from app.transformers.repair_order import RepairOrderTransformer
 import copy
 
 @fixture
@@ -22,6 +24,10 @@ def dealervault_data():
     return DEALERVAULT_DATA
 
 @fixture
+def repair_order_data():
+    return REPAIR_ORDER
+
+@fixture
 def cdk_transformer(cdk_data):
     return CDKTransformer(carlabs_data=cdk_data)
 
@@ -32,6 +38,10 @@ def dealertrack_transformer(dealertrack_data):
 @fixture
 def dealervault_transformer(dealervault_data):
     return DealervaultTransformer(carlabs_data=dealervault_data)
+
+@fixture
+def repair_order_transformer(repair_order_data):
+    return RepairOrderTransformer(carlabs_data=repair_order_data)
 
 # @fixture
 # def expected_cdk_vehicle_sale():

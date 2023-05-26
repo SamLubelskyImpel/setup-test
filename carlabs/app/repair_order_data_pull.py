@@ -1,20 +1,20 @@
 import logging
 import os
-from etl import SalesHistoryETLProcess
+from repair_order_etl import RepairOrderETLProcess
 from datetime import datetime, timedelta
 
 
 _logger = logging.getLogger(__name__)
 _logger.setLevel(os.environ['LOGLEVEL'])
 
-QUERY_LIMIT=1
+QUERY_LIMIT=100
 
 
 def lambda_handler(event, context):
     iteration_number = event.get('iteration_number', 0)
     _logger.info(f'running iteration {iteration_number}')
 
-    has_more_data = SalesHistoryETLProcess(
+    has_more_data = RepairOrderETLProcess(
         limit=QUERY_LIMIT,
         day=(datetime.today()-timedelta(days=1)).date()).run()
     iteration_number += 1

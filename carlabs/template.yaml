@@ -47,6 +47,8 @@ Globals:
         LOGLEVEL: INFO
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, true, false ]
+        FAILURES_QUEUE: !Ref ETLFailuresQueue
+        BUCKET: !Ref CarlabsETLBucket
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -88,6 +90,7 @@ Resources:
                 Action: lambda:InvokeFunction
                 Resource:
                   - !Sub '${PullSalesHistoryFunction.Arn}'
+                  - !Sub '${PullRepairOrderFunction.Arn}'
         - PolicyName: CloudWatch
           PolicyDocument:
             Version: "2012-10-17"
@@ -95,10 +98,12 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:CreateLogDelivery
+                  - logs:CreateLogStream
                   - logs:GetLogDelivery
                   - logs:UpdateLogDelivery
                   - logs:DeleteLogDelivery
                   - logs:ListLogDeliveries
+                  - logs:PutLogEvents
                   - logs:PutResourcePolicy
                   - logs:DescribeResourcePolicies
                   - logs:DescribeLogGroups
@@ -114,6 +119,17 @@ Resources:
                   - xray:GetSamplingRules
                   - xray:GetSamplingTargets
                 Resource: '*'
+        - PolicyName: CloudWatchAlarmsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource: '*'
 
   PullSalesHistoryFunction:
     Type: AWS::Serverless::Function
@@ -121,7 +137,7 @@ Resources:
       Description: Pull sales history from Carlabs
       CodeUri: app
       Handler: data_pull.lambda_handler
-      Timeout: 60
+      Timeout: 900
       MemorySize: 2048
       Policies:
         - Id: FunctionPermissions
@@ -129,11 +145,22 @@ Resources:
           Statement:
             - Sid: Secrets
               Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
+              Action: secretsmanager:GetSecretValue
               Resource:
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/data_integrations*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/data_integrations*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/analytics*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/analytics*']
+            - Sid: SQS
+              Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt ETLFailuresQueue.Arn
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+              Resource: !Sub 'arn:aws:s3:::${CarlabsETLBucket}/*'
 
   SalesHistoryStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -153,3 +180,100 @@ Resources:
   #       - Id: CarGurusStateMachineScheduledEventLambdaTarget
   #         Arn: !GetAtt CarGurusStateMachine.Arn
   #         RoleArn: !GetAtt CarGurusStateMachineSchedulerRole.Arn
+
+  PullRepairOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Pull repair order from Carlabs
+      CodeUri: app
+      Handler: repair_order_data_pull.lambda_handler
+      Timeout: 900
+      MemorySize: 2048
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: Secrets
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource:
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/data_integrations*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/data_integrations*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/analytics*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/analytics*']
+            - Sid: SQS
+              Effect: Allow
+              Action: sqs:SendMessage
+              Resource: !GetAtt ETLFailuresQueue.Arn
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+              Resource: !Sub 'arn:aws:s3:::${CarlabsETLBucket}/*'
+
+  RepairOrderStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Role: !GetAtt StepFunctionRole.Arn
+      DefinitionUri: state_machines/repair_order.json
+      DefinitionSubstitutions:
+        PullRepairOrderFunction: !GetAtt PullRepairOrderFunction.Arn
+
+  # RepairOrderStateMachineScheduledEvent:
+  #   Type: AWS::Events::Rule
+  #   Properties:
+  #     State: !If [ IsProd, ENABLED, DISABLED ]
+  #     ScheduleExpression: rate(2 hours)
+  #     Description: Schedule daily retrieval of CarGurus vehicles
+  #     Targets:
+  #       - Id: CarGurusStateMachineScheduledEventLambdaTarget
+  #         Arn: !GetAtt CarGurusStateMachine.Arn
+  #         RoleArn: !GetAtt CarGurusStateMachineSchedulerRole.Arn
+
+  ETLFailuresQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'etl-failures-queue-${Environment}'
+
+  SalesHistoryStateMachineFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm for SalesHistoryStateMachine failures"
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ExecutionFailed
+      Namespace: AWS/States
+      Period: 86400 # 24 hours
+      Statistic: SampleCount
+      Threshold: 1
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref SalesHistoryStateMachine
+      # ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+
+  RepairOrderStateMachineFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm for RepairOrderStateMachine failures"
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ExecutionFailed
+      Namespace: AWS/States
+      Period: 86400 # 24 hours
+      Statistic: SampleCount
+      Threshold: 1
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref RepairOrderStateMachine
+      # ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+
+  CarlabsETLBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub carlabs-etl-${Environment}
+      AccessControl: Private
