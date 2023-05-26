@@ -45,14 +45,6 @@ def lambda_handler(event, context):
             if filters:
                 tables = [DealerIntegrationPartner, Dealer, IntegrationPartner]
                 for attr, value in filters.items():
-                    filtered_table = None
-                    for table in tables:
-                        if attr in table.__table__.columns:
-                            filtered_table = table
-                
-                    if not filtered_table:
-                        continue
-
                     for attr, value in filters.items():
                         if attr == "db_creation_date_start":
                             query = query.filter(
@@ -65,6 +57,13 @@ def lambda_handler(event, context):
                                 <= value
                             )
                         else:
+                            filtered_table = None
+                            for table in tables:
+                                if attr in table.__table__.columns:
+                                    filtered_table = table
+                        
+                            if not filtered_table:
+                                continue
                             query = query.filter(getattr(filtered_table, attr) == value)
 
             dealers = (

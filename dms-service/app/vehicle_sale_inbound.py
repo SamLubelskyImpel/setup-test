@@ -70,31 +70,30 @@ def lambda_handler(event, context):
                     Vehicle,
                 ]
                 for attr, value in filters.items():
-                    filtered_table = None
-                    for table in tables:
-                        if attr in table.__table__.columns:
-                            filtered_table = table
-
-                    if not filtered_table:
-                        continue
-
                     if attr == "sale_date_start":
                         query = query.filter(
-                            getattr(VehicleSale, attr) >= value
+                            getattr(VehicleSale, "sale_date") >= value
                         )
                     elif attr == "sale_date_end":
                         query = query.filter(
-                            getattr(VehicleSale, attr) <= value
+                            getattr(VehicleSale, "sale_date") <= value
                         )
                     elif attr == "db_creation_date_start":
                         query = query.filter(
-                            getattr(VehicleSale, attr) >= value
+                            getattr(VehicleSale, "db_creation_date") >= value
                         )
                     elif attr == "db_creation_date_end":
                         query = query.filter(
-                            getattr(VehicleSale, attr) <= value
+                            getattr(VehicleSale, "db_creation_date") <= value
                         )
                     else:
+                        filtered_table = None
+                        for table in tables:
+                            if attr in table.__table__.columns:
+                                filtered_table = table
+
+                        if not filtered_table:
+                            continue
                         query = query.filter(getattr(filtered_table, attr) == value)
 
             vehicle_sales = (

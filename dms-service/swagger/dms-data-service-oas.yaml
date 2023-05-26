@@ -59,48 +59,48 @@ paths:
         description: The id of the DMS assigned by Impel of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: db_creation_date_start
         required: false
-        description: The earliest db_creation_date of the repair order to query for in YYYY-MM-DD format.
+        description: The earliest db_creation_date of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: db_creation_date_end
         required: false
-        description: The latest db_creation_date of the repair order to query for in YYYY-MM-DD format.
+        description: The latest db_creation_date of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: ro_open_date_start
         required: false
-        description: The earliest ro_open_date of the repair order to query for in YYYY-MM-DD format.
+        description: The earliest ro_open_date of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: ro_open_date_end
         required: false
-        description: The latest ro_open_date of the repair order to query for in YYYY-MM-DD format.
+        description: The latest ro_open_date of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: ro_close_date_start
         required: false
-        description: The earliest ro_close_date of the repair order to query for in YYYY-MM-DD format.
+        description: The earliest ro_close_date of the repair order to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: ro_close_date_end
         required: false
@@ -185,32 +185,32 @@ paths:
         description: The id of the DMS assigned by Impel of the vehicle sale to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: db_creation_date_start
         required: false
-        description: The earliest db_creation_date of the vehicle sale to query for in YYYY-MM-DD format.
+        description: The earliest db_creation_date of the vehicle sale to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: db_creation_date_end
         required: false
-        description: The latest db_creation_date of the vehicle sale to query for in YYYY-MM-DD format.
+        description: The latest db_creation_date of the vehicle sale to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: sale_date_start
         required: false
-        description: The earliest sale_date of the vehicle sale to query for in YYYY-MM-DD format.
+        description: The earliest sale_date of the vehicle sale to query for.
       - schema:
           type: string
-          format: date
-          example: 2023-01-01
+          format: date-time
+          example: 2023-05-25T06:35:34
         in: query
         name: sale_date_end
         required: false

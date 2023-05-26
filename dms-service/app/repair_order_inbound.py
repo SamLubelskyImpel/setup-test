@@ -102,14 +102,6 @@ def lambda_handler(event, context):
                     Vehicle,
                 ]
                 for attr, value in filters.items():
-                    filtered_table = None
-                    for table in tables:
-                        if attr in table.__table__.columns:
-                            filtered_table = table
-
-                    if not filtered_table:
-                        continue
-
                     if attr == "ro_open_date_start":
                         query = query.filter(
                             getattr(ServiceRepairOrder, "ro_open_date") >= value
@@ -135,6 +127,13 @@ def lambda_handler(event, context):
                             getattr(ServiceRepairOrder, "db_creation_date") <= value
                         )
                     else:
+                        filtered_table = None
+                        for table in tables:
+                            if attr in table.__table__.columns:
+                                filtered_table = table
+
+                        if not filtered_table:
+                            continue
                         query = query.filter(getattr(filtered_table, attr) == value)
 
             service_repair_orders = (
