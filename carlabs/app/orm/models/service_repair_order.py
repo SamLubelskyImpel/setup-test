@@ -11,6 +11,7 @@ class ServiceRepairOrder(BaseForModels):
     """Service Repair Order Model."""
 
     __tablename__ = "service_repair_order"
+    # TODO set schema according to environment
     __table_args__ = { "schema": "stage" }
 
     id = Column(Integer, primary_key=True)
