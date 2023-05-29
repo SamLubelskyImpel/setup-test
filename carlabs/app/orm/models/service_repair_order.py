@@ -3,7 +3,7 @@
 import sys
 
 from .base_model import BaseForModels
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, JSON
 from datetime import datetime
 
 
@@ -29,6 +29,8 @@ class ServiceRepairOrder(BaseForModels):
     comment = Column(String)
     recommendation = Column(String)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
+    metadata_column = Column('metadata', JSON)
+
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

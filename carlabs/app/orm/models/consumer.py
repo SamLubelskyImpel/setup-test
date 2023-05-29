@@ -29,7 +29,7 @@ class Consumer(BaseForModels):
     postal_mail_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
-    # metadata = Column(JSON)
+    metadata_column = Column('metadata', JSON)
     master_consumer_id = Column(String)
 
 

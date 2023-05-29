@@ -42,6 +42,8 @@ class VehicleSale(BaseForModels):
     finance_term = Column(DoublePrecisionField)
     finance_amount = Column(DoublePrecisionField)
     date_of_inventory = Column(DateTime)
+    metadata_column = Column('metadata', JSON)
+
 
     consumer = relationship('Consumer')
     vehicle = relationship('Vehicle')

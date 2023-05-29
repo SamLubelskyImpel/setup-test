@@ -3,7 +3,7 @@
 import sys
 
 from .base_model import BaseForModels
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, JSON
 from datetime import datetime
 
 
@@ -25,6 +25,8 @@ class Vehicle(BaseForModels):
     year = Column(Integer)
     new_or_used = Column(String)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
+    metadata_column = Column('metadata', JSON)
+
 
 
     def as_dict(self):
