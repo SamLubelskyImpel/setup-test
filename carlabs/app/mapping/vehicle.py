@@ -2,6 +2,7 @@ from orm.models.data_imports import DataImports
 from orm.models.vehicle import Vehicle
 from utils import parsed_int
 
+
 def map_vehicle(record: DataImports):
     vehicle = Vehicle()
     imported_data = record.importedData

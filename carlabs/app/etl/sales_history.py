@@ -30,31 +30,27 @@ class SalesHistoryETL:
     _loaded: int = field(init=False, default=0)
     _failed: int = field(init=False, default=0)
 
-
     @property
     def finished(self):
         return self._finished
-
 
     @property
     def loaded(self):
         return self._loaded
 
-
     @property
     def failed(self):
         return self._failed
 
-
     def _extract_from_carlabs(self):
         with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
-            records: list[DataImports] = carlabs_session.query(DataImports).where(
+            records = carlabs_session.query(DataImports).where(
                 (DataImports.dataType == 'SALES') &
                 (DataImports.creationDate > self.day) &
                 (DataImports.id > self.last_id)
             ).order_by(
                 DataImports.id.asc()
-            ).limit(self.limit+1)
+            ).limit(self.limit + 1)
 
             self._finished = records.count() <= self.limit
 
@@ -66,7 +62,6 @@ class SalesHistoryETL:
                         yield di_copy
                 else:
                     yield r
-
 
     def _load_into_dms(self, transformed: TransformedData):
         with SQLSession(db='SHARED_DMS') as dms_session:
@@ -83,7 +78,6 @@ class SalesHistoryETL:
             if transformed.sale.has_service_contract:
                 dms_session.add(transformed.service_contract)
 
-
     def _transform(self, record: DataImports):
         return TransformedData(
             consumer=map_consumer(record),
@@ -91,7 +85,6 @@ class SalesHistoryETL:
             sale=map_sale(record),
             service_contract=map_service_contract(record)
         )
-
 
     def run(self):
         records = self._extract_from_carlabs()
@@ -101,7 +94,10 @@ class SalesHistoryETL:
                 self._load_into_dms(transformed)
                 self._loaded += 1
             except Exception:
-                publish_failure(r.as_dict(), traceback.format_exc(), 'sales_history')
-                self._failed +=1
+                publish_failure(
+                    record=r.as_dict(),
+                    err=traceback.format_exc(),
+                    table='sales_history')
+                self._failed += 1
             finally:
                 save_progress(r.id, 'sales_history_progress')

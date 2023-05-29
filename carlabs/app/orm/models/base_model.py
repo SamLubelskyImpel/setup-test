@@ -12,7 +12,7 @@ class BaseForModels(DeclarativeBase):
 
 
 class DoublePrecisionField(TypeDecorator):
-    impl = postgresql.DOUBLE_PRECISION  # Specify the underlying database-specific floating-point type
+    impl = postgresql.DOUBLE_PRECISION
 
     def process_bind_param(self, value, dialect):
         if value == '':

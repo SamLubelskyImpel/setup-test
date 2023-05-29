@@ -3,7 +3,7 @@
 import sys
 
 from .base_model import BaseForModels, SCHEMA
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, JSON
 from datetime import datetime
 
 
@@ -11,7 +11,7 @@ class Vehicle(BaseForModels):
     '''Vehicle Model.'''
 
     __tablename__ = 'vehicle'
-    __table_args__ = { 'schema': SCHEMA }
+    __table_args__ = {'schema': SCHEMA}
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -26,8 +26,6 @@ class Vehicle(BaseForModels):
     new_or_used = Column(String)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
     metadata_column = Column('metadata', JSON)
-
-
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

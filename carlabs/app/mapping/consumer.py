@@ -1,6 +1,7 @@
 from orm.models.data_imports import DataImports
 from orm.models.consumer import Consumer
 
+
 def map_consumer(record: DataImports):
     consumer = Consumer()
     imported_data = record.importedData
@@ -31,7 +32,8 @@ def map_consumer(record: DataImports):
         consumer.home_phone = imported_data['customerInformation']['PhoneNumber']
         consumer.email_optin_flag = imported_data['customerInformation']['AllowContactByEmail'] == 'Y'
         consumer.phone_optin_flag = imported_data['customerInformation']['AllowContactByPhone'] == 'Y'
-        consumer.postal_mail_optin_flag = imported_data['customerInformation']['AllowContactByPostal'] == 'Y'
+        consumer.postal_mail_optin_flag = imported_data[
+            'customerInformation']['AllowContactByPostal'] == 'Y'
         consumer.sms_optin_flag = imported_data['customerInformation']['AllowContactByPhone'] == 'Y'
     elif record.dataSource == 'DEALERVAULT':
         consumer.dealer_customer_no = imported_data['Customer Number']

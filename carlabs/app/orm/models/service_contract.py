@@ -8,7 +8,7 @@ class ServiceContract(BaseForModels):
     '''ServiceContract Model.'''
 
     __tablename__ = 'service_contracts'
-    __table_args__ = { 'schema': SCHEMA }
+    __table_args__ = {'schema': SCHEMA}
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -29,7 +29,6 @@ class ServiceContract(BaseForModels):
 
     consumer = relationship('Consumer')
     vehicle = relationship('Vehicle')
-
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

@@ -11,7 +11,7 @@ class ServiceRepairOrder(BaseForModels):
     '''Service Repair Order Model.'''
 
     __tablename__ = 'service_repair_order'
-    __table_args__ = { 'schema': SCHEMA }
+    __table_args__ = {'schema': SCHEMA}
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -29,7 +29,6 @@ class ServiceRepairOrder(BaseForModels):
     recommendation = Column(String)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
     metadata_column = Column('metadata', JSON)
-
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

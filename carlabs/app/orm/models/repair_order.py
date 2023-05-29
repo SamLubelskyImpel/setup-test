@@ -18,7 +18,6 @@ class RepairOrder(BaseForModels):
     ro_service_details = Column(Text)
     db_creation_date = Column(DateTime)
 
-
     def as_dict(self):
         '''Return attributes of the keys in the table.'''
         return {

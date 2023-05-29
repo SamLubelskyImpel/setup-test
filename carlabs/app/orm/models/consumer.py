@@ -1,6 +1,6 @@
 '''Consumer Model.'''
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, JSON
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, JSON
 from .base_model import BaseForModels, SCHEMA
 from datetime import datetime
 
@@ -9,7 +9,7 @@ class Consumer(BaseForModels):
     '''Consumer Model.'''
 
     __tablename__ = 'consumer'
-    __table_args__ = { 'schema': SCHEMA }
+    __table_args__ = {'schema': SCHEMA}
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -31,7 +31,6 @@ class Consumer(BaseForModels):
     db_creation_date = Column(DateTime, default=datetime.utcnow())
     metadata_column = Column('metadata', JSON)
     master_consumer_id = Column(String)
-
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

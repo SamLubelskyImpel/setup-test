@@ -13,7 +13,7 @@ class VehicleSale(BaseForModels):
     '''Vehicle Sale Model.'''
 
     __tablename__ = 'vehicle_sale'
-    __table_args__ = { 'schema': SCHEMA }
+    __table_args__ = {'schema': SCHEMA}
 
     id = Column(Integer, primary_key=True)
     consumer_id = Column(Integer, ForeignKey(f'{SCHEMA}.consumer.id'))
@@ -44,10 +44,8 @@ class VehicleSale(BaseForModels):
     date_of_inventory = Column(DateTime)
     metadata_column = Column('metadata', JSON)
 
-
     consumer = relationship('Consumer')
     vehicle = relationship('Vehicle')
-
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

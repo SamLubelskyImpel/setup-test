@@ -12,7 +12,7 @@ _Sessions = {}
 
 
 class SQLSession(object):
-    def __init__(self, db: Literal['CARLABS_DATA_INTEGRATIONS', 'SHARED_DMS', 'CARLABS_ANALYTICS'], region=None, pool_size=5):
+    def __init__(self, db, region=None, pool_size=5):
         self.uri = make_db_uri(db, region)
         if self.uri in _Sessions:
             self.engine = _Sessions[self.uri][0]

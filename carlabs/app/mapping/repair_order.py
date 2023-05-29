@@ -4,14 +4,17 @@ from orm.connection.session import SQLSession
 from orm.models.consumer import Consumer
 from orm.models.vehicle import Vehicle
 
+
 def map_service_repair_order(record: RepairOrder):
     with SQLSession(db='SHARED_DMS') as carlabs_session:
-        consumer = carlabs_session.query(Consumer).where(Consumer.email.ilike(record.email_address)).first()
+        consumer = carlabs_session.query(Consumer).where(
+            Consumer.email.ilike(record.email_address)).first()
         if not consumer:
             raise Exception(f'consumer {record.email_address} not found')
         consumer_id = consumer.id
 
-        vehicle = carlabs_session.query(Vehicle).where(Vehicle.vin.ilike(record.vin)).first()
+        vehicle = carlabs_session.query(Vehicle).where(
+            Vehicle.vin.ilike(record.vin)).first()
         if not vehicle:
             raise Exception(f'vehicle {record.vin} not found')
         vehicle_id = vehicle.id

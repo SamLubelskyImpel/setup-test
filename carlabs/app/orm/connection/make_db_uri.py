@@ -9,12 +9,15 @@ SM_CLIENT = boto3.client('secretsmanager')
 
 
 def __get_db_secret(secret_id):
-    return loads(SM_CLIENT.get_secret_value(SecretId=secret_id)['SecretString'])
+    return loads(SM_CLIENT.get_secret_value(
+        SecretId=secret_id)['SecretString'])
 
 
 dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/DMSDB')
-carlabs_di_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/carlabs/data_integrations')
-carlabs_analytics_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/carlabs/analytics')
+carlabs_di_secret = __get_db_secret(
+    f'{"prod" if IS_PROD else "test"}/carlabs/data_integrations')
+carlabs_analytics_secret = __get_db_secret(
+    f'{"prod" if IS_PROD else "test"}/carlabs/analytics')
 
 
 DB = {
@@ -42,7 +45,7 @@ DB = {
 }
 
 
-def make_db_uri(db: Literal['CARLABS_DATA_INTEGRATIONS', 'SHARED_DMS', 'CARLABS_ANALYTICS'], region=None):
+def make_db_uri(db, region=None):
     app_name = 'carlabs-etl'
     return 'postgresql://{}:{}@{}:{}/{}?application_name={}'.format(
         DB[db]['DB_USERNAME'],

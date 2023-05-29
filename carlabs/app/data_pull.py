@@ -14,7 +14,10 @@ def sales_history(event, context):
     last_id = load_progress('sales_history_progress')
     limit = 2
 
-    etl = SalesHistoryETL(last_id=last_id, day=datetime.today().date(), limit=limit)
+    etl = SalesHistoryETL(
+        last_id=last_id,
+        day=datetime.today().date(),
+        limit=limit)
     etl.run()
 
     _logger.info(f'ETL loaded={etl.loaded}, failed={etl.failed}')
@@ -28,7 +31,10 @@ def repair_order(event, context):
     last_id = load_progress('repair_order_progress')
     limit = 1000
 
-    etl = RepairOrderETL(last_id=last_id, day=datetime.today().date(), limit=limit)
+    etl = RepairOrderETL(
+        last_id=last_id,
+        day=datetime.today().date(),
+        limit=limit)
     etl.run()
 
     _logger.info(f'ETL loaded={etl.loaded}, failed={etl.failed}')
