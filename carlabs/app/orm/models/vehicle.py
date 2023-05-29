@@ -1,17 +1,17 @@
-"""Vehicle Model."""
+'''Vehicle Model.'''
 
 import sys
 
-from .base_model import BaseForModels
+from .base_model import BaseForModels, SCHEMA
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, JSON
 from datetime import datetime
 
 
 class Vehicle(BaseForModels):
-    """Vehicle Model."""
+    '''Vehicle Model.'''
 
-    __tablename__ = "vehicle"
-    __table_args__ = { "schema": "stage" }
+    __tablename__ = 'vehicle'
+    __table_args__ = { 'schema': SCHEMA }
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -30,7 +30,7 @@ class Vehicle(BaseForModels):
 
 
     def as_dict(self):
-        """Return attributes of the keys in the table."""
+        '''Return attributes of the keys in the table.'''
         return {
             key.name: getattr(self, key.name)
             for key in self.__table__.columns

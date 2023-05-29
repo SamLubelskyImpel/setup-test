@@ -1,15 +1,15 @@
-"""Consumer Model."""
+'''Consumer Model.'''
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, JSON
-from .base_model import BaseForModels
+from .base_model import BaseForModels, SCHEMA
 from datetime import datetime
 
 
 class Consumer(BaseForModels):
-    """Consumer Model."""
+    '''Consumer Model.'''
 
-    __tablename__ = "consumer"
-    __table_args__ = { "schema": "stage" }
+    __tablename__ = 'consumer'
+    __table_args__ = { 'schema': SCHEMA }
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
@@ -34,7 +34,7 @@ class Consumer(BaseForModels):
 
 
     def as_dict(self):
-        """Return attributes of the keys in the table."""
+        '''Return attributes of the keys in the table.'''
         return {
             key.name: getattr(self, key.name)
             for key in self.__table__.columns

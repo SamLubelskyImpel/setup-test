@@ -1,23 +1,22 @@
-"""Service Repair Order Model."""
+'''Service Repair Order Model.'''
 
 import sys
 
-from .base_model import BaseForModels
+from .base_model import BaseForModels, SCHEMA
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, JSON
 from datetime import datetime
 
 
 class ServiceRepairOrder(BaseForModels):
-    """Service Repair Order Model."""
+    '''Service Repair Order Model.'''
 
-    __tablename__ = "service_repair_order"
-    # TODO set schema according to environment
-    __table_args__ = { "schema": "stage" }
+    __tablename__ = 'service_repair_order'
+    __table_args__ = { 'schema': SCHEMA }
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
-    consumer_id = Column(Integer, ForeignKey("stage.consumer.id"))
-    vehicle_id = Column(Integer, ForeignKey("stage.vehicle.id"))
+    consumer_id = Column(Integer, ForeignKey(f'{SCHEMA}.consumer.id'))
+    vehicle_id = Column(Integer, ForeignKey(f'{SCHEMA}.vehicle.id'))
     ro_open_date = Column(DateTime)
     ro_close_date = Column(DateTime)
     txn_pay_type = Column(String)
@@ -33,7 +32,7 @@ class ServiceRepairOrder(BaseForModels):
 
 
     def as_dict(self):
-        """Return attributes of the keys in the table."""
+        '''Return attributes of the keys in the table.'''
         return {
             key.name: getattr(self, key.name)
             for key in self.__table__.columns

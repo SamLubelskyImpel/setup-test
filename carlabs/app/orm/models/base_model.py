@@ -1,6 +1,10 @@
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import TypeDecorator, Float
+from sqlalchemy import TypeDecorator
 from sqlalchemy.dialects import postgresql
+import os
+
+
+SCHEMA = 'prod' if os.environ.get('ENVIRONMENT') == 'prod' else 'stage'
 
 
 class BaseForModels(DeclarativeBase):
