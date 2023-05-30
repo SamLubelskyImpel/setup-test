@@ -552,26 +552,6 @@ Resources:
       Name: 'universal-integrations/deployment_info'
       SecretString: !Sub '{"ENVIRONMENT":"${Environment}"}'
 
-  # DatabaseSecret: 
-  #   Type: AWS::SecretsManager::Secret
-  #   DeletionPolicy: Retain
-  #   UpdateReplacePolicy: Retain
-  #   Properties:
-  #     Description: Universal Integrations Database Access
-  #     Name: !Sub '${Environment}/DMSDB'
-  #     SecretString: '{"jdbc_url":"jdbc:postgresql:\/\/db-unified-data-test-1.testenv.impel.io:5432\/dms","user":"developer","password":"31eeeb5d8805f3f6e0ee686a47f47bd5","db_name":"dms","host":"db-unified-data-test-1.testenv.impel.io","port":"5432"}'
-
-  # UNCOMMENT FOR PROD first deployment
-  # DatabaseSecret: 
-  #   Type: AWS::SecretsManager::Secret
-  #   DeletionPolicy: Retain
-  #   UpdateReplacePolicy: Retain
-  #   Properties:
-  #     Description: Universal Integrations Database Access
-  #     Name: !Sub '${Environment}/DMSDB'
-  #     SecretString: '{"jdbc_url":"jdbc:postgresql:\/\/db-unified-data-prod-1.impel.io:5432\/dms","user":"developer","password":"2e76f7bd7fab0986d008020f779648a9","db_name":"dms","host":"db-unified-data-prod-1.impel.io","port":"5432"}'
-
-
   UniversalIntegrationBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain

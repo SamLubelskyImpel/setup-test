@@ -131,7 +131,7 @@ def lambda_handler(event, context):
                     .replace(tzinfo=timezone.utc)
                     .isoformat(),
                     "results": results,
-                    "has_next_page": len(results) > max_results,
+                    "has_next_page": len(vehicle_sales) > max_results,
                 },
                 default=json_serial,
             ),

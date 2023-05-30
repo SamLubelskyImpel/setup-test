@@ -36,7 +36,7 @@ paths:
         in: query
         name: page
         required: false
-        description: The results page to retrieve.
+        description: The results page to retrieve, starts at 1.
       - schema:
           type: integer
           minimum: 1
@@ -162,7 +162,7 @@ paths:
         in: query
         name: page
         required: false
-        description: The results page to retrieve.
+        description: The results page to retrieve, starts at 1.
       - schema:
           type: integer
           minimum: 1
@@ -266,7 +266,7 @@ paths:
         in: query
         name: page
         required: false
-        description: The results page to retrieve.
+        description: The results page to retrieve, starts at 1.
       - schema:
           type: integer
           minimum: 1
