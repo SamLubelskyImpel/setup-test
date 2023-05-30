@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the dms data service.
+    Deploy the Carlabs ETL.
     Usage:
      ./deploy.sh <parameters>
     Options:
