@@ -92,7 +92,7 @@ class RDSInstance:
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
             join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
-            where dip.dms_id = '{dms_id}' and i.name = '{self.integration}' and dip.is_active = true;"""
+            where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
         results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
             raise RuntimeError(
@@ -324,21 +324,17 @@ class DynamicFrameResolver:
                 current_field = full_split_field_rp[index + 1]
                 if len(full_split_field_rp) == index + 2:
                     # The next struct field is getting replaced, preserve all struct fields except the replaced fields
-                    logger.info(f"Getting {current_prefix}.* as {current_field} and next {full_split_field_rp[index]}")
                     return F.struct(
                         F.col(f"{current_prefix}.*"),
                         recursive_struct_update(source_col_name, full_split_field_rp, index=index + 1)
                     ).alias(current_field).dropFields(*replaced_fields)
                 else:
                     # Preserve all fields in the current struct
-                    logger.info(f"Getting {current_prefix}.* as {current_field} and next {full_split_field_rp[index]}")
-                    logger.info(f"Getting {current_prefix}.*")
                     return F.struct(
                         F.col(f"{current_prefix}.*"),
                         recursive_struct_update(source_col_name, full_split_field_rp, index=index + 1).alias(current_field)
                     )
 
-        logger.info(f"setting {full_split_field_rp}.*")
         return df.withColumn(
             full_split_field_rp[0],
             recursive_struct_update(source_col_name, full_split_field_rp)
@@ -363,7 +359,6 @@ class DynamicFrameResolver:
                 else row[temp_struct_column] if row[temp_struct_column] is not None \
                 else None
             
-            logger.info(f"make cols field {field_path}")
             df = df.withColumn(
                 # Move nested array data to a temp new column
                 temp_array_column, F.col(array_field)
@@ -380,8 +375,6 @@ class DynamicFrameResolver:
                 # Remove the temp struct column
                 temp_struct_column
             )
-            logger.info("make the cols")
-            logger.info(df.printSchema())
 
             # With the new column of combined array data, replace the original nested data
             df = self.replace_struct(
@@ -423,58 +416,37 @@ class DynamicFrameResolver:
             specs=(main_column_name, 'make_cols')
         )
 
-        logger.info("resolve make cols")
-        logger.info(datasource.printSchema())
-
         # Separate array and struct columns into different dataframes where they aren't null.
         datasource_array = datasource.withColumnRenamed(
             array_column_name, main_column_name
         ).filter(
             lambda row: row[main_column_name] is not None
-        ).drop(struct_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")#.drop("RepairOrder.RoRecord.Rolabor")
+        ).drop(struct_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")
         datasource_struct = datasource.withColumnRenamed(
             struct_column_name, main_column_name
         ).filter(
             lambda row: row[main_column_name] is not None
-        ).drop(array_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")#.drop("RepairOrder.RoRecord.Rolabor")
+        ).drop(array_column_name).drop("RepairOrder.RoRecord.Rosub").drop("RepairOrder.RoRecord.Ropart").drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")
 
         # Resolve all possible field choices inside the frame and get the resolved choices
         datasource_array, array_columns_spec = self.resolve_nested(datasource_array, array_column_name)
-        logger.info("finished resolve nested array")
-        logger.info(datasource.printSchema())
         datasource_struct, struct_columns_spec = self.resolve_nested(datasource_struct, struct_column_name)
 
         # Convert the array data into rows of structs
         datasource_array = datasource_array.withColumn(main_column_name, F.explode(F.col(main_column_name)))
-        logger.info("explode nested array")
-        logger.info(datasource.printSchema())
-
-        # TODO this is new
         datasource_array, array_columns_spec_nested = self.resolve_nested(datasource_array, main_column_name)
         array_columns_spec = array_columns_spec_nested + array_columns_spec
 
-        logger.info("explode nested resolved")
-        logger.info(datasource.printSchema())
-
         # Cast all array/struct choices to be arrays
-        logger.info(f"Convert the array {array_columns_spec}")
         datasource_array = self.convert_structs_to_arrays(datasource_array, array_columns_spec)
-        logger.info("Array final schema")
-        logger.info(datasource.printSchema())
 
         # Cast all array/struct choices to be arrays
-        logger.info(f"Convert the struct {struct_columns_spec}")
         datasource_struct = self.convert_structs_to_arrays(datasource_struct, struct_columns_spec)
-        logger.info("Struct final schema")
-        logger.info(datasource.printSchema())
 
         # Combine back into one dataframe
         datasource = datasource_array.union(datasource_struct)
         datasource, datasource_spec = self.resolve_nested(datasource, main_column_name)
-        logger.info(f"Convert the union {datasource_spec}")
         datasource = self.convert_structs_to_arrays(datasource, datasource_spec)
-        logger.info("union final schema")
-        logger.info(datasource.printSchema())
 
         return datasource
 
@@ -500,6 +472,8 @@ class ReyReyUpsertJob:
         )
         self.rds = RDSInstance(self.is_prod, self.integration)
         self.resolver = DynamicFrameResolver(self.glue_context)
+        self.required_columns = [
+        ]
         self.mappings = {
             "reyreycrawlerdb_fi_closed_deal": {
                 "dealer": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
@@ -511,12 +485,16 @@ class ReyReyUpsertJob:
                     "cell_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone",
                     "postal_code": "FIDeal.Buyer.CustRecord.ContactInfo.Address._Zip",
                     "home_phone": "FIDeal.Buyer.CustRecord.ContactInfo.phone",
+                    "email_optin_flag": "FIDeal.Buyer.CustRecord.CustPersonal._OptOut",
+                    "phone_optin_flag": "FIDeal.Buyer.CustRecord.CustPersonal._OptOut",
+                    "postal_mail_optin_flag": "FIDeal.Buyer.CustRecord.CustPersonal._OptOut",
+                    "sms_optin_flag": "FIDeal.Buyer.CustRecord.CustPersonal._OptOut"
                 },
                 "vehicle": {
                     "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
                     "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
-                    "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
+                    "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr"
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
@@ -532,9 +510,11 @@ class ReyReyUpsertJob:
                     "payoff_on_trade": "FIDeal.FIDealFin.TradeIn._Payoff",
                     "value_at_end_of_lease": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._VehicleResidual",
                     "miles_per_year": "FIDeal.FIDealFin.FinanceInfo.LeaseSpec._EstDrvYear",
-                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
+                    # TODO: Moved to service_contract
+                    #"service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
                     "vehicle_gross": "FIDeal.FIDealFin.Recap.Reserves._VehicleGross",
-                    "warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
+                    # TODO: Moved to service_contract
+                    #"warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
                     "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
                     
@@ -553,10 +533,13 @@ class ReyReyUpsertJob:
                     "email": "RepairOrder.CustRecord.ContactInfo.Email._MailTo",
                     "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone",
                     "postal_code": "RepairOrder.CustRecord.ContactInfo.Address._Zip",
-                    "home_phone": "RepairOrder.CustRecord.ContactInfo.phone",
+                    "home_phone": "RepairOrder.CustRecord.ContactInfo.phone"
                 },
                 "vehicle": {
                     "vin": "RepairOrder.RoRecord.Rogen._Vin",
+                    "make": "RepairOrder.ServVehicle.Vehicle._VehicleMake",
+                    "model": "RepairOrder.ServVehicle.Vehicle._ModelDesc",
+                    "year": "RepairOrder.ServVehicle.Vehicle._VehicleYr"
                 },
                 "service_repair_order": {
                     "ro_open_date": "RepairOrder.RoRecord.Rogen._RoCreateDate",
@@ -587,7 +570,8 @@ class ReyReyUpsertJob:
                     logger.exception(
                         f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema.json()}."
                     )
-                    raise
+                    if db_column in self.required_columns:
+                        raise
 
             for db_column, dms_column in db_columns_to_dms_columns.items():
                 if (
@@ -639,30 +623,6 @@ class ReyReyUpsertJob:
                 F.col("home_phone"), lambda x: x["_Type"].isin(["H"])
             )["_Num"][0]
             df = df.withColumn("home_phone", get_home_phone)
-        if "warranty_expiration_date" in df.columns:
-            # Convert extended_warranty column from Array[String] to String
-            def calculate_extended_warranty(pyspark_arr):
-                if pyspark_arr:
-                    for raw_reyrey_str in pyspark_arr:
-                        if raw_reyrey_str and raw_reyrey_str != "null":
-                            return raw_reyrey_str
-                else:
-                    return None
-            get_extended_warranty = F.udf(calculate_extended_warranty, StringType())
-            df = df.withColumn(
-                "warranty_expiration_date", get_extended_warranty(F.col("warranty_expiration_date"))
-            )
-        if "service_package_flag" in df.columns:
-            # Convert service_package column from Array[String] to Bool
-            def calculate_service_package_flag(pyspark_arr):
-                if pyspark_arr:
-                    return any(x == "Y" for x in pyspark_arr)
-                else:
-                    return None
-            get_service_package_flag = F.udf(calculate_service_package_flag, StringType())
-            df = df.withColumn(
-                "service_package_flag", get_service_package_flag(F.col("service_package_flag"))
-            )
         if "total_amount" in df.columns:
             # Convert Array[Double] to Double
             def calculate_sum_array(arr):
@@ -670,7 +630,6 @@ class ReyReyUpsertJob:
                     return sum(float(x) for x in arr if x is not None)
                 else:
                     return None
-
             get_sum_array = F.udf(calculate_sum_array, DoubleType())
             df = df.withColumn("total_amount", get_sum_array(F.col("total_amount")))
         if "op_codes" in df.columns:
@@ -710,114 +669,121 @@ class ReyReyUpsertJob:
     def upsert_df(self, df, catalog_name):
         """Upsert dataframe to RDS table."""
         insert_count = 0
+        current_dealer = None
         dealers = df.select("dms_id").distinct().collect()
         if len(dealers) == 0:
             logger.error("No data found for any dealer")
         for dealer in dealers:
-            dealer_df = df.filter(df.dms_id == dealer.dms_id)
-            db_dealer_integration_partner_id = None
+            try:
+                current_dealer = dealer.dms_id
+                dealer_df = df.filter(df.dms_id == dealer.dms_id)
+                db_dealer_integration_partner_id = None
 
-            db_dealer_integration_partner_id = (
-                self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
-            )
-            dealer_df = dealer_df.withColumn(
-                "dealer_integration_partner_id",
-                F.lit(db_dealer_integration_partner_id),
-            )
-            dealer_rows = dealer_df.count()
-            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                # Vehicle sale must insert into consumer table first
-                inserted_consumer_ids = self.rds.insert_consumer(
-                    dealer_df, catalog_name, self.mappings
+                db_dealer_integration_partner_id = (
+                    self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
                 )
-                count = len(inserted_consumer_ids)
-                if count != dealer_rows:
-                    raise RuntimeError(f"Unable to insert consumers, expected {dealer_rows} got {count}")
-                logger.info(
-                    f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
+                dealer_df = dealer_df.withColumn(
+                    "dealer_integration_partner_id",
+                    F.lit(db_dealer_integration_partner_id),
                 )
-                vehicle_sale_df = self.add_list_to_df(
-                    dealer_df, inserted_consumer_ids, "consumer_id"
-                )
+                dealer_rows = dealer_df.count()
+                if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+                    # Vehicle sale must insert into consumer table first
+                    inserted_consumer_ids = self.rds.insert_consumer(
+                        dealer_df, catalog_name, self.mappings
+                    )
+                    count = len(inserted_consumer_ids)
+                    if count != dealer_rows:
+                        raise RuntimeError(f"Unable to insert consumers, expected {dealer_rows} got {count}")
+                    logger.info(
+                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
+                    )
+                    vehicle_sale_df = self.add_list_to_df(
+                        dealer_df, inserted_consumer_ids, "consumer_id"
+                    )
 
-                # Then insert into vehicle
-                inserted_vehicle_ids = self.rds.insert_vehicle(
-                    vehicle_sale_df, catalog_name, self.mappings
-                )
-                count = len(inserted_vehicle_ids)
-                if count != dealer_rows:
-                    raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
-                logger.info(
-                    f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
-                )
-                vehicle_sale_df = self.add_list_to_df(
-                    vehicle_sale_df, inserted_vehicle_ids, "vehicle_id"
-                )
+                    # Then insert into vehicle
+                    inserted_vehicle_ids = self.rds.insert_vehicle(
+                        vehicle_sale_df, catalog_name, self.mappings
+                    )
+                    count = len(inserted_vehicle_ids)
+                    if count != dealer_rows:
+                        raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
+                    logger.info(
+                        f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
+                    )
+                    vehicle_sale_df = self.add_list_to_df(
+                        vehicle_sale_df, inserted_vehicle_ids, "vehicle_id"
+                    )
 
-                # Then insert into vehicle sale
-                vehicle_sale_ids = self.rds.insert_vehicle_sale(
-                    vehicle_sale_df, catalog_name, self.mappings
-                )
-                count = len(vehicle_sale_ids)
-                logger.info(
-                    f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
-                )
-                insert_count += count
+                    # Then insert into vehicle sale
+                    vehicle_sale_ids = self.rds.insert_vehicle_sale(
+                        vehicle_sale_df, catalog_name, self.mappings
+                    )
+                    count = len(vehicle_sale_ids)
+                    logger.info(
+                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
+                    )
+                    insert_count += count
 
-            elif catalog_name == "reyreycrawlerdb_repair_order":
-                # Service repair order must insert into consumer table first
-                inserted_consumer_ids = self.rds.insert_consumer(
-                    dealer_df, catalog_name, self.mappings
-                )
-                count = len(inserted_consumer_ids)
-                logger.info(
-                    f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
-                )
-                service_repair_order_df = self.add_list_to_df(
-                    dealer_df, inserted_consumer_ids, "consumer_id"
-                )
+                elif catalog_name == "reyreycrawlerdb_repair_order":
+                    # Service repair order must insert into consumer table first
+                    inserted_consumer_ids = self.rds.insert_consumer(
+                        dealer_df, catalog_name, self.mappings
+                    )
+                    count = len(inserted_consumer_ids)
+                    logger.info(
+                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
+                    )
+                    service_repair_order_df = self.add_list_to_df(
+                        dealer_df, inserted_consumer_ids, "consumer_id"
+                    )
 
-                # Then insert into vehicle
-                inserted_vehicle_ids = self.rds.insert_vehicle(
-                    service_repair_order_df, catalog_name, self.mappings
-                )
-                count = len(inserted_vehicle_ids)
-                if count != dealer_rows:
-                    raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
-                logger.info(
-                    f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
-                )
-                service_repair_order_df = self.add_list_to_df(
-                    service_repair_order_df, inserted_vehicle_ids, "vehicle_id"
-                )
+                    # Then insert into vehicle
+                    inserted_vehicle_ids = self.rds.insert_vehicle(
+                        service_repair_order_df, catalog_name, self.mappings
+                    )
+                    count = len(inserted_vehicle_ids)
+                    if count != dealer_rows:
+                        raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
+                    logger.info(
+                        f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
+                    )
+                    service_repair_order_df = self.add_list_to_df(
+                        service_repair_order_df, inserted_vehicle_ids, "vehicle_id"
+                    )
 
-                # Then insert into service repair orders
-                service_repair_order_ids = self.rds.insert_service_repair_order(
-                    service_repair_order_df, catalog_name, self.mappings
-                )
-                count = len(service_repair_order_ids)
-                logger.info(
-                    f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
-                )
-                insert_count += count
+                    # Then insert into service repair orders
+                    service_repair_order_ids = self.rds.insert_service_repair_order(
+                        service_repair_order_df, catalog_name, self.mappings
+                    )
+                    count = len(service_repair_order_ids)
+                    logger.info(
+                        f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
+                    )
+                    insert_count += count
 
-                # Create op codes
-                inserted_op_code_ids = self.rds.insert_op_codes(
-                    service_repair_order_df, catalog_name, self.mappings
-                )
-                count = len(inserted_op_code_ids)
-                logger.info(
-                    f"Added {count} rows to op_code for dealer {db_dealer_integration_partner_id}"
-                )
+                    # Create op codes
+                    inserted_op_code_ids = self.rds.insert_op_codes(
+                        service_repair_order_df, catalog_name, self.mappings
+                    )
+                    count = len(inserted_op_code_ids)
+                    logger.info(
+                        f"Added {count} rows to op_code for dealer {db_dealer_integration_partner_id}"
+                    )
 
-                # Link op codes
-                inserted_op_code_repair_order_ids = (
-                    self.rds.insert_op_code_repair_order(service_repair_order_df)
-                )
-                count = len(inserted_op_code_repair_order_ids)
-                logger.info(
-                    f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
-                )
+                    # Link op codes
+                    inserted_op_code_repair_order_ids = (
+                        self.rds.insert_op_code_repair_order(service_repair_order_df)
+                    )
+                    count = len(inserted_op_code_repair_order_ids)
+                    logger.info(
+                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
+                    )
+            except Exception:
+                s3_key = f"{self.integration}/errors/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
+                logger.exception(f"Error inserting {catalog_name} for dealer {dealer_df} save data {s3_key}")
+                self.save_df_notify(dealer_df, s3_key)
         return insert_count
     
     def save_df_notify(self, df, s3_key):
@@ -852,12 +818,10 @@ class ReyReyUpsertJob:
             datasource = self.glue_context.create_dynamic_frame.from_catalog(
                 database=self.database,
                 table_name=catalog_name,
-                transformation_ctx=f"context_2fssdfdsdsr2q_{catalog_name}",
+                transformation_ctx=f"context_{catalog_name}",
             )
-            logger.info("starting")
-            logger.info(datasource.printSchema())
 
-            if datasource.count() == 0:
+            if datasource.filter(lambda row: row[main_column_name] is not None).count() == 0:
                 logger.info("No new data to parse")
                 return
             
