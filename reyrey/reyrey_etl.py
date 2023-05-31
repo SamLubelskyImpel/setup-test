@@ -15,7 +15,7 @@ from awsglue.dynamicframe import DynamicFrame
 from awsglue.gluetypes import ChoiceType, Field, StructType, ArrayType, NullType
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
-from pyspark.sql.types import DoubleType, StringType
+from pyspark.sql.types import DoubleType, StringType, BooleanType
 from pyspark.sql.window import Window
 
 
@@ -517,7 +517,7 @@ class ReyReyUpsertJob:
                     #"warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
                     "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
-                    
+                    "has_service_contract": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN"
                 },
             },
             "reyreycrawlerdb_repair_order": {
@@ -643,6 +643,36 @@ class ReyReyUpsertJob:
         if "txn_pay_type" in df.columns:
             # Convert Array[String] to String
             df = df.withColumn("txn_pay_type", F.concat_ws(",", F.col("txn_pay_type")))
+        if "has_service_contract" in df.columns:
+            # Convert String to Bool
+            def calculate_service_contract_flag(arr):
+                if arr:
+                    return any(x == "Y" for x in arr)
+                else:
+                    return None
+            get_service_contract_flag = F.udf(calculate_service_contract_flag, BooleanType())
+            df = df.withColumn(
+                "has_service_contract", get_service_contract_flag(F.col("has_service_contract"))
+            )
+        if "email_optin_flag" in df.columns and "phone_optin_flag" in df.columns and "postal_mail_optin_flag" in df.columns and "sms_optin_flag" in df.columns:
+            # Convert String to Bool
+            def calculate_optin_flag(arr):
+                if arr:
+                    # Optin False if any optout is Y
+                    return not any(x == "Y" for x in arr)
+                else:
+                    return None
+            get_optin_flag = F.udf(calculate_optin_flag, BooleanType())
+            # Same flag for each, copy rather than recalculate
+            df = df.withColumn(
+                "email_optin_flag", get_optin_flag(F.col("email_optin_flag"))
+            ).withColumn(
+                "phone_optin_flag", F.col("email_optin_flag")
+            ).withColumn(
+                "postal_mail_optin_flag", F.col("email_optin_flag")
+            ).withColumn(
+                "sms_optin_flag", F.col("email_optin_flag")
+            )
         if "metadata" in df.columns:
             df = df.withColumn(
                 "metadata",
