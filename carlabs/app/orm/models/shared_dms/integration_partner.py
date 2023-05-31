@@ -1,5 +1,5 @@
 """Integration Partner Model."""
-from .base_model import BaseForModels, SCHEMA
+from ..base_model import BaseForModels, SCHEMA
 from sqlalchemy import Column, Integer, String, DateTime
 
 

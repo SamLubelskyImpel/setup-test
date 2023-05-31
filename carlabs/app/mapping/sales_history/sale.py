@@ -1,5 +1,5 @@
-from orm.models.data_imports import DataImports
-from orm.models.vehicle_sale import VehicleSale
+from orm.models.carlabs import DataImports
+from orm.models.shared_dms import VehicleSale
 from utils import parsed_date, parsed_int
 
 

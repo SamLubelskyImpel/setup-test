@@ -1,11 +1,18 @@
 from dataclasses import dataclass, field
 from datetime import date
 from orm.connection.session import SQLSession
-from orm.models.repair_order import RepairOrder
-from orm.models.service_repair_order import ServiceRepairOrder
-from mapping import map_service_repair_order
+from orm.models.carlabs import RepairOrder
+from orm.models.shared_dms import ServiceRepairOrder, Consumer, Vehicle
+from mapping.repair_order import map_service_repair_order, map_consumer, map_vehicle
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
+
+
+@dataclass
+class TransformedData:
+    consumer: Consumer
+    vehicle: Vehicle
+    repair_order: ServiceRepairOrder
 
 
 @dataclass
@@ -45,15 +52,24 @@ class RepairOrderETL:
             for r in records[:self.limit]:
                 yield r
 
-    def _load_into_dms(self, transformed: ServiceRepairOrder):
+    def _load_into_dms(self, transformed: TransformedData):
         with SQLSession(db='SHARED_DMS') as dms_session:
-            dms_session.add(transformed)
+            transformed.repair_order.consumer = transformed.consumer
+            transformed.repair_order.vehicle = transformed.vehicle
+
+            dms_session.add(transformed.consumer)
+            dms_session.add(transformed.vehicle)
+            dms_session.add(transformed.repair_order)
 
     def _transform(self, record: RepairOrder):
         dip_id = get_dealer_integration_partner_id(
             dealer_code=record.dealer_id,
             data_source=record.ro_source)
-        return map_service_repair_order(record, dip_id)
+        return TransformedData(
+            consumer=map_consumer(record, dip_id),
+            vehicle=map_vehicle(record, dip_id),
+            repair_order=map_service_repair_order(record, dip_id)
+        )
 
     def run(self):
         records = self._extract_from_carlabs()

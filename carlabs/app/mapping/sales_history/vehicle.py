@@ -1,5 +1,5 @@
-from orm.models.data_imports import DataImports
-from orm.models.vehicle import Vehicle
+from orm.models.carlabs import DataImports
+from orm.models.shared_dms import Vehicle
 from utils import parsed_int
 
 

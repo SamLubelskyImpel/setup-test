@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, Text
-from .base_model import BaseForModels
+from ..base_model import BaseForModels
 
 
 class RepairOrder(BaseForModels):
@@ -13,7 +13,15 @@ class RepairOrder(BaseForModels):
     ro_close_date = Column(DateTime)
     total_amount = Column(Float)
     vin = Column(String)
+    make = Column(String)
+    year = Column(String)
+    mileage = Column(Integer)
     email_address = Column(String)
+    consumer_name = Column(String)
+    cell_phone = Column(String)
+    consumer_zipcode = Column(String)
+    email_optin_flag = Column(Boolean)
+    phone_optin_flag = Column(Boolean)
     warranty_flag = Column(Boolean)
     ro_service_details = Column(Text)
     db_creation_date = Column(DateTime)

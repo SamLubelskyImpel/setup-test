@@ -2,7 +2,7 @@
 
 import sys
 
-from .base_model import BaseForModels, DoublePrecisionField, SCHEMA
+from ..base_model import BaseForModels, DoublePrecisionField, SCHEMA
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Float, ForeignKey,
                         Integer, String)
 from datetime import datetime

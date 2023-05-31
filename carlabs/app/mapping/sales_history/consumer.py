@@ -1,5 +1,5 @@
-from orm.models.data_imports import DataImports
-from orm.models.consumer import Consumer
+from orm.models.carlabs import DataImports
+from orm.models.shared_dms import Consumer
 
 
 def map_consumer(record: DataImports, dip_id: int):

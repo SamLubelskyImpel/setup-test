@@ -2,7 +2,7 @@
 
 import sys
 
-from .base_model import BaseForModels, SCHEMA
+from ..base_model import BaseForModels, SCHEMA
 from sqlalchemy import Column, Integer, String, DateTime, JSON
 from datetime import datetime
 

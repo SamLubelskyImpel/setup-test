@@ -1,5 +1,5 @@
-from orm.models.data_imports import DataImports
-from orm.models.service_contract import ServiceContract
+from orm.models.carlabs import DataImports
+from orm.models.shared_dms import ServiceContract
 from utils import parsed_date
 
 

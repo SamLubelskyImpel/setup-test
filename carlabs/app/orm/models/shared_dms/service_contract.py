@@ -1,4 +1,4 @@
-from .base_model import BaseForModels, SCHEMA
+from ..base_model import BaseForModels, SCHEMA
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, JSON, Boolean
 from datetime import datetime
 from sqlalchemy.orm import relationship

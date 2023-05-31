@@ -1,6 +1,6 @@
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy import Column, Integer, JSON, String, DateTime
-from .base_model import BaseForModels
+from ..base_model import BaseForModels
 
 
 class DataImports(BaseForModels):

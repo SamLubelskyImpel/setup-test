@@ -1,7 +1,7 @@
 '''Consumer Model.'''
 
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, JSON
-from .base_model import BaseForModels, SCHEMA
+from ..base_model import BaseForModels, SCHEMA
 from datetime import datetime
 
 

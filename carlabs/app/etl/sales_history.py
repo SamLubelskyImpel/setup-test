@@ -1,11 +1,8 @@
 from orm.connection.session import SQLSession
-from orm.models.data_imports import DataImports
+from orm.models.carlabs import DataImports
 from datetime import date
-from mapping import map_service_contract, map_consumer, map_sale, map_vehicle
-from orm.models.consumer import Consumer
-from orm.models.vehicle import Vehicle
-from orm.models.vehicle_sale import VehicleSale
-from orm.models.service_contract import ServiceContract
+from mapping.sales_history import map_service_contract, map_consumer, map_sale, map_vehicle
+from orm.models.shared_dms import Consumer, Vehicle, VehicleSale, ServiceContract
 from dataclasses import dataclass, field
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback

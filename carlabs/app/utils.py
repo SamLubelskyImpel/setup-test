@@ -1,8 +1,7 @@
 from datetime import datetime, date
 import boto3
 import os
-from orm.models.dealer_integration_partner import DealerIntegrationPartner
-from orm.models.integration_partner import IntegrationPartner
+from orm.models.shared_dms import DealerIntegrationPartner, IntegrationPartner
 from orm.connection.session import SQLSession
 
 
