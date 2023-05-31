@@ -4,7 +4,7 @@ from orm.connection.session import SQLSession
 from orm.models.repair_order import RepairOrder
 from orm.models.service_repair_order import ServiceRepairOrder
 from mapping import map_service_repair_order
-from utils import save_progress, publish_failure
+from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
 
 
@@ -50,7 +50,10 @@ class RepairOrderETL:
             dms_session.add(transformed)
 
     def _transform(self, record: RepairOrder):
-        return map_service_repair_order(record)
+        dip_id = get_dealer_integration_partner_id(
+            dealer_code=record.dealer_id,
+            data_source=record.ro_source)
+        return map_service_repair_order(record, dip_id)
 
     def run(self):
         records = self._extract_from_carlabs()

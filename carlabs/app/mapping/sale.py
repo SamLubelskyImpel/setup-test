@@ -84,4 +84,6 @@ def map_sale(record: DataImports, dip_id: int):
         sale.days_in_stock = (sale.sale_date - sale.date_of_inventory).days
 
     sale.dealer_integration_partner_id = dip_id
+    sale.metadata_column = {'data_imports_id': record.id, 'data_source': record.dataSource}
+
     return sale

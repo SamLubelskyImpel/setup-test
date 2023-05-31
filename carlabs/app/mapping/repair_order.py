@@ -31,4 +31,5 @@ def map_service_repair_order(record: RepairOrder, dip_id: int):
     # TODO this field needs to be of type  TEXT
     # ro.comment = str(record.ro_service_details)
     ro.dealer_integration_partner_id = dip_id
+    ro.metadata_column = {'repair_order_id': record.id, 'data_source': record.ro_source}
     return ro

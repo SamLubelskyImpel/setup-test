@@ -51,4 +51,6 @@ def map_consumer(record: DataImports, dip_id: int):
         consumer.sms_optin_flag = imported_data['Block Phone'] == 'N'
 
     consumer.dealer_integration_partner_id = dip_id
+    consumer.metadata_column = {'data_imports_id': record.id, 'data_source': record.dataSource}
+
     return consumer

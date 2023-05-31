@@ -30,4 +30,6 @@ def map_vehicle(record: DataImports, dip_id: int):
         vehicle.new_or_used = 'N' if imported_data['New/Used'] == 'NEW' else 'U'
 
     vehicle.dealer_integration_partner_id = dip_id
+    vehicle.metadata_column = {'data_imports_id': record.id, 'data_source': record.dataSource}
+
     return vehicle
