@@ -1,6 +1,9 @@
 from datetime import datetime, date
 import boto3
 import os
+from orm.models.dealer_integration_partner import DealerIntegrationPartner
+from orm.models.integration_partner import IntegrationPartner
+from orm.connection.session import SQLSession
 
 
 BUCKET = os.environ.get('BUCKET')
@@ -56,3 +59,26 @@ def publish_failure(record: dict, err: str, table: str):
         },
         MessageBody=err
     )
+
+
+class DealerIntegrationNotFound(Exception):
+    ...
+
+
+def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> DealerIntegrationPartner:
+    with SQLSession(db='SHARED_DMS') as dms_session:
+        dip = dms_session.query(
+            DealerIntegrationPartner
+        ).join(
+            IntegrationPartner,
+            DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+        ).where(
+            DealerIntegrationPartner.dms_id.ilike(dealer_code) &
+            IntegrationPartner.impel_integration_partner_id.ilike(data_source) &
+            DealerIntegrationPartner.is_active
+        ).first()
+
+        if not dip:
+            raise DealerIntegrationNotFound(f"No active dealer {dealer_code} found.")
+
+        return dip.id

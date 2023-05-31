@@ -7,7 +7,7 @@ from orm.models.vehicle import Vehicle
 from orm.models.vehicle_sale import VehicleSale
 from orm.models.service_contract import ServiceContract
 from dataclasses import dataclass, field
-from utils import save_progress, publish_failure
+from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
 
 
@@ -79,11 +79,15 @@ class SalesHistoryETL:
                 dms_session.add(transformed.service_contract)
 
     def _transform(self, record: DataImports):
+        dip_id = get_dealer_integration_partner_id(
+            dealer_code=record.dealerCode,
+            data_source=record.dataSource)
+
         return TransformedData(
-            consumer=map_consumer(record),
-            vehicle=map_vehicle(record),
-            sale=map_sale(record),
-            service_contract=map_service_contract(record)
+            consumer=map_consumer(record, dip_id),
+            vehicle=map_vehicle(record, dip_id),
+            sale=map_sale(record, dip_id),
+            service_contract=map_service_contract(record, dip_id)
         )
 
     def run(self):

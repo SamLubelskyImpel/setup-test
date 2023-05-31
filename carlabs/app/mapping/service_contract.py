@@ -3,7 +3,7 @@ from orm.models.service_contract import ServiceContract
 from utils import parsed_date
 
 
-def map_service_contract(record: DataImports):
+def map_service_contract(record: DataImports, dip_id: int):
     service_contract = ServiceContract()
     imported_data = record.importedData
     if record.dataSource == 'CDK':
@@ -39,8 +39,7 @@ def map_service_contract(record: DataImports):
         service_contract.expiration_months = imported_data['Warranty 1 Term']
         service_contract.expiration_miles = imported_data['Warranty 1 Miles']
 
-    # TODO fix this
-    service_contract.dealer_integration_partner_id = 1
+    service_contract.dealer_integration_partner_id = dip_id
     service_contract.contract_id = ''
 
     return service_contract

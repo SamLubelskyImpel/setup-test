@@ -2,7 +2,7 @@ from orm.models.data_imports import DataImports
 from orm.models.consumer import Consumer
 
 
-def map_consumer(record: DataImports):
+def map_consumer(record: DataImports, dip_id: int):
     consumer = Consumer()
     imported_data = record.importedData
     if record.dataSource == 'CDK':
@@ -50,6 +50,5 @@ def map_consumer(record: DataImports):
         consumer.postal_mail_optin_flag = imported_data['Block Mail'] == 'N'
         consumer.sms_optin_flag = imported_data['Block Phone'] == 'N'
 
-    # TODO fix this
-    consumer.dealer_integration_partner_id = 1
+    consumer.dealer_integration_partner_id = dip_id
     return consumer

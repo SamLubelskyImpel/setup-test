@@ -3,7 +3,7 @@ from orm.models.vehicle_sale import VehicleSale
 from utils import parsed_date, parsed_int
 
 
-def map_sale(record: DataImports):
+def map_sale(record: DataImports, dip_id: int):
     sale = VehicleSale()
     imported_data = record.importedData
     if record.dataSource == 'CDK':
@@ -83,6 +83,5 @@ def map_sale(record: DataImports):
     if sale.sale_date and sale.date_of_inventory:
         sale.days_in_stock = (sale.sale_date - sale.date_of_inventory).days
 
-    # TODO fix this
-    sale.dealer_integration_partner_id = 1
+    sale.dealer_integration_partner_id = dip_id
     return sale

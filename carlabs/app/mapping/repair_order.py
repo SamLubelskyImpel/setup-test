@@ -5,7 +5,7 @@ from orm.models.consumer import Consumer
 from orm.models.vehicle import Vehicle
 
 
-def map_service_repair_order(record: RepairOrder):
+def map_service_repair_order(record: RepairOrder, dip_id: int):
     with SQLSession(db='SHARED_DMS') as carlabs_session:
         consumer = carlabs_session.query(Consumer).where(
             Consumer.email.ilike(record.email_address)).first()
@@ -30,5 +30,5 @@ def map_service_repair_order(record: RepairOrder):
     ro.total_amount = record.total_amount
     # TODO this field needs to be of type  TEXT
     # ro.comment = str(record.ro_service_details)
-    ro.dealer_integration_partner_id = 1
+    ro.dealer_integration_partner_id = dip_id
     return ro

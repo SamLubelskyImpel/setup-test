@@ -3,7 +3,7 @@ from orm.models.vehicle import Vehicle
 from utils import parsed_int
 
 
-def map_vehicle(record: DataImports):
+def map_vehicle(record: DataImports, dip_id: int):
     vehicle = Vehicle()
     imported_data = record.importedData
     if record.dataSource == 'CDK':
@@ -29,6 +29,5 @@ def map_vehicle(record: DataImports):
         vehicle.year = imported_data['Year']
         vehicle.new_or_used = 'N' if imported_data['New/Used'] == 'NEW' else 'U'
 
-    # TODO fix this
-    vehicle.dealer_integration_partner_id = 1
+    vehicle.dealer_integration_partner_id = dip_id
     return vehicle
