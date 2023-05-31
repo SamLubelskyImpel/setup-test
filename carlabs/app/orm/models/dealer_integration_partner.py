@@ -1,7 +1,6 @@
 """Dealer Integration Partner Model."""
 from .base_model import BaseForModels, SCHEMA
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
 
 
 class DealerIntegrationPartner(BaseForModels):
@@ -12,12 +11,10 @@ class DealerIntegrationPartner(BaseForModels):
 
     id = Column(Integer, primary_key=True)
     integration_partner_id = Column(Integer)
-    dealer_id = Column(Integer, ForeignKey(f'{SCHEMA}.dealer.id'))
+    dealer_id = Column(Integer)
     dms_id = Column(String)
     is_active = Column(Boolean)
     db_creation_date = Column(DateTime)
-
-    dealer = relationship('Dealer')
 
 
     def as_dict(self):
