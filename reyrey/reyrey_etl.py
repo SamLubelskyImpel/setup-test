@@ -610,9 +610,8 @@ class ReyReyUpsertJob:
                     return None
                 else:
                     return None
-            if catalog_name == "reyreycrawlerdb_fi_closed_deal":
-                get_postal_code = F.udf(calculate_postal_code, StringType())
-                df = df.withColumn("postal_code", get_postal_code(F.col("postal_code")))
+            get_postal_code = F.udf(calculate_postal_code, StringType())
+            df = df.withColumn("postal_code", get_postal_code(F.col("postal_code")))
         if "cell_phone" in df.columns:
             # Convert cell_phone column from Array[Struct(_Num, _Type)] to String
             get_cell_phone = F.filter(
