@@ -600,9 +600,11 @@ class ReyReyUpsertJob:
         """Format the raw data to match the database schema."""
         if "postal_code" in df.columns:
             # Convert from Array to String
-            def calculate_postal_code(pyspark_arr):
-                if pyspark_arr:
-                    for raw_reyrey_str in pyspark_arr:
+            def calculate_postal_code(arr):
+                if arr:
+                    if not isinstance(arr, list):
+                        arr = [arr]
+                    for raw_reyrey_str in arr:
                         if raw_reyrey_str and raw_reyrey_str != "null":
                             return raw_reyrey_str
                     return None
@@ -627,6 +629,8 @@ class ReyReyUpsertJob:
             # Convert Array[Double] to Double
             def calculate_sum_array(arr):
                 if arr is not None:
+                    if not isinstance(arr, list):
+                        arr = [arr]
                     return sum(float(x) for x in arr if x is not None)
                 else:
                     return None
@@ -647,6 +651,8 @@ class ReyReyUpsertJob:
             # Convert String to Bool
             def calculate_service_contract_flag(arr):
                 if arr:
+                    if not isinstance(arr, list):
+                        arr = [arr]
                     return any(x == "Y" for x in arr)
                 else:
                     return None
@@ -658,6 +664,8 @@ class ReyReyUpsertJob:
             # Convert String to Bool
             def calculate_optin_flag(arr):
                 if arr:
+                    if not isinstance(arr, list):
+                        arr = [arr]
                     # Optin False if any optout is Y
                     return not any(x == "Y" for x in arr)
                 else:
