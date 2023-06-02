@@ -93,8 +93,7 @@ Resources:
                     ]
                   - !If [ IsProd, 
                       'arn:aws:s3:::integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
-                      'arn:aws:s3:::integrations-etl-test/*'
-                      # 'arn:aws:s3:::integrations-etl-test/glue_etl_job/tekion_glue_job.py'
+                      'arn:aws:s3:::integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
                   - !If [ IsProd, 
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
@@ -179,19 +178,18 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          # - Path: !If [ IsProd, 
-          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/deal/",
-          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/deal/",
-          #         ]
-          #   DlqEventQueueArn: !GetAtt TekionCustomerDLQ.Arn
-          #   EventQueueArn: !GetAtt TekionCustomerQueue.Arn    
-          - Path: "s3://integrations-etl-test/tekion/data/deal/"
+          - Path: !If [ IsProd, 
+                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/deal/",
+                    !Sub "s3://integrations-${AWS::Region}-test/tekion/deal/",
+                  ]
+            DlqEventQueueArn: !GetAtt TekionDealDLQ.Arn
+            EventQueueArn: !GetAtt TekionDealQueue.Arn    
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
       RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVERYTHING'
+        RecrawlBehavior: 'CRAWL_EVENT_MODE'
   
   TekionROCrawler:
     Type: AWS::Glue::Crawler
@@ -205,19 +203,18 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          # - Path: !If [ IsProd, 
-          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/repair_order/",
-          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/repair_order/",
-          #         ]
-          #   DlqEventQueueArn: !GetAtt TekionCustomerDLQ.Arn
-          #   EventQueueArn: !GetAtt TekionCustomerQueue.Arn    
-          - Path: "s3://integrations-etl-test/tekion/data/repair_order/"
+          - Path: !If [ IsProd, 
+                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/repair_order/",
+                    !Sub "s3://integrations-${AWS::Region}-test/tekion/repair_order/",
+                  ]
+            DlqEventQueueArn: !GetAtt TekionRODLQ.Arn
+            EventQueueArn: !GetAtt TekionROQueue.Arn    
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
       RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVERYTHING'
+        RecrawlBehavior: 'CRAWL_EVENT_MODE'
 
   TekionETLDeal:
     Type: AWS::Glue::Job
