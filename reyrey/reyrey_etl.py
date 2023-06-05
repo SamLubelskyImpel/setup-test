@@ -517,7 +517,10 @@ class ReyReyUpsertJob:
                     #"warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
                     "delivery_date": "FIDeal.FIDealFin._DeliveryDate",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
-                    "has_service_contract": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN"
+                    "has_service_contract": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN",
+                    "finance_rate": "FIDeal.FIDealFin.FinanceInfo._EnteredRate",
+                    "finance_term": "FIDeal.FIDealFin.FinanceInfo._Term",
+                    "finance_amount": "FIDeal.FIDealFin.FinanceInfo._AmtFinanced",
                 },
             },
             "reyreycrawlerdb_repair_order": {
@@ -547,7 +550,7 @@ class ReyReyUpsertJob:
                     "txn_pay_type": "RepairOrder.RoRecord.Rolabor.RoAmts._PayType",
                     "repair_order_no": "RepairOrder.RoRecord.Rogen._RoNo",
                     "advisor_name": "RepairOrder.RoRecord.Rogen._AdvName",
-                    "total_amount": "RepairOrder.RoRecord.Rolabor.RoAmts._TxblAmt",
+                    "total_amount": "RepairOrder.RoRecord.Rogen._IntrRoTotalAmt",
                     "consumer_total_amount": "RepairOrder.RoRecord.Rogen._CustRoTotalAmt",
                     "warranty_total_amount": "RepairOrder.RoRecord.Rogen._WarrRoTotalAmt",
                     "comment": "RepairOrder.RoRecord.Rogen.RoCommentInfo._RoComment",
@@ -624,17 +627,24 @@ class ReyReyUpsertJob:
                 F.col("home_phone"), lambda x: x["_Type"].isin(["H"])
             )["_Num"][0]
             df = df.withColumn("home_phone", get_home_phone)
-        if "total_amount" in df.columns:
-            # Convert Array[Double] to Double
-            def calculate_sum_array(arr):
-                if arr is not None:
-                    if not isinstance(arr, list):
-                        arr = [arr]
-                    return sum(float(x) for x in arr if x is not None)
-                else:
-                    return None
-            get_sum_array = F.udf(calculate_sum_array, DoubleType())
-            df = df.withColumn("total_amount", get_sum_array(F.col("total_amount")))
+        if "total_amount" in df.columns or "consumer_total_amount" in df.columns or "warranty_total_amount" in df.columns:
+            # Sum _IntrRoTotalAmt, _CustRoTotalAmt, and _WarrRoTotalAmt to get total_amount
+            valid_columns = []
+            if "total_amount" in df.columns:
+                valid_columns.append(F.col("total_amount"))
+            if "consumer_total_amount" in df.columns:
+                valid_columns.append(F.col("consumer_total_amount"))
+            if "warranty_total_amount" in df.columns:
+                valid_columns.append(F.col("warranty_total_amount"))
+
+            df = df.withColumn("total_amount", F.when(
+                # When all the columns are null, keep the value null
+                F.coalesce(*valid_columns).isNull(),
+                F.lit(None)
+            ).otherwise(
+                # When at least one column has a value, treat null values as 0 and sum
+                sum([F.coalesce(x, F.lit(0)) for x in valid_columns])
+            ))
         if "op_codes" in df.columns:
             # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
             df = df.withColumn(

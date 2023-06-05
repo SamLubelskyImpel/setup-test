@@ -259,7 +259,7 @@ Resources:
   ReyReyETLRO:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the reyrey RO crawler.
+      Description: ETL job to run after the reyrey RO crawler
       Name: !Sub 'reyrey-etl-ro-${Environment}'
       Role: !GetAtt ReyReyGlueRole.Arn
       GlueVersion: 3.0
