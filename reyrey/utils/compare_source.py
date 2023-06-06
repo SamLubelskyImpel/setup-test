@@ -1,22 +1,24 @@
-import boto3
+""" Given an id and a table use that entries metadata to find the source data file. """
 import gzip
-import psycopg2
 from json import loads
 from os import environ, remove
 
+import boto3
+import psycopg2
+
 AWS_PROFILE = environ["AWS_PROFILE"]
 
-DESIRED_ID = 8660
-TABLE = "vehicle_sale"
+DESIRED_ID = 22194
+TABLE = "service_repair_order"
 
 
 sm_client = boto3.client("secretsmanager")
 secret_string = loads(
     sm_client.get_secret_value(
-        SecretId="prod/DMSDB" if AWS_PROFILE == 'unified-prod' else "test/DMSDB"
+        SecretId="prod/DMSDB" if AWS_PROFILE == "unified-prod" else "test/DMSDB"
     )["SecretString"]
 )
-rds_connection =  psycopg2.connect(
+rds_connection = psycopg2.connect(
     user=secret_string["user"],
     password=secret_string["password"],
     host=secret_string["host"],
@@ -58,11 +60,11 @@ print(data)
 
 metadata = data[column_names.index("metadata")]
 s3_url = metadata["s3_url"]
-bucket, key = s3_url.split('/',2)[-1].split('/',1)
-file_name = s3_url.split('/')[-1]
+bucket, key = s3_url.split("/", 2)[-1].split("/", 1)
+file_name = s3_url.split("/")[-1]
 
-boto3.client('s3').download_file(Bucket=bucket, Key=key, Filename=file_name)
-f = gzip.open(file_name, 'rb')
-with open('reyreyraw.xml', 'w+') as r:
+boto3.client("s3").download_file(Bucket=bucket, Key=key, Filename=file_name)
+f = gzip.open(file_name, "rb")
+with open("reyreyraw.xml", "w+") as r:
     r.write(f.read().decode("utf-8"))
 remove(file_name)

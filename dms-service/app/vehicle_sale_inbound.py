@@ -31,7 +31,11 @@ def lambda_handler(event, context):
         page = 1 if not filters else int(filters.get("page", "1"))
         results = []
         max_results = 1000
-        result_count = max_results if not filters else int(filters.get("result_count", max_results))
+        result_count = (
+            max_results
+            if not filters
+            else int(filters.get("result_count", max_results))
+        )
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
@@ -53,7 +57,8 @@ def lambda_handler(event, context):
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id
+                    == IntegrationPartner.id,
                 )
                 .outerjoin(
                     Vehicle,
@@ -71,13 +76,9 @@ def lambda_handler(event, context):
                 ]
                 for attr, value in filters.items():
                     if attr == "sale_date_start":
-                        query = query.filter(
-                            getattr(VehicleSale, "sale_date") >= value
-                        )
+                        query = query.filter(getattr(VehicleSale, "sale_date") >= value)
                     elif attr == "sale_date_end":
-                        query = query.filter(
-                            getattr(VehicleSale, "sale_date") <= value
-                        )
+                        query = query.filter(getattr(VehicleSale, "sale_date") <= value)
                     elif attr == "db_creation_date_start":
                         query = query.filter(
                             getattr(VehicleSale, "db_creation_date") >= value

@@ -3,8 +3,8 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, text, DateTime, ForeignKey, Integer, String
 
 
 class Vehicle(BaseForModels):

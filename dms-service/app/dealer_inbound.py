@@ -28,9 +28,12 @@ def lambda_handler(event, context):
         page = 1 if not filters else int(filters.get("page", "1"))
         results = []
         max_results = 1000
-        result_count = max_results if not filters else int(filters.get("result_count", max_results))
+        result_count = (
+            max_results
+            if not filters
+            else int(filters.get("result_count", max_results))
+        )
         max_results = min(max_results, result_count)
-        
 
         with DBSession() as session:
             query = (
@@ -38,7 +41,8 @@ def lambda_handler(event, context):
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id
+                    == IntegrationPartner.id,
                 )
             )
 
@@ -61,7 +65,7 @@ def lambda_handler(event, context):
                             for table in tables:
                                 if attr in table.__table__.columns:
                                     filtered_table = table
-                        
+
                             if not filtered_table:
                                 continue
                             query = query.filter(getattr(filtered_table, attr) == value)
@@ -74,7 +78,9 @@ def lambda_handler(event, context):
             )
 
             results = []
-            for dealer_integration_partner, dealer, integration_partner in dealers[:max_results]:
+            for dealer_integration_partner, dealer, integration_partner in dealers[
+                :max_results
+            ]:
                 result_dict = dealer_integration_partner.as_dict()
                 result_dict["dealer"] = dealer.as_dict()
                 result_dict["integration_partner"] = integration_partner.as_dict()

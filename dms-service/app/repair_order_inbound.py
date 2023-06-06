@@ -36,7 +36,11 @@ def lambda_handler(event, context):
         page = 1 if not filters else int(filters.get("page", "1"))
         results = []
         max_results = 1000
-        result_count = max_results if not filters else int(filters.get("result_count", max_results))
+        result_count = (
+            max_results
+            if not filters
+            else int(filters.get("result_count", max_results))
+        )
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
@@ -83,7 +87,8 @@ def lambda_handler(event, context):
                 )
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id,
+                    DealerIntegrationPartner.integration_partner_id
+                    == IntegrationPartner.id,
                 )
                 .outerjoin(
                     Vehicle,

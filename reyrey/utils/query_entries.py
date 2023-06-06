@@ -1,8 +1,9 @@
+""" Run DMS queries. """
+from json import loads
+from os import environ
 
 import boto3
 import psycopg2
-from json import loads
-from os import environ
 
 AWS_PROFILE = environ["AWS_PROFILE"]
 
@@ -12,10 +13,10 @@ TABLE = "vehicle_sale"
 sm_client = boto3.client("secretsmanager")
 secret_string = loads(
     sm_client.get_secret_value(
-        SecretId="prod/DMSDB" if AWS_PROFILE == 'unified-prod' else "test/DMSDB"
+        SecretId="prod/DMSDB" if AWS_PROFILE == "unified-prod" else "test/DMSDB"
     )["SecretString"]
 )
-rds_connection =  psycopg2.connect(
+rds_connection = psycopg2.connect(
     user=secret_string["user"],
     password=secret_string["password"],
     host=secret_string["host"],

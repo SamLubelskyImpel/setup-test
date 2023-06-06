@@ -6,9 +6,7 @@ from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import BaseForModels
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import (
-    text,
     Boolean,
     Column,
     DateTime,
@@ -17,7 +15,9 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class VehicleSale(BaseForModels):

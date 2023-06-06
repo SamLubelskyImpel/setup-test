@@ -3,7 +3,7 @@
 import sys
 
 from dms_orm.session_config import BaseForModels
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 
 
 class DealerIntegrationPartner(BaseForModels):

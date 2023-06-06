@@ -15,7 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
-    text
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 

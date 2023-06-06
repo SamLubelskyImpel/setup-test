@@ -15,7 +15,9 @@ class DealerGroup(BaseForModels):
     impel_dealer_group_id = Column(String)
     duns_no = Column(String)
     db_creation_date = Column(DateTime)
-    __table_args__ = (UniqueConstraint("impel_dealer_group_id", name="dealer_group_name_key"),)
+    __table_args__ = (
+        UniqueConstraint("impel_dealer_group_id", name="dealer_group_name_key"),
+    )
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

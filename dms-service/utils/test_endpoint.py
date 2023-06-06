@@ -1,7 +1,8 @@
-import requests
-import boto3
-from os import environ
 from json import loads
+from os import environ
+
+import boto3
+import requests
 
 AWS_PROFILE = environ["AWS_PROFILE"]
 
@@ -22,12 +23,12 @@ x_api_key = loads(secret)["api_key"]
 endpoint = "vehicle-sale"
 
 headers = {
-    'accept': 'application/json',
-    'client_id': client_id,
-    'x_api_key': x_api_key,
+    "accept": "application/json",
+    "client_id": client_id,
+    "x_api_key": x_api_key,
 }
 
-response = requests.get(f'{url}{endpoint}/v1', headers=headers)
+response = requests.get(f"{url}{endpoint}/v1", headers=headers)
 
 data = response.json()
 
