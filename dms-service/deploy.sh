@@ -39,6 +39,7 @@ fi
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 
+python oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
