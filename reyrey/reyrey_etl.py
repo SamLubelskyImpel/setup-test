@@ -614,7 +614,7 @@ class ReyReyUpsertJob:
                     "txn_pay_type": "RepairOrder.RoRecord.Rolabor.RoAmts._PayType",
                     "repair_order_no": "RepairOrder.RoRecord.Rogen._RoNo",
                     "advisor_name": "RepairOrder.RoRecord.Rogen._AdvName",
-                    "total_amount": "RepairOrder.RoRecord.Rogen._IntrRoTotalAmt",
+                    "internal_total_amount": "RepairOrder.RoRecord.Rogen._IntrRoTotalAmt",
                     "consumer_total_amount": "RepairOrder.RoRecord.Rogen._CustRoTotalAmt",
                     "warranty_total_amount": "RepairOrder.RoRecord.Rogen._WarrRoTotalAmt",
                     "comment": "RepairOrder.RoRecord.Rogen.RoCommentInfo._RoComment",
@@ -693,14 +693,14 @@ class ReyReyUpsertJob:
             )["_Num"][0]
             df = df.withColumn("home_phone", get_home_phone)
         if (
-            "total_amount" in df.columns
+            "internal_total_amount" in df.columns
             or "consumer_total_amount" in df.columns
             or "warranty_total_amount" in df.columns
         ):
             # Sum _IntrRoTotalAmt, _CustRoTotalAmt, and _WarrRoTotalAmt to get total_amount
             valid_columns = []
-            if "total_amount" in df.columns:
-                valid_columns.append(F.col("total_amount"))
+            if "internal_total_amount" in df.columns:
+                valid_columns.append(F.col("internal_total_amount"))
             if "consumer_total_amount" in df.columns:
                 valid_columns.append(F.col("consumer_total_amount"))
             if "warranty_total_amount" in df.columns:
