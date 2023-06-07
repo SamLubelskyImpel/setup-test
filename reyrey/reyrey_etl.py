@@ -614,6 +614,8 @@ class ReyReyUpsertJob:
                     "txn_pay_type": "RepairOrder.RoRecord.Rolabor.RoAmts._PayType",
                     "repair_order_no": "RepairOrder.RoRecord.Rogen._RoNo",
                     "advisor_name": "RepairOrder.RoRecord.Rogen._AdvName",
+                    # Total amount will be the sum of internal, consumer, and warranty at the transform stage.
+                    "total_amount": "RepairOrder.RoRecord.Rogen._IntrRoTotalAmt",
                     "internal_total_amount": "RepairOrder.RoRecord.Rogen._IntrRoTotalAmt",
                     "consumer_total_amount": "RepairOrder.RoRecord.Rogen._CustRoTotalAmt",
                     "warranty_total_amount": "RepairOrder.RoRecord.Rogen._WarrRoTotalAmt",
