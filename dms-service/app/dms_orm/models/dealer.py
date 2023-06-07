@@ -30,5 +30,4 @@ class Dealer(BaseForModels):
         return {
             key.name: getattr(self, key.name)
             for key in self.__table__.columns
-            if getattr(self, key.name) is not None
         }

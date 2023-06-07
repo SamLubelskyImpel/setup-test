@@ -39,6 +39,7 @@ class ServiceRepairOrder(BaseForModels):
     total_amount = Column(Float)
     consumer_total_amount = Column(Float)
     warranty_total_amount = Column(Float)
+    internal_total_amount = Column(Float)
     comment = Column(String)
     recommendation = Column(String)
     db_creation_date = Column(DateTime)
@@ -53,5 +54,4 @@ class ServiceRepairOrder(BaseForModels):
         return {
             key.name: getattr(self, key.name)
             for key in self.__table__.columns
-            if getattr(self, key.name) is not None
         }
