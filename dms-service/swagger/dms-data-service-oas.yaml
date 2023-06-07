@@ -659,6 +659,9 @@ components:
           warranty_total_amount:
             type: number
             format: float
+          internal_total_amount:
+            type: number
+            format: float
           comment:
             type: string
           recommendation:
