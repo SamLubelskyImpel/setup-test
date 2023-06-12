@@ -15,7 +15,8 @@ from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql.window import Window
-from pyspark.sql.types import DoubleType, StringType
+from pyspark.sql.types import DoubleType, StringType, BooleanType
+from awsglue.gluetypes import ArrayType, ChoiceType, Field, NullType, StructType
 from awsglue.dynamicframe import DynamicFrame
 
 
@@ -142,11 +143,6 @@ class RDSInstance:
         actual_vehicle_sale_columns.append("consumer_id")
         actual_vehicle_sale_columns.append("vehicle_id")
 
-        dealer_df.show()
-        dealer_df.select("days_in_stock").show()
-        dealer_df.select("cost_of_vehicle").show()
-        dealer_df.printSchema()
-
         vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
         insert_vehicle_sale_query = self.get_insert_query_from_df(
             vehicle_sale_df,
@@ -203,6 +199,83 @@ class RDSInstance:
         inserted_vehicle_ids = [x[0] for x in results.fetchall()]
         return inserted_vehicle_ids
 
+
+class DynamicFrameResolver:
+    """Resolve choices from a glue dynamic frame."""
+
+    def __init__(self, glue_context):
+        self.glue_context = glue_context
+
+    def get_resolved_choices(self, unresolved_columns):
+        """Determine how to handle unresolved columns"""
+        resolve_spec = []
+        for unresolved_column in unresolved_columns:
+            choices = unresolved_column[1].keys()
+            field_name = unresolved_column[0]
+            if "struct" in choices and "array" in choices:
+                resolve_spec.append((field_name, "make_cols"))
+            else:
+                resolve_spec.append((field_name, "cast:string"))
+        return resolve_spec
+
+    def get_unresolved_columns(self, schema):
+        """Check dynamic frame for unresolved data types."""
+        unresolved_columns = []
+
+        def _recursion(field_map, unresolved_column_names, build_name=""):
+            for field in field_map.values():
+                field_name = f"{build_name + '.' if build_name else ''}{field.name if field.name else ''}"
+
+                if isinstance(field.dataType, StructType):
+                    _recursion(
+                        field.dataType.field_map, unresolved_column_names, field_name
+                    )
+
+                if isinstance(field.dataType, ArrayType):
+                    if isinstance(field.dataType.elementType, StructType):
+                        field_name += "[]"
+                        _recursion(
+                            field.dataType.elementType.field_map,
+                            unresolved_column_names,
+                            field_name,
+                        )
+
+                    if isinstance(field.dataType.elementType, ChoiceType):
+                        unresolved_column_names.append(
+                            (field_name, field.dataType.elementType.choices)
+                        )
+
+                if isinstance(field.dataType, ChoiceType):
+                    unresolved_column_names.append((field_name, field.dataType.choices))
+
+        _recursion(schema.field_map, unresolved_columns)
+
+        # Sort most nested to least nested
+        unresolved_columns = sorted(
+            unresolved_columns, key=lambda x: len(x[0].split(".")), reverse=False
+        )
+
+        return unresolved_columns
+
+    def resolve_choices(self, df, name):
+        """Resolve nested choices inside a dynamicframe."""
+        i = 0
+        max_resolutions = 50
+        all_resolved_specs = []
+        unresolved_columns = self.get_unresolved_columns(df.schema())
+        while len(unresolved_columns) > 0:
+            if i > max_resolutions:
+                raise RuntimeError(
+                    f"Unable to resolve {name} with {unresolved_columns}"
+                )
+            resolved_spec = self.get_resolved_choices(unresolved_columns)
+            all_resolved_specs += resolved_spec
+            df = df.resolveChoice(specs=resolved_spec)
+            unresolved_columns = self.get_unresolved_columns(df.schema())
+            i += 1
+        return df
+
+
 class TekionUpsertJob:
     """Create object to perform ETL."""
 
@@ -222,6 +295,8 @@ class TekionUpsertJob:
             f"integrations-us-east-1-{'prod' if self.is_prod else 'test'}"
         )
         self.rds = RDSInstance(self.is_prod, self.integration)
+        self.resolver = DynamicFrameResolver(self.glue_context)
+        self.required_columns = []
         self.mappings = {
             "tekioncrawlerdb_deal": {
                 # TODO: get dealer_integration_partner_id from the onboarding team
@@ -235,9 +310,9 @@ class TekionUpsertJob:
                     "cell_phone": "data.customers.phones",
                     "home_phone": "data.customers.phones",
                     "addresses": "data.customers.addresses",
-                    "city": "data.customers.addresses",
-                    "state": "data.customers.addresses",
-                    "postal_code": "data.customers.addresses",
+                    "city": "data.customers.addresses.city",
+                    "state": "data.customers.addresses.state",
+                    "postal_code": "data.customers.addresses.zip",
                     "email_optin_flag": "data.customers.communicationPreferences.email",
                     "phone_optin_flag": "data.customers.communicationPreferences.call",
                     "postal_mail_optin_flag": "data.customers.communicationPreferences.mail",
@@ -255,8 +330,6 @@ class TekionUpsertJob:
                     "new_or_used": "data.vehicles.stockType"
                 },
                 "vehicle_sale": {
-                    "created_date": "data.createdTime",
-                    "days_in_stock": "",
                     "sale_date": "data.contractDate",
                     "listed_price": "data.vehicles.pricing.retailPrice.amount",
                     "sales_tax": "data.dealPayment.termPayment.totals.taxAmount.amount",
@@ -309,6 +382,7 @@ class TekionUpsertJob:
                     "total_amount": "data.invoice.invoiceAmount",
                     "consumer_total_amount": "data.invoice.customerPay.amount",
                     "warranty_total_amount": "data.invoice.warrantyPay.amount",
+                    "internal_total_amount": "data.invoice.internalPay.amount",
                     "comment": "data.jobs.concern"
                 }
             }
@@ -374,100 +448,97 @@ class TekionUpsertJob:
             .collect()
         )
 
-        logging.warning(f"Processing data: {valid_data_json}")
-
         # Select columns raw data by mapping
         table_data = self.select_columns(valid_data, self.mappings[catalog_name])
         return table_data
-  
+
+    def extract_first_item_from_array(self, df, column_name):
+        df = df.withColumn(column_name, F.when(F.size(column_name) > 0, F.col(column_name).getItem(0)).otherwise(None))
+        return df
+
+    def extract_first_item_from_nested_array(self, df, column_name):
+        df = df.withColumn(column_name, F.when(F.size(F.col(column_name)) > 0, F.col(column_name).getItem(0).getItem(0)).otherwise(None))
+        return df
+
+    def filter_phone_type(self, df, field_name, column_name, phone_type):
+        df = df.withColumn(column_name, F.expr(f"filter(phones, x -> x.{field_name} = '{phone_type}')[0].number"))
+        return df
+
+    def set_optin_flag(self, df, flag_column, communication_type):
+        if flag_column in df.columns:
+            optin_service_expr = f"customers.communicationPreferences.{communication_type}.isOptInService"
+            optin_marketing_expr = f"customers.communicationPreferences.{communication_type}.isOptInMarketing"
+
+            df = df.withColumn(flag_column,
+                F.when((F.col(optin_service_expr) == True) |
+                    (F.col(optin_marketing_expr) == True),
+                    True).otherwise(False))
+        return df
+
+    def convert_unix_to_timestamp(self, df, column_name):
+        df = df.withColumn(column_name, F.from_unixtime(F.col(column_name).cast("double") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
+        return df
+
     def format_df(self, df, catalog_name):
         """Format the raw data to match the database schema."""
         starting_count = df.count()
         df = df.withColumn("dms_id", F.lit("techmotors_4"))
+        df.show()
         if catalog_name == "tekioncrawlerdb_deal":
             if "customers" in df.columns:
-                df = df.withColumn("first_name", F.col("customers")[0]["firstName"])
-                df = df.withColumn("last_name", F.col("customers")[0]["lastName"])
-                df = df.withColumn("email", F.col("customers")[0]["emails"][0]["emailId"])
+                df = self.extract_first_item_from_array(df, "customers")
+                df = self.extract_first_item_from_array(df, "first_name")
+                df = self.extract_first_item_from_array(df, "last_name")
+                df = self.extract_first_item_from_nested_array(df, "email")
+                df = df.withColumn("email", (F.col("email.emailId")))
             if "phones" in df.columns:
-                df = df.withColumn('phones', F.col("customers")[0]["phones"])
-                df = df.withColumn('home_phone', F.expr("filter(phones, x -> x.type = 'HOME')[0].number"))
-                df = df.withColumn('cell_phone', F.expr("filter(phones, x -> x.type = 'CELL')[0].number"))
+                df = self.extract_first_item_from_array(df, "phones")
+                df = self.filter_phone_type(df, 'type', 'home_phone', 'HOME')
+                df = self.filter_phone_type(df, 'type', 'cell_phone', 'CELL')
                 df = df.drop("phones")
             if "addresses" in df.columns:
-                df = df.withColumn('city', F.col('customers').getItem(0).getField('addresses').getItem(0).getField('city'))
-                df = df.withColumn('state', F.col('customers').getItem(0).getField('addresses').getItem(0).getField('state'))
-                df = df.withColumn('postal_code', F.col('customers').getItem(0).getField('addresses').getItem(0).getField('zip'))
+                df = self.extract_first_item_from_nested_array(df, "addresses")
+                df = df.withColumn('city', F.col('addresses.city'))
+                df = df.withColumn('state', F.col('addresses.state'))
+                df = df.withColumn('zip', F.col('addresses.zip'))
                 df = df.drop("addresses")
             if "email_optin_flag" in df.columns:
-                df = df.withColumn("email_optin_flag", 
-                        F.when((F.col("customers")[0]["communicationPreferences"]["email"]["isOptInService"] == True) |
-                            (F.col("customers")[0]["communicationPreferences"]["email"]["isOptInMarketing"] == True),
-                            True).otherwise(False))
+                df = self.set_optin_flag(df, "email_optin_flag", "email")
             if "phone_optin_flag" in df.columns:
-                df = df.withColumn("phone_optin_flag", 
-                    F.when((F.col("customers")[0]["communicationPreferences"]["call"]["isOptInService"] == True) |
-                            (F.col("customers")[0]["communicationPreferences"]["call"]["isOptInMarketing"] == True),
-                            True).otherwise(False))
+                df = self.set_optin_flag(df, "phone_optin_flag", "call")
             if "sms_optin_flag" in df.columns:
-                df = df.withColumn("sms_optin_flag", 
-                    F.when((F.col("customers")[0]["communicationPreferences"]["text"]["isOptInService"] == True) |
-                            (F.col("customers")[0]["communicationPreferences"]["text"]["isOptInMarketing"] == True),
-                            True).otherwise(False))
+                df = self.set_optin_flag(df, "sms_optin_flag", "text")
             if "postal_mail_optin_flag" in df.columns:
-                df = df.withColumn("postal_mail_optin_flag", 
-                    F.when((F.col("customers")[0]["communicationPreferences"]["mail"]["isOptInService"] == True) |
-                            (F.col("customers")[0]["communicationPreferences"]["mail"]["isOptInMarketing"] == True),
-                            True).otherwise(False))
+                df = self.set_optin_flag(df, "postal_mail_optin_flag", "mail")
             if "vehicles" in df.columns:
-                df = df.withColumn("vin", F.col("vehicles")[0]["vin"])
-                df = df.withColumn("make", F.col("vehicles")[0]["make"])
-                df = df.withColumn("type", F.col("vehicles")[0]["stockType"])
-                df = df.withColumn("mileage", F.col("vehicles")[0]["mileage"]["value"])
-                df = df.withColumn("model", F.col("vehicles")[0]["model"])
-                df = df.withColumn("year", F.col("vehicles")[0]["year"])
-                df = df.withColumn("new_or_used", F.when(F.col("vehicles")[0]["stockType"] == "NEW", "N").otherwise("U"))
-                df = df.withColumn("vehicle_class", F.col("vehicles")[0]["trimDetails"]["bodyClass"])
+                columns_to_extract_first_item = ["vehicles", "vin", "make", "model", "year"]
+                for column_name in columns_to_extract_first_item:
+                    df = self.extract_first_item_from_array(df, column_name)
+                df = df.withColumn('type', F.col('vehicles.stockType'))
+                df = df.withColumn('mileage', F.col('vehicles.mileage.value'))
+                df = df.withColumn("new_or_used", F.when(F.col("vehicles.stockType") == "NEW", "N").otherwise("U"))
+                df = df.withColumn("vehicle_class", F.col("vehicles.trimDetails.bodyClass"))
             if "sale_date" in df.columns:
-                df = df.withColumn("sale_date", F.from_unixtime(F.col("sale_date").getField("long") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
-                df = df.withColumn("sales_tax", F.col("sales_tax")["double"])
-                df = df.withColumn("listed_price", F.col("listed_price")[0])
-                df = df.withColumn("mileage_on_vehicle", F.col("mileage_on_vehicle")[0])
-                df = df.withColumn("cost_of_vehicle", F.coalesce(
-                    F.col("cost_of_vehicle")["double"][0],
-                    F.col("cost_of_vehicle")["int"][0].cast(DoubleType())
-                ))
-                df = df.withColumn("oem_msrp", F.col("oem_msrp")[0])
-                df = df.withColumn("adjustment_on_price", F.col("adjustment_on_price")[0])
-                df = df.withColumn("vin", F.col("vehicles")[0]["vin"])
-                
-                df = df.withColumn("sold_date", F.from_unixtime(F.col("vehicles")[0]["soldTime"]["long"] / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
-                df = df.withColumn("created_date", F.from_unixtime(F.col("created_date") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
-                
-                df = df.withColumn("days_in_stock",
-                    F.when(F.col("sold_date").isNull() | F.col("created_date").isNull(), None)
-                    .otherwise(F.abs(F.datediff(F.col("sold_date"), F.col("created_date")))))
-                
-                df = df.withColumn("payoff_on_trade", F.col("payoff_on_trade")[0])
-                df = df.withColumn("profit_on_sale", F.col("profit_on_sale")[0])
+                columns_to_extract_first_item = ["listed_price", "mileage_on_vehicle", "oem_msrp",
+                                                 "payoff_on_trade", "profit_on_sale",
+                                                 "adjustment_on_price", "vehicle_gross", "cost_of_vehicle"]
+                for column_name in columns_to_extract_first_item:
+                    df = self.extract_first_item_from_array(df, column_name)
+                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value'))
                 df = df.withColumn("has_service_contract", F.expr("array_contains(deal_payment.fnIs.disclosureType, 'SERVICE_CONTRACT')"))
-                df = df.withColumn("vehicle_gross", F.col("vehicle_gross")[0])
-                df = df.withColumn("delivery_date", F.from_unixtime(F.col("delivery_date").getField("long") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
-                df = df.withColumn("finance_rate", F.coalesce(
-                    F.col("deal_payment")["termPayment"]["apr"]["apr"]["double"].cast(StringType()),
-                    F.col("deal_payment")["termPayment"]["apr"]["apr"]["int"].cast(StringType())
-                ))
-
-            df = df.drop("vehicles", "customers", "deal_payment", "sold_date", "created_date")
+                df = self.convert_unix_to_timestamp(df, "sale_date")
+                df = self.convert_unix_to_timestamp(df, "delivery_date")
+                df = df.withColumn("finance_rate", F.col("finance_rate.apr.apr"))
+            df = df.drop("customers", "vehicles", "deal_payment")
 
         if catalog_name == "tekioncrawlerdb_repair_order":
             if "phones" in df.columns:
-                df = df.withColumn('home_phone', F.expr("filter(phones, x -> x.phoneType = 'HOME')[0].number"))
-                df = df.withColumn('cell_phone', F.expr("filter(phones, x -> x.phoneType = 'MOBILE')[0].number"))
+                df = self.filter_phone_type(df, 'phoneType', 'home_phone', 'HOME')
+                df = self.filter_phone_type(df, 'phoneType', 'cell_phone', 'MOBILE')
                 df = df.drop("phones")
             if "ro_open_date" in df.columns:
-                df = df.withColumn("ro_open_date", F.from_unixtime(F.col("ro_open_date") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
-                df = df.withColumn("ro_close_date", F.from_unixtime(F.col("ro_close_date") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
+                df = self.convert_unix_to_timestamp(df, "ro_open_date")
+                df = self.convert_unix_to_timestamp(df, "ro_close_date")
                 df = df.withColumn("txn_pay_type", F.concat_ws(", ", F.array_distinct(F.col("txn_pay_type"))))
                 df = df.withColumn("advisor_name", F.concat(F.col("advisor_first_name")[0], F.lit(" "), F.col("advisor_last_name")[0]))
                 df = df.withColumn("comment", F.concat_ws(", ", F.array_distinct(F.col("comment"))))
@@ -632,32 +703,41 @@ class TekionUpsertJob:
                 transformation_ctx=f"context_{catalog_name}",
             )
 
-            if datasource.filter(lambda row: row[main_column_name] is not None).count() == 0:
+            if (
+                datasource.filter(lambda row: row[main_column_name] is not None).count()
+                == 0
+            ):
                 logger.info("No new data to parse")
                 return
 
-            if datasource.count() != 0:
-                df = (
-                    datasource.toDF()
-                    .withColumnRenamed("partition_0", "Year")
-                    .withColumnRenamed("partition_1", "Month")
-                    .withColumnRenamed("partition_2", "Date")
-                )
+            # Rename partitions from s3
+            datasource = (
+                datasource.withColumnRenamed("partition_0", "Year")
+                .withColumnRenamed("partition_1", "Month")
+                .withColumnRenamed("partition_2", "Date")
+            )
+
+            # Resolve choices, flatten dataframe
+            datasource = self.resolver.resolve_choices(
+                datasource, main_column_name
+            ).toDF()
+
+            datasource.printSchema()
 
             # Get the base fields in a df via self.mappings
-            mapped_df = self.apply_mappings(df, catalog_name)
+            datasource = self.apply_mappings(datasource, catalog_name)
 
             # Format necessary base fields to get a standardized df format
-            formatted_df = self.format_df(mapped_df, catalog_name)
+            datasource = self.format_df(datasource, catalog_name)
             
             # Convert the DataFrame back to a DynamicFrame (testing)
-            dynamic_frame = DynamicFrame.fromDF(formatted_df, self.glue_context, "dynamic_frame")
+            dynamic_frame = DynamicFrame.fromDF(datasource, self.glue_context, "dynamic_frame")
             
             # Write out the result dataset to S3 (testing)
-            self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": self.bucket_name}, format="json")
+            self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": "s3://integrations-etl-test/tekion/results/"}, format="json")
 
             # Insert tables to database
-            upsert_count = self.upsert_df(formatted_df, catalog_name)
+            # self.upsert_df(datasource, catalog_name)
             
             self.job.commit()
 

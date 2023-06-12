@@ -99,7 +99,6 @@ Resources:
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                     ]
-                  - !Sub "arn:aws:s3:::elena-temp-test/*"
         - PolicyName: TekionSSMPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -237,7 +236,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-disable'
+        '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryDeal/',
                       's3://integrations-etl-test/temporaryDeal/'
@@ -270,7 +269,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-disable'
+        '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryRO/',
                       's3://integrations-etl-test/temporaryRO/'
