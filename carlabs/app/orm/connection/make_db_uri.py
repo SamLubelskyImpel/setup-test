@@ -1,10 +1,10 @@
-from typing import Literal
 from json import loads
 import boto3
 import os
 
 
-IS_PROD = os.environ.get('ENVIRONMENT') == 'prod'
+ENVIRONMENT = os.environ.get('ENVIRONMENT')
+IS_PROD = ENVIRONMENT == 'prod'
 SM_CLIENT = boto3.client('secretsmanager')
 
 
@@ -14,10 +14,8 @@ def __get_db_secret(secret_id):
 
 
 dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/DMSDB')
-carlabs_di_secret = __get_db_secret(
-    f'{"prod" if IS_PROD else "test"}/carlabs/data_integrations')
-carlabs_analytics_secret = __get_db_secret(
-    f'{"prod" if IS_PROD else "test"}/carlabs/analytics')
+carlabs_di_secret = __get_db_secret(f'carlabs/data_integrations_{ENVIRONMENT}')
+carlabs_analytics_secret = __get_db_secret(f'carlabs/analytics_{ENVIRONMENT}')
 
 
 DB = {

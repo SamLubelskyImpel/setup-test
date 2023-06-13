@@ -19,7 +19,6 @@ class TransformedData:
 class RepairOrderETL:
 
     last_id: str
-    day: date
     limit: int
 
     _finished: bool = field(init=False, default=False)
@@ -41,7 +40,6 @@ class RepairOrderETL:
     def _extract_from_carlabs(self):
         with SQLSession(db='CARLABS_ANALYTICS') as carlabs_session:
             records = carlabs_session.query(RepairOrder).where(
-                (RepairOrder.db_creation_date > self.day) &
                 (RepairOrder.id > self.last_id)
             ).order_by(
                 RepairOrder.id.asc()

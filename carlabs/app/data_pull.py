@@ -11,12 +11,14 @@ _logger.setLevel(os.environ['LOGLEVEL'])
 
 
 def sales_history(event, context):
+    if datetime.utcnow().hour == 4:
+        return { 'etl_finished': True }
+
     last_id = load_progress('sales_history_progress')
-    limit = 2
+    limit = 10
 
     etl = SalesHistoryETL(
         last_id=last_id,
-        day=datetime.today().date(),
         limit=limit)
     etl.run()
 
@@ -28,12 +30,14 @@ def sales_history(event, context):
 
 
 def repair_order(event, context):
+    if datetime.utcnow().hour == 4:
+        return { 'etl_finished': True }
+
     last_id = load_progress('repair_order_progress')
     limit = 1000
 
     etl = RepairOrderETL(
         last_id=last_id,
-        day=datetime.today().date(),
         limit=limit)
     etl.run()
 

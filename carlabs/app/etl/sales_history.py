@@ -6,6 +6,8 @@ from orm.models.shared_dms import Consumer, Vehicle, VehicleSale, ServiceContrac
 from dataclasses import dataclass, field
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
+from sqlalchemy.sql import func
+from sqlalchemy import Integer
 
 
 @dataclass
@@ -20,7 +22,6 @@ class TransformedData:
 class SalesHistoryETL:
 
     last_id: str
-    day: date
     limit: int
 
     _finished: bool = field(init=False, default=False)
@@ -43,7 +44,7 @@ class SalesHistoryETL:
         with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
             records = carlabs_session.query(DataImports).where(
                 (DataImports.dataType == 'SALES') &
-                (DataImports.creationDate > self.day) &
+                (func.json_array_length(DataImports.importedData).cast(Integer) > 0) &
                 (DataImports.id > self.last_id)
             ).order_by(
                 DataImports.id.asc()
@@ -98,7 +99,7 @@ class SalesHistoryETL:
                 publish_failure(
                     record=r.as_dict(),
                     err=traceback.format_exc(),
-                    table='sales_history')
+                    table='dataImports')
                 self._failed += 1
             finally:
                 save_progress(r.id, 'sales_history_progress')
