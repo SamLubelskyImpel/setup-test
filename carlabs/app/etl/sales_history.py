@@ -8,6 +8,7 @@ from utils import save_progress, publish_failure, get_dealer_integration_partner
 import traceback
 from sqlalchemy.sql import func
 from sqlalchemy import Integer
+from datetime import datetime
 
 
 @dataclass
@@ -27,6 +28,7 @@ class SalesHistoryETL:
     _finished: bool = field(init=False, default=False)
     _loaded: int = field(init=False, default=0)
     _failed: int = field(init=False, default=0)
+    _started_at: datetime = field(init=False, default_factory=datetime.utcnow)
 
     @property
     def finished(self):
@@ -91,6 +93,10 @@ class SalesHistoryETL:
     def run(self):
         records = self._extract_from_carlabs()
         for r in records:
+            # Break execution if it reaches 10 mins
+            if (datetime.utcnow() - self._started_at).seconds >= 600:
+                return
+
             try:
                 transformed = self._transform(r)
                 self._load_into_dms(transformed)
