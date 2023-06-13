@@ -15,7 +15,7 @@ def sales_history(event, context):
         return { 'etl_finished': True }
 
     last_id = load_progress('sales_history_progress')
-    limit = 10
+    limit = 20
 
     etl = SalesHistoryETL(
         last_id=last_id,
