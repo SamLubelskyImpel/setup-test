@@ -112,8 +112,8 @@ Resources:
               Action: secretsmanager:GetSecretValue
               Resource:
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/data_integrations*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/data_integrations*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/analytics*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/analytics*']
+                - !Ref CarlabsDataIntegrationsSecrets
+                - !Ref CarlabsAnalyticsSecrets
 
   RepairOrderETLFunction:
     Type: AWS::Serverless::Function
@@ -143,8 +143,8 @@ Resources:
               Action: secretsmanager:GetSecretValue
               Resource:
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/data_integrations*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/data_integrations*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/carlabs/analytics*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/carlabs/analytics*']
+                - !Ref CarlabsDataIntegrationsSecrets
+                - !Ref CarlabsAnalyticsSecrets
 
   CarlabsETLBucket:
     Type: AWS::S3::Bucket
@@ -312,8 +312,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Nightly trigger for SalesHistoryETLStateMachine
-      ScheduleExpression: cron(0 19 * * ? *)  # Schedule for 7pm every day
-      State: !If [IsProd, ENABLED, DISABLED]
+      ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm every day
+      # State: !If [IsProd, ENABLED, DISABLED]
       Targets:
         - Arn: !GetAtt SalesHistoryETLStateMachine.Arn
           Id: SalesHistoryETLStateMachine
@@ -324,8 +324,20 @@ Resources:
     Properties:
       Description: Nightly trigger for RepairOrderETLStateMachine
       ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm every day
-      State: !If [IsProd, ENABLED, DISABLED]
+      # State: !If [IsProd, ENABLED, DISABLED]
       Targets:
         - Arn: !GetAtt RepairOrderETLStateMachine.Arn
           Id: RepairOrderETLStateMachine
           RoleArn: !GetAtt StateMachineTriggerRole.Arn
+
+  CarlabsDataIntegrationsSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'carlabs/data_integrations_${Environment}'
+      Description: 'Credentials to Carlabs data_integrations database.'
+
+  CarlabsAnalyticsSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'carlabs/analytics_${Environment}'
+      Description: 'Credentials to Carlabs platform_analytics_db database.'
