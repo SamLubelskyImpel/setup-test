@@ -19,7 +19,7 @@ def parsed_date(date_format: str, raw_date: str) -> date:
 def parsed_int(v) -> int:
     if isinstance(v, str):
         v = v.replace(',', '')
-    int(v) if v else None
+    return int(v) if v else None
 
 
 def save_progress(id: str, key: str):

@@ -56,7 +56,7 @@ def map_sale(record: DataImports, dip_id: int):
             sale.has_service_contract = len(
                 imported_data['deal']['detail']['ServiceContracts']) != 0
     elif record.dataSource == 'DEALERVAULT':
-        date_format = '%Y%m%d'
+        date_format = '%m/%d/%Y'
         sale.sale_date = parsed_date(
             date_format, imported_data['Contract Date'])
         sale.listed_price = imported_data['List Price']
