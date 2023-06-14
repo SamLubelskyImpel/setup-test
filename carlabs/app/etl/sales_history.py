@@ -46,7 +46,6 @@ class SalesHistoryETL:
         with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
             records = carlabs_session.query(DataImports).where(
                 (DataImports.dataType == 'SALES') &
-                (func.json_array_length(DataImports.importedData).cast(Integer) > 0) &
                 (DataImports.id > self.last_id)
             ).order_by(
                 DataImports.id.asc()

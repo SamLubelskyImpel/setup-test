@@ -239,7 +239,7 @@ Resources:
       AlarmDescription: "Alarm for SalesHistoryETLStateMachine failures"
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 1
-      MetricName: ExecutionFailed
+      MetricName: ExecutionsFailed
       Namespace: AWS/States
       Period: 86400 # 24 hours
       Statistic: SampleCount
@@ -257,7 +257,7 @@ Resources:
       AlarmDescription: "Alarm for RepairOrderETLStateMachine failures"
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 1
-      MetricName: ExecutionFailed
+      MetricName: ExecutionsFailed
       Namespace: AWS/States
       Period: 86400 # 24 hours
       Statistic: SampleCount
@@ -266,24 +266,6 @@ Resources:
         - Name: StateMachineArn
           Value: !Ref RepairOrderETLStateMachine
       # ActionsEnabled: !If [IsProd, true, false]
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-
-  ETLFailuresAlarm:
-    Type: 'AWS::CloudWatch::Alarm'
-    Properties:
-      AlarmName: carlabs-etl-failure
-      AlarmDescription: Alarm triggered when messages are published to the queue
-      Namespace: AWS/SQS
-      MetricName: ApproximateNumberOfMessagesVisible
-      Dimensions:
-        - Name: QueueName
-          Value: !Ref ETLFailuresQueue
-      Statistic: Sum
-      Period: 86400 # 24 hours
-      EvaluationPeriods: 1
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
 
