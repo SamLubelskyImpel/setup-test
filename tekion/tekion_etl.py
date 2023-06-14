@@ -421,31 +421,12 @@ class TekionUpsertJob:
         else:
             raise RuntimeError(f"Unexpected catalog {catalog_name}")
 
-        # Log data with null values
-        null_data = df.filter(F.col(f"{data_column_name}").isNull()).select(
-            "Year",
-            "Month",
-            "Date",
-        )
-        null_data_json = null_data.toJSON().collect()
-        logging.warning(f"Skip processing null data: {null_data_json}")
-
-        # Log and select data without null values
+        # Select data without null values
         valid_data = df.filter(F.col(f"{data_column_name}").isNotNull()).select(
             "Year",
             "Month",
             "Date",
             F.explode(f"{data_column_name}").alias(data_column_name),
-        )
-
-        valid_data_json = (
-            valid_data.select(
-                "Year",
-                "Month",
-                "Date",
-            )
-            .toJSON()
-            .collect()
         )
 
         # Select columns raw data by mapping
