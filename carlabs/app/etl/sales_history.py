@@ -29,6 +29,7 @@ class SalesHistoryETL:
     _loaded: int = field(init=False, default=0)
     _failed: int = field(init=False, default=0)
     _started_at: datetime = field(init=False, default_factory=datetime.utcnow)
+    _extracted: int = field(init=False, default=0)
 
     @property
     def finished(self):
@@ -43,24 +44,30 @@ class SalesHistoryETL:
         return self._failed
 
     def _extract_from_carlabs(self):
-        with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
-            records = carlabs_session.query(DataImports).where(
-                (DataImports.dataType == 'SALES') &
-                (DataImports.id > self.last_id)
-            ).order_by(
-                DataImports.id.asc()
-            ).limit(self.limit + 1)
+        while self._extracted < self.limit:
+            with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
+                records = carlabs_session.query(DataImports).where(
+                    (DataImports.dataType == 'SALES') &
+                    (DataImports.id > self.last_id)
+                ).order_by(
+                    DataImports.id.asc()
+                ).offset(self._extracted).limit(1)
 
-            self._finished = records.count() <= self.limit
+                record = records[0]
 
-            for r in records[:self.limit]:
-                if isinstance(r.importedData, list):
-                    for i_data in r.importedData:
-                        di_copy = DataImports(**r.as_dict())
+                if not record:
+                    self.finished = True
+                    return
+
+                if isinstance(record.importedData, list):
+                    for i_data in record.importedData:
+                        di_copy = DataImports(**record.as_dict())
                         di_copy.importedData = i_data
                         yield di_copy
                 else:
-                    yield r
+                    yield record
+
+            self._extracted += 1
 
     def _load_into_dms(self, transformed: TransformedData):
         with SQLSession(db='SHARED_DMS') as dms_session:

@@ -91,7 +91,7 @@ Resources:
       CodeUri: app
       Handler: data_pull.sales_history
       Timeout: 900
-      MemorySize: 2048
+      MemorySize: 4096
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
