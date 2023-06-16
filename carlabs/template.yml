@@ -155,7 +155,7 @@ Resources:
   ETLFailuresQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'etl-failures-queue-${Environment}'
+      QueueName: !Sub 'carlabs-etl-failures-queue-${Environment}'
 
   StepFunctionRole:
     Type: 'AWS::IAM::Role'
@@ -295,7 +295,7 @@ Resources:
     Properties:
       Description: Nightly trigger for SalesHistoryETLStateMachine
       ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm every day
-      State: !If [IsProd, ENABLED, DISABLED]
+      State: !If [IsProd, DISABLED, DISABLED]
       Targets:
         - Arn: !GetAtt SalesHistoryETLStateMachine.Arn
           Id: SalesHistoryETLStateMachine
@@ -306,7 +306,7 @@ Resources:
     Properties:
       Description: Nightly trigger for RepairOrderETLStateMachine
       ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm every day
-      State: !If [IsProd, ENABLED, DISABLED]
+      State: !If [IsProd, DISABLED, DISABLED]
       Targets:
         - Arn: !GetAtt RepairOrderETLStateMachine.Arn
           Id: RepairOrderETLStateMachine
