@@ -1,0 +1,673 @@
+openapi: 3.0.1
+info:
+  title: dms data service
+  version: 1.0.0
+  description: |-
+    All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
+servers:
+  - url: https://dms-service.testenv.impel.io
+    description: Impel test environment endpoint.
+  - url: https://dms-service.impel.io
+    description: Impel prod environment endpoint.
+#{{DMS_DATA_SERVICE_AWS_VALIDATION}}
+paths:
+  /repair-order/v1:
+    get:
+      summary: Get DMS repair order data.
+      operationId: get-repair-order
+      description: |-
+        This API endpoint enables the retrieval of DMS repair order data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by SpinCar
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel of the repair order to query for.
+      - schema:
+          type: string
+        in: query
+        name: dms_id
+        required: false
+        description: The id of the dealer assigned by the dms of the repair order to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the DMS assigned by Impel of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_start
+        required: false
+        description: The earliest db_creation_date of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: ro_open_date_start
+        required: false
+        description: The earliest ro_open_date of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: ro_open_date_end
+        required: false
+        description: The latest ro_open_date of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: ro_close_date_start
+        required: false
+        description: The earliest ro_close_date of the repair order to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: ro_close_date_end
+        required: false
+        description: The latest ro_close_date of the repair order to query for in YYYY-MM-DD format.
+      - schema:
+          type: string
+        in: query
+        name: repair_order_no
+        required: false
+        description: The repair order number to query for.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  next_fetch_key:
+                    type: string
+                  repair_orders:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/RepairOrderResponse"
+                  received_date_utc:
+                    type: string
+                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
+                    format: date-time
+                    example: '2021-11-19T16:57:31+0000'
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{REPAIR_ORDER_LAMBDA_INFO}}
+  /vehicle-sale/v1:
+    get:
+      summary: Get DMS vehicle sale data.
+      operationId: get-vehicle-sale
+      description: |-
+        This API endpoint enables the retrieval of DMS vehicle sale data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by SpinCar
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel of the repair order to query for.
+      - schema:
+          type: string
+        in: query
+        name: dms_id
+        required: false
+        description: The id of the dealer assigned by the dms of the vehicle sale to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the DMS assigned by Impel of the vehicle sale to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_start
+        required: false
+        description: The earliest db_creation_date of the vehicle sale to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the vehicle sale to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: sale_date_start
+        required: false
+        description: The earliest sale_date of the vehicle sale to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: sale_date_end
+        required: false
+        description: The latest sale_date of the vehicle sale to query for in YYYY-MM-DD format.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  next_fetch_key:
+                    type: string
+                  vehicle_sales:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/VehicleSaleResponse"
+                  received_date_utc:
+                    type: string
+                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
+                    format: date-time
+                    example: '2021-11-19T16:57:31+0000'
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{VEHICLE_SALE_LAMBDA_INFO}}
+  /dealer/v1:
+    get:
+      summary: Get DMS dealer data.
+      operationId: get-dealer
+      description: |-
+        This API endpoint enables the retrieval of DMS dealer data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by SpinCar
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel of the repair order to query for.
+      - schema:
+          type: string
+        in: query
+        name: dms_id
+        required: false
+        description: The id of the dealer assigned by the dms to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the DMS assigned by Impel to query for.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  next_fetch_key:
+                    type: string
+                  dealers:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/DealerResponse"
+                  received_date_utc:
+                    type: string
+                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
+                    format: date-time
+                    example: '2021-11-19T16:57:31+0000'
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{DEALER_LAMBDA_INFO}}
+components:
+  schemas:
+    RepairOrderResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/RepairOrder'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  consumer:
+                    $ref: '#/components/schemas/Consumer'
+              - type: object
+                properties:
+                  op_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpCode'
+    VehicleSaleResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/VehicleSale'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  consumer:
+                    $ref: '#/components/schemas/Consumer'
+        has_next_page:
+          type: boolean
+    DealerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+        has_next_page:
+          type: boolean
+    IntegrationPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        impel_integration_partner_id:
+          type: string
+        type:
+          type: string
+        db_creation_date:
+          type: string
+          format: date-time
+    Dealer:
+      type: object
+      properties:
+        id:
+          type: integer
+        sfdc_account_id:
+          type: integer
+        dealer_group_id:
+          type: integer
+        impel_dealer_id:
+          type: string
+        location_name:
+          type: string
+        state:
+          type: string
+        city:
+          type: string
+        zip_code:
+          type: string
+        db_creation_date:
+          type: string
+          format: date-time
+    DealerIntegrationPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        integration_partner_id:
+          type: integer
+        dealer_id:
+          type: integer
+        dms_id:
+          type: string
+        is_active:
+          type: boolean
+        db_creation_date:
+          type: string
+          format: date-time
+    OpCode:
+      type: object
+      properties:
+        id:
+          type: integer
+        op_code:
+            type: string
+        op_code_desc:
+            type: string
+        dealer_integration_partner_id:
+            type: string
+    Consumer:
+      type: object
+      properties:
+        id:
+          type: integer
+        dealer_integration_partner_id:
+            type: string
+        dealer_customer_no:
+            type: string
+        first_name:
+            type: string
+        last_name:
+            type: string
+        email:
+            type: string
+        ip_address:
+            type: string
+        cell_phone:
+            type: string
+        city:
+            type: string
+        state:
+            type: string
+        metro:
+            type: string
+        postal_code:
+            type: string
+        home_phone:
+            type: string
+        email_optin_flag:
+            type: boolean
+        phone_optin_flag:
+            type: boolean
+        postal_mail_optin_flag:
+            type: boolean
+        sms_optin_flag:
+            type: boolean
+        db_creation_date:
+          type: string
+          format: date-time
+        metadata:
+            type: string
+        master_consumer_id:
+            type: string
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: integer
+        vin:
+            type: string
+        oem_name:
+            type: string
+        type:
+            type: string
+        vehicle_class:
+            type: string
+        mileage:
+            type: string
+        make:
+            type: string
+        model:
+            type: string
+        year:
+            type: string
+        db_creation_date:
+            type: string
+            format: date-time
+        dealer_integration_partner_id:
+            type: integer
+        new_or_used:
+            type: string
+        metadata:
+            type: string
+    VehicleSale:
+      type: object
+      properties:
+        id:
+          type: integer
+        dealer_id:
+            type: integer
+        vehicle_id:
+          type: integer
+        consumer_id:
+          type: integer
+        sale_date:
+          type: string
+          format: date
+          example: '2021-11-19'
+        listed_price:
+          type: number
+          format: float
+        sales_tax:
+          type: number
+          format: float
+        mileage_on_vehicle:
+          type: integer
+        deal_type:
+          type: string
+        cost_of_vehicle:
+          type: number
+          format: float
+        oem_msrp:
+          type: number
+          format: float
+        discount_on_price:
+          type: number
+          format: float
+        days_in_stock:
+          type: integer
+        date_of_state_inspection:
+          type: string
+          format: date
+          example: '2021-11-19'
+        is_new:
+          type: boolean
+        trade_in_value:
+          type: number
+          format: float
+        payoff_on_trade:
+          type: number
+          format: float
+        value_at_end_of_lease:
+          type: number
+          format: float
+        miles_per_year:
+          type: integer
+        profit_on_sale:
+          type: number
+          format: float
+        has_service_contract:
+          type: boolean
+        vehicle_gross:
+          type: number
+          format: float
+        warranty_expiration_date:
+          type: string
+          format: date
+          example: '2021-11-19'
+        service_package:
+          type: string
+        extended_warranty:
+          type: string
+    RepairOrder:
+        type: object
+        properties:
+          id:
+            type: integer
+          dealer_integration_partner_id:
+            type: integer
+          consumer_id:
+            type: integer
+          vehicle_id:
+            type: integer
+          ro_open_date:
+            type: string
+            format: date-time
+            example: '2021-11-19T16:57:31+0000'
+          ro_close_date:
+            type: string
+            format: date-time
+            example: '2021-11-19T16:57:31+0000'
+          txn_pay_type:
+            type: integer
+          repair_order_no:
+            type: string
+          advisor_name:
+            type: string
+          total_amount:
+            type: number
+            format: float
+          consumer_total_amount:
+            type: number
+            format: float
+          warranty_total_amount:
+            type: number
+            format: float
+          internal_total_amount:
+            type: number
+            format: float
+          comment:
+            type: string
+          recommendation:
+            type: string
+          db_creation_date:
+              type: string
+              format: date-time
+          metadata:
+              type: string
