@@ -15,8 +15,7 @@ from awsglue.job import Job
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql.window import Window
-from pyspark.sql.types import DoubleType, StringType, BooleanType
-from awsglue.gluetypes import ArrayType, ChoiceType, Field, NullType, StructType
+from awsglue.gluetypes import ArrayType, ChoiceType, StructType
 from awsglue.dynamicframe import DynamicFrame
 
 
@@ -718,7 +717,7 @@ class TekionUpsertJob:
             self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": "s3://integrations-etl-test/tekion/results/"}, format="json")
 
             # Insert tables to database
-            # self.upsert_df(datasource, catalog_name)
+            self.upsert_df(datasource, catalog_name)
             
             self.job.commit()
 
