@@ -1,7 +1,7 @@
 from datetime import datetime, date
 import boto3
 import os
-from orm.models.shared_dms import DealerIntegrationPartner, IntegrationPartner
+from orm.models.shared_dms import DealerIntegrationPartner, IntegrationPartner, Dealer
 from orm.connection.session import SQLSession
 
 
@@ -71,10 +71,13 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> Dea
         ).join(
             IntegrationPartner,
             DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+        ).join(
+            Dealer,
+            DealerIntegrationPartner.dealer_id == Dealer.id
         ).where(
-            DealerIntegrationPartner.dms_id.ilike(dealer_code) &
-            IntegrationPartner.impel_integration_partner_id.ilike(data_source) &
-            DealerIntegrationPartner.is_active
+            (IntegrationPartner.impel_integration_partner_id.ilike(data_source)) &
+            (DealerIntegrationPartner.is_active) &
+            (Dealer.impel_dealer_id == dealer_code)
         ).first()
 
         if not dip:

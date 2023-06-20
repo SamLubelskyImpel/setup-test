@@ -5,3 +5,4 @@ from .service_contract import ServiceContract
 from .service_repair_order import ServiceRepairOrder
 from .vehicle_sale import VehicleSale
 from .vehicle import Vehicle
+from .dealer import Dealer

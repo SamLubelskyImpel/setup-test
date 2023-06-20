@@ -6,8 +6,6 @@ from orm.models.shared_dms import Consumer, Vehicle, VehicleSale, ServiceContrac
 from dataclasses import dataclass, field
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
-from sqlalchemy.sql import func
-from sqlalchemy import Integer
 from datetime import datetime
 
 
@@ -48,7 +46,8 @@ class SalesHistoryETL:
             with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
                 records = carlabs_session.query(DataImports).where(
                     (DataImports.dataType == 'SALES') &
-                    (DataImports.id > self.last_id)
+                    (DataImports.id > self.last_id) &
+                    (DataImports.dealerCode.not_in(('undefined', 'N/A')))
                 ).order_by(
                     DataImports.id.asc()
                 ).offset(self._extracted).limit(1)
