@@ -1,8 +1,7 @@
 """Daily check for s3 files from integration partners"""
 import boto3
-from datetime import datetime, timedelta
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from json import dumps, loads
 from os import environ
 import psycopg2
@@ -10,7 +9,6 @@ from utils.db_config import get_connection
 
 env = environ["ENVIRONMENT"]
 
-SM_CLIENT = boto3.client("secretsmanager")
 SNS_CLIENT = boto3.client('sns')
 SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
 
@@ -20,7 +18,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 def get_integration_partners():
-    """Return all active integration partners."""
+    """Return all integration partners."""
     partners = []
     
     conn = get_connection()
@@ -52,7 +50,6 @@ def get_integration_partners():
 
 def check_folder_has_files(bucket, prefix):
     """Check the existence of files in an S3 Folder."""
-
     s3 = boto3.client('s3')
     response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
     for obj in response.get('Contents', []):
@@ -66,7 +63,6 @@ def get_yesterday_date():
     today = date.today()
     yesterday = today - timedelta(days=1)
     return yesterday
-
     
 def alert_topic(partner, file_type, yesterday):
     """Notify Topic of missing S3 files."""
@@ -77,8 +73,7 @@ def alert_topic(partner, file_type, yesterday):
             Message=message
         )
 
-
-def check_integration_partner():
+def lambda_handler(event, context):
     """Check integration partner for previous day data upload."""
 
     partners = get_integration_partners()
@@ -90,10 +85,4 @@ def check_integration_partner():
             file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'   
             if not check_folder_has_files(bucket_name, file_key):
                 alert_topic(partner, file_type, yesterday)
-
-         
-
-def lambda_handler(event, context):
-    """Run vehicle sale API.""" 
-    check_integration_partner()
         
