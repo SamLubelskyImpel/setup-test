@@ -1,4 +1,4 @@
-"""Daily Check Service Repair Order"""
+"""Daily Check Service Repair Order and Vehicle Sale"""
 import boto3
 import logging
 from datetime import date, datetime, timezone, timedelta
@@ -30,7 +30,7 @@ def get_service_repair_order_data(cursor):
     query = """
         SELECT DISTINCT dealer_integration_partner_id
         FROM stage.service_repair_order
-        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
+        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '21 day')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -42,7 +42,7 @@ def get_vehicle_sales_data(cursor):
     query = """
         SELECT DISTINCT dealer_integration_partner_id
         FROM stage.vehicle_sale
-        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
+        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '21 day')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -105,18 +105,13 @@ def lambda_handler(event, context):
     active_dealers = dealer_data['active_dealers'] 
     dealers_with_sro = dealer_data['dealers_with_sro']
     dealers_with_vs = dealer_data['dealers_with_vs']
-    
+    print(dealer_data)
+
     active_dealers_with_missing_sro = get_missing_dealer_integrations(active_dealers, dealers_with_sro)
     active_dealers_with_missing_vs = get_missing_dealer_integrations(active_dealers, dealers_with_vs)
     
+    
     if active_dealers_with_missing_sro:
         alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
-    elif active_dealers_with_missing_vs:
-        alert_topic(active_dealers_with_missing_sro, 'vehicle_sale')  
-
-
-
-# The first lambda will query the dms rds for all active integrations in dealer_integration_partner to get a list of all active dealer integrations.
-# Then query a count for the previous day all entries in the service_repair_order table grouped by dealer_integration_partner_id. 
-# If an active dealer doesn’t appear in that list or has a count of 0, add that dealer to a list. 
-# Then if that list has data, notify the TopicUnivClientEngineeringAlertTopic once. Then repeat this process for the vehicle_sale table.
+    if active_dealers_with_missing_vs:
+        alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')  
