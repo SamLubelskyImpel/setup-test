@@ -30,7 +30,7 @@ def get_service_repair_order_data(cursor):
     query = """
         SELECT DISTINCT dealer_integration_partner_id
         FROM stage.service_repair_order
-        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '21 day')
+        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -42,7 +42,7 @@ def get_vehicle_sales_data(cursor):
     query = """
         SELECT DISTINCT dealer_integration_partner_id
         FROM stage.vehicle_sale
-        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '21 day')
+        WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
