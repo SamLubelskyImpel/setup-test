@@ -78,19 +78,33 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: 
-                  - secretsmanager:GetSecretValue
                   - s3:GetObject
                   - s3:PutObject
                   - s3:ListBucket
                   - s3:*Object
-                  - sns:Publish
-                Resource: "*" # Make this more specific to your resources if possible
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "arn:aws:logs:*:*:*" 
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If [ IsProd,
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                      ]
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+
   DMSDailyAlert:
     Type: AWS::Serverless::Function
     Properties:
@@ -105,7 +119,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 30 
       CodeUri: app/
-      Handler: s3_daily_check.lambda_handler
+      Handler: daily_s3_alert.lambda_handler
 
   DMSDailyAlertScheduledEvent:
     Type: AWS::Events::Rule

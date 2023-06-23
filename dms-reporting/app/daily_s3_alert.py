@@ -37,7 +37,7 @@ def get_integration_partners():
 
     except (Exception, psycopg2.Error) as error:
         # Handle any errors that occur during database operations
-        print("Error occurred:", error)
+        logger.info("Error occurred:", error)
 
     finally:
         # Close the cursor and connection
@@ -72,6 +72,8 @@ def alert_topic(partner, file_type, yesterday):
             TopicArn=SNS_TOPIC_ARN,
             Message=message
         )
+
+    return 'ok'
 
 def lambda_handler(event, context):
     """Check integration partner for previous day data upload."""

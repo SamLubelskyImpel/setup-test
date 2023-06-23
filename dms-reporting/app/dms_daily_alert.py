@@ -88,7 +88,7 @@ def get_dealer_information():
         conn.commit()
 
     except (Exception, psycopg2.Error) as error:
-        print("Error occurred:", error)
+        logger.info("Error occurred:", error)
 
     finally:
         if cursor:
@@ -105,7 +105,7 @@ def lambda_handler(event, context):
     active_dealers = dealer_data['active_dealers'] 
     dealers_with_sro = dealer_data['dealers_with_sro']
     dealers_with_vs = dealer_data['dealers_with_vs']
-    print(dealer_data)
+    logger.info(dealer_data)
 
     active_dealers_with_missing_sro = get_missing_dealer_integrations(active_dealers, dealers_with_sro)
     active_dealers_with_missing_vs = get_missing_dealer_integrations(active_dealers, dealers_with_vs)

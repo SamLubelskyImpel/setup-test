@@ -32,5 +32,5 @@ role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
 stack_name = "dms-alerting-prod"
 parameter_overrides = """\
     Environment=\"prod\" \
-    CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\"\
+    CEAlertTopicArn=\"arn:aws:sns:us-east-1:196800776222:alert_client_engineering\"\
 """
