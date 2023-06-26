@@ -47,7 +47,7 @@ if [[ $config_env == "prod" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"prod\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"prod\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\" "
+    --parameter-overrides "Environment=\"prod\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:196800776222:alert_client_engineering\" "
 elif [[ $config_env == "test" ]]; then
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \

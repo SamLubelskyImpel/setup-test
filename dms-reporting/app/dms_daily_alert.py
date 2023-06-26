@@ -12,6 +12,7 @@ env = environ["ENVIRONMENT"]
 
 SNS_CLIENT = boto3.client('sns')
 SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
+schema = 'prod' if env == 'prod' else  'stage'
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -19,7 +20,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def get_active_dealer_integrations(cursor):
     """Return all active dealer integrations."""
-    cursor.execute("SELECT id FROM stage.dealer_integration_partner WHERE is_active = true")
+    cursor.execute(f"SELECT id FROM {schema}.dealer_integration_partner WHERE is_active = true")
     
     rows = cursor.fetchall()
 
@@ -27,9 +28,9 @@ def get_active_dealer_integrations(cursor):
 
 def get_service_repair_order_data(cursor):
     """Return service repair order data from yesterday."""
-    query = """
+    query = f"""
         SELECT DISTINCT dealer_integration_partner_id
-        FROM stage.service_repair_order
+        FROM {schema}.service_repair_order
         WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
     """
     cursor.execute(query)
@@ -105,7 +106,6 @@ def lambda_handler(event, context):
     active_dealers = dealer_data['active_dealers'] 
     dealers_with_sro = dealer_data['dealers_with_sro']
     dealers_with_vs = dealer_data['dealers_with_vs']
-    logger.info(dealer_data)
 
     active_dealers_with_missing_sro = get_missing_dealer_integrations(active_dealers, dealers_with_sro)
     active_dealers_with_missing_vs = get_missing_dealer_integrations(active_dealers, dealers_with_vs)

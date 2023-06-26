@@ -12,6 +12,7 @@ env = environ["ENVIRONMENT"]
 SNS_CLIENT = boto3.client('sns')
 SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
 
+schema = 'prod' if env == 'prod' else  'stage'
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -25,12 +26,12 @@ def get_integration_partners():
     
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT impel_integration_partner_id FROM stage.integration_partner")
+        cursor.execute(f"SELECT impel_integration_partner_id FROM {schema}.integration_partner")
         rows = cursor.fetchall()
         
         for partner in rows:
             partner = partner[0]
-            if partner not in ['cdk', 'dealertrack', 'dealervault']:
+            if partner.lower() not in ['cdk', 'dealertrack', 'dealervault']:
                 partners.append(partner)
 
         conn.commit()
