@@ -12,7 +12,7 @@ env = environ["ENVIRONMENT"]
 
 SNS_CLIENT = boto3.client('sns')
 SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
-schema = 'prod' if env == 'prod' else  'stage'
+schema = 'prod' if env == 'prod' else 'stage'
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -40,9 +40,9 @@ def get_service_repair_order_data(cursor):
 
 def get_vehicle_sales_data(cursor):
     """Return vehicle sale data from yesterday."""
-    query = """
+    query = f"""
         SELECT DISTINCT dealer_integration_partner_id
-        FROM stage.vehicle_sale
+        FROM {schema}.vehicle_sale
         WHERE date_trunc('day', db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '1 day')
     """
     cursor.execute(query)

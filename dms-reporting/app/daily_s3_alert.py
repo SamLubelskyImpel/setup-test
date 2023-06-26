@@ -12,7 +12,7 @@ env = environ["ENVIRONMENT"]
 SNS_CLIENT = boto3.client('sns')
 SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
 
-schema = 'prod' if env == 'prod' else  'stage'
+schema = 'prod' if env == 'prod' else 'stage'
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -80,7 +80,7 @@ def lambda_handler(event, context):
     """Check integration partner for previous day data upload."""
 
     partners = get_integration_partners()
-    bucket_name = "integrations-us-east-1" if env == 'prod' else 'integrations-us-east-1-test'
+    bucket_name = "integrations-us-east-1-prod" if env == 'prod' else 'integrations-us-east-1-test'
     yesterday = get_yesterday_date()
 
     for partner in partners:      
