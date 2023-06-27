@@ -44,18 +44,16 @@ class SalesHistoryETL:
     def _extract_from_carlabs(self):
         while self._extracted < self.limit:
             with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as carlabs_session:
-                records = carlabs_session.query(DataImports).where(
+                record = carlabs_session.query(DataImports).where(
                     (DataImports.dataType == 'SALES') &
                     (DataImports.id > self.last_id) &
                     (DataImports.dealerCode.not_in(('undefined', 'N/A')))
                 ).order_by(
                     DataImports.id.asc()
-                ).offset(self._extracted).limit(1)
-
-                record = records[0]
+                ).offset(self._extracted).first()
 
                 if not record:
-                    self.finished = True
+                    self._finished = True
                     return
 
                 if isinstance(record.importedData, list):
