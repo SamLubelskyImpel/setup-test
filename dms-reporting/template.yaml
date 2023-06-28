@@ -121,6 +121,18 @@ Resources:
       CodeUri: app/
       Handler: daily_s3_alert.lambda_handler
 
+  DMSDailyAlertDeadletterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  S3DailyAlertDeadletterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
   DMSDailyAlertScheduledEvent:
     Type: AWS::Events::Rule
     Properties:
@@ -130,6 +142,24 @@ Resources:
       Targets:
         - Id: DMSDailyAlertFunctionTarget
           Arn: !GetAtt DMSDailyAlert.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt DMSDailyAlertDeadletterQueue.Arn
+
+  DMSDailyAlertFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt DMSDailyAlert.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DMSDailyAlertScheduledEvent.Arn
+
+  S3DailyAlertFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt S3DailyAlert.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt S3DailyAlertScheduledEvent.Arn
 
   S3DailyAlertScheduledEvent:
     Type: AWS::Events::Rule
@@ -140,6 +170,8 @@ Resources:
       Targets:
         - Id: S3DailyAlertFunctionTarget
           Arn: !GetAtt S3DailyAlert.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt S3DailyAlertDeadletterQueue.Arn
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
