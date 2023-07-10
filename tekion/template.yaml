@@ -5,7 +5,7 @@ Description: Tekion DMS ETL
 Parameters:
   SNSTopic:
     Type: String
-    Default: "arn:aws:sns:us-east-1:143813444726:alert_client_engineering"
+    Default: "arn:aws:sns:us-east-1:196800776222:alert_client_engineering"
 
   Environment:
     Description: The name of the runtime environment
