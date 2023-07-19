@@ -93,7 +93,7 @@ class RDSInstance:
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
             join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
-            where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
+            where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = 'ReyRey' and dip.is_active = true;"""
         results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
             raise RuntimeError(
@@ -747,6 +747,29 @@ class ReyReyUpsertJob:
                 "has_service_contract",
                 get_service_contract_flag(F.col("has_service_contract")),
             )
+        if ("trade_in_value" in df.columns
+            or "payoff_on_trade" in df.columns):
+            # Convert Array[Float] to Float
+            def calculate_arr_sum(arr):
+                if arr:
+                    if not isinstance(arr, list):
+                        arr = [arr]
+                    total = None
+                    for raw_reyrey_float in arr:
+                        if raw_reyrey_float and raw_reyrey_float != "null":
+                            if total is None:
+                                total = raw_reyrey_float
+                            else:
+                                total += raw_reyrey_float
+                    return total
+                else:
+                    return None
+            if "trade_in_value" in df.columns:
+                get_trade_in_value = F.udf(calculate_arr_sum, DoubleType())
+                df = df.withColumn("trade_in_value", get_trade_in_value(F.col("trade_in_value")))
+            if "payoff_on_trade" in df.columns:
+                get_payoff_on_trade = F.udf(calculate_arr_sum, DoubleType())
+                df = df.withColumn("payoff_on_trade", get_payoff_on_trade(F.col("payoff_on_trade")))
         if (
             "email_optin_flag" in df.columns
             and "phone_optin_flag" in df.columns
