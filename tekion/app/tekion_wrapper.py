@@ -35,7 +35,7 @@ class TekionWrapper:
 
     def _get_secrets(self) -> Tuple[str, str, str]:
         """Retrieve Tekion access key and secret key."""
-        secret_id = f"{ENVIRONMENT}/tekion"
+        secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'stage'}/tekion"
         try:
             secret = loads(
                 boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)[
@@ -106,7 +106,7 @@ class TekionWrapper:
                     f"Repair order returned {resp.status_code} but metadata of {meta}"
                 )
             if meta["currentPage"] < meta["pages"] and meta["nextFetchKey"]:
-                return resp_json["data"] + self.get_repair_order(
+                return resp_json["data"] + self.get_repair_orders(
                     next_fetch_key=meta["nextFetchKey"]
                 )
             else:
@@ -153,10 +153,8 @@ class TekionWrapper:
             logger.exception(f"Unable to parse deals response {resp}")
             raise
 
-    def upload_data(self, api_data, key_path):
+    def upload_data(self, api_data, key):
         """Upload API data to S3."""
-        filename = self.end_dt.strftime("%Y%m%dT%H_%M_%S")
-        key = f"{key_path}/{filename}.json"
         s3_client = boto3.client("s3")
         response = s3_client.put_object(
             Bucket=INTEGRATIONS_BUCKET,

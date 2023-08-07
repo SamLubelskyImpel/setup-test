@@ -7,7 +7,7 @@ from os import environ
 
 import boto3
 
-from app.dms_wrapper import DMSWrapper
+from dms_wrapper import DMSWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -41,7 +41,8 @@ def lambda_handler(event, context):
     try:
         frequency = event["frequency"]
         end_dt_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
-        all_dealer_info = DMSWrapper.get_integration_dealers("reyrey")
+        dms_wrapper = DMSWrapper()
+        all_dealer_info = dms_wrapper.get_integration_dealers("tekion")
         for queue_url in APIS[frequency]:
             for dealer_info in all_dealer_info:
                 if dealer_info["is_active"]:

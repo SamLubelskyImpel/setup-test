@@ -799,8 +799,18 @@ Resources:
                 Action:
                   - sqs:*
                 Resource:
-                  - !Ref RepairOrderQueue
-                  - !Ref DealsQueue
+                  - !GetAtt RepairOrderQueue.Arn
+                  - !GetAtt DealsQueue.Arn
+        - PolicyName: LogPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
         - PolicyName: SecretsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -809,8 +819,29 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:{Environment}/DmsDataService*"          
-                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:{Environment}/tekion*"            
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
+                    ]
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
+                    ]     
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource:
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]    
 
   InvokeTekionFunction:
     Type: AWS::Serverless::Function
@@ -839,8 +870,8 @@ Resources:
     Properties:
       Description: Tekion Repair Order Data Pull
       CodeUri: app/
-      Handler: repair_order.lambda_handler
-      Timeout: 300
+      Handler: repair_orders.lambda_handler
+      Timeout: 900
       Role: !GetAtt TekionDataPullRole.Arn
       Environment:
         Variables:
@@ -858,7 +889,7 @@ Resources:
       Description: Tekion Deals Data Pull
       CodeUri: app/
       Handler: deals.lambda_handler
-      Timeout: 300
+      Timeout: 900
       Role: !GetAtt TekionDataPullRole.Arn
       Environment:
         Variables:
