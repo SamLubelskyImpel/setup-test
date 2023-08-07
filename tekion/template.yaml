@@ -758,3 +758,187 @@ Resources:
             Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionDealCrawler}
       Roles: 
         - "dev"
+
+  RepairOrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt RepairOrderDLQ.Arn
+        maxReceiveCount: 5
+  RepairOrderDLQ:
+    Type: AWS::SQS::Queue
+
+  DealsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DealsDLQ.Arn
+        maxReceiveCount: 5
+  DealsDLQ:
+    Type: AWS::SQS::Queue
+
+  TekionDataPullRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub tekion-data-pull-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:*
+                Resource:
+                  - !GetAtt RepairOrderQueue.Arn
+                  - !GetAtt DealsQueue.Arn
+        - PolicyName: LogPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: SecretsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
+                    ]
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
+                    ]     
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource:
+                  - !If [ IsProd, 
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]    
+
+  InvokeTekionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Invoke data pull for every Tekion dealer
+      CodeUri: app/
+      Handler: invoke_tekion.lambda_handler
+      Timeout: 180
+      Role: !GetAtt TekionDataPullRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+          REPAIR_ORDER_QUEUE: !Ref RepairOrderQueue
+          DEALS_QUEUE: !Ref DealsQueue
+      Events:
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Description: Start the daily data pull for each tekion dealer.
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 0 * * ? *)
+            Input: '{"frequency": "daily"}'
+
+  RepairOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Tekion Repair Order Data Pull
+      CodeUri: app/
+      Handler: repair_orders.lambda_handler
+      Timeout: 900
+      Role: !GetAtt TekionDataPullRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt RepairOrderQueue.Arn
+
+  DealsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Tekion Deals Data Pull
+      CodeUri: app/
+      Handler: deals.lambda_handler
+      Timeout: 900
+      Role: !GetAtt TekionDataPullRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt DealsQueue.Arn
+
+  RepairOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: TekionRepairOrderDLQAlarm
+      AlarmDescription: There are messages in the Tekion repair order DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref SNSTopic
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt RepairOrderDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  DealsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: TekionDealsDLQAlarm
+      AlarmDescription: There are messages in the Tekion deals DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref SNSTopic
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DealsDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching

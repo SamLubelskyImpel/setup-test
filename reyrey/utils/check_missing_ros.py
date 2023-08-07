@@ -23,6 +23,7 @@ rds_connection = psycopg2.connect(
     database=secret_string["db_name"],
 )
 
+db_schema = "prod" if AWS_PROFILE == "unified-prod" else "test"
 
 def list_files_in_bucket(bucket_name, prefix):
     s3 = boto3.client("s3")
@@ -36,12 +37,12 @@ def list_files_in_bucket(bucket_name, prefix):
     return files
 
 
-query_str = """select sro.repair_order_no  from stage.service_repair_order sro 
-join stage.dealer_integration_partner dip on dip.id = sro.dealer_integration_partner_id 
-join stage.dealer d on d.id = dip.dealer_id 
-join stage.integration_partner ip on ip.id = dip.integration_partner_id 
-join stage.vehicle v on v.id = sro.vehicle_id 
-join stage.consumer c on c.id = sro.consumer_id 
+query_str = f"""select sro.repair_order_no  from {db_schema}.service_repair_order sro 
+join {db_schema}.dealer_integration_partner dip on dip.id = sro.dealer_integration_partner_id 
+join {db_schema}.dealer d on d.id = dip.dealer_id 
+join {db_schema}.integration_partner ip on ip.id = dip.integration_partner_id 
+join {db_schema}.vehicle v on v.id = sro.vehicle_id 
+join {db_schema}.consumer c on c.id = sro.consumer_id 
 where ip.impel_integration_partner_id = 'reyrey'
 order by sro.db_creation_date desc;"""
 
