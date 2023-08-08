@@ -298,7 +298,6 @@ class TekionUpsertJob:
         self.required_columns = []
         self.mappings = {
             "tekioncrawlerdb_fi_closed_deal": {
-                # TODO: get dealer_integration_partner_id from the onboarding team
                 "dealer": {"dms_id": "data.dms_id"},
                 "consumer": {
                     "customers": "data.customers",
@@ -350,7 +349,6 @@ class TekionUpsertJob:
                 },
             },
             "tekioncrawlerdb_repair_order": {
-                # TODO: get dealer_integration_partner_id from the onboarding team
                 "dealer": {"dms_id": "data.dms_id"},
                 "consumer": {
                     "first_name": "data.customer.firstName",
