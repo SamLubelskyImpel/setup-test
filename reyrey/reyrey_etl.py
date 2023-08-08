@@ -164,6 +164,8 @@ class RDSInstance:
             F.col("op_codes.op_code_desc").alias("op_code_desc"),
             "dealer_integration_partner_id",
         ).dropDuplicates(subset=unique_op_code_cols)
+        if op_code_df.count() == 0:
+            return []
         insert_op_code_query = self.get_insert_query_from_df(
             op_code_df,
             "op_code",
@@ -636,7 +638,7 @@ class ReyReyUpsertJob:
                     df.select(dms_column)
                 except pyspark.sql.utils.AnalysisException:
                     ignore_columns.append(db_column)
-                    logger.exception(
+                    logger.warning(
                         f"Column: {db_column} with mapping: {dms_column} not found in schema {df.schema.json()}."
                     )
                     if db_column in self.required_columns:
@@ -721,6 +723,14 @@ class ReyReyUpsertJob:
             )
         if "op_codes" in df.columns:
             # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
+            is_array_col = df.schema["op_codes"].dataType.typeName() == "array"
+            if not is_array_col:
+                # XML data pulls with a single op_code aren't converted to arrays
+                logger.info("Convert op_codes to array")
+                df = df.withColumn(
+                    "op_codes",
+                    F.array(F.struct(F.col("op_codes.*")))
+                )
             df = df.withColumn(
                 "op_codes",
                 F.expr(
@@ -747,6 +757,29 @@ class ReyReyUpsertJob:
                 "has_service_contract",
                 get_service_contract_flag(F.col("has_service_contract")),
             )
+        if ("trade_in_value" in df.columns
+            or "payoff_on_trade" in df.columns):
+            # Convert Array[Float] to Float
+            def calculate_arr_sum(arr):
+                if arr:
+                    if not isinstance(arr, list):
+                        arr = [arr]
+                    total = None
+                    for raw_reyrey_float in arr:
+                        if raw_reyrey_float and raw_reyrey_float != "null":
+                            if total is None:
+                                total = raw_reyrey_float
+                            else:
+                                total += raw_reyrey_float
+                    return total
+                else:
+                    return None
+            if "trade_in_value" in df.columns:
+                get_trade_in_value = F.udf(calculate_arr_sum, DoubleType())
+                df = df.withColumn("trade_in_value", get_trade_in_value(F.col("trade_in_value")))
+            if "payoff_on_trade" in df.columns:
+                get_payoff_on_trade = F.udf(calculate_arr_sum, DoubleType())
+                df = df.withColumn("payoff_on_trade", get_payoff_on_trade(F.col("payoff_on_trade")))
         if (
             "email_optin_flag" in df.columns
             and "phone_optin_flag" in df.columns
@@ -918,13 +951,14 @@ class ReyReyUpsertJob:
                     )
 
                     # Link op codes
-                    inserted_op_code_repair_order_ids = (
-                        self.rds.insert_op_code_repair_order(service_repair_order_df)
-                    )
-                    count = len(inserted_op_code_repair_order_ids)
-                    logger.info(
-                        f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
-                    )
+                    if len(inserted_op_code_ids) > 0:
+                        inserted_op_code_repair_order_ids = (
+                            self.rds.insert_op_code_repair_order(service_repair_order_df)
+                        )
+                        count = len(inserted_op_code_repair_order_ids)
+                        logger.info(
+                            f"Added {count} rows to op_code_repair_order for dealer {db_dealer_integration_partner_id}"
+                        )
             except Exception:
                 s3_key = f"{self.integration}/errors/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
                 logger.exception(
