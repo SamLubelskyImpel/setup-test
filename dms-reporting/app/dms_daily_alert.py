@@ -50,6 +50,29 @@ def get_vehicle_sales_data(cursor):
     
     return [row[0] for row in rows]
 
+
+def get_impel_dealer_ids_by_integration_partner_ids(cursor, ids):
+    """Return dealer_ids based on a set of integration partner IDs sorted by integration partner."""
+
+    query = f"""
+        SELECT d.impel_dealer_id, ip.impel_integration_partner_id
+        FROM {schema}.dealer_integration_partner dip
+        JOIN {schema}.dealer d ON dip.dealer_id = d.id
+        JOIN {schema}.integration_partner ip ON dip.integration_partner_id = ip.id
+        WHERE dip.id IN %s
+    """
+    cursor.execute(query, (tuple(ids),))
+    rows = cursor.fetchall()
+
+    grouped_data = {}
+    for dealer_name, partner_name in rows:
+        if partner_name not in grouped_data:
+            grouped_data[partner_name] = []
+        grouped_data[partner_name].append(dealer_name)
+
+    return grouped_data
+
+
 def get_yesterday_date():
     """Return yesterday's date as a datetime.date object."""
     today = date.today()
@@ -65,14 +88,13 @@ def alert_topic(dealerlist, data_type):
             Message=message
         )
     
-def get_missing_dealer_integrations(active_dealers, previous_data_dealers):
+def get_missing_dealer_integrations(cursor, active_dealers, previous_data_dealers):
     """Return missing list of dealers with missing data."""
 
     set_active_dealers = set(active_dealers)
     set_previous_data_dealers = set(previous_data_dealers)
-
     
-    return set_active_dealers - set_previous_data_dealers
+    return get_impel_dealer_ids_by_integration_partner_ids(cursor, set_active_dealers - set_previous_data_dealers)
 
 
 def get_dealer_information():
@@ -82,14 +104,18 @@ def get_dealer_information():
         conn = get_connection()
         cursor = conn.cursor()
         
-        dealer_data['active_dealers'] = get_active_dealer_integrations(cursor)
-        dealer_data['dealers_with_sro'] = get_service_repair_order_data(cursor)
-        dealer_data['dealers_with_vs'] = get_vehicle_sales_data(cursor)
-               
+        active_dealers = get_active_dealer_integrations(cursor)
+        dealers_with_sro = get_service_repair_order_data(cursor)
+        dealers_with_vs = get_vehicle_sales_data(cursor)
+        print(dealers_with_sro)
+        print(active_dealers)
+        dealer_data['active_dealers_with_missing_sro'] = get_missing_dealer_integrations(cursor, active_dealers, dealers_with_sro)
+        dealer_data['active_dealers_with_missing_vs'] = get_missing_dealer_integrations(cursor, active_dealers, dealers_with_vs)
+
         conn.commit()
 
     except (Exception, psycopg2.Error) as error:
-        logger.info("Error occurred:", error)
+        logger.info("Error occurred: " + str(error))
 
     finally:
         if cursor:
@@ -103,15 +129,13 @@ def get_dealer_information():
 def lambda_handler(event, context):
     """Daily check for missing service repair order or vehicle sale data."""
     dealer_data = get_dealer_information()
-    active_dealers = dealer_data['active_dealers'] 
-    dealers_with_sro = dealer_data['dealers_with_sro']
-    dealers_with_vs = dealer_data['dealers_with_vs']
 
-    active_dealers_with_missing_sro = get_missing_dealer_integrations(active_dealers, dealers_with_sro)
-    active_dealers_with_missing_vs = get_missing_dealer_integrations(active_dealers, dealers_with_vs)
+    active_dealers_with_missing_sro = dealer_data['active_dealers_with_missing_sro']
+    # active_dealers_with_missing_vs = dealer_data['active_dealers_with_missing_vs']
+    print(active_dealers_with_missing_sro)
+    # print(active_dealers_with_missing_vs)
     
-    
-    if active_dealers_with_missing_sro:
-        alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
-    if active_dealers_with_missing_vs:
-        alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')  
+    # if active_dealers_with_missing_sro:
+    #     alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
+    # if active_dealers_with_missing_vs:
+    #     alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')
