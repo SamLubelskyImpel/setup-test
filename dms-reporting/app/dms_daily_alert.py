@@ -1,8 +1,7 @@
 """Daily Check Service Repair Order and Vehicle Sale"""
 import boto3
 import logging
-from datetime import date, datetime, timezone, timedelta
-from json import dumps, loads
+from datetime import date, timedelta
 from os import environ
 import psycopg2
 from utils.db_config import get_connection
@@ -11,7 +10,7 @@ from utils.db_config import get_connection
 env = environ["ENVIRONMENT"]
 
 SNS_CLIENT = boto3.client('sns')
-SNS_TOPIC_ARN = environ["CEAlertTopicArn"]
+SNS_TOPIC_ARN = environ["DMS_REPORTING_SNS_TOPIC"]
 schema = 'prod' if env == 'prod' else 'stage'
 
 logger = logging.getLogger()
@@ -107,8 +106,6 @@ def get_dealer_information():
         active_dealers = get_active_dealer_integrations(cursor)
         dealers_with_sro = get_service_repair_order_data(cursor)
         dealers_with_vs = get_vehicle_sales_data(cursor)
-        print(dealers_with_sro)
-        print(active_dealers)
         dealer_data['active_dealers_with_missing_sro'] = get_missing_dealer_integrations(cursor, active_dealers, dealers_with_sro)
         dealer_data['active_dealers_with_missing_vs'] = get_missing_dealer_integrations(cursor, active_dealers, dealers_with_vs)
 
@@ -131,11 +128,9 @@ def lambda_handler(event, context):
     dealer_data = get_dealer_information()
 
     active_dealers_with_missing_sro = dealer_data['active_dealers_with_missing_sro']
-    # active_dealers_with_missing_vs = dealer_data['active_dealers_with_missing_vs']
-    print(active_dealers_with_missing_sro)
-    # print(active_dealers_with_missing_vs)
+    active_dealers_with_missing_vs = dealer_data['active_dealers_with_missing_vs']
     
-    # if active_dealers_with_missing_sro:
-    #     alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
-    # if active_dealers_with_missing_vs:
-    #     alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')
+    if active_dealers_with_missing_sro:
+        alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
+    if active_dealers_with_missing_vs:
+        alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')

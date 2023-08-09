@@ -104,6 +104,10 @@ Resources:
                 Action:
                   - sns:Publish
                 Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref DMSReportingSnsTopic
 
   DMSDailyAlert:
     Type: AWS::Serverless::Function
@@ -112,6 +116,9 @@ Resources:
       Timeout: 30
       Handler: dms_daily_alert.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          DMS_REPORTING_SNS_TOPIC: !Ref DMSReportingSnsTopic
 
   S3DailyAlert:
     Type: AWS::Serverless::Function
@@ -201,3 +208,29 @@ Resources:
       FromPort: 5432
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
+  DMSReportingSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub dms-reporting-topic-${Environment}
+
+  SupportSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'support@impel.io', 'elena@impel.io']
+      Protocol: email
+      TopicArn: !Ref DMSReportingSnsTopic
+
+  SupportAISnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'aisupport@impel.io', 'elena@impel.io']
+      Protocol: email
+      TopicArn: !Ref DMSReportingSnsTopic
+
+  CSSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'aisupport@impel.io', 'elena@impel.io']
+      Protocol: email
+      TopicArn: !Ref DMSReportingSnsTopic
