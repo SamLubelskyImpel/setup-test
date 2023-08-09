@@ -51,8 +51,7 @@ def get_vehicle_sales_data(cursor):
 
 
 def get_impel_dealer_ids_by_integration_partner_ids(cursor, ids):
-    """Return dealer_ids based on a set of integration partner IDs sorted by integration partner."""
-
+    """Return Impel dealer IDs based on a set of integration partner IDs sorted by integration partner."""
     query = f"""
         SELECT d.impel_dealer_id, ip.impel_integration_partner_id
         FROM {schema}.dealer_integration_partner dip
@@ -63,13 +62,13 @@ def get_impel_dealer_ids_by_integration_partner_ids(cursor, ids):
     cursor.execute(query, (tuple(ids),))
     rows = cursor.fetchall()
 
-    grouped_data = {}
-    for dealer_name, partner_name in rows:
-        if partner_name not in grouped_data:
-            grouped_data[partner_name] = []
-        grouped_data[partner_name].append(dealer_name)
+    sorted_ids = {}
+    for impel_dealer_id, integration_partner_id in rows:
+        if integration_partner_id not in sorted_ids:
+            sorted_ids[integration_partner_id] = []
+        sorted_ids[integration_partner_id].append(impel_dealer_id)
 
-    return grouped_data
+    return sorted_ids
 
 
 def get_yesterday_date():
