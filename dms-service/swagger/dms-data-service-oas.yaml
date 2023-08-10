@@ -1,122 +1,44 @@
 openapi: 3.0.1
 info:
-  title: dms data service
+  title: DMS API
   version: 1.0.0
-  description: |-
-    All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
+  description: "All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. 
+    This API allows DMS vendors to post new records for repair orders, appointments, and sales deals."
 servers:
-  - url: https://dms-service.testenv.impel.io
+  - url: https://dms-api.testenv.impel.io
     description: Impel test environment endpoint.
-  - url: https://dms-service.impel.io
-    description: Impel prod environment endpoint.
-#{{DMS_DATA_SERVICE_AWS_VALIDATION}}
 paths:
-  /repair-order/v1:
-    get:
-      summary: Get DMS repair order data.
-      operationId: get-repair-order
+  /repair_order:
+    post:
+      summary: Post DMS repair order data.
+      operationId: post-repair-order
       description: |-
-        This API endpoint enables the retrieval of DMS repair order data.
+        This API endpoint creates a DMS repair order record in the Impel system.
       parameters:
       - schema:
           type: string
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel
       - schema:
           type: string
         in: header
         name: x_api_key
         required: true
         description: API Key provided by Impel
-      - schema:
-          type: integer
-          minimum: 1
-        in: query
-        name: page
-        required: false
-        description: The results page to retrieve, starts at 1.
-      - schema:
-          type: integer
-          minimum: 1
-          maximum: 10000
-        in: query
-        name: result_count
-        required: false
-        description: The number of results per page to return.
-      - schema:
-          type: string
-        in: query
-        name: impel_dealer_id
-        required: false
-        description: The unique id of the dealer assigned by impel of the repair order to query for.
-      - schema:
-          type: string
-        in: query
-        name: dms_id
-        required: false
-        description: The id of the dealer assigned by the dms of the repair order to query for.
-      - schema:
-          type: string
-        in: query
-        name: impel_integration_partner_id
-        required: false
-        description: The id of the DMS assigned by Impel of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: db_creation_date_start
-        required: false
-        description: The earliest db_creation_date of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: db_creation_date_end
-        required: false
-        description: The latest db_creation_date of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: ro_open_date_start
-        required: false
-        description: The earliest ro_open_date of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: ro_open_date_end
-        required: false
-        description: The latest ro_open_date of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: ro_close_date_start
-        required: false
-        description: The earliest ro_close_date of the repair order to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: ro_close_date_end
-        required: false
-        description: The latest ro_close_date of the repair order to query for in YYYY-MM-DD format.
-      - schema:
-          type: string
-        in: query
-        name: repair_order_no
-        required: false
-        description: The repair order number to query for.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - service_repair_order
+              properties:
+                service_repair_order:
+                  $ref: '#/components/schemas/service_repair_order'
       responses:
         '200':
           description: Success
@@ -125,108 +47,53 @@ paths:
               schema:
                 type: object
                 properties:
-                  next_fetch_key:
+                  request_id:
                     type: string
-                  repair_orders:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/RepairOrderResponse"
+                    description: The unique ID for this record in the Impel system.
+                    format: uuid
+                    example: 'f3ca4289-3425-4622-9446-c7a1e768476d'
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
                     format: date-time
                     example: '2021-11-19T16:57:31+0000'
         '400':
-          description: Bad Request.
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
         '401':
-          description: This request is unauthorized.
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the client_id or the x_api_key provided in the header are wrong/missing. 
         '500':
           description: Internal Server Error. Please contact Impel support.
-      #{{REPAIR_ORDER_LAMBDA_INFO}}
-  /vehicle-sale/v1:
-    get:
-      summary: Get DMS vehicle sale data.
-      operationId: get-vehicle-sale
+  /appointment:
+    post:
+      summary: Post DMS appointment data.
+      operationId: post-appointment
       description: |-
-        This API endpoint enables the retrieval of DMS vehicle sale data.
+        This API endpoint creates a DMS appointment record in the Impel system.
       parameters:
       - schema:
           type: string
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel
       - schema:
           type: string
         in: header
         name: x_api_key
         required: true
         description: API Key provided by Impel
-      - schema:
-          type: integer
-          minimum: 1
-        in: query
-        name: page
-        required: false
-        description: The results page to retrieve, starts at 1.
-      - schema:
-          type: integer
-          minimum: 1
-          maximum: 10000
-        in: query
-        name: result_count
-        required: false
-        description: The number of results per page to return.
-      - schema:
-          type: string
-        in: query
-        name: impel_dealer_id
-        required: false
-        description: The unique id of the dealer assigned by impel of the repair order to query for.
-      - schema:
-          type: string
-        in: query
-        name: dms_id
-        required: false
-        description: The id of the dealer assigned by the dms of the vehicle sale to query for.
-      - schema:
-          type: string
-        in: query
-        name: impel_integration_partner_id
-        required: false
-        description: The id of the DMS assigned by Impel of the vehicle sale to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: db_creation_date_start
-        required: false
-        description: The earliest db_creation_date of the vehicle sale to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: db_creation_date_end
-        required: false
-        description: The latest db_creation_date of the vehicle sale to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: sale_date_start
-        required: false
-        description: The earliest sale_date of the vehicle sale to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: sale_date_end
-        required: false
-        description: The latest sale_date of the vehicle sale to query for in YYYY-MM-DD format.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - appointment
+              properties:
+                appointment:
+                  $ref: '#/components/schemas/appointment'
       responses:
         '200':
           description: Success
@@ -235,76 +102,54 @@ paths:
               schema:
                 type: object
                 properties:
-                  next_fetch_key:
+                  request_id:
                     type: string
-                  vehicle_sales:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/VehicleSaleResponse"
+                    description: The unique ID for this record in the Impel system.
+                    format: uuid
+                    example: 'f3ca4289-3425-4622-9446-c7a1e768476d'
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
                     format: date-time
                     example: '2021-11-19T16:57:31+0000'
         '400':
-          description: Bad Request.
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
         '401':
-          description: This request is unauthorized.
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the client_id or the x_api_key provided in the header are wrong/missing. 
         '500':
           description: Internal Server Error. Please contact Impel support.
-      #{{VEHICLE_SALE_LAMBDA_INFO}}
-  /dealer/v1:
-    get:
-      summary: Get DMS dealer data.
-      operationId: get-dealer
+  /sales_deal:
+    post:
+      summary: Post DMS sales deal data.
+      operationId: post-sales-deal
       description: |-
-        This API endpoint enables the retrieval of DMS dealer data.
+        This API endpoint creates a DMS sales deal record in the Impel system.
       parameters:
       - schema:
           type: string
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel
       - schema:
           type: string
         in: header
         name: x_api_key
         required: true
         description: API Key provided by Impel
-      - schema:
-          type: integer
-          minimum: 1
-        in: query
-        name: page
-        required: false
-        description: The results page to retrieve, starts at 1.
-      - schema:
-          type: integer
-          minimum: 1
-          maximum: 10000
-        in: query
-        name: result_count
-        required: false
-        description: The number of results per page to return.
-      - schema:
-          type: string
-        in: query
-        name: impel_dealer_id
-        required: false
-        description: The unique id of the dealer assigned by impel of the repair order to query for.
-      - schema:
-          type: string
-        in: query
-        name: dms_id
-        required: false
-        description: The id of the dealer assigned by the dms to query for.
-      - schema:
-          type: string
-        in: query
-        name: impel_integration_partner_id
-        required: false
-        description: The id of the DMS assigned by Impel to query for.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - vehicle_sale
+              - service_contract
+              properties:
+                vehicle_sale:
+                  $ref: '#/components/schemas/vehicle_sale'
       responses:
         '200':
           description: Success
@@ -313,361 +158,528 @@ paths:
               schema:
                 type: object
                 properties:
-                  next_fetch_key:
+                  request_id:
                     type: string
-                  dealers:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/DealerResponse"
+                    description: The unique ID for this record in the Impel system.
+                    format: uuid
+                    example: 'f3ca4289-3425-4622-9446-c7a1e768476d'
                   received_date_utc:
                     type: string
                     description: The date Impel received the request in ISO 8601 coordinated universal time format.
                     format: date-time
                     example: '2021-11-19T16:57:31+0000'
         '400':
-          description: Bad Request.
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
         '401':
-          description: This request is unauthorized.
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the client_id or the x_api_key provided in the header are wrong/missing. 
         '500':
           description: Internal Server Error. Please contact Impel support.
-      #{{DEALER_LAMBDA_INFO}}
 components:
   schemas:
-    RepairOrderResponse:
-      type: object
+    appointment:
+      description: An object containing all information about an appointment
+      required:
+        - consumer
+        - vehicle
+        - impel_dealer_id
+        - appointment_date
+        - appointment_time
       properties:
-        received_date_utc:
-          type: string
-        results:
-          type: array
-          items:
-            allOf:
-              - $ref: '#/components/schemas/RepairOrder'
-              - type: object
-                properties:
-                  dealer:
-                    $ref: '#/components/schemas/Dealer'
-              - type: object
-                properties:
-                  integration_partner:
-                    $ref: '#/components/schemas/IntegrationPartner'
-              - type: object
-                properties:
-                  dealer_integration_partner:
-                    $ref: '#/components/schemas/DealerIntegrationPartner'
-              - type: object
-                properties:
-                  vehicle:
-                    $ref: '#/components/schemas/Vehicle'
-              - type: object
-                properties:
-                  consumer:
-                    $ref: '#/components/schemas/Consumer'
-              - type: object
-                properties:
-                  op_codes:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/OpCode'
-    VehicleSaleResponse:
-      type: object
-      properties:
-        received_date_utc:
-          type: string
-        results:
-          type: array
-          items:
-            allOf:
-              - $ref: '#/components/schemas/VehicleSale'
-              - type: object
-                properties:
-                  dealer:
-                    $ref: '#/components/schemas/Dealer'
-              - type: object
-                properties:
-                  integration_partner:
-                    $ref: '#/components/schemas/IntegrationPartner'
-              - type: object
-                properties:
-                  dealer_integration_partner:
-                    $ref: '#/components/schemas/DealerIntegrationPartner'
-              - type: object
-                properties:
-                  vehicle:
-                    $ref: '#/components/schemas/Vehicle'
-              - type: object
-                properties:
-                  consumer:
-                    $ref: '#/components/schemas/Consumer'
-        has_next_page:
-          type: boolean
-    DealerResponse:
-      type: object
-      properties:
-        received_date_utc:
-          type: string
-        results:
-          type: array
-          items:
-            allOf:
-              - $ref: '#/components/schemas/DealerIntegrationPartner'
-              - type: object
-                properties:
-                  dealer:
-                    $ref: '#/components/schemas/Dealer'
-              - type: object
-                properties:
-                  integration_partner:
-                    $ref: '#/components/schemas/IntegrationPartner'
-        has_next_page:
-          type: boolean
-    IntegrationPartner:
-      type: object
-      properties:
-        id:
-          type: integer
-        impel_integration_partner_id:
-          type: string
-        type:
-          type: string
-        db_creation_date:
-          type: string
-          format: date-time
-    Dealer:
-      type: object
-      properties:
-        id:
-          type: integer
-        sfdc_account_id:
-          type: integer
-        dealer_group_id:
-          type: integer
+        consumer:
+          $ref: '#/components/schemas/consumer'
+        vehicle: 
+          $ref: '#/components/schemas/vehicle'
         impel_dealer_id:
-          type: string
-        location_name:
-          type: string
-        state:
-          type: string
-        city:
-          type: string
-        zip_code:
-          type: string
-        db_creation_date:
+          type: integer
+          description: The unique id of the dealer assigned by Impel of the repair order to query for.
+          minimum: 0
+          example: 1234
+        appointment_date:
           type: string
           format: date-time
-    DealerIntegrationPartner:
-      type: object
-      properties:
-        id:
-          type: integer
-        integration_partner_id:
-          type: integer
-        dealer_id:
-          type: integer
-        dms_id:
-          type: string
-        is_active:
-          type: boolean
-        db_creation_date:
+          description: Date of the appointment
+          example: "2023-06-15T00:00:00Z"
+        appointment_create_date:
           type: string
           format: date-time
-    OpCode:
+          description: Date when the appointment was created
+          example: "2023-06-15T00:00:00Z"
+        appointment_source:
+          type: string
+          description: Source of the appointment (e.g., call center, walk-in, online)
+          minLength: 1
+          maxLength: 80
+          example: "Call Center"
+        appointment_time:
+          type: string
+          format: time
+          description: Time of the appointment in the 24-hour format
+          example: "14:30:00"
+        consumer_optin:
+          type: string
+          description: Consumer opt-in flag for contact (SMS, email, etc.). "Y" if consumer has opted in, "N" otherwise.
+          enum: ["Y", "N"]
+          example: "Y"
+        reason_code:
+          type: string
+          description: Reason code for the appointment
+          minLength: 1
+          maxLength: 20
+          example: "Check Engine Light"
+        rescheduled_flag:
+          type: string
+          description: Rescheduled flag. "Y" if the appointment has been rescheduled, "N" otherwise.
+          enum: ["Y", "N"]
+          example: "N"
+    consumer:
+      description: An object containing all information about a consumer
       type: object
+      required:
+        - consumer_id
+        - last_name
+        - cell_phone
+        - home_phone
+        - email
+        - email_optin_flag
+        - postal_code
       properties:
-        id:
-          type: integer
-        op_code:
-            type: string
-        op_code_desc:
-            type: string
-        dealer_integration_partner_id:
-            type: string
-    Consumer:
-      type: object
-      properties:
-        id:
-          type: integer
-        dealer_integration_partner_id:
-            type: string
         dealer_customer_no:
-            type: string
+          type: string
+          description: ID of the consumer from the partner's system
+          minLength: 1
+          maxLength: 50
+          example: "1234"
         first_name:
-            type: string
+          type: string
+          description: First name of the consumer
+          minLength: 1
+          maxLength: 50
+          example: "John"
         last_name:
-            type: string
-        email:
-            type: string
-        ip_address:
-            type: string
+          type: string
+          description: Last name of the consumer
+          minLength: 1
+          maxLength: 50
+          example: "Doe"
         cell_phone:
-            type: string
-        city:
-            type: string
-        state:
-            type: string
-        metro:
-            type: string
-        postal_code:
-            type: string
+          type: string
+          description: Cell phone number of the consumer
+          minLength: 1
+          maxLength: 15
+          example: "+19171231134"
         home_phone:
-            type: string
+          type: string
+          description: Home phone number of the consumer
+          minLength: 1
+          maxLength: 20
+          example: "+19171231134"
+        email:
+          type: string
+          description: Email of the consumer
+          minLength: 1
+          maxLength: 50
+          example: "john.doe@example.com"
+        city:
+          type: string
+          description: Consumer's residential city
+          minLength: 1
+          maxLength: 50
+          example: "Brooklyn"
+        state:
+          type: string
+          description: Consumer's residential state
+          minLength: 1
+          maxLength: 50
+          example: "New York"
+        postal_code:
+          type: string
+          description: Consumer's postal code
+          minLength: 1
+          maxLength: 10
+          example: "10001"
         email_optin_flag:
-            type: boolean
+          type: string
+          enum: ["Y", "N"]
+          description: Email opt-in flag for the consumer. "Y" if allowed contact, "N" otherwise.
+          minLength: 1
+          maxLength: 1
+          example: "Y"
         phone_optin_flag:
-            type: boolean
-        postal_mail_optin_flag:
-            type: boolean
+          type: string
+          enum: ["Y", "N"]
+          description: Phone call opt-in flag for the consumer. "Y" if allowed contact, "N" otherwise.
+          minLength: 1
+          maxLength: 1
+          example: "Y"
         sms_optin_flag:
-            type: boolean
-        db_creation_date:
+          type: string
+          enum: ["Y", "N"]
+          description: SMS opt-in flag for the consumer. "Y" if allowed contact, "N" otherwise.
+          minLength: 1
+          maxLength: 1
+          example: "Y"
+        postal_mail_optin_flag:
+          type: string
+          enum: ["Y", "N"]
+          description: Postal mail opt-in flag for the consumer. "Y" if allowed contact, "N" otherwise.
+          minLength: 1
+          maxLength: 1
+          example: "Y"
+    vehicle:
+      description: An object containing all information about a vehicle
+      type: object
+      required:
+      - make
+      - model
+      - mileage
+      - vehicle_class
+      - vehicle_type
+      - vin
+      - year
+      properties:
+        make:
+          type: string
+          description: Make of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Toyota"
+        model:
+          type: string
+          description: Model of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Camry"
+        mileage:
+          type: integer
+          description: Mileage of the vehicle in miles
+          minimum: 0
+          example: 50000
+        vehicle_class:
+          type: string
+          description: Class of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Sedan"
+        vehicle_type:
+          type: string
+          description: Type of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Car"
+        vin:
+          type: string
+          description: Vehicle Identification Number (VIN)
+          minLength: 17
+          maxLength: 17
+          example: "1HGCM82633A123456"
+        year:
+          type: integer
+          description: Year of the vehicle
+          minimum: 1900
+          maximum: 2100
+          example: 2022
+        exterior_color:
+          type: string
+          description: Exterior color of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Red"
+        interior_color:
+          type: string
+          description: Interior color of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Black"
+        trim:
+          type: string
+          description: Exterior trim of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Sport"
+    service_repair_order:
+      description: An object containing all information about a service repair order
+      type: object
+      required:
+      - consumer
+      - vehicle
+      - impel_dealer_id
+      - repair_order_no
+      - ro_open_date
+      - ro_close_date
+      - total amount
+      - consumer_total_amount
+      properties:
+        consumer:
+          $ref: '#/components/schemas/consumer'
+        vehicle: 
+          $ref: '#/components/schemas/vehicle'
+        impel_dealer_id:
+          type: integer
+          description: The unique id of the dealer assigned by Impel of the repair order to query for.
+          minimum: 0
+          example: 1234
+        repair_order_no:
+          type: string
+          description: The unique identifier for the service repair order
+          minLength: 1
+          maxLength: 50
+          example: "SR12345"
+        ro_open_date:
           type: string
           format: date-time
-        metadata:
-            type: string
-        master_consumer_id:
-            type: string
-    Vehicle:
-      type: object
-      properties:
-        id:
-          type: integer
-        vin:
-            type: string
-        oem_name:
-            type: string
-        type:
-            type: string
-        vehicle_class:
-            type: string
-        mileage:
-            type: string
-        make:
-            type: string
-        model:
-            type: string
-        year:
-            type: string
-        db_creation_date:
-            type: string
-            format: date-time
-        dealer_integration_partner_id:
-            type: integer
-        new_or_used:
-            type: string
-        metadata:
-            type: string
-    VehicleSale:
-      type: object
-      properties:
-        id:
-          type: integer
-        dealer_id:
-            type: integer
-        vehicle_id:
-          type: integer
-        consumer_id:
-          type: integer
-        sale_date:
+          description: Date and time when the service repair order was created
+          example: "2023-06-28T10:30:00Z"
+        ro_close_date:
           type: string
-          format: date
-          example: '2021-11-19'
-        listed_price:
+          format: date-time
+          description: Date and time when the service repair order was closed
+          example: "2023-06-30T10:30:00Z"
+        total_amount:
           type: number
           format: float
-        sales_tax:
+          description: Total amount of the repair order
+          minimum: 0
+          example: 125.50
+        consumer_total_amount:
           type: number
           format: float
-        mileage_on_vehicle:
-          type: integer
-        deal_type:
+          description: Total amount owed by the consumer
+          minimum: 0
+          example: 115.50
+        warranty_total_amount:
+          type: number
+          format: float
+          description: Total amount covered by warranty
+          minimum: 0
+          example: 10.00
+        txn_pay_type:
           type: string
+          description: Type of payment for the transaction
+          enum: ["Cash", "Credit", "Warranty"]
+          example: "Credit"
+        comment:
+          type: string
+          description: Additional comments or notes related to the order
+          minLength: 1
+          maxLength: 255
+          example: "The car has a minor scratch on the rear bumper."
+        recommendation:
+          type: string
+          description: Recommendations or suggestions provided by the service provider
+          minLength: 1
+          maxLength: 255
+          example: "Oil change, Tire rotation, Brake inspection."
+        advisor_name:
+          type: string
+          description: Name of the service technician or advisor
+          minLength: 1
+          maxLength: 100
+          example: "John Smith"
+        op_code:
+          type: string
+          description: Opcodes associated with the repair as a comma-separated list
+          minLength: 1
+          maxLength: 255
+          example: "1001,1002,1005"
+        op_code_desc:
+          type: string
+          description: Descriptions of the opcodes as a comma-separated list
+          minLength: 1
+          maxLength: 255
+          example: "Replace brake pads, Rotate tires, Inspect spark plugs"
+        primary_op_code:
+          type: string
+          description: Main reason for the repair
+          minLength: 1
+          maxLength: 255
+          example: "Engine misfiring"
+    service_contract:
+      description: An object containing all information about a service contract
+      type: object
+      required:
+      - contract_id
+      - contract_name
+      - start_date
+      properties:
+        amount:
+          type: number
+          description: Amount of the service contract
+          minimum: 0
+          example: 1500.0
+        contract_id:
+          type: number
+          description: ID of the service contract
+          minLength: 0
+          example: 1234
+        contract_name:
+          type: string
+          description: Name of the service contract
+          minLength: 1
+          maxLength: 40
+          example: "Gold Plan"
+        cost:
+          type: number
+          description: Total cost of the service contract
+          minimum: 0
+          example: 2000.0
+        deductible:
+          type: number
+          description: Deductible amount paid with every claim
+          minimum: 0
+          example: 100.0
+        expiration_miles:
+          type: integer
+          description: Expiration of Service Contracts in miles
+          minimum: 0
+          example: 100000
+        expiration_months:
+          type: integer
+          description: Expiration of Service Contracts in months
+          minimum: 0
+          example: 36
+        start_date:
+          type: string
+          format: date-time
+          description: Start date of the service contract
+          example: "2023-06-15T00:00:00Z"
+        starting_ooo_meter:
+          type: integer
+          description: Starting odometer reading (mileage) when the service contract begins
+          minimum: 0
+          example: 5000
+    vehicle_sale:
+      description: An object containing all information about a vehicle
+      type: object
+      required:
+      - consumer
+      - vehicle
+      - impel_dealer_id
+      - listed_price
+      - mileage_on_vehicle
+      - sale_date
+      - sales_tax
+      - service_contract_yes_no
+      - vin
+      properties:
+        consumer:
+          $ref: '#/components/schemas/consumer'
+        vehicle: 
+          $ref: '#/components/schemas/vehicle'
+        service_contract:
+          $ref: '#/components/schemas/service_contract'
+        impel_dealer_id:
+          type: integer
+          description: The unique id of the dealer assigned by Impel of the repair order to query for.
+          minimum: 0
+          example: 1234
         cost_of_vehicle:
           type: number
           format: float
-        oem_msrp:
-          type: number
-          format: float
+          description: Cost of the vehicle in USD
+          minimum: 0
+          example: 25000.99
+        date_of_state_inspection:
+          type: string
+          format: date-time
+          description: Date and time of the state inspection
+          example: "2023-06-15T00:00:00Z"
+        days_in_stock:
+          type: integer
+          description: Number of days the vehicle has been in stock
+          minimum: 0
+          example: 45
+        deal_type:
+          type: string
+          description: Type of the deal (e.g., cash, finance, lease)
+          minLength: 1
+          maxLength: 50
+          example: "Finance"
         discount_on_price:
           type: number
           format: float
-        days_in_stock:
-          type: integer
-        date_of_state_inspection:
+          description: Discount amount on the listed price in USD
+          minimum: 0
+          example: 2000.0
+        listed_price:
+          type: number
+          format: float
+          description: Listed price of the vehicle in USD
+          minimum: 0
+          example: 23000.0
+        make_of_trade_in:
           type: string
-          format: date
-          example: '2021-11-19'
-        is_new:
-          type: boolean
-        trade_in_value:
-          type: number
-          format: float
-        payoff_on_trade:
-          type: number
-          format: float
-        value_at_end_of_lease:
-          type: number
-          format: float
+          description: Make of the trade-in vehicle
+          minLength: 1
+          maxLength: 20
+          example: "Toyota"
+        mileage_on_vehicle:
+          type: integer
+          description: Mileage on the vehicle at the time of sale
+          minimum: 0
+          example: 60000
         miles_per_year:
           type: integer
+          description: Average number of miles driven per year
+          minimum: 0
+          example: 12000
+        model_of_trade_in:
+          type: string
+          description: Model of the trade-in vehicle
+          minLength: 1
+          maxLength: 50
+          example: "Camry"
+        new_or_used:
+          type: string
+          description: Indicates whether the vehicle is new (N) or used (U)
+          enum: ["N", "U"]
+          example: "N"
+        oem_msrp:
+          type: number
+          description: Manufacturer's Suggested Retail Price (MSRP) in USD
+          minimum: 0
+          example: 28000.0
+        payoff_on_trade:
+          type: number
+          description: Payoff amount on the trade-in vehicle
+          minimum: 0
+          example: 10000.0
         profit_on_sale:
           type: number
-          format: float
-        has_service_contract:
-          type: boolean
+          description: Profit amount from the vehicle sale
+          example: 2000.0
+        sale_date:
+          type: string
+          format: date-time
+          description: Date and time of the vehicle sale
+          example: "2023-07-15T09:30:00Z"
+        sales_tax:
+          type: number
+          description: Sales tax amount for the vehicle sale
+          minimum: 0
+          example: 1500.0
+        service_contract_yes_no:
+          type: string
+          enum: ["Y", "N"]
+          description: Indicates if the sale included an extended warranty
+          example: "Y"
+        trade_in_value:
+          type: number
+          description: Value of the trade-in vehicle
+          minimum: 0
+          example: 8000.0
+        value_at_end_of_lease:
+          type: number
+          description: Estimated value of the vehicle at the end of the lease
+          minimum: 0
+          example: 12000.0
         vehicle_gross:
           type: number
-          format: float
-        warranty_expiration_date:
-          type: string
-          format: date
-          example: '2021-11-19'
-        service_package:
-          type: string
-        extended_warranty:
-          type: string
-    RepairOrder:
-        type: object
-        properties:
-          id:
-            type: integer
-          dealer_integration_partner_id:
-            type: integer
-          consumer_id:
-            type: integer
-          vehicle_id:
-            type: integer
-          ro_open_date:
-            type: string
-            format: date-time
-            example: '2021-11-19T16:57:31+0000'
-          ro_close_date:
-            type: string
-            format: date-time
-            example: '2021-11-19T16:57:31+0000'
-          txn_pay_type:
-            type: integer
-          repair_order_no:
-            type: string
-          advisor_name:
-            type: string
-          total_amount:
-            type: number
-            format: float
-          consumer_total_amount:
-            type: number
-            format: float
-          warranty_total_amount:
-            type: number
-            format: float
-          internal_total_amount:
-            type: number
-            format: float
-          comment:
-            type: string
-          recommendation:
-            type: string
-          db_creation_date:
-              type: string
-              format: date-time
-          metadata:
-              type: string
+          description: Gross amount of the vehicle sale
+          minimum: 0
+          example: 25000.0
+        year_of_trade_in:
+          type: integer
+          description: Year of the trade-in vehicle
+          minimum: 1900
+          maximum: 2100
+          example: 2015

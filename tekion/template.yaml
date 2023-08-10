@@ -3,10 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 Description: Tekion DMS ETL
 
 Parameters:
-  SNSTopic:
-    Type: String
-    Default: "arn:aws:sns:us-east-1:196800776222:alert_client_engineering"
-
   Environment:
     Description: The name of the runtime environment
     Type: String
@@ -178,8 +174,8 @@ Resources:
       Targets:
         S3Targets:
           - Path: !If [ IsProd, 
-                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/deal/",
-                    !Sub "s3://integrations-${AWS::Region}-test/tekion/deal/",
+                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/fi_closed_deal/",
+                    !Sub "s3://integrations-${AWS::Region}-test/tekion/fi_closed_deal/",
                   ]
             DlqEventQueueArn: !GetAtt TekionDealDLQ.Arn
             EventQueueArn: !GetAtt TekionDealQueue.Arn    
@@ -218,11 +214,12 @@ Resources:
   TekionETLDeal:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the tekion deal crawler
+      Description: ETL job to run after the tekion deal crawler.
       Name: !Sub 'tekion-etl-deal-${Environment}'
       Role: !GetAtt TekionGlueRole.Arn
       GlueVersion: 3.0
-      MaxCapacity: 2
+      WorkerType: G.8X
+      NumberOfWorkers: 2
       ExecutionProperty:
         MaxConcurrentRuns: 1
       Connections:
@@ -242,8 +239,9 @@ Resources:
                       's3://integrations-etl-test/temporaryDeal/'
                     ]
         '--dlq_url': !Ref TekionETLDLQ
+        '--region': !Ref AWS::Region
         '--db_name': !Ref TekionCrawlerDB
-        '--catalog_table_names': "tekioncrawlerdb_deal"
+        '--catalog_table_names': "tekioncrawlerdb_fi_closed_deal"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
@@ -251,11 +249,12 @@ Resources:
   TekionETLRO:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the tekion RO crawler
+      Description: ETL job to run after the tekion RO crawler.
       Name: !Sub 'tekion-etl-ro-${Environment}'
       Role: !GetAtt TekionGlueRole.Arn
       GlueVersion: 3.0
-      MaxCapacity: 2
+      WorkerType: G.8X
+      NumberOfWorkers: 2
       ExecutionProperty:
         MaxConcurrentRuns: 1
       Connections:
@@ -276,6 +275,7 @@ Resources:
                     ]
         '--dlq_url': !Ref TekionETLDLQ
         '--db_name': !Ref TekionCrawlerDB
+        '--region': !Ref AWS::Region
         '--catalog_table_names': "tekioncrawlerdb_repair_order"
         '--catalog_connection': !Ref RDSConnection
         '--environment': !Ref Environment
@@ -398,7 +398,7 @@ Resources:
                   ]
           object:
             key:
-            - prefix: "tekion/deal/"
+            - prefix: "tekion/fi_closed_deal/"
       Targets:
         - Id: !Sub tekion-workflow-ro-target-${Environment}
           Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${TekionWorkflowDeal}
@@ -530,7 +530,7 @@ Resources:
       Endpoint: !GetAtt TekionDealQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionDealQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -617,7 +617,7 @@ Resources:
           crawlerName:
             - !Ref TekionROCrawler
       Targets:
-        - Arn: !Ref SNSTopic
+        - Arn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
           Id: !Sub TekionROCrawlerAlert-target-${Environment}
 
   TekionDealCrawlerAlert:
@@ -636,7 +636,7 @@ Resources:
           crawlerName:
             - !Ref TekionDealCrawler
       Targets:
-        - Arn: !Ref SNSTopic
+        - Arn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
           Id: !Sub TekionDealCrawlerAlert-target-${Environment}
 
   TekionETLDealAlert:
@@ -655,7 +655,7 @@ Resources:
           jobName:
             - !Ref TekionETLDeal
       Targets:
-        - Arn: !Ref SNSTopic
+        - Arn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
           Id: !Sub TekionETLDealAlert-target-${Environment}
 
   TekionETLROAlert:
@@ -674,7 +674,7 @@ Resources:
           jobName:
             - !Ref TekionETLRO
       Targets:
-        - Arn: !Ref SNSTopic
+        - Arn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
           Id: !Sub TekionETLROAlert-target-${Environment}
 
   AlertTopicPolicy:
@@ -689,9 +689,9 @@ Resources:
                 - events.amazonaws.com
             Action: 'sns:Publish'
             Resource:
-              - !Ref SNSTopic
+              - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Topics:
-        - !Ref SNSTopic
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
 
   TekionETLDLQRule:
     Type: AWS::CloudWatch::Alarm
@@ -729,7 +729,7 @@ Resources:
             - ALARM
       Description: Runs on tekion ETL alarm triggered
       Targets:
-        - Arn: !Ref SNSTopic
+        - Arn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
           Id: !Sub TekionETLDLQAlert-target-${Environment}
 
   TekionDevPolicy:
@@ -909,7 +909,7 @@ Resources:
       AlarmDescription: There are messages in the Tekion repair order DLQ
       ActionsEnabled: true
       AlarmActions:
-        - !Ref SNSTopic
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
         - Name: QueueName
           Value: !GetAtt RepairOrderDLQ.QueueName
@@ -930,7 +930,7 @@ Resources:
       AlarmDescription: There are messages in the Tekion deals DLQ
       ActionsEnabled: true
       AlarmActions:
-        - !Ref SNSTopic
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
         - Name: QueueName
           Value: !GetAtt DealsDLQ.QueueName
