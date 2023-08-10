@@ -297,9 +297,8 @@ class TekionUpsertJob:
         self.resolver = DynamicFrameResolver(self.glue_context)
         self.required_columns = []
         self.mappings = {
-            "tekioncrawlerdb_deal": {
-                # TODO: get dealer_integration_partner_id from the onboarding team
-                "dealer": {"dms_id": "techmotors_4"},
+            "tekioncrawlerdb_fi_closed_deal": {
+                "dealer": {"dms_id": "data.dms_id"},
                 "consumer": {
                     "customers": "data.customers",
                     "first_name": "data.customers.firstName",
@@ -350,8 +349,7 @@ class TekionUpsertJob:
                 },
             },
             "tekioncrawlerdb_repair_order": {
-                # TODO: get dealer_integration_partner_id from the onboarding team
-                "dealer": {"dms_id": "techmotors_4"},
+                "dealer": {"dms_id": "data.dms_id"},
                 "consumer": {
                     "first_name": "data.customer.firstName",
                     "last_name": "data.customer.lastName",
@@ -415,7 +413,7 @@ class TekionUpsertJob:
 
     def apply_mappings(self, df, catalog_name):
         """Map the raw data to the unified column and return as a dataframe."""
-        if catalog_name in ("tekioncrawlerdb_deal", "tekioncrawlerdb_repair_order"):
+        if catalog_name in ("tekioncrawlerdb_fi_closed_deal", "tekioncrawlerdb_repair_order"):
             data_column_name = "data"
         else:
             raise RuntimeError(f"Unexpected catalog {catalog_name}")
@@ -461,10 +459,7 @@ class TekionUpsertJob:
 
     def format_df(self, df, catalog_name):
         """Format the raw data to match the database schema."""
-        starting_count = df.count()
-        df = df.withColumn("dms_id", F.lit("techmotors_4"))
-        df.show()
-        if catalog_name == "tekioncrawlerdb_deal":
+        if catalog_name == "tekioncrawlerdb_fi_closed_deal":
             if "customers" in df.columns:
                 df = self.extract_first_item_from_array(df, "customers")
                 df = self.extract_first_item_from_array(df, "first_name")
@@ -524,11 +519,6 @@ class TekionUpsertJob:
                 df = df.withColumn("comment", F.concat_ws(", ", F.array_distinct(F.col("comment"))))
 
             df = df.drop("advisor_first_name", "advisor_last_name")
-
-        if starting_count != df.count():
-            raise RuntimeError(
-                f"Error formatting lost data from {starting_count} rows to {df.count()}"
-            )
         return df
     
     def add_list_to_df(
@@ -567,7 +557,7 @@ class TekionUpsertJob:
                     F.lit(db_dealer_integration_partner_id),
                 )
                 dealer_rows = dealer_df.count()
-                if catalog_name == "tekioncrawlerdb_deal":
+                if catalog_name == "tekioncrawlerdb_fi_closed_deal":
                     # Vehicle sale must insert into consumer table first
                     inserted_consumer_ids = self.rds.insert_consumer(
                         dealer_df, catalog_name, self.mappings
@@ -670,7 +660,7 @@ class TekionUpsertJob:
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
-            if "tekioncrawlerdb_deal" == catalog_name:
+            if "tekioncrawlerdb_fi_closed_deal" == catalog_name:
                 main_column_name = "Deal"
             elif "tekioncrawlerdb_repair_order" == catalog_name:
                 main_column_name = "RepairOrder"
@@ -732,6 +722,7 @@ if __name__ == "__main__":
             "catalog_connection",
             "environment",
             "dlq_url",
+            "region",
         ],
     )
 

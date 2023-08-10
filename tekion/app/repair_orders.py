@@ -18,6 +18,8 @@ def parse_data(data):
     )
 
     api_data = tekion_wrapper.get_repair_orders()
+    for element in api_data:
+        element.update({"dms_id": tekion_wrapper.dealer_id})
     now = tekion_wrapper.end_dt
     filename = f'{data["dealer_id"]}_{str(uuid4())}.json'
     key = f'tekion/repair_order/{now.year}/{now.month}/{now.day}/{filename}'

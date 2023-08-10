@@ -32,7 +32,7 @@ def send_to_queue(queue_url, dealer_id, end_dt_str):
         QueueUrl=queue_url,
         MessageBody=dumps(data),
         # Spread out calls, avoid overloading Tekion servers.
-        DelaySeconds=random.randint(0, 900),
+        DelaySeconds=random.randint(0, 500),
     )
 
 
