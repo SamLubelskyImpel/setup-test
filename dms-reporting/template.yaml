@@ -231,6 +231,6 @@ Resources:
   CSSnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      Endpoint: !If [IsProd, 'aisupport@impel.io', 'elena@impel.io']
+      Endpoint: !If [IsProd, 'cs@impel.io', 'elena@impel.io']
       Protocol: email
       TopicArn: !Ref DMSReportingSnsTopic

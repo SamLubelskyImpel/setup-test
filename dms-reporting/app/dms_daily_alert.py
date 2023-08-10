@@ -111,7 +111,7 @@ def get_dealer_information():
         conn.commit()
 
     except (Exception, psycopg2.Error) as error:
-        logger.info("Error occurred: " + str(error))
+        logger.exception("Error occurred: " + str(error))
 
     finally:
         if cursor:
