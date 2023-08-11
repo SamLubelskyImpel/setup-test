@@ -173,18 +173,19 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          - Path: !If [ IsProd, 
-                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/fi_closed_deal/",
-                    !Sub "s3://integrations-${AWS::Region}-test/tekion/fi_closed_deal/",
-                  ]
-            DlqEventQueueArn: !GetAtt TekionDealDLQ.Arn
-            EventQueueArn: !GetAtt TekionDealQueue.Arn    
+          # - Path: !If [ IsProd, 
+          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/fi_closed_deal/",
+          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/fi_closed_deal/",
+          #         ]
+          #   DlqEventQueueArn: !GetAtt TekionDealDLQ.Arn
+          #   EventQueueArn: !GetAtt TekionDealQueue.Arn    
+          - Path: "s3://integrations-us-east-1-test/tekion/fi_closed_deal/"
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
       RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVENT_MODE'
+        RecrawlBehavior: 'CRAWL_EVERYTHING'
   
   TekionROCrawler:
     Type: AWS::Glue::Crawler
@@ -198,23 +199,24 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          - Path: !If [ IsProd, 
-                    !Sub "s3://integrations-${AWS::Region}-prod/tekion/repair_order/",
-                    !Sub "s3://integrations-${AWS::Region}-test/tekion/repair_order/",
-                  ]
-            DlqEventQueueArn: !GetAtt TekionRODLQ.Arn
-            EventQueueArn: !GetAtt TekionROQueue.Arn    
+          # - Path: !If [ IsProd, 
+          #           !Sub "s3://integrations-${AWS::Region}-prod/tekion/repair_order/",
+          #           !Sub "s3://integrations-${AWS::Region}-test/tekion/repair_order/",
+          #         ]
+          #   DlqEventQueueArn: !GetAtt TekionRODLQ.Arn
+          #   EventQueueArn: !GetAtt TekionROQueue.Arn    
+          - Path: "s3://integrations-us-east-1-test/tekion/repair_order/"
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
       RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVENT_MODE'
+        RecrawlBehavior: 'CRAWL_EVERYTHING'
 
   TekionETLDeal:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the tekion deal crawler.
+      Description: ETL job to run after the tekion deal crawler
       Name: !Sub 'tekion-etl-deal-${Environment}'
       Role: !GetAtt TekionGlueRole.Arn
       GlueVersion: 3.0
@@ -233,7 +235,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-enable'
+        '--job-bookmark-option': 'job-bookmark-disable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryDeal/',
                       's3://integrations-etl-test/temporaryDeal/'
@@ -268,7 +270,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-enable'
+        '--job-bookmark-option': 'job-bookmark-disable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryRO/',
                       's3://integrations-etl-test/temporaryRO/'
