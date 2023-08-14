@@ -357,9 +357,9 @@ class TekionUpsertJob:
                     "phones": "customer.phones",
                     "cell_phone": "customer.phones",
                     "home_phone": "customer.phones",
-                    "city": "customer.addresses.city",
-                    "state": "customer.addresses.state",
-                    "postal_code": "customer.addresses.zip"
+                    "city": "customer.address.city",
+                    "state": "customer.address.state",
+                    "postal_code": "customer.address.zip"
                 },
                 "vehicle": {
                     "vehicles": "vehicles",
@@ -416,9 +416,15 @@ class TekionUpsertJob:
         if catalog_name not in ("tekioncrawlerdb_fi_closed_deal", "tekioncrawlerdb_repair_order"):
             raise RuntimeError(f"Unexpected catalog {catalog_name}")
 
-        # Select columns from raw data by mapping and ensure the partitions "Year", "Month", and "Date" are included
-        table_data = self.select_columns(df, self.mappings[catalog_name]).select("Year", "Month", "Date", "*")
+        valid_data = df.select(
+            "Year",
+            "Month",
+            "Date",
+            "*",
+        )
 
+        # Select columns raw data by mapping
+        table_data = self.select_columns(valid_data, self.mappings[catalog_name])
         return table_data
 
     def extract_first_item_from_array(self, df, column_name):
@@ -466,7 +472,7 @@ class TekionUpsertJob:
                 df = self.extract_first_item_from_nested_array(df, "addresses")
                 df = df.withColumn('city', F.col('addresses.city'))
                 df = df.withColumn('state', F.col('addresses.state'))
-                df = df.withColumn('zip', F.col('addresses.zip'))
+                df = df.withColumn('postal_code', F.col('addresses.zip'))
                 df = df.drop("addresses")
             if "email_optin_flag" in df.columns:
                 df = self.set_optin_flag(df, "email_optin_flag", "email")
@@ -652,9 +658,9 @@ class TekionUpsertJob:
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
             if "tekioncrawlerdb_fi_closed_deal" == catalog_name:
-                main_column_name = "Deal"
+                main_column_name = "dealNumber"
             elif "tekioncrawlerdb_repair_order" == catalog_name:
-                main_column_name = "RepairOrder"
+                main_column_name = "repairOrderNumber"
             else:
                 raise RuntimeError(f"Unexpected catalog {catalog_name}")
 
@@ -698,9 +704,7 @@ class TekionUpsertJob:
             self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": "s3://integrations-etl-test/tekion/results/"}, format="json")
 
             # Insert tables to database
-            # self.upsert_df(datasource, catalog_name)
-
-            raise Exception("stop before job commit")
+            self.upsert_df(datasource, catalog_name)
             
             self.job.commit()
 
