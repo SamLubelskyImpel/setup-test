@@ -131,5 +131,7 @@ def lambda_handler(event, context):
     
     if active_dealers_with_missing_sro:
         # alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
+        pass
     if active_dealers_with_missing_vs:
         # alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')
+        pass
