@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Tekion DMS ETL
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  VpcId:
+    us-east-1:
+      '196800776222': vpc-03417e688cee5bc07
+      '143813444726': vpc-0b28df8980a1905d5
+  SslCertificates:
+    us-east-1:
+      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
+      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+
+  UnifiedRODLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: UnifiedRODLQ
+  
+  UnifiedROQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: UnifiedRODLQ
+    Properties:
+      QueueName: UnifiedROQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt UnifiedRODLQ.Arn
+        maxReceiveCount: 5
+
+  UnifiedROQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd, 
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true 
+      Endpoint: !GetAtt UnifiedROQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/repair_order"}]}}}}'
+
+  UnifiedROQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UnifiedROQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref AWS::AccountId
+            Action: "sqs:*"
+            Resource: !GetAtt UnifiedROQueue.Arn
+
+  UnifiedROInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Insert unified DMS RO data to the database.
+      CodeUri: app/
+      Handler: repair_orders.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt UnifiedROQueue.Arn
+
