@@ -234,7 +234,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-disable'
+        '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryDeal/',
                       's3://integrations-etl-test/temporaryDeal/'
@@ -269,7 +269,7 @@ Resources:
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
       DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-disable'
+        '--job-bookmark-option': 'job-bookmark-enable'
         '--TempDir': !If [ IsProd, 
                       's3://integrations-etl-prod/temporaryRO/',
                       's3://integrations-etl-test/temporaryRO/'

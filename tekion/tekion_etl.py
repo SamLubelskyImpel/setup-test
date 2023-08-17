@@ -451,7 +451,18 @@ class TekionUpsertJob:
         return df
 
     def convert_unix_to_timestamp(self, df, column_name):
-        df = df.withColumn(column_name, F.from_unixtime(F.col(column_name).cast("double") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
+        df = df.withColumn(
+            column_name,
+            F.when(
+                (F.col(column_name) <= 0) | (F.col(column_name).isNull()),
+                None
+            ).otherwise(
+                F.from_unixtime(
+                    F.col(column_name).cast("double") / 1000,
+                    'yyyy-MM-dd HH:mm:ss'
+                ).cast("timestamp")
+            )
+        )
         return df
 
     def format_df(self, df, catalog_name):
@@ -487,7 +498,7 @@ class TekionUpsertJob:
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
                 df = df.withColumn('type', F.col('vehicles.stockType'))
-                df = df.withColumn('mileage', F.col('vehicles.mileage.value'))
+                df = df.withColumn('mileage', F.col('vehicles.mileage.value').cast('int'))
                 df = df.withColumn("new_or_used", F.when(F.col("vehicles.stockType") == "NEW", "N").otherwise("U"))
                 df = df.withColumn("vehicle_class", F.col("vehicles.trimDetails.bodyClass"))
             if "sale_date" in df.columns:
@@ -496,7 +507,7 @@ class TekionUpsertJob:
                                                  "adjustment_on_price", "vehicle_gross", "cost_of_vehicle"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
-                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value'))
+                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value').cast('int'))
                 df = df.withColumn("has_service_contract", F.expr("array_contains(deal_payment.fnIs.disclosureType, 'SERVICE_CONTRACT')"))
                 df = self.convert_unix_to_timestamp(df, "sale_date")
                 df = self.convert_unix_to_timestamp(df, "delivery_date")
