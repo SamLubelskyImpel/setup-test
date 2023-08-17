@@ -80,7 +80,7 @@ class DynamicFrameResolver:
         self.glue_context = glue_context
 
     def get_resolved_choices(self, unresolved_columns):
-        """ Default all dynamicframe choices to either a string or array column. """
+        """Determine how to handle unresolved columns"""
         resolve_spec = []
         for unresolved_column in unresolved_columns:
             choices = unresolved_column[1].keys()
@@ -163,7 +163,7 @@ class DynamicFrameResolver:
         ).drop(source_col_name)
 
     def convert_structs_to_arrays(self, df, spec):
-        """Given a dynamicframe and a spec, resolve any choice struct/array columns by combining them into an array."""
+        """Given a dynamicframe and a spec, resolve any split struct/array columns by combining them into an array."""
         spec = sorted(spec, key=lambda x: len(x[0].split(".")), reverse=False)
         for field_path, resolution in spec:
             if resolution != "make_cols":
@@ -231,9 +231,9 @@ class DynamicFrameResolver:
         return df
 
     def resolve_nested(self, df, name):
-        """Resolve nested choices inside a dynamicframe default columns to string or array type."""
+        """Resolve nested choices inside a dynamicframe."""
         i = 0
-        max_resolutions = 50 # Prevent infinite recursion
+        max_resolutions = 50
         all_resolved_specs = []
         unresolved_columns = self.get_unresolved_columns(df.schema())
         while len(unresolved_columns) > 0:
@@ -268,11 +268,17 @@ class DynamicFrameResolver:
             datasource.withColumnRenamed(array_column_name, main_column_name)
             .filter(lambda row: row[main_column_name] is not None)
             .drop(struct_column_name)
+            .drop("RepairOrder.RoRecord.Rosub")
+            .drop("RepairOrder.RoRecord.Ropart")
+            .drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")
         )
         datasource_struct = (
             datasource.withColumnRenamed(struct_column_name, main_column_name)
             .filter(lambda row: row[main_column_name] is not None)
             .drop(array_column_name)
+            .drop("RepairOrder.RoRecord.Rosub")
+            .drop("RepairOrder.RoRecord.Ropart")
+            .drop("RepairOrder.RoRecord.Rolabor.OpCodeLaborInfo")
         )
 
         # Resolve all possible field choices inside the frame and get the resolved choices
@@ -436,7 +442,7 @@ class ReyReyUpsertJob:
 
             if db_table_name in self.metadata_tables:
                 df = df.withColumn(
-                    f"{db_table_name}.metadata",
+                    f"{db_table_name}|metadata",
                     F.to_json(
                         F.struct(
                             F.lit(self.region).alias("Region"),
