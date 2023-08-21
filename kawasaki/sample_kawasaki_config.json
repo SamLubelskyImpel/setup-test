@@ -1,7 +1,25 @@
 {
     "dealerspike": [
         {
-            "web_url": "http://deercountry.net/"
+            "web_url": "https://www.deercountry.net"
+        },
+        {
+            "web_url": "https://www.rockstarbrandon.com"
+        },
+        {
+            "web_url": "https://www.mountainmotorsports.com"
+        },
+        {
+            "web_url": "https://www.skypowersportslakeland.com"
+        },
+        {
+            "web_url": "https://www.tampabaypowersports.com"
+        },
+        {
+            "web_url": "https://www.imotorsportsinc.com"
+        },
+        {
+            "web_url": "https://www.gforcepowersports.com"
         }
     ]
 }

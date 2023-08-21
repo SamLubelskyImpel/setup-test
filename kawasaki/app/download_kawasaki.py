@@ -1,13 +1,14 @@
 """Download Kawasaki data for a dealer."""
-from datetime import datetime, timezone
 import logging
-import requests
-from uuid import uuid4
+from datetime import datetime, timezone
 from json import loads
 from os import environ
 from urllib.parse import urlparse
+from uuid import uuid4
+from xml.etree import ElementTree
 
 import boto3
+import requests
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -16,12 +17,12 @@ KAWASAKI_DATA_BUCKET = environ["KAWASAKI_DATA_BUCKET"]
 
 default_suffix_mappings = {
     "dealerspike": "/feeds.asp?feed=GenericXMLFeed&version=2",
-    "ari": "/unitinventory_univ.xml"
+    "ari": "/unitinventory_univ.xml",
 }
 
 
-def download_kawasaki_file(web_provider, dealer_config):
-    """Download Kawasaki file from url and upload to S3."""
+def get_kawasaki_file(web_provider, dealer_config):
+    """Given a web provider and dealer config, request dealer file."""
     base_url = dealer_config["web_url"]
     if dealer_config.get("web_suffix", None):
         web_suffix = dealer_config["web_suffix"]
@@ -30,23 +31,34 @@ def download_kawasaki_file(web_provider, dealer_config):
     xml_url = f"{base_url}{web_suffix}"
     response = requests.get(xml_url)
     response.raise_for_status()
+    return response.content
+
+
+def validate_xml_data(xml_string):
+    """Given a string check if it is valid xml data that can be parsed."""
+    if len(xml_string) <= 0:
+        raise RuntimeError(f"No data found {xml_string}")
+    ElementTree.fromstring(xml_string)
+
+
+def download_kawasaki_file(web_provider, dealer_config):
+    """Download Kawasaki file from url and upload to S3."""
+    response_content = get_kawasaki_file(web_provider, dealer_config)
+    validate_xml_data(response_content)
+
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    filename = f"{urlparse(base_url).netloc}_{now.strftime('%Y%m%d')}_{str(uuid4())}.xml"
+    filename = f"{web_provider}_{urlparse(dealer_config['web_url']).netloc}_{now.strftime('%Y%m%d')}_{str(uuid4())}.xml"
     s3_key = f"raw/{web_provider}/{now.year}/{now.month}/{now.day}/{filename}"
-    S3_CLIENT.put_object(
-        Body=response.content,
-        Bucket=KAWASAKI_DATA_BUCKET,
-        Key=s3_key
-    )
+    S3_CLIENT.put_object(Body=response_content, Bucket=KAWASAKI_DATA_BUCKET, Key=s3_key)
     logger.info(f"Uploaded {s3_key}")
 
 
 def lambda_handler(event: dict, context: dict):
     """Download file for Kawasaki dealer."""
-    try:
-        for event in [e for e in event["Records"]]:
+    for event in [e for e in event["Records"]]:
+        try:
             message = loads(event["body"])
             download_kawasaki_file(message["web_provider"], message["dealer_config"])
-    except Exception as e:
-        logger.exception("Kawasaki file download failed.")
-        raise e
+        except Exception as exc:
+            logger.exception("Kawasaki file download failed.")
+            raise exc

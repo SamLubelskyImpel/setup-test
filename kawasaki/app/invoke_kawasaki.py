@@ -22,16 +22,13 @@ def send_to_queue(web_provider, dealer_config):
         "dealer_config": dealer_config,
     }
     logger.info(f"Sending {data} to {QUEUE_URL}")
-    SQS_CLIENT.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=dumps(data)
-    )
+    SQS_CLIENT.send_message(QueueUrl=QUEUE_URL, MessageBody=dumps(data))
 
 
 def load_json_s3(bucket_name, key):
     """Load json from an S3 file given a bucket name and key."""
     response = S3_CLIENT.get_object(Bucket=bucket_name, Key=key)
-    json_content = response['Body'].read().decode('utf-8')
+    json_content = response["Body"].read().decode("utf-8")
     return loads(json_content)
 
 
@@ -45,8 +42,5 @@ def lambda_handler(event, context):
     except Exception:
         message = f"Error invoking Kawasaki downloads {event}"
         logger.exception(message)
-        SNS_CLIENT.publish(
-            TopicArn=ALERT_TOPIC_ARN,
-            Message=message
-        )
+        SNS_CLIENT.publish(TopicArn=ALERT_TOPIC_ARN, Message=message)
         raise
