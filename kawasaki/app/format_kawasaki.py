@@ -45,6 +45,7 @@ def parse_s3_file(bucket_name, s3_key):
 def format_upload_kawasaki(bucket, key):
     """Convert kawasaki XML data to CSV and upload to the FTP server."""
     file_name = key.split("/")[-1]
+    csv_file_name = file_name.replace(".xml", ".csv")
     web_provider = key.split("/")[1]
     xml_data = parse_s3_file(bucket, key)
     if web_provider == "dealerspike":
@@ -58,12 +59,12 @@ def format_upload_kawasaki(bucket, key):
         ftp_credentials["host"],
         ftp_credentials["username"],
         ftp_credentials["password"],
-        file_name,
+        csv_file_name,
         csv_data,
     )
-    logger.info(f"Uploaded {file_name} to {ftp_credentials['host']}")
+    logger.info(f"Uploaded {csv_file_name} to {ftp_credentials['host']}")
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    s3_key = f"formatted/{web_provider}/{now.year}/{now.month}/{now.day}/{file_name}"
+    s3_key = f"formatted/{web_provider}/{now.year}/{now.month}/{now.day}/{csv_file_name}"
     S3_CLIENT.put_object(Body=csv_data, Bucket=bucket, Key=s3_key)
     logger.info(f"Uploaded {s3_key}")
 
