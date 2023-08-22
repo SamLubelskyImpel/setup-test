@@ -35,18 +35,18 @@ def upload_to_ftp(host, username, password, remote_file_path, file_content):
     ftp.quit()
 
 
-def parse_s3_xml(bucket_name, s3_key):
+def parse_s3_file(bucket_name, s3_key):
     """Parse an XML file from S3."""
     response = S3_CLIENT.get_object(Bucket=bucket_name, Key=s3_key)
     xml_content = response["Body"].read()
-    return ElementTree.fromstring(xml_content)
+    return xml_content
 
 
 def format_upload_kawasaki(bucket, key):
     """Convert kawasaki XML data to CSV and upload to the FTP server."""
     file_name = key.split("/")[-1]
     web_provider = key.split("/")[1]
-    xml_data = parse_s3_xml(bucket, key)
+    xml_data = parse_s3_file(bucket, key)
     if web_provider == "dealerspike":
         csv_data = convert_dealerspike_csv(xml_data)
     elif web_provider == "ari":
