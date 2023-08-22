@@ -1,15 +1,13 @@
 """Format Kawasaki data to CSV and upload to ICC."""
 import io
 import logging
+import boto3
 from datetime import datetime, timezone
 from ftplib import FTP
 from json import loads
 from os import environ
-from xml.etree import ElementTree
+from utils.xml_to_csv import convert_xml_to_csv
 
-import boto3
-from ari import convert_ari_csv
-from dealerspike import convert_dealerspike_csv
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -48,12 +46,7 @@ def format_upload_kawasaki(bucket, key):
     csv_file_name = file_name.replace(".xml", ".csv")
     web_provider = key.split("/")[1]
     xml_data = parse_s3_file(bucket, key)
-    if web_provider == "dealerspike":
-        csv_data = convert_dealerspike_csv(xml_data)
-    elif web_provider == "ari":
-        csv_data = convert_ari_csv(xml_data)
-    else:
-        raise RuntimeError(f"Unsupported web provider: {web_provider}")
+    csv_data = convert_xml_to_csv(xml_data)
     ftp_credentials = get_ftp_credentials()
     upload_to_ftp(
         ftp_credentials["host"],

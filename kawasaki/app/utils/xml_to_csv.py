@@ -1,21 +1,17 @@
-'''
-TODO this looks like pretty much identical to dealerspike.py,
-we could redesign it to avoid duplication
-'''
 import csv
 import io
 from xml.etree import ElementTree
 
 
 def format_string(raw_string):
-    """Remove line breaks for single line csv files."""
+    """Remove line breaks for single line CSV files."""
     if not isinstance(raw_string, str):
         return ""
     return raw_string.replace("\n", "").replace("\r", "")
 
 
 def parse_xml(xml_string):
-    """Parse elements from ARI xml"""
+    """Parse items from XML."""
     tree = ElementTree.fromstring(xml_string)
     all_item_data = []
     headers = set()
@@ -28,8 +24,8 @@ def parse_xml(xml_string):
     return all_item_data, headers
 
 
-def convert_ari_csv(xml_string):
-    """Convert ari XML data to CSV."""
+def convert_xml_to_csv(xml_string):
+    """Convert XML data to CSV."""
     all_item_data, headers = parse_xml(xml_string)
     csv_buffer = io.StringIO()
     csv_writer = csv.DictWriter(csv_buffer, fieldnames=headers)
