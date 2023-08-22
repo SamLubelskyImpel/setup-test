@@ -28,7 +28,7 @@ def list_files_with_prefix(host, username, password, remote_dir, prefix):
 
 
 ftp_credentials = get_ftp_credentials()
-for prefix in ["dealerspike"]:
+for prefix in ["dealerspike", "ari", "dx1"]:
     files = list_files_with_prefix(
         ftp_credentials["host"],
         ftp_credentials["username"],

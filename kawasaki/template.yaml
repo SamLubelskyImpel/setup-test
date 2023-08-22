@@ -173,7 +173,7 @@ Resources:
     DependsOn: KawasakiDownloadDLQ
     Properties:
       QueueName: KawasakiDownloadQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt KawasakiDownloadDLQ.Arn
         maxReceiveCount: 5
@@ -237,7 +237,7 @@ Resources:
     DependsOn: FormatKawasakiDLQ
     Properties:
       QueueName: FormatKawasakiQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt FormatKawasakiDLQ.Arn
         maxReceiveCount: 5
