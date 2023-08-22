@@ -1,13 +1,14 @@
 """Format Kawasaki data to CSV and upload to ICC."""
 import io
 import logging
-import boto3
 from datetime import datetime, timezone
 from ftplib import FTP
 from json import loads
 from os import environ
-from utils.xml_to_csv import convert_xml_to_csv
 
+import boto3
+
+from utils.xml_to_csv import convert_xml_to_csv
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -57,7 +58,9 @@ def format_upload_kawasaki(bucket, key):
     )
     logger.info(f"Uploaded {csv_file_name} to {ftp_credentials['host']}")
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    s3_key = f"formatted/{web_provider}/{now.year}/{now.month}/{now.day}/{csv_file_name}"
+    s3_key = (
+        f"formatted/{web_provider}/{now.year}/{now.month}/{now.day}/{csv_file_name}"
+    )
     S3_CLIENT.put_object(Body=csv_data, Bucket=bucket, Key=s3_key)
     logger.info(f"Uploaded {s3_key}")
 

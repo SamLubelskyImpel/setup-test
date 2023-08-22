@@ -6,11 +6,11 @@ from os import environ
 from urllib.parse import urlparse
 from uuid import uuid4
 from xml.etree import ElementTree
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 import boto3
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -40,8 +40,8 @@ def requests_retry_session(
         status_forcelist=status_forcelist,
     )
     adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
     return session
 
 
@@ -49,9 +49,11 @@ def get_kawasaki_file(web_provider, dealer_config):
     """Given a web provider and dealer config, request dealer file."""
     base_url = dealer_config["web_url"]
     if dealer_config.get("web_suffix", None):
+        # The dealer has a dealer specific suffix
         web_suffix = dealer_config["web_suffix"]
     else:
-        web_suffix = default_suffix_mappings[web_provider]
+        # The dealer uses the default suffix for the given provider
+        web_suffix = default_suffix_mappings.get(web_provider, "")
     xml_url = f"{base_url}{web_suffix}"
     session = requests.Session()
     response = requests_retry_session(session=session).get(xml_url)
