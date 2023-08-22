@@ -46,7 +46,7 @@ def format_upload_kawasaki(bucket, key):
     csv_file_name = file_name.replace(".xml", ".csv")
     web_provider = key.split("/")[1]
     xml_data = parse_s3_file(bucket, key)
-    csv_data = convert_xml_to_csv(xml_data)
+    csv_data = convert_xml_to_csv(xml_data, web_provider)
     ftp_credentials = get_ftp_credentials()
     upload_to_ftp(
         ftp_credentials["host"],
