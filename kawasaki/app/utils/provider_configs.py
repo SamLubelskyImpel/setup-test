@@ -58,7 +58,6 @@ DEALERSPIKE_CONFIG = {
         "brand",
         "displacement",
         "weight",
-        "miles",
     ],
 }
 
@@ -90,6 +89,7 @@ ARI_CONFIG = {
         "metric_value",
         "images",
         "attributes",
+        "miles",
     ],
 }
 
