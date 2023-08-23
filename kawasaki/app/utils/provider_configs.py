@@ -58,6 +58,7 @@ DEALERSPIKE_CONFIG = {
         "brand",
         "displacement",
         "weight",
+        "miles",
     ],
 }
 

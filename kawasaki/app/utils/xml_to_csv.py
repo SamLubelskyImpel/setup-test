@@ -17,6 +17,8 @@ def parse_tag_data(child, provider_config):
             url_text = []
             for url_tag in child.findall(".//url"):
                 url_text.append(format_string(url_tag.text))
+            if len(url_text) <= 0:
+                return ""
             return url_text
         if child.tag == "specifications":
             specifications_text = []
@@ -30,6 +32,8 @@ def parse_tag_data(child, provider_config):
                 specifications_text.append(
                     f"{specification_name}|{specification_value}"
                 )
+            if len(specifications_text) <= 0:
+                return ""
             return specifications_text
     return format_string(child.text)
 

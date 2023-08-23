@@ -2,7 +2,7 @@
 Parse XML files from web providers to upload to ICC ftp server.
 
 ### Onboarding a new dealer
-- Add the dealer url to kawasaki_config.json
+- Add the dealer's web_url and impel_id to kawasaki_config.json
 - run: cd tests;python test_kawasaki.py
 - Verify the final log message shows all configs work, warning messages of unexpected tags are ok
 - Check the generated csv file in tests/output for the newly added config and verify data appears and is properly formatted csv

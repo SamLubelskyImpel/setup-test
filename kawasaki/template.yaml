@@ -176,7 +176,7 @@ Resources:
       VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt KawasakiDownloadDLQ.Arn
-        maxReceiveCount: 5
+        maxReceiveCount: 10
 
   KawasakiDownloadFunction:
     Type: AWS::Serverless::Function
@@ -240,7 +240,7 @@ Resources:
       VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt FormatKawasakiDLQ.Arn
-        maxReceiveCount: 5
+        maxReceiveCount: 10
 
   FormatKawasakiQueueSubscription:
     Type: AWS::SNS::Subscription

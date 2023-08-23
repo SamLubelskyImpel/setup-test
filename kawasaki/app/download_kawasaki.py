@@ -3,7 +3,6 @@ import logging
 from datetime import datetime, timezone
 from json import loads
 from os import environ
-from urllib.parse import urlparse
 from uuid import uuid4
 from xml.etree import ElementTree
 
@@ -74,7 +73,7 @@ def download_kawasaki_file(web_provider, dealer_config):
     validate_xml_data(response_content)
 
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    filename = f"{web_provider}_{urlparse(dealer_config['web_url']).netloc}_{now.strftime('%Y%m%d')}_{str(uuid4())}.xml"
+    filename = f"{web_provider}|{dealer_config['impel_id']}|{now.strftime('%Y%m%d')}|{str(uuid4())}.xml"
     s3_key = f"raw/{web_provider}/{now.year}/{now.month}/{now.day}/{filename}"
     S3_CLIENT.put_object(Body=response_content, Bucket=KAWASAKI_DATA_BUCKET, Key=s3_key)
     logger.info(f"Uploaded {s3_key}")
