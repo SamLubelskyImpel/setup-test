@@ -68,8 +68,8 @@ def format_upload_kawasaki(bucket, key):
 def lambda_handler(event: dict, context: dict):
     """Format Kawasaki data to CSV and upload to ICC."""
     try:
-        for event in [e for e in event["Records"]]:
-            message = loads(event["body"])
+        for record in event["Records"]:
+            message = loads(record["body"])
             logger.info(f"Message of {message}")
             for record in message["Records"]:
                 bucket = record["s3"]["bucket"]["name"]

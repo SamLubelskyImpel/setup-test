@@ -59,9 +59,9 @@ def download_kawasaki_file(web_provider, dealer_config):
 
 def lambda_handler(event: dict, context: dict):
     """Download file for Kawasaki dealer."""
-    for event in [e for e in event["Records"]]:
+    for record in event["Records"]:
         try:
-            message = loads(event["body"])
+            message = loads(record["body"])
             download_kawasaki_file(message["web_provider"], message["dealer_config"])
         except Exception as exc:
             logger.exception("Kawasaki file download failed.")
