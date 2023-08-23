@@ -8,8 +8,6 @@ from xml.etree import ElementTree
 
 import boto3
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -22,28 +20,6 @@ default_suffix_mappings = {
 }
 
 
-# https://www.peterbe.com/plog/best-practice-with-retries-with-requests
-def requests_retry_session(
-    retries=3,
-    backoff_factor=0.3,
-    status_forcelist=(500, 502, 504),
-    session=None,
-):
-    """Request with preset best values."""
-    session = session or requests.Session()
-    retry = Retry(
-        total=retries,
-        read=retries,
-        connect=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=status_forcelist,
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    return session
-
-
 def get_kawasaki_file(web_provider, dealer_config):
     """Given a web provider and dealer config, request dealer file."""
     base_url = dealer_config["web_url"]
@@ -54,8 +30,7 @@ def get_kawasaki_file(web_provider, dealer_config):
         # The dealer uses the default suffix for the given provider
         web_suffix = default_suffix_mappings.get(web_provider, "")
     xml_url = f"{base_url}{web_suffix}"
-    session = requests.Session()
-    response = requests_retry_session(session=session).get(xml_url)
+    response = requests.get(xml_url)
     response.raise_for_status()
     return response.content
 
@@ -73,7 +48,7 @@ def download_kawasaki_file(web_provider, dealer_config):
     validate_xml_data(response_content)
 
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    filename = f"{web_provider}|{dealer_config['impel_id']}|{now.strftime('%Y%m%d')}|{str(uuid4())}.xml"
+    filename = f"{web_provider}.{dealer_config['impel_id']}.{now.strftime('%Y%m%d')}.{str(uuid4())}.xml"
     s3_key = f"raw/{web_provider}/{now.year}/{now.month}/{now.day}/{filename}"
     S3_CLIENT.put_object(Body=response_content, Bucket=KAWASAKI_DATA_BUCKET, Key=s3_key)
     logger.info(f"Uploaded {s3_key}")
