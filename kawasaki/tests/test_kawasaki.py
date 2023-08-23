@@ -34,7 +34,7 @@ for web_provider, dealer_configs in kawasaki_config.items():
             validate_xml_data(response_content)
             csv_data = convert_xml_to_csv(response_content, web_provider)
             now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-            filename = f"{web_provider}-{dealer_config['impel_id']}-{now.strftime('%Y%m%d')}.csv"
+            filename = f"{web_provider}_{dealer_config['impel_id']}.csv"
             if not os.path.exists("output"):
                 os.makedirs("output")
             with open(f"output/{filename}", "w+") as f:
