@@ -306,11 +306,3 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt FormatKawasakiQueue.Arn
-
-  # TODO: Remove resource from template after deployment
-  KawasakiFTPSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !If [IsProd, 'prod/KawasakiFTP', 'test/KawasakiFTP']
-      Description: Kawasaki FTP server secret
-      SecretString: !If [IsProd, '{"host": "ftp.inventorycc.com", "username": "SpinCar", "password": "!!4Sp2in4C!r#3"}', '{"host": "swipetospin.exavault.com", "username": "test_ftp_conn", "password": "mXJlm8JWz63ZrNp7"}']
