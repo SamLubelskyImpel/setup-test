@@ -15,16 +15,21 @@ from download_kawasaki import get_kawasaki_file, validate_xml_data
 
 from utils.xml_to_csv import convert_xml_to_csv
 
-# TODO Test from the prod S3 config rather than the sample config once deployed.
+checked_id = None
+if len(sys.argv) == 2:
+    checked_id = int(sys.argv[1])
+
 with open("../kawasaki_config.json", "r") as f:
     kawasaki_config = loads(f.read())
 
 working_configs = 0
 total_configs = 0
 for web_provider, dealer_configs in kawasaki_config.items():
-    total_configs += len(dealer_configs)
     for dealer_config in dealer_configs:
+        if checked_id and int(dealer_config['impel_id']) != int(checked_id):
+            continue
         try:
+            total_configs += 1
             response_content = get_kawasaki_file(web_provider, dealer_config)
             validate_xml_data(response_content)
             csv_data = convert_xml_to_csv(response_content, web_provider)
