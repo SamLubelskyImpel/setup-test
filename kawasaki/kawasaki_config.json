@@ -34,7 +34,8 @@
     "dx1": [
         {
             "impel_id": "test_azure_id",
-            "web_url": "https://dx1.azure-api.net/iod/41c8b022-46f9-49c8-859a-349a7f7fdc5b"
+            "web_url": "https://dx1.azure-api.net",
+            "web_suffix": "/iod/41c8b022-46f9-49c8-859a-349a7f7fdc5b"
         }
     ]
 }
