@@ -30,7 +30,11 @@ def get_kawasaki_file(web_provider, dealer_config):
         # The dealer uses the default suffix for the given provider
         web_suffix = default_suffix_mappings.get(web_provider, "")
     xml_url = f"{base_url}{web_suffix}"
-    response = requests.get(xml_url)
+    # Downloads on lambda require user agent or else 403
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
+    }
+    response = requests.get(xml_url, headers=headers)
     response.raise_for_status()
     return response.content
 
