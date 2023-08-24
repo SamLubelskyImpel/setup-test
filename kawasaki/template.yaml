@@ -306,9 +306,3 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt FormatKawasakiQueue.Arn
-
-  KawasakiFTPSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: !If [IsProd, 'prod/KawasakiFTP', 'test/KawasakiFTP']
-      Description: Kawasaki FTP server secret
