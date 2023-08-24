@@ -2,7 +2,8 @@
 Parse XML files from web providers to upload to ICC ftp server.
 
 ### Onboarding a new dealer
-- Download kawasaki_config.json from the kawasaki-us-east-1-prod bucket locally to universal_integrations/kawasaki/kawasaki_config.json
+- Download the prod kawasaki config with the following command:
+- run: cd utils;python pull_prod_config.py
 - Add the new dealer's web_url, web_suffix, and impel_id to kawasaki_config.json
     - dealerspike by default appends web_suffix /feeds.asp feed=GenericXMLFeed&version=2 to web_url
     - ari by default appends web_suffix /unitinventory_univ.xml to web_url
