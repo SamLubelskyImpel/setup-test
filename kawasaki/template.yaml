@@ -80,7 +80,7 @@ Resources:
 
   KawasakiS3ToSNSPolicy:
     Type: AWS::SNS::TopicPolicy
-    Properties: 
+    Properties:
       PolicyDocument:
         Version: '2012-10-17'
         Id: !Sub 'kawasaki-sns-s3-policy-${AWS::Region}-${Environment}'
@@ -95,7 +95,7 @@ Resources:
           Condition:
             ArnLike:
               aws:SourceArn: !Sub 'arn:aws:s3:::kawasaki-${AWS::Region}-${Environment}'
-      Topics: 
+      Topics:
         - Ref: KawasakiS3ToSNSTopic
 
   InvokeKawasakiFunction:
@@ -167,7 +167,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
-  
+
   KawasakiDownloadQueue:
     Type: AWS::SQS::Queue
     DependsOn: KawasakiDownloadDLQ
@@ -231,7 +231,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
-  
+
   FormatKawasakiQueue:
     Type: AWS::SQS::Queue
     DependsOn: FormatKawasakiDLQ
@@ -247,7 +247,7 @@ Resources:
     Properties:
       TopicArn: !Ref KawasakiS3ToSNSTopic
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt FormatKawasakiQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -306,3 +306,9 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt FormatKawasakiQueue.Arn
+
+  KawasakiFTPSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !If [IsProd, 'prod/KawasakiFTP', 'test/KawasakiFTP']
+      Description: Kawasaki FTP server secret
