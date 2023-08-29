@@ -12,6 +12,23 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def parse_tag_data(child, provider_config):
     """Parse child tag data from xml main tag."""
+    if provider_config["provider"] == "dealerspike":
+        if child.tag == "images":
+            url_text = []
+            for url_tag in child.findall("./"):
+                if url_tag.tag.startswith("Image"):
+                    url_text.append(format_string(url_tag.text))
+            if len(url_text) <= 0:
+                return ""
+            return "|".join(url_text)
+    if provider_config["provider"] == "ari":
+        if child.tag == "images":
+            url_text = []
+            for url_tag in child.findall(".//imageurl"):
+                url_text.append(format_string(url_tag.text))
+            if len(url_text) <= 0:
+                return ""
+            return "|".join(url_text)
     if provider_config["provider"] == "dx1":
         if child.tag == "listing-photos":
             url_text = []
