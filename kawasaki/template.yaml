@@ -138,28 +138,9 @@ Resources:
         DailyInvoke:
           Type: Schedule
           Properties:
+            Description: Start the daily data pull for each kawasaki dealer.
             Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 12 * * ? *) # 8:00 EST
-        DailyInvoke:
-          Type: Schedule
-          Properties:
-            Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 16 * * ? *) # 12:00 EST
-        DailyInvoke:
-          Type: Schedule
-          Properties:
-            Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 18 * * ? *) # 14:00 EST
-        DailyInvoke:
-          Type: Schedule
-          Properties:
-            Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 22 * * ? *) # 18:00 EST
-        DailyInvoke:
-          Type: Schedule
-          Properties:
-            Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 0 * * ? *) # 20:00 EST
+            Schedule: cron(0 12,16,18,22,0 * * ? *)
 
   KawasakiDownloadDLQ:
     Type: AWS::SQS::Queue
