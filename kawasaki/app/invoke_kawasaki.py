@@ -1,4 +1,5 @@
 """Invoke Kawasaki data download for each dealer."""
+import random
 import logging
 from json import dumps, loads
 from os import environ
@@ -22,7 +23,12 @@ def send_to_queue(web_provider, dealer_config):
         "dealer_config": dealer_config,
     }
     logger.info(f"Sending {data} to {QUEUE_URL}")
-    SQS_CLIENT.send_message(QueueUrl=QUEUE_URL, MessageBody=dumps(data))
+    SQS_CLIENT.send_message(
+        QueueUrl=QUEUE_URL,
+        MessageBody=dumps(data),
+        # Spread out calls over 5min, avoid overloading servers.
+        DelaySeconds=random.randint(0, 300)
+    )
 
 
 def load_json_s3(bucket_name, key):

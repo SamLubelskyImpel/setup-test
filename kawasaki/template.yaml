@@ -138,9 +138,28 @@ Resources:
         DailyInvoke:
           Type: Schedule
           Properties:
-            Description: Start the daily data pull for each kawasaki dealer.
             Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 0 * * ? *)
+            Schedule: cron(0 12 * * ? *) # 8:00 EST
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 16 * * ? *) # 12:00 EST
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 18 * * ? *) # 14:00 EST
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 22 * * ? *) # 18:00 EST
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 0 * * ? *) # 20:00 EST
 
   KawasakiDownloadDLQ:
     Type: AWS::SQS::Queue
@@ -176,7 +195,7 @@ Resources:
       VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt KawasakiDownloadDLQ.Arn
-        maxReceiveCount: 10
+        maxReceiveCount: 15
 
   KawasakiDownloadFunction:
     Type: AWS::Serverless::Function
@@ -240,7 +259,7 @@ Resources:
       VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt FormatKawasakiDLQ.Arn
-        maxReceiveCount: 10
+        maxReceiveCount: 15
 
   FormatKawasakiQueueSubscription:
     Type: AWS::SNS::Subscription
@@ -301,6 +320,7 @@ Resources:
         Variables:
           ENVIRONMENT: !Ref Environment
           KAWASAKI_DATA_BUCKET: !Sub 'kawasaki-${AWS::Region}-${Environment}'
+          FTP_SECRETS_NAME: !If [IsProd, 'prod/KawasakiFTP', 'test/KawasakiFTP']
       Events:
         SqsEvent:
           Type: SQS
