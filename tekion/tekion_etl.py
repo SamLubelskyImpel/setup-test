@@ -298,89 +298,89 @@ class TekionUpsertJob:
         self.required_columns = []
         self.mappings = {
             "tekioncrawlerdb_fi_closed_deal": {
-                "dealer": {"dms_id": "data.dms_id"},
+                "dealer": {"dms_id": "dms_id"},
                 "consumer": {
-                    "customers": "data.customers",
-                    "first_name": "data.customers.firstName",
-                    "last_name": "data.customers.lastName",
-                    "email": "data.customers.emails",
-                    "phones": "data.customers.phones",
-                    "cell_phone": "data.customers.phones",
-                    "home_phone": "data.customers.phones",
-                    "addresses": "data.customers.addresses",
-                    "city": "data.customers.addresses.city",
-                    "state": "data.customers.addresses.state",
-                    "postal_code": "data.customers.addresses.zip",
-                    "email_optin_flag": "data.customers.communicationPreferences.email",
-                    "phone_optin_flag": "data.customers.communicationPreferences.call",
-                    "postal_mail_optin_flag": "data.customers.communicationPreferences.mail",
-                    "sms_optin_flag": "data.customers.communicationPreferences.text"
+                    "customers": "customers",
+                    "first_name": "customers.firstName",
+                    "last_name": "customers.lastName",
+                    "email": "customers.emails",
+                    "phones": "customers.phones",
+                    "cell_phone": "customers.phones",
+                    "home_phone": "customers.phones",
+                    "addresses": "customers.addresses",
+                    "city": "customers.addresses.city",
+                    "state": "customers.addresses.state",
+                    "postal_code": "customers.addresses.zip",
+                    "email_optin_flag": "customers.communicationPreferences.email",
+                    "phone_optin_flag": "customers.communicationPreferences.call",
+                    "postal_mail_optin_flag": "customers.communicationPreferences.mail",
+                    "sms_optin_flag": "customers.communicationPreferences.text"
                 },
                 "vehicle": {
-                    "vehicles": "data.vehicles",
-                    "vin": "data.vehicles.vin",
-                    "type": "data.vehicles.type",
-                    "vehicle_class": "data.vehicles.trimDetails.bodyClass",
-                    "mileage": "data.vehicles.mileage.value",
-                    "make": "data.vehicles.make",
-                    "model": "data.vehicles.model",
-                    "year": "data.vehicles.year",
-                    "new_or_used": "data.vehicles.stockType"
+                    "vehicles": "vehicles",
+                    "vin": "vehicles.vin",
+                    "type": "vehicles.type",
+                    "vehicle_class": "vehicles.trimDetails.bodyClass",
+                    "mileage": "vehicles.mileage.value",
+                    "make": "vehicles.make",
+                    "model": "vehicles.model",
+                    "year": "vehicles.year",
+                    "new_or_used": "vehicles.stockType"
                 },
                 "vehicle_sale": {
-                    "sale_date": "data.contractDate",
-                    "listed_price": "data.vehicles.pricing.retailPrice.amount",
-                    "sales_tax": "data.dealPayment.termPayment.totals.taxAmount.amount",
-                    "mileage_on_vehicle": "data.vehicles.mileage.value",
-                    "deal_type": "data.type",
-                    "cost_of_vehicle": "data.vehicles.pricing.finalCost.amount",
-                    "oem_msrp": "data.vehicles.pricing.msrp.amount",
-                    "adjustment_on_price": "data.vehicles.pricing.totalAdjustments.amount",
-                    "payoff_on_trade": "data.tradeIns.tradePayOff.amount",
-                    "miles_per_year": "data.dealPayment.termPayment.yearlyMiles.totalValue",
-                    "profit_on_sale": "data.vehicles.pricing.profit.amount",
-                    "has_service_contract": "data.dealPayment.fnIs.disclosureType.ServiceContract",
-                    "vehicle_gross": "data.vehicles.pricing.retailPrice.amount",
-                    "vin": "deal.vehicles.vin",
-                    "delivery_date": "data.deliveryDate",
-                    "deal_payment": "data.dealPayment",
-                    "finance_amount": "data.dealPayment.termPayment.amountFinanced.amount",
-                    "finance_rate": "data.dealPayment.termPayment"
+                    "sale_date": "contractDate",
+                    "listed_price": "vehicles.pricing.retailPrice.amount",
+                    "sales_tax": "dealPayment.termPayment.totals.taxAmount.amount",
+                    "mileage_on_vehicle": "vehicles.mileage.value",
+                    "deal_type": "type",
+                    "cost_of_vehicle": "vehicles.pricing.finalCost.amount",
+                    "oem_msrp": "vehicles.pricing.msrp.amount",
+                    "adjustment_on_price": "vehicles.pricing.totalAdjustments.amount",
+                    "payoff_on_trade": "tradeIns.tradePayOff.amount",
+                    "miles_per_year": "dealPayment.termPayment.yearlyMiles.totalValue",
+                    "profit_on_sale": "vehicles.pricing.profit.amount",
+                    "has_service_contract": "dealPayment.fnIs.disclosureType.ServiceContract",
+                    "vehicle_gross": "vehicles.pricing.retailPrice.amount",
+                    "vin": "vehicles.vin",
+                    "delivery_date": "deliveryDate",
+                    "deal_payment": "dealPayment",
+                    "finance_amount": "dealPayment.termPayment.amountFinanced.amount",
+                    "finance_rate": "dealPayment.termPayment"
                 },
             },
             "tekioncrawlerdb_repair_order": {
-                "dealer": {"dms_id": "data.dms_id"},
+                "dealer": {"dms_id": "dms_id"},
                 "consumer": {
-                    "first_name": "data.customer.firstName",
-                    "last_name": "data.customer.lastName",
-                    "email": "data.customer.email",
-                    "phones": "data.customer.phones",
-                    "cell_phone": "data.customer.phones",
-                    "home_phone": "data.customer.phones",
-                    "city": "data.customer.addresses.city",
-                    "state": "data.customer.addresses.state",
-                    "postal_code": "data.customer.addresses.zip"
+                    "first_name": "customer.firstName",
+                    "last_name": "customer.lastName",
+                    "email": "customer.email",
+                    "phones": "customer.phones",
+                    "cell_phone": "customer.phones",
+                    "home_phone": "customer.phones",
+                    "city": "customer.address.city",
+                    "state": "customer.address.state",
+                    "postal_code": "customer.address.zip"
                 },
                 "vehicle": {
-                    "vehicles": "data.vehicles",
-                    "vin": "data.vehicle.vin",
-                    "make": "data.vehicle.make",
-                    "model": "data.vehicle.model",
-                    "year": "data.vehicle.year"
+                    "vehicles": "vehicles",
+                    "vin": "vehicle.vin",
+                    "make": "vehicle.make",
+                    "model": "vehicle.model",
+                    "year": "vehicle.year"
                 },
                 "service_repair_order": {
-                    "ro_open_date": "data.createdTime",
-                    "ro_close_date": "data.closedTime",
-                    "txn_pay_type": "data.jobs.payType",
-                    "repair_order_no": "data.repairOrderNumber",
-                    "advisor_name": "data.primaryAdvisor",
-                    "advisor_first_name": "data.primaryAdvisor.firstName",
-                    "advisor_last_name": "data.primaryAdvisor.lastName",
-                    "total_amount": "data.invoice.invoiceAmount",
-                    "consumer_total_amount": "data.invoice.customerPay.amount",
-                    "warranty_total_amount": "data.invoice.warrantyPay.amount",
-                    "internal_total_amount": "data.invoice.internalPay.amount",
-                    "comment": "data.jobs.concern"
+                    "ro_open_date": "createdTime",
+                    "ro_close_date": "closedTime",
+                    "txn_pay_type": "jobs.payType",
+                    "repair_order_no": "repairOrderNumber",
+                    "advisor_name": "primaryAdvisor",
+                    "advisor_first_name": "primaryAdvisor.firstName",
+                    "advisor_last_name": "primaryAdvisor.lastName",
+                    "total_amount": "invoice.invoiceAmount",
+                    "consumer_total_amount": "invoice.customerPay.amount",
+                    "warranty_total_amount": "invoice.warrantyPay.amount",
+                    "internal_total_amount": "invoice.internalPay.amount",
+                    "comment": "jobs.concern"
                 }
             }
         }
@@ -412,18 +412,15 @@ class TekionUpsertJob:
         return df.select(selected_columns)
 
     def apply_mappings(self, df, catalog_name):
-        """Map the raw data to the unified column and return as a dataframe."""
-        if catalog_name in ("tekioncrawlerdb_fi_closed_deal", "tekioncrawlerdb_repair_order"):
-            data_column_name = "data"
-        else:
+        """Map the raw data to the columns and return as a dataframe."""
+        if catalog_name not in ("tekioncrawlerdb_fi_closed_deal", "tekioncrawlerdb_repair_order"):
             raise RuntimeError(f"Unexpected catalog {catalog_name}")
 
-        # Select data without null values
-        valid_data = df.filter(F.col(f"{data_column_name}").isNotNull()).select(
+        valid_data = df.select(
             "Year",
             "Month",
             "Date",
-            F.explode(f"{data_column_name}").alias(data_column_name),
+            "*",
         )
 
         # Select columns raw data by mapping
@@ -454,7 +451,18 @@ class TekionUpsertJob:
         return df
 
     def convert_unix_to_timestamp(self, df, column_name):
-        df = df.withColumn(column_name, F.from_unixtime(F.col(column_name).cast("double") / 1000, 'yyyy-MM-dd HH:mm:ss').cast("timestamp"))
+        df = df.withColumn(
+            column_name,
+            F.when(
+                (F.col(column_name) <= 0) | (F.col(column_name).isNull()),
+                None
+            ).otherwise(
+                F.from_unixtime(
+                    F.col(column_name).cast("double") / 1000,
+                    'yyyy-MM-dd HH:mm:ss'
+                ).cast("timestamp")
+            )
+        )
         return df
 
     def format_df(self, df, catalog_name):
@@ -475,7 +483,7 @@ class TekionUpsertJob:
                 df = self.extract_first_item_from_nested_array(df, "addresses")
                 df = df.withColumn('city', F.col('addresses.city'))
                 df = df.withColumn('state', F.col('addresses.state'))
-                df = df.withColumn('zip', F.col('addresses.zip'))
+                df = df.withColumn('postal_code', F.col('addresses.zip'))
                 df = df.drop("addresses")
             if "email_optin_flag" in df.columns:
                 df = self.set_optin_flag(df, "email_optin_flag", "email")
@@ -490,7 +498,7 @@ class TekionUpsertJob:
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
                 df = df.withColumn('type', F.col('vehicles.stockType'))
-                df = df.withColumn('mileage', F.col('vehicles.mileage.value'))
+                df = df.withColumn('mileage', F.col('vehicles.mileage.value').cast('int'))
                 df = df.withColumn("new_or_used", F.when(F.col("vehicles.stockType") == "NEW", "N").otherwise("U"))
                 df = df.withColumn("vehicle_class", F.col("vehicles.trimDetails.bodyClass"))
             if "sale_date" in df.columns:
@@ -499,7 +507,7 @@ class TekionUpsertJob:
                                                  "adjustment_on_price", "vehicle_gross", "cost_of_vehicle"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
-                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value'))
+                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value').cast('int'))
                 df = df.withColumn("has_service_contract", F.expr("array_contains(deal_payment.fnIs.disclosureType, 'SERVICE_CONTRACT')"))
                 df = self.convert_unix_to_timestamp(df, "sale_date")
                 df = self.convert_unix_to_timestamp(df, "delivery_date")
@@ -661,9 +669,9 @@ class TekionUpsertJob:
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
             if "tekioncrawlerdb_fi_closed_deal" == catalog_name:
-                main_column_name = "Deal"
+                main_column_name = "dealNumber"
             elif "tekioncrawlerdb_repair_order" == catalog_name:
-                main_column_name = "RepairOrder"
+                main_column_name = "repairOrderNumber"
             else:
                 raise RuntimeError(f"Unexpected catalog {catalog_name}")
 

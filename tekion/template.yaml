@@ -95,6 +95,7 @@ Resources:
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                     ]
+                  - !Sub "arn:aws:s3:::integrations-etl-test/*"
         - PolicyName: TekionSSMPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -173,12 +174,12 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          - Path: !If [ IsProd, 
+          - Path: !If [ IsProd,
                     !Sub "s3://integrations-${AWS::Region}-prod/tekion/fi_closed_deal/",
                     !Sub "s3://integrations-${AWS::Region}-test/tekion/fi_closed_deal/",
                   ]
             DlqEventQueueArn: !GetAtt TekionDealDLQ.Arn
-            EventQueueArn: !GetAtt TekionDealQueue.Arn    
+            EventQueueArn: !GetAtt TekionDealQueue.Arn
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
@@ -198,12 +199,12 @@ Resources:
         - !Ref TekionClassifier
       Targets:
         S3Targets:
-          - Path: !If [ IsProd, 
+          - Path: !If [ IsProd,
                     !Sub "s3://integrations-${AWS::Region}-prod/tekion/repair_order/",
                     !Sub "s3://integrations-${AWS::Region}-test/tekion/repair_order/",
                   ]
             DlqEventQueueArn: !GetAtt TekionRODLQ.Arn
-            EventQueueArn: !GetAtt TekionROQueue.Arn    
+            EventQueueArn: !GetAtt TekionROQueue.Arn
       SchemaChangePolicy:
         UpdateBehavior: 'UPDATE_IN_DATABASE'
         DeleteBehavior: 'LOG'
