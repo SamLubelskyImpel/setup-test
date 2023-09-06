@@ -67,6 +67,19 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  RDSInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "dms-unified rds access"
+      GroupId: !If [ IsProd, 
+                      'sg-00e12bc4c116eb820',
+                      'sg-00b911ee260ce5153'
+                    ]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
   UnifiedRODLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -165,6 +178,113 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt UnifiedRODLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  UnifiedFIDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: UnifiedFIDLQ
+  
+  UnifiedFIQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: UnifiedFIDLQ
+    Properties:
+      QueueName: UnifiedFIQueue
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt UnifiedFIDLQ.Arn
+        maxReceiveCount: 5
+
+  UnifiedFIQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd, 
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true 
+      Endpoint: !GetAtt UnifiedFIQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  UnifiedFIQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UnifiedFIQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UnifiedFIQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UnifiedFIQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd, 
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  UnifiedFIInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Insert unified DMS FI data to the database.
+      CodeUri: app/
+      Handler: fi_closed_deal.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd, 
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+            - Sid: SMPolicy
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd, 
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt UnifiedFIQueue.Arn
+
+  UnifiedFIDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub UnifiedFIDLQ-${Environment}
+      AlarmDescription: Messages are in the unified DMS FI insertion lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UnifiedFIDLQ.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS

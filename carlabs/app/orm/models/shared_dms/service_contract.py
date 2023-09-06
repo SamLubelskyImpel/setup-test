@@ -12,8 +12,7 @@ class ServiceContract(BaseForModels):
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
-    consumer_id = Column(Integer, ForeignKey(f'{SCHEMA}.consumer.id'))
-    vehicle_id = Column(Integer, ForeignKey(f'{SCHEMA}.vehicle.id'))
+    vehicle_sale_id = Column(Integer)
     contract_id = Column(Integer)
     contract_name = Column(String)
     start_date = Column(DateTime)
@@ -27,8 +26,7 @@ class ServiceContract(BaseForModels):
     extended_warranty = Column(JSON)
     service_package_flag = Column(Boolean)
 
-    consumer = relationship('Consumer')
-    vehicle = relationship('Vehicle')
+    vehicle_sale = relationship('VehicleSale')
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''

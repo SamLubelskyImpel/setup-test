@@ -359,8 +359,9 @@ class ReyReyUpsertJob:
                 "vehicle": {
                     "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
-                    "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._ModelDesc",
+                    "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Carline",
                     "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
+                    "mileage": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading",
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
@@ -384,6 +385,10 @@ class ReyReyUpsertJob:
                     "finance_term": "FIDeal.FIDealFin.FinanceInfo._Term",
                     "finance_amount": "FIDeal.FIDealFin.FinanceInfo._AmtFinanced",
                 },
+                "service_contracts": {
+                    "warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
+                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN"
+                }
             },
             "reyreycrawlerdb_repair_order": {
                 "dealer_integration_partner": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
@@ -398,12 +403,14 @@ class ReyReyUpsertJob:
                     "cell_phone": "RepairOrder.CustRecord.ContactInfo.phone",
                     "postal_code": "RepairOrder.CustRecord.ContactInfo.Address._Zip",
                     "home_phone": "RepairOrder.CustRecord.ContactInfo.phone",
+                    "email_optin_flag": "RepairOrder.CustRecord.ContactInfo.Email._MailTo",
                 },
                 "vehicle": {
                     "vin": "RepairOrder.RoRecord.Rogen._Vin",
                     "make": "RepairOrder.ServVehicle.Vehicle._VehicleMake",
-                    "model": "RepairOrder.ServVehicle.Vehicle._ModelDesc",
+                    "model": "RepairOrder.ServVehicle.Vehicle._Carline",
                     "year": "RepairOrder.ServVehicle.Vehicle._VehicleYr",
+                    "mileage": "RepairOrder.RoRecord.Rogen._MileageIn",
                 },
                 "service_repair_order": {
                     "ro_open_date": "RepairOrder.RoRecord.Rogen._RoCreateDate",
@@ -481,123 +488,132 @@ class ReyReyUpsertJob:
             get_cell_phone = F.filter(
                 F.col("consumer|cell_phone"), lambda x: x["_Type"].isin(["C", "O"])
             )["_Num"][0]
-            df = df.withColumn("consumer|cell_phone", get_cell_phone)
+            df = df.withColumn("consumer|cell_phone", get_cell_phone.cast(StringType()))
         if "consumer|home_phone" in df.columns:
             # Convert home_phone column from Array[Struct(_Num, _Type)] to LongType
             get_home_phone = F.filter(
                 F.col("consumer|home_phone"), lambda x: x["_Type"].isin(["H"])
             )["_Num"][0]
-            df = df.withColumn("consumer|home_phone", get_home_phone)
-        if (
-            "service_repair_order|internal_total_amount" in df.columns
-            or "service_repair_order|consumer_total_amount" in df.columns
-            or "service_repair_order|warranty_total_amount" in df.columns
-        ):
-            # Sum _IntrRoTotalAmt, _CustRoTotalAmt, and _WarrRoTotalAmt to get total_amount
-            valid_columns = []
-            if "service_repair_order|internal_total_amount" in df.columns:
-                valid_columns.append(F.col("service_repair_order|internal_total_amount"))
-            if "service_repair_order|consumer_total_amount" in df.columns:
-                valid_columns.append(F.col("service_repair_order|consumer_total_amount"))
-            if "service_repair_order|warranty_total_amount" in df.columns:
-                valid_columns.append(F.col("service_repair_order|warranty_total_amount"))
+            df = df.withColumn("consumer|home_phone", get_home_phone.cast(StringType()))
+        if "consumer|email" in df.columns:
+            # Keep only valid emails and not "NO EMAIL"
+            df = df.withColumn("consumer|email", F.when(F.col("consumer|email").like("%@%"), F.col("consumer|email")).otherwise(""))
 
-            df = df.withColumn(
-                "service_repair_order|total_amount",
-                F.when(
-                    # When all the columns are null, keep the value null
-                    F.coalesce(*valid_columns).isNull(),
-                    F.lit(None),
-                ).otherwise(
-                    # When at least one column has a value, treat null values as 0 and sum
-                    sum([F.coalesce(x, F.lit(0)) for x in valid_columns])
-                ),
-            )
-        if "op_codes|op_codes" in df.columns:
-            # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
-            is_array_col = df.schema["op_codes|op_codes"].dataType.typeName() == "array"
-            if not is_array_col:
-                # XML data pulls with a single op_code aren't converted to arrays
-                logger.info("Convert op_codes to array")
+        if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+            if "vehicle_sale|has_service_contract" in df.columns:
+                # Convert String to Bool
+                def calculate_service_contract_flag(arr):
+                    if arr:
+                        if not isinstance(arr, list):
+                            arr = [arr]
+                        return any(x == "Y" for x in arr)
+                    else:
+                        return None
+
+                get_service_contract_flag = F.udf(
+                    calculate_service_contract_flag, BooleanType()
+                )
+                df = df.withColumn(
+                    "vehicle_sale|has_service_contract",
+                    get_service_contract_flag(F.col("vehicle_sale|has_service_contract")),
+                )
+            if ("vehicle_sale|trade_in_value" in df.columns
+                or "vehicle_sale|payoff_on_trade" in df.columns):
+                # Convert Array[Float] to Float
+                def calculate_arr_sum(arr):
+                    if arr:
+                        if not isinstance(arr, list):
+                            arr = [arr]
+                        total = None
+                        for raw_reyrey_float in arr:
+                            if raw_reyrey_float and raw_reyrey_float != "null":
+                                if total is None:
+                                    total = raw_reyrey_float
+                                else:
+                                    total += raw_reyrey_float
+                        return total
+                    else:
+                        return None
+                if "vehicle_sale|trade_in_value" in df.columns:
+                    get_trade_in_value = F.udf(calculate_arr_sum, DoubleType())
+                    df = df.withColumn("vehicle_sale|trade_in_value", get_trade_in_value(F.col("vehicle_sale|trade_in_value")))
+                if "vehicle_sale|payoff_on_trade" in df.columns:
+                    get_payoff_on_trade = F.udf(calculate_arr_sum, DoubleType())
+                    df = df.withColumn("vehicle_sale|payoff_on_trade", get_payoff_on_trade(F.col("vehicle_sale|payoff_on_trade")))
+            if (
+                "consumer|email_optin_flag" in df.columns
+                and "consumer|phone_optin_flag" in df.columns
+                and "consumer|postal_mail_optin_flag" in df.columns
+                and "consumer|sms_optin_flag" in df.columns
+            ):
+                # Convert String to Bool
+                def calculate_optin_flag(arr):
+                    if arr:
+                        if not isinstance(arr, list):
+                            arr = [arr]
+                        # Optin False if any optout is Y
+                        return not any(x == "Y" for x in arr)
+                    else:
+                        return None
+
+                get_optin_flag = F.udf(calculate_optin_flag, BooleanType())
+                # Same flag for each, copy rather than recalculate
+                df = (
+                    df.withColumn(
+                        "consumer|email_optin_flag", get_optin_flag(F.col("consumer|email_optin_flag"))
+                    )
+                    .withColumn("consumer|phone_optin_flag", F.col("consumer|email_optin_flag"))
+                    .withColumn("consumer|postal_mail_optin_flag", F.col("consumer|email_optin_flag"))
+                    .withColumn("consumer|sms_optin_flag", F.col("consumer|email_optin_flag"))
+                )
+        elif catalog_name == "reyreycrawlerdb_repair_order":
+            if (
+                "service_repair_order|internal_total_amount" in df.columns
+                or "service_repair_order|consumer_total_amount" in df.columns
+                or "service_repair_order|warranty_total_amount" in df.columns
+            ):
+                # Sum _IntrRoTotalAmt, _CustRoTotalAmt, and _WarrRoTotalAmt to get total_amount
+                valid_columns = []
+                if "service_repair_order|internal_total_amount" in df.columns:
+                    valid_columns.append(F.col("service_repair_order|internal_total_amount"))
+                if "service_repair_order|consumer_total_amount" in df.columns:
+                    valid_columns.append(F.col("service_repair_order|consumer_total_amount"))
+                if "service_repair_order|warranty_total_amount" in df.columns:
+                    valid_columns.append(F.col("service_repair_order|warranty_total_amount"))
+
+                df = df.withColumn(
+                    "service_repair_order|total_amount",
+                    F.when(
+                        # When all the columns are null, keep the value null
+                        F.coalesce(*valid_columns).isNull(),
+                        F.lit(None),
+                    ).otherwise(
+                        # When at least one column has a value, treat null values as 0 and sum
+                        sum([F.coalesce(x, F.lit(0)) for x in valid_columns])
+                    ),
+                )
+            if "op_codes|op_codes" in df.columns:
+                # Convert op_code column from Array[Struct(_RecSvcOpCdDesc, _RecSvcOpCode)] to Array[Struct(op_code_desc, op_code)]
+                is_array_col = df.schema["op_codes|op_codes"].dataType.typeName() == "array"
+                if not is_array_col:
+                    # XML data pulls with a single op_code aren't converted to arrays
+                    logger.info("Convert op_codes to array")
+                    df = df.withColumn(
+                        "op_codes|op_codes",
+                        F.array(F.struct(F.col("op_codes|op_codes.*")))
+                    )
                 df = df.withColumn(
                     "op_codes|op_codes",
-                    F.array(F.struct(F.col("op_codes|op_codes.*")))
+                    F.expr(
+                        "transform(`op_codes|op_codes`, x -> struct(x._RecSvcOpCode as `op_code|op_code`, x._RecSvcOpCdDesc as `op_code|op_code_desc`))"
+                    ),
                 )
-            df = df.withColumn(
-                "op_codes|op_codes",
-                F.expr(
-                    "transform(`op_codes|op_codes`, x -> struct(x._RecSvcOpCode as op_code, x._RecSvcOpCdDesc as op_code_desc))"
-                ),
-            )
-        if "service_repair_order|txn_pay_type" in df.columns:
-            # Convert Array[String] to String
-            df = df.withColumn("service_repair_order|txn_pay_type", F.concat_ws(",", F.col("service_repair_order|txn_pay_type")))
-        if "vehicle_sale|has_service_contract" in df.columns:
-            # Convert String to Bool
-            def calculate_service_contract_flag(arr):
-                if arr:
-                    if not isinstance(arr, list):
-                        arr = [arr]
-                    return any(x == "Y" for x in arr)
-                else:
-                    return None
-
-            get_service_contract_flag = F.udf(
-                calculate_service_contract_flag, BooleanType()
-            )
-            df = df.withColumn(
-                "vehicle_sale|has_service_contract",
-                get_service_contract_flag(F.col("vehicle_sale|has_service_contract")),
-            )
-        if ("vehicle_sale|trade_in_value" in df.columns
-            or "vehicle_sale|payoff_on_trade" in df.columns):
-            # Convert Array[Float] to Float
-            def calculate_arr_sum(arr):
-                if arr:
-                    if not isinstance(arr, list):
-                        arr = [arr]
-                    total = None
-                    for raw_reyrey_float in arr:
-                        if raw_reyrey_float and raw_reyrey_float != "null":
-                            if total is None:
-                                total = raw_reyrey_float
-                            else:
-                                total += raw_reyrey_float
-                    return total
-                else:
-                    return None
-            if "vehicle_sale|trade_in_value" in df.columns:
-                get_trade_in_value = F.udf(calculate_arr_sum, DoubleType())
-                df = df.withColumn("vehicle_sale|trade_in_value", get_trade_in_value(F.col("vehicle_sale|trade_in_value")))
-            if "vehicle_sale|payoff_on_trade" in df.columns:
-                get_payoff_on_trade = F.udf(calculate_arr_sum, DoubleType())
-                df = df.withColumn("vehicle_sale|payoff_on_trade", get_payoff_on_trade(F.col("vehicle_sale|payoff_on_trade")))
-        if (
-            "consumer|email_optin_flag" in df.columns
-            and "consumer|phone_optin_flag" in df.columns
-            and "consumer|postal_mail_optin_flag" in df.columns
-            and "consumer|sms_optin_flag" in df.columns
-        ):
-            # Convert String to Bool
-            def calculate_optin_flag(arr):
-                if arr:
-                    if not isinstance(arr, list):
-                        arr = [arr]
-                    # Optin False if any optout is Y
-                    return not any(x == "Y" for x in arr)
-                else:
-                    return None
-
-            get_optin_flag = F.udf(calculate_optin_flag, BooleanType())
-            # Same flag for each, copy rather than recalculate
-            df = (
-                df.withColumn(
-                    "consumer|email_optin_flag", get_optin_flag(F.col("consumer|email_optin_flag"))
-                )
-                .withColumn("consumer|phone_optin_flag", F.col("consumer|email_optin_flag"))
-                .withColumn("consumer|postal_mail_optin_flag", F.col("consumer|email_optin_flag"))
-                .withColumn("consumer|sms_optin_flag", F.col("consumer|email_optin_flag"))
-            )
+            if "service_repair_order|txn_pay_type" in df.columns:
+                # Convert Array[String] to String
+                df = df.withColumn("service_repair_order|txn_pay_type", F.concat_ws(",", F.col("service_repair_order|txn_pay_type")))
+            if "consumer|email_optin_flag" in df.columns:
+                # Convert String to Bool
+                df = df.withColumn("consumer|email_optin_flag", F.when(F.col("consumer|email_optin_flag").like("%@%"), F.lit(True)).otherwise(F.lit(False)))
 
         logger.info(f"Format df ending schema {df.schema.json()}")
         return df
