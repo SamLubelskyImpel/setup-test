@@ -12,7 +12,7 @@ class ServiceContract(BaseForModels):
 
     id = Column(Integer, primary_key=True)
     dealer_integration_partner_id = Column(Integer)
-    vehicle_sale_id = Column(Integer)
+    vehicle_sale_id = Column(Integer, ForeignKey(f'{SCHEMA}.vehicle_sale.id'))
     contract_id = Column(Integer)
     contract_name = Column(String)
     start_date = Column(DateTime)
