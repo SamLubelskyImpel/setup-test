@@ -28,12 +28,13 @@ def download_from_ftp(ftp, remote_directory, filename, local_file_path):
         print(f"Error downloading file {filename} from FTP: {e}")
 
 
-def split_file(filename, max_size=60*1024*1024, dms_id="techmotors_4"):
+def split_file(filename, dms_id):
     """
     Split a large JSON file into smaller chunks of size 'max_size' (default: 60MB).
     Yields each chunk one by one.
     """
     current_size = 0
+    max_size = 60*1024*1024
     first_obj = True
     chunk = []
 
@@ -108,7 +109,7 @@ def main():
         year, month, day = now.year, now.month, now.day
 
         bucket_name = f"integrations-us-east-1-{'prod' if AWS_PROFILE == 'unified-prod' else 'test'}"
-        for part_number, data in enumerate(split_file(local_file_path), 1):
+        for part_number, data in enumerate(split_file(local_file_path, dms_id), 1):
             object_name = f'tekion/{filetype}/{year}/{month}/{day}/{dms_id}_historical_Part_{part_number}.json'
             upload_to_s3(data, bucket_name, object_name)
 
