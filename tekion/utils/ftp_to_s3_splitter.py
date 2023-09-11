@@ -96,7 +96,7 @@ def main():
     host = ftp_credentials['host']
     user = ftp_credentials['user']
     password = ftp_credentials['password']
-    remote_directory = '/test_tekion_dms'  # Directory on the FTP server where the file is located
+    remote_directory = f"/{'prod' if AWS_PROFILE == 'unified-prod' else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
     local_file_path = os.path.join(os.getcwd(), filename)  # Save the file in the current directory
     
     ftp = connect_to_ftp(host, user, password)
