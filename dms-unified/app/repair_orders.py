@@ -47,11 +47,11 @@ def insert_repair_order_parquet(key, bucket):
     df["op_code_repair_order|repair_order_id"] = service_repair_order_ids
 
     if "op_codes|op_codes" in list(df.columns):
-        op_code_df = df.explode("op_codes|op_codes")
+        op_code_df = df.explode("op_codes|op_codes").reset_index(drop=True)
+        op_code_df = op_code_df.dropna(subset=["op_codes|op_codes"]).reset_index(drop=True)
         op_code_split_df = pd.DataFrame(op_code_df["op_codes|op_codes"].tolist())
         op_code_df = pd.concat([op_code_df, op_code_split_df], axis=1)
         op_code_df.drop(columns=["op_codes|op_codes"], inplace=True)
-        op_code_df = op_code_df.dropna(subset=["op_code|op_code"])
         if len(op_code_df) == 0:
             return
 
@@ -86,8 +86,12 @@ def lambda_handler(event: dict, context: dict):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
-                logger.info(f"Parsing {decoded_key}")
-                insert_repair_order_parquet(decoded_key, bucket)
+                # Pyspark auto generates temp files when writing to s3, ignore these files.
+                if decoded_key.endswith(".parquet") and decoded_key.split("/")[3] != "_temporary":
+                    logger.info(f"Parsing {decoded_key}")
+                    insert_repair_order_parquet(decoded_key, bucket)
+                else:
+                    logger.info(f"Ignore temp pyspark file {decoded_key}")
     except Exception as e:
         logger.exception("Error inserting repair order DMS records")
         raise e

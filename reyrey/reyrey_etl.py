@@ -362,6 +362,8 @@ class ReyReyUpsertJob:
                     "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Carline",
                     "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
                     "mileage": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading",
+                    "vehicle_class": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass",
+                    "stock_num": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._StockID",
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
@@ -386,8 +388,7 @@ class ReyReyUpsertJob:
                     "finance_amount": "FIDeal.FIDealFin.FinanceInfo._AmtFinanced",
                 },
                 "service_contracts": {
-                    "warranty_expiration_date": "FIDeal.FIDealFin.WarrantyInfo.ExtWarranty.VehExtWarranty._ExpirationDate",
-                    "service_package_flag": "FIDeal.FIDealFin.WarrantyInfo.ServiceCont._ServContYN"
+                    "service_contracts": "FIDeal.FIDealFin.WarrantyInfo",
                 }
             },
             "reyreycrawlerdb_repair_order": {
@@ -411,6 +412,7 @@ class ReyReyUpsertJob:
                     "model": "RepairOrder.ServVehicle.Vehicle._Carline",
                     "year": "RepairOrder.ServVehicle.Vehicle._VehicleYr",
                     "mileage": "RepairOrder.RoRecord.Rogen._MileageIn",
+                    "stock_num": "RepairOrder.ServVehicle.VehicleServInfo._StockID",
                 },
                 "service_repair_order": {
                     "ro_open_date": "RepairOrder.RoRecord.Rogen._RoCreateDate",
@@ -490,16 +492,40 @@ class ReyReyUpsertJob:
             )["_Num"][0]
             df = df.withColumn("consumer|cell_phone", get_cell_phone.cast(StringType()))
         if "consumer|home_phone" in df.columns:
-            # Convert home_phone column from Array[Struct(_Num, _Type)] to LongType
+            # Convert home_phone column from Array[Struct(_Num, _Type)] to String
             get_home_phone = F.filter(
                 F.col("consumer|home_phone"), lambda x: x["_Type"].isin(["H"])
             )["_Num"][0]
             df = df.withColumn("consumer|home_phone", get_home_phone.cast(StringType()))
-        if "consumer|email" in df.columns:
-            # Keep only valid emails and not "NO EMAIL"
-            df = df.withColumn("consumer|email", F.when(F.col("consumer|email").like("%@%"), F.col("consumer|email")).otherwise(""))
 
         if catalog_name == "reyreycrawlerdb_fi_closed_deal":
+            if "service_contracts|service_contracts" in df.columns:
+                is_array_col = df.schema["service_contracts|service_contracts"].dataType.typeName() == "array"
+                if not is_array_col:
+                    # XML data pulls with a single service_contract aren't converted to arrays
+                    logger.info("Convert service_contract to array")
+                    df = df.withColumn(
+                        "service_contracts|service_contracts",
+                        F.array(F.struct(F.col("service_contracts|service_contracts.*")))
+                    )
+                df = df.withColumn(
+                    "service_contracts|service_contracts",
+                    F.expr(
+                        "transform(`service_contracts|service_contracts`, x -> struct(\
+                        x.ExtWarranty.VehExtWarranty._ExpirationDate as `service_contracts|warranty_expiration_date`, \
+                        x.ServiceCont._ServContYN as `service_contracts|service_package_flag`))"
+                    ),
+                )
+            if "service_contracts|service_contracts" in df.columns:
+                # Convert Array of Struct key value from String to Bool
+                def calculate_service_package_flag(x):
+                    return x.withField("`service_contracts|service_package_flag`", F.when(x["service_contracts|service_package_flag"].like("Y"), F.lit(True))\
+                                    .otherwise(F.when(x["service_contracts|service_package_flag"].like("N"), F.lit(False))\
+                                                .otherwise(F.lit(None))))
+
+                df = df.withColumn("service_contracts|service_contracts",
+                                   F.transform("service_contracts|service_contracts", calculate_service_package_flag)
+                )
             if "vehicle_sale|has_service_contract" in df.columns:
                 # Convert String to Bool
                 def calculate_service_contract_flag(arr):
@@ -605,7 +631,9 @@ class ReyReyUpsertJob:
                 df = df.withColumn(
                     "op_codes|op_codes",
                     F.expr(
-                        "transform(`op_codes|op_codes`, x -> struct(x._RecSvcOpCode as `op_code|op_code`, x._RecSvcOpCdDesc as `op_code|op_code_desc`))"
+                        "transform(`op_codes|op_codes`, x -> struct(\
+                        x._RecSvcOpCode as `op_code|op_code`, \
+                        x._RecSvcOpCdDesc as `op_code|op_code_desc`))"
                     ),
                 )
             if "service_repair_order|txn_pay_type" in df.columns:
@@ -621,7 +649,7 @@ class ReyReyUpsertJob:
     def validate_fields(self, df):
         """ Check that each df column names matches the database. """
         # Ignore op codes (many to many array relationship) and partition columns
-        ignore_table_names = ["op_codes", "PartitionYear", "PartitionMonth", "PartitionDate"]
+        ignore_table_names = ["service_contracts", "op_codes", "PartitionYear", "PartitionMonth", "PartitionDate"]
         unified_column_names = self.rds.get_unified_column_names()
         for df_col in df.columns:
             if df_col.split("|")[0] not in ignore_table_names and df_col not in unified_column_names:

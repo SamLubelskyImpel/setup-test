@@ -60,7 +60,7 @@ class RDSInstance:
                 f"No active dealer {dms_id} found with query {db_dealer_integration_partner_id_query}."
             )
         else:
-            return results[0]
+            return int(results[0])
 
     def get_multi_insert_query(self, records, columns, table_name, additional_query=""):
         """Commit several records to the database.
@@ -107,7 +107,7 @@ class RDSInstance:
             if row["op_code|op_code"] and row['op_code_repair_order|repair_order_id']:
                 condition = f"""
                     sro.id = {row['op_code_repair_order|repair_order_id']} 
-                    and oc.dealer_integration_partner_id = '{row['service_repair_order|dealer_integration_partner_id']}' 
+                    and oc.dealer_integration_partner_id = '{row['op_code|dealer_integration_partner_id']}' 
                     and oc.op_code = '{row['op_code|op_code']}'
                 """
             conditions_list.append(condition)

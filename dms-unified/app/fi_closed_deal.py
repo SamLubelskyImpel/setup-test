@@ -40,14 +40,25 @@ def insert_fi_deal_parquet(key, bucket):
     inserted_vehicle_ids = rds.insert_table_from_df(df, "vehicle")
     df["vehicle_sale|vehicle_id"] = inserted_vehicle_ids
 
-    additional_vehicle_sale_query = "ON CONFLICT ON CONSTRAINT unique_vehicle_sale DO NOTHING"
+    vehicle_sale_columns = [x.split("|")[1] for x in list(df.columns) if x.startswith("vehicle_sale|")]
+    additional_vehicle_sale_query = f"""ON CONFLICT ON CONSTRAINT unique_vehicle_sale DO UPDATE
+                SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, vehicle_sale.{x})' for x in vehicle_sale_columns])}"""
     inserted_vehicle_sale_ids = rds.insert_table_from_df(df, "vehicle_sale", additional_query=additional_vehicle_sale_query)
 
     service_contracts_columns = [x.split("|")[1] for x in df.columns if x.startswith("service_contracts|")]
     if service_contracts_columns:
         df["service_contracts|vehicle_sale_id"] = inserted_vehicle_sale_ids
         df["service_contracts|dealer_integration_partner_id"] = db_dealer_integration_partner_id
-        inserted_service_contracts_ids = rds.insert_table_from_df(df, "service_contracts")
+
+        service_contracts_df = df.explode("service_contracts|service_contracts").reset_index(drop=True)
+        service_contracts_df = service_contracts_df.dropna(subset=["service_contracts|service_contracts"]).reset_index(drop=True)
+        service_contracts_split_df = pd.DataFrame(service_contracts_df["service_contracts|service_contracts"].tolist())
+        service_contracts_df = pd.concat([service_contracts_df, service_contracts_split_df], axis=1)
+        service_contracts_df.drop(columns=["service_contracts|service_contracts"], inplace=True)
+        if len(service_contracts_df) == 0:
+            return
+
+        inserted_service_contract_ids = rds.insert_table_from_df(service_contracts_df, "service_contracts")
     
     notification_message = {
         "dealer_integration_partner_id": db_dealer_integration_partner_id,
@@ -68,7 +79,12 @@ def lambda_handler(event: dict, context: dict):
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
                 logger.info(f"Parsing {decoded_key}")
-                insert_fi_deal_parquet(decoded_key, bucket)
+                # Pyspark auto generates temp files when writing to s3, ignore these files.
+                if decoded_key.endswith(".parquet") and decoded_key.split("/")[3] != "_temporary":
+                    logger.info(f"Parsing {decoded_key}")
+                    insert_fi_deal_parquet(decoded_key, bucket)
+                else:
+                    logger.info(f"Ignore temp pyspark file {decoded_key}")
     except Exception as e:
         logger.exception("Error inserting fi deal DMS records")
         raise e
