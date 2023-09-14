@@ -68,13 +68,6 @@ def insert_repair_order_parquet(key, bucket):
         op_code_repair_order_ids = [x[0] for x in op_code_repair_order_results.fetchall()]
         logger.info(f"Inserted {len(op_code_repair_order_ids)} rows for op_code_repair_order")
 
-    notification_message = {
-        "dealer_integration_partner_id": db_dealer_integration_partner_id,
-        "dms_id": dms_id,
-        "table_inserted": "service_repair_order",
-        "ids_inserted": service_repair_order_ids
-    }
-
 
 def lambda_handler(event: dict, context: dict):
     """ Insert unified repair order records into the DMS database. """

@@ -59,13 +59,6 @@ def insert_fi_deal_parquet(key, bucket):
             return
 
         inserted_service_contract_ids = rds.insert_table_from_df(service_contracts_df, "service_contracts")
-    
-    notification_message = {
-        "dealer_integration_partner_id": db_dealer_integration_partner_id,
-        "dms_id": dms_id,
-        "table_inserted": "vehicle_sale",
-        "ids_inserted": inserted_vehicle_sale_ids
-    }
 
 
 def lambda_handler(event: dict, context: dict):
