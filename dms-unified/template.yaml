@@ -138,7 +138,7 @@ Resources:
       Description: Insert unified DMS RO data to the database.
       CodeUri: app/
       Handler: repair_orders.lambda_handler
-      Timeout: 300
+      Timeout: 900
       MemorySize: 1024
       Policies:
         - Id: FunctionPermissions
@@ -245,7 +245,7 @@ Resources:
       Description: Insert unified DMS FI data to the database.
       CodeUri: app/
       Handler: fi_closed_deal.lambda_handler
-      Timeout: 300
+      Timeout: 900
       MemorySize: 1024
       Policies:
         - Id: FunctionPermissions

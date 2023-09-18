@@ -23,7 +23,7 @@ rds_connection = psycopg2.connect(
     database=secret_string["db_name"],
 )
 
-db_schema = "prod" if AWS_PROFILE == "unified-prod" else "test"
+db_schema = "prod" if AWS_PROFILE == "unified-prod" else "stage"
 
 def list_files_in_bucket(bucket_name, prefix):
     s3 = boto3.client("s3")
@@ -52,8 +52,9 @@ results = cursor.fetchall()
 
 all_db_ro_nums = []
 for result in results:
-    if result[0] and not result[0].startswith("old_"):
-        all_db_ro_nums.append(int(result[0]))
+    if result[0]:
+        ro_num = str(result[0]).lstrip('0')
+        all_db_ro_nums.append(ro_num)
 
 
 bucket = (
@@ -79,8 +80,12 @@ for key in file_list:
         repair_order_nums = soup.find_all("Rogen")
         for repair_order_num in repair_order_nums:
             ro_number = repair_order_num.get("RoNo")
-            all_ro_numbers.append(int(ro_number))
+            ro_num = str(ro_number).lstrip('0')
+            all_ro_numbers.append(ro_num)
 
+i = 0
 for ro_num in all_ro_numbers:
     if ro_num not in all_db_ro_nums:
         print(ro_num)
+        i += 1
+print(f"{i} total missing ros")

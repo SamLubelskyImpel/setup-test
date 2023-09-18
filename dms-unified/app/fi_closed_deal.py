@@ -34,6 +34,15 @@ def insert_fi_deal_parquet(key, bucket):
     df["vehicle|dealer_integration_partner_id"] = db_dealer_integration_partner_id
     df["vehicle_sale|dealer_integration_partner_id"] = db_dealer_integration_partner_id
 
+    # Unique dealer_integration_partner_id, vin, sale_date SQL can't insert duplicates
+    vehicle_sale_unique_constraint = [
+        "vehicle_sale|dealer_integration_partner_id",
+        "vehicle_sale|vin",
+        "vehicle_sale|sale_date"
+    ]
+    df = df.drop_duplicates(subset=vehicle_sale_unique_constraint, keep="first").reset_index(drop=True)
+
+
     inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
     df["vehicle_sale|consumer_id"] = inserted_consumer_ids
 

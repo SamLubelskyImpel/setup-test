@@ -34,6 +34,13 @@ def insert_repair_order_parquet(key, bucket):
     df["service_repair_order|dealer_integration_partner_id"] = db_dealer_integration_partner_id
     df["op_code|dealer_integration_partner_id"] = db_dealer_integration_partner_id
 
+    # Unique dealer_integration_partner_id, repair_order_no SQL can't insert duplicates
+    service_repair_order_unique_constraint = [
+        "service_repair_order|dealer_integration_partner_id",
+        "service_repair_order|repair_order_no"
+    ]
+    df = df.drop_duplicates(subset=service_repair_order_unique_constraint, keep="first").reset_index(drop=True)
+
     inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
     df["service_repair_order|consumer_id"] = inserted_consumer_ids
 
