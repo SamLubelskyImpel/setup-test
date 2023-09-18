@@ -35,7 +35,7 @@ def list_files_in_bucket(bucket_name, prefix):
 
     return files
 
-db_schema = "prod" if AWS_PROFILE == "unified-prod" else "test"
+db_schema = "prod" if AWS_PROFILE == "unified-prod" else "stage"
 
 query_str = f"""select vs.vin from {db_schema}.vehicle_sale vs 
 join {db_schema}.dealer_integration_partner dip on dip.id = vs.dealer_integration_partner_id 
@@ -52,7 +52,7 @@ results = cursor.fetchall()
 
 all_db_vins = []
 for result in results:
-    if result[0] and not result[0].startswith("old_"):
+    if result[0]:
         all_db_vins.append(result[0].lower())
 
 
@@ -83,6 +83,9 @@ for key in file_list:
                 vin = vehicle.get("Vin")
                 all_vins.append(vin)
 
+i = 0
 for vin in all_vins:
     if vin.lower() not in all_db_vins:
         print(vin)
+        i += 1
+print(f"{i} total missing vehicle sales")

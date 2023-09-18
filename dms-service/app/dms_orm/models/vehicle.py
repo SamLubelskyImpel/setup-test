@@ -26,6 +26,7 @@ class Vehicle(BaseForModels):
     year = Column(Integer)
     new_or_used = Column(String)
     db_creation_date = Column(DateTime)
+    stock_num = Column(String)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

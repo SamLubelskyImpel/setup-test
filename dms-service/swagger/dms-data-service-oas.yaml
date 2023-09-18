@@ -372,6 +372,12 @@ components:
           minLength: 17
           maxLength: 17
           example: "1HGCM82633A123456"
+        stock_num:
+          type: string
+          description: Vehicle Stock Number
+          minLength: 17
+          maxLength: 17
+          example: "123ABC"
         year:
           type: integer
           description: Year of the vehicle
