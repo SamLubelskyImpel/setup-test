@@ -359,11 +359,12 @@ class ReyReyUpsertJob:
                 "vehicle": {
                     "new_or_used": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._NewUsed",
                     "vin": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Vin",
+                    "make": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleMake",
                     "model": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._Carline",
                     "year": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._VehicleYr",
                     "mileage": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._OdomReading",
                     "vehicle_class": "FIDeal.FIDealFin.TransactionVehicle.Vehicle.VehicleDetail._VehClass",
-                    "stock_num": "FIDeal.FIDealFin.TransactionVehicle.Vehicle._StockID",
+                    "stock_num": "FIDeal.FIDealFin.TransactionVehicle._StockID",
                 },
                 "vehicle_sale": {
                     "sale_date": "FIDeal.FIDealFin._CloseDealDate",
