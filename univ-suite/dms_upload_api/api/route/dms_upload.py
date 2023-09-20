@@ -16,7 +16,11 @@ dms_upload_api = Blueprint("dms_upload_api", __name__)
 def get_reyrey_file_type(filename: str):
     """Categorize ReyRey file types by filename.
     Filenames are _ deliminated with the 3rd parameter specifying type."""
-    reyrey_file_type_mappings = {"RO": "repair_order", "DH": "fi_closed_deal"}
+    reyrey_file_type_mappings = {
+        "RO": "repair_order",
+        "DH": "fi_closed_deal",
+        "SA": "service_appointment"
+    }
     file_type = None
     filename_sections = filename.split("_")
     if len(filename_sections) >= 3:
