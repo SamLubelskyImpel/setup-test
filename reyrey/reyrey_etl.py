@@ -451,8 +451,9 @@ class ReyReyUpsertJob:
                     selected_columns.append(F.col(dms_column).alias(f"{db_table_name}|{db_column}"))
 
             if db_table_name in self.metadata_tables:
+                metadata_column = f"{db_table_name}|metadata"
                 df = df.withColumn(
-                    f"{db_table_name}|metadata",
+                    metadata_column,
                     F.to_json(
                         F.struct(
                             F.lit(self.region).alias("Region"),
@@ -464,6 +465,7 @@ class ReyReyUpsertJob:
                         )
                     ),
                 )
+                selected_columns.append(metadata_column)
 
         selected_columns += ["PartitionYear", "PartitionMonth", "PartitionDate"]
 
