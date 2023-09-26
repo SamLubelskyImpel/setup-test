@@ -61,7 +61,10 @@ class TekionWrapper:
                 "client_id": self.client_id,
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            data = f"access-key={self.access_key}&secret-key={self.secret_key}"
+            data = {
+                "access-key": self.access_key,
+                "secret-key": self.secret_key
+            }
             resp = requests.post(token_url, headers=headers, data=data)
             resp.raise_for_status()
             try:
