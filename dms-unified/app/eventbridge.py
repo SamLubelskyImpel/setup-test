@@ -14,11 +14,15 @@ client = boto3.client("events")
 
 def notify_event_bus(detail):
     """ Put event onto event bus. """
-    event = {
-        "Source": f"unified-dms-insertions-{'prod' if IS_PROD else 'test'}",
-        "DetailType": "object",
-        "Detail": dumps(detail),
-        "EventBusName": EVENT_BUS
-    }
-
-    client.put_events(Entries=[event])
+    try:
+        event = {
+            "Source": f"unified-dms-insertions-{'prod' if IS_PROD else 'test'}",
+            "DetailType": "object",
+            "Detail": dumps(detail),
+            "EventBusName": EVENT_BUS
+        }
+        response = client.put_events(Entries=[event])
+        if response and response.get('FailedEntryCount', 0) > 0:
+           logging.error(f"Failed to put these events: {dumps(detail)} with response: {response}")
+    except Exception as e:
+        logging.exception(f"An error occurred while putting event: {e}")
