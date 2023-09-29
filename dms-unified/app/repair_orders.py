@@ -85,6 +85,7 @@ def insert_repair_order_parquet(key, bucket):
     }
 
     notify_event_bus(notification_message)
+    logger.info(f"Notify {notification_message}")
 
 
 def lambda_handler(event: dict, context: dict):
