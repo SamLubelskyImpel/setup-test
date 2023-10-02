@@ -1,29 +1,26 @@
-"""Dealer Model."""
+"""Activity Model."""
 
 from datetime import datetime
 from crm_orm.session_config import BaseForModels
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 
 
-class Dealer(BaseForModels):
-    """Dealer Model."""
+class Activity(BaseForModels):
+    """Activity Model."""
 
-    __tablename__ = "crm_dealer"
+    __tablename__ = "crm_activity"
 
     id = Column(Integer, primary_key=True)
-    product_dealer_id = Column(Integer, unique=True)
     integration_partner_id = Column(Integer, ForeignKey("crm_integration_partner.id"))
-    crm_dealer_id = Column(Integer)
-    sfdc_account_id = Column(String)
-    dealer_name = Column(String)
-    is_active = Column(Boolean, default=True)
-    dealer_location_name = Column(String)
-    country = Column(String)
-    state = Column(String)
-    city = Column(String)
-    zip_code = Column(String)
+    lead_id = Column(Integer, ForeignKey("crm_lead.id"))
+    dealer_id = Column(Integer, ForeignKey("crm_dealer.id"))
+    activity_type_id = Column(Integer, ForeignKey("crm_activity_type.id"))
+    activity_requested_ts = Column(DateTime)
+    request_product = Column(Integer)
     metadata = Column(JSONB)
+    notes = Column(String)
+    activity_due_ts = Column(DateTime)
     db_creation_date = Column(DateTime, default=datetime.utcnow())
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
