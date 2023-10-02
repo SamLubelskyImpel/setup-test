@@ -36,6 +36,7 @@ class DBSession(object):
                 self.uri,
                 # TODO: unsure how long connections are open for in our database (look into this)
                 pool_recycle=300,
+                connect_args={"options": "-c timezone=UTC"}
             )
             self.Session = sessionmaker(bind=self.engine)
             _Sessions[self.uri] = (self.engine, self.Session)
