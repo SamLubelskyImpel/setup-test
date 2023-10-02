@@ -2,8 +2,6 @@
 
 import logging
 import sys
-import uuid
-from datetime import datetime
 from json import dumps, loads
 
 import boto3
@@ -17,6 +15,7 @@ from pyspark.context import SparkContext
 from pyspark.sql.window import Window
 from awsglue.gluetypes import ArrayType, ChoiceType, StructType
 from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql.types import StringType
 
 
 class RDSInstance:
@@ -44,159 +43,37 @@ class RDSInstance:
             database=secret_string["db_name"],
         )
 
-    def execute_rds(self, query_str):
-        """Execute query on RDS and return cursor."""
-        cursor = self.rds_connection.cursor()
-        cursor.execute(query_str)
-        return cursor
+    def get_table_names(self):
+        """ Get a list of table names in the database. """
+        conn = self.get_rds_connection()
+        cursor = conn.cursor()
+        query = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.schema}'"
+        cursor.execute(query)
+        table_names = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return table_names
 
-    def commit_rds(self, query_str):
-        """Execute and commit query on RDS and return cursor."""
-        cursor = self.execute_rds(query_str)
-        self.rds_connection.commit()
-        return cursor
+    def get_table_column_names(self, table_name):
+        """ Get a list of column names in the given database table. """
+        conn = self.get_rds_connection()
+        cursor = conn.cursor()
+        query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'"
+        cursor.execute(query)
+        column_names = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return column_names
 
-    def get_multi_insert_query(self, records, columns, table_name, additional_query=""):
-        """Commit several records to the database.
-        columns is an array of strings of the column names to insert into
-        records is an array of tuples in the same order as columns
-        table_name is the 'schema."table_name"'
-        additional_query is any query text to append after the insertion
-        """
-        if len(records) >= 1:
-            cursor = self.rds_connection.cursor()
-            values_str = f"({', '.join('%s' for _ in range(len(records[0])))})"
-            args_str = ",".join(
-                cursor.mogrify(values_str, x).decode("utf-8") for x in records
-            )
-            columns_str = ", ".join(columns)
-            query = f"""INSERT INTO {table_name} ({columns_str}) VALUES {args_str} {additional_query}"""
-            return query
-        else:
-            return None
-
-    def get_insert_query_from_df(self, df, table, additional_query=""):
-        """Get query from df where df column names are db column names for the given table."""
-        column_names = df.columns
-        column_data = []
-        for row in df.collect():
-            column_data.append(tuple(row))
-        table_name = f'{self.schema}."{table}"'
-        query = self.get_multi_insert_query(
-            column_data, column_names, table_name, additional_query
-        )
-        return query
-
-    def select_db_dealer_integration_partner_id(self, dms_id):
-        """Get the db dealer id for the given dms id."""
-        db_dealer_integration_partner_id_query = f"""
-            select dip.id from {self.schema}."dealer_integration_partner" dip
-            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
-            where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
-        results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
-        if results is None:
-            raise RuntimeError(
-                f"No active dealer {dms_id} found with query {db_dealer_integration_partner_id_query}."
-            )
-        else:
-            return results[0]
-    
-    def insert_service_repair_order(self, dealer_df, catalog_name, mappings):
-        """Given a dataframe of dealer data insert into service repair order table and return row count."""
-        desired_service_repair_order_columns = mappings[catalog_name][
-            "service_repair_order"
-        ].keys()
-        actual_service_repair_order_columns = [
-            x for x in desired_service_repair_order_columns if x in dealer_df.columns
-        ]
-        actual_service_repair_order_columns.append("dealer_integration_partner_id")
-        actual_service_repair_order_columns.append("consumer_id")
-        actual_service_repair_order_columns.append("vehicle_id")
-
-        unique_ros_dms_cols = ["repair_order_no", "dealer_integration_partner_id"]
-        service_repair_order_df = dealer_df.select(
-            actual_service_repair_order_columns
-        ).dropDuplicates(subset=unique_ros_dms_cols)
-        insert_service_repair_order_query = self.get_insert_query_from_df(
-            service_repair_order_df,
-            "service_repair_order",
-            f"""ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
-            SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, service_repair_order.{x})' for x in service_repair_order_df.columns])}
-            RETURNING id""",
-        )
-
-        results = self.commit_rds(insert_service_repair_order_query)
-
-        if results is None:
-            return []
-        inserted_service_repair_order_ids = [x[0] for x in results.fetchall()]
-        return inserted_service_repair_order_ids
-
-    def insert_vehicle_sale(self, dealer_df, catalog_name, mappings):
-        """Given a dataframe of dealer data insert into vehicle sale table and return row count."""
-        desired_vehicle_sale_columns = mappings[catalog_name]["vehicle_sale"].keys()
-        actual_vehicle_sale_columns = [
-            x for x in desired_vehicle_sale_columns if x in dealer_df.columns
-        ]
-        actual_vehicle_sale_columns.append("dealer_integration_partner_id")
-        actual_vehicle_sale_columns.append("consumer_id")
-        actual_vehicle_sale_columns.append("vehicle_id")
-
-        vehicle_sale_df = dealer_df.select(actual_vehicle_sale_columns)
-        insert_vehicle_sale_query = self.get_insert_query_from_df(
-            vehicle_sale_df,
-            "vehicle_sale",
-            "ON CONFLICT ON CONSTRAINT unique_vehicle_sale DO NOTHING RETURNING id",
-        )
-
-        results = self.commit_rds(insert_vehicle_sale_query)
-
-        if results is None:
-            return []
-        inserted_vehicle_sale_ids = [x[0] for x in results.fetchall()]
-        return inserted_vehicle_sale_ids
-
-    def insert_consumer(self, dealer_df, catalog_name, mappings):
-        """Given a dataframe of dealer data insert into consumer table and return created ids."""
-        desired_consumer_columns = mappings[catalog_name]["consumer"].keys()
-        actual_consumer_columns = [
-            x for x in desired_consumer_columns if x in dealer_df.columns
-        ]
-        actual_consumer_columns.append("dealer_integration_partner_id")
-
-        consumer_df = dealer_df.select(actual_consumer_columns)
-        insert_consumer_query = self.get_insert_query_from_df(
-            consumer_df, "consumer", "RETURNING id"
-        )
-
-        results = self.commit_rds(insert_consumer_query)
-        
-        logging.warning(f"RESULTS: {results}")
-        
-        if results is None:
-            return []
-        inserted_consumer_ids = [x[0] for x in results.fetchall()]
-        return inserted_consumer_ids
-
-
-    def insert_vehicle(self, dealer_df, catalog_name, mappings):
-        """Given a dataframe of dealer data insert into vehicle table and return created ids."""
-        desired_vehicle_columns = mappings[catalog_name]["vehicle"].keys()
-        actual_vehicle_columns = [
-            x for x in desired_vehicle_columns if x in dealer_df.columns
-        ]
-        actual_vehicle_columns.append("dealer_integration_partner_id")
-
-        vehicle_df = dealer_df.select(actual_vehicle_columns)
-        insert_vehicle_query = self.get_insert_query_from_df(
-            vehicle_df, "vehicle", "RETURNING id"
-        )
-
-        results = self.commit_rds(insert_vehicle_query)
-        if results is None:
-            return []
-        inserted_vehicle_ids = [x[0] for x in results.fetchall()]
-        return inserted_vehicle_ids
+    def get_unified_column_names(self):
+        """ Get a list of column names from all database tables in unified format. """
+        unified_column_names = []
+        tables = self.get_table_names()
+        for table in tables:
+            columns = self.get_table_column_names(table)
+            for column in columns:
+                unified_column_names.append(f"{table}|{column}")
+        return unified_column_names
 
 
 class DynamicFrameResolver:
@@ -288,6 +165,7 @@ class TekionUpsertJob:
         self.catalog_table_names = args["catalog_table_names"].split(",")
         self.dlq_url = args["dlq_url"]
         self.database = args["db_name"]
+        self.region = args["region"]
         self.is_prod = args["environment"] == "prod"
         self.integration = "tekion"
         self.bucket_name = (
@@ -296,9 +174,10 @@ class TekionUpsertJob:
         self.rds = RDSInstance(self.is_prod, self.integration)
         self.resolver = DynamicFrameResolver(self.glue_context)
         self.required_columns = []
+        self.metadata_tables = ["service_repair_order", "vehicle_sale", "vehicle", "consumer"]
         self.mappings = {
             "tekioncrawlerdb_fi_closed_deal": {
-                "dealer": {"dms_id": "dms_id"},
+                "dealer_integration_partner": {"dms_id": "dms_id"},
                 "consumer": {
                     "customers": "customers",
                     "first_name": "customers.firstName",
@@ -339,17 +218,17 @@ class TekionUpsertJob:
                     "payoff_on_trade": "tradeIns.tradePayOff.amount",
                     "miles_per_year": "dealPayment.termPayment.yearlyMiles.totalValue",
                     "profit_on_sale": "vehicles.pricing.profit.amount",
-                    "has_service_contract": "dealPayment.fnIs.disclosureType.ServiceContract",
+                    "has_service_contract": "dealPayment.fnIs.disclosureType",
                     "vehicle_gross": "vehicles.pricing.retailPrice.amount",
                     "vin": "vehicles.vin",
                     "delivery_date": "deliveryDate",
                     "deal_payment": "dealPayment",
                     "finance_amount": "dealPayment.termPayment.amountFinanced.amount",
-                    "finance_rate": "dealPayment.termPayment"
+                    "finance_rate": "dealPayment.termPayment.apr.apr"
                 },
             },
             "tekioncrawlerdb_repair_order": {
-                "dealer": {"dms_id": "dms_id"},
+                "dealer_integration_partner": {"dms_id": "dms_id"},
                 "consumer": {
                     "first_name": "customer.firstName",
                     "last_name": "customer.lastName",
@@ -389,8 +268,7 @@ class TekionUpsertJob:
         """Select valid db columns from a dataframe using dms column mappings, log and skip missing data."""
         ignore_columns = []
         selected_columns = []
-        selected_column_names = []
-        for db_columns_to_dms_columns in table_to_mappings.values():
+        for db_table_name, db_columns_to_dms_columns in table_to_mappings.items():
             for db_column, dms_column in db_columns_to_dms_columns.items():
                 try:
                     df.select(dms_column)
@@ -399,15 +277,27 @@ class TekionUpsertJob:
                         f"Column: {db_column} with mapping: {dms_column} not found, default to null."
                     )
                     ignore_columns.append(db_column)
+                else:
+                    selected_columns.append(F.col(dms_column).alias(f"{db_table_name}|{db_column}"))
 
-            for db_column, dms_column in db_columns_to_dms_columns.items():
-                if (
-                    db_column not in ignore_columns
-                    and db_column not in selected_column_names
-                ):
-                    selected_columns.append(F.col(dms_column).alias(db_column))
-                    selected_column_names.append(db_column)
-                    
+            if db_table_name in self.metadata_tables:
+                metadata_column = f"{db_table_name}|metadata"
+                df = df.withColumn(
+                    metadata_column,
+                    F.to_json(
+                        F.struct(
+                            F.lit(self.region).alias("Region"),
+                            "PartitionYear",
+                            "PartitionMonth",
+                            "PartitionDate",
+                            F.col("id"),
+                            F.input_file_name().alias("s3_url"),
+                        )
+                    ),
+                )
+                selected_columns.append(metadata_column)
+
+        selected_columns += ["PartitionYear", "PartitionMonth", "PartitionDate"]
         logging.warning(f"Selected columns: {selected_columns}")
         return df.select(selected_columns)
 
@@ -417,9 +307,9 @@ class TekionUpsertJob:
             raise RuntimeError(f"Unexpected catalog {catalog_name}")
 
         valid_data = df.select(
-            "Year",
-            "Month",
-            "Date",
+            "PartitionYear",
+            "PartitionMonth",
+            "PartitionDate",
             "*",
         )
 
@@ -436,17 +326,15 @@ class TekionUpsertJob:
         return df
 
     def filter_phone_type(self, df, field_name, column_name, phone_type):
-        df = df.withColumn(column_name, F.expr(f"filter(phones, x -> x.{field_name} = '{phone_type}')[0].number"))
+        phone = F.filter(F.col("consumer|phones"), lambda x: x[field_name] == phone_type)[0]["number"]
+        df = df.withColumn(column_name, phone.cast(StringType()))
         return df
 
     def set_optin_flag(self, df, flag_column, communication_type):
         if flag_column in df.columns:
-            optin_service_expr = f"customers.communicationPreferences.{communication_type}.isOptInService"
-            optin_marketing_expr = f"customers.communicationPreferences.{communication_type}.isOptInMarketing"
-
             df = df.withColumn(flag_column,
-                F.when((F.col(optin_service_expr) == True) |
-                    (F.col(optin_marketing_expr) == True),
+                F.when((F.col(flag_column)["isOptInService"][0] == True) |
+                    (F.col(flag_column)["isOptInMarketing"][0] == True),
                     True).otherwise(False))
         return df
 
@@ -468,67 +356,66 @@ class TekionUpsertJob:
     def format_df(self, df, catalog_name):
         """Format the raw data to match the database schema."""
         if catalog_name == "tekioncrawlerdb_fi_closed_deal":
-            if "customers" in df.columns:
-                df = self.extract_first_item_from_array(df, "customers")
-                df = self.extract_first_item_from_array(df, "first_name")
-                df = self.extract_first_item_from_array(df, "last_name")
-                df = self.extract_first_item_from_nested_array(df, "email")
-                df = df.withColumn("email", (F.col("email.emailId")))
-            if "phones" in df.columns:
-                df = self.extract_first_item_from_array(df, "phones")
-                df = self.filter_phone_type(df, 'type', 'home_phone', 'HOME')
-                df = self.filter_phone_type(df, 'type', 'cell_phone', 'CELL')
-                df = df.drop("phones")
-            if "addresses" in df.columns:
-                df = self.extract_first_item_from_nested_array(df, "addresses")
-                df = df.withColumn('city', F.col('addresses.city'))
-                df = df.withColumn('state', F.col('addresses.state'))
-                df = df.withColumn('postal_code', F.col('addresses.zip'))
-                df = df.drop("addresses")
-            if "email_optin_flag" in df.columns:
-                df = self.set_optin_flag(df, "email_optin_flag", "email")
-            if "phone_optin_flag" in df.columns:
-                df = self.set_optin_flag(df, "phone_optin_flag", "call")
-            if "sms_optin_flag" in df.columns:
-                df = self.set_optin_flag(df, "sms_optin_flag", "text")
-            if "postal_mail_optin_flag" in df.columns:
-                df = self.set_optin_flag(df, "postal_mail_optin_flag", "mail")
-            if "vehicles" in df.columns:
-                columns_to_extract_first_item = ["vehicles", "vin", "make", "model", "year"]
+            if "consumer|customers" in df.columns:
+                df = self.extract_first_item_from_array(df, "consumer|customers")
+                df = self.extract_first_item_from_array(df, "consumer|first_name")
+                df = self.extract_first_item_from_array(df, "consumer|last_name")
+                df = self.extract_first_item_from_nested_array(df, "consumer|email")
+                df = df.withColumn("consumer|email", (F.col("consumer|email")["emailId"]))
+            if "consumer|phones" in df.columns:
+                df = self.extract_first_item_from_array(df, "consumer|phones")
+                df = self.filter_phone_type(df, 'type', 'consumer|home_phone', 'HOME')
+                df = self.filter_phone_type(df, 'type', 'consumer|cell_phone', 'CELL')
+                df = df.drop("consumer|phones")
+            if "consumer|addresses" in df.columns:
+                df = self.extract_first_item_from_nested_array(df, "consumer|addresses")
+                df = df.withColumn('consumer|city', F.col("consumer|addresses")["city"])
+                df = df.withColumn('consumer|state', F.col("consumer|addresses")["state"])
+                df = df.withColumn('consumer|postal_code', F.col("consumer|addresses")["zip"])
+                df = df.drop("consumer|addresses")
+            if "consumer|email_optin_flag" in df.columns:
+                df = self.set_optin_flag(df, "consumer|email_optin_flag", "email")
+            if "consumer|phone_optin_flag" in df.columns:
+                df = self.set_optin_flag(df, "consumer|phone_optin_flag", "call")
+            if "consumer|sms_optin_flag" in df.columns:
+                df = self.set_optin_flag(df, "consumer|sms_optin_flag", "text")
+            if "consumer|postal_mail_optin_flag" in df.columns:
+                df = self.set_optin_flag(df, "consumer|postal_mail_optin_flag", "mail")
+            if "vehicle|vehicles" in df.columns:
+                columns_to_extract_first_item = ["vehicle|vehicles", "vehicle|vin", "vehicle|make", "vehicle|model", "vehicle|year"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
-                df = df.withColumn('type', F.col('vehicles.stockType'))
-                df = df.withColumn('mileage', F.col('vehicles.mileage.value').cast('int'))
-                df = df.withColumn("new_or_used", F.when(F.col("vehicles.stockType") == "NEW", "N").otherwise("U"))
-                df = df.withColumn("vehicle_class", F.col("vehicles.trimDetails.bodyClass"))
-            if "sale_date" in df.columns:
-                columns_to_extract_first_item = ["listed_price", "mileage_on_vehicle", "oem_msrp",
-                                                 "payoff_on_trade", "profit_on_sale",
-                                                 "adjustment_on_price", "vehicle_gross", "cost_of_vehicle"]
+                df = df.withColumn("vehicle|type", F.col("vehicle|new_or_used"))
+                df = df.withColumn("vehicle|mileage", F.col("vehicle|mileage")[0].cast('int'))
+                df = df.withColumn("vehicle|new_or_used", F.when(F.col("vehicle|new_or_used")[0] == "NEW", "N").otherwise("U"))
+            if "vehicle_sale|sale_date" in df.columns:
+                columns_to_extract_first_item = ["vehicle_sale|listed_price", "vehicle_sale|mileage_on_vehicle", "vehicle_sale|oem_msrp",
+                                                 "vehicle_sale|payoff_on_trade", "vehicle_sale|profit_on_sale",
+                                                 "vehicle_sale|adjustment_on_price", "vehicle_sale|vehicle_gross", "vehicle_sale|cost_of_vehicle"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
-                df = df.withColumn("mileage_on_vehicle", F.col('vehicles.mileage.value').cast('int'))
-                df = df.withColumn("has_service_contract", F.expr("array_contains(deal_payment.fnIs.disclosureType, 'SERVICE_CONTRACT')"))
-                df = self.convert_unix_to_timestamp(df, "sale_date")
-                df = self.convert_unix_to_timestamp(df, "delivery_date")
-                df = df.withColumn("finance_rate", F.col("finance_rate.apr.apr"))
-            df = df.drop("customers", "vehicles", "deal_payment")
+                df = df.withColumn("vehicle_sale|mileage_on_vehicle", F.col("vehicle_sale|mileage_on_vehicle").cast('int'))
+                df = df.withColumn("vehicle_sale|has_service_contract", F.when(F.col("vehicle_sale|has_service_contract")[0] == "SERVICE_CONTRACT", True).otherwise(False))
+                df = self.convert_unix_to_timestamp(df, "vehicle_sale|sale_date")
+                if "vehicle_sale|delivery_date" in df.columns:
+                    df = self.convert_unix_to_timestamp(df, "vehicle_sale|delivery_date")
+            df = df.drop("consumer|customers", "vehicle|vehicles", "vehicle_sale|deal_payment")
 
         if catalog_name == "tekioncrawlerdb_repair_order":
-            if "phones" in df.columns:
-                df = self.filter_phone_type(df, 'phoneType', 'home_phone', 'HOME')
-                df = self.filter_phone_type(df, 'phoneType', 'cell_phone', 'MOBILE')
-                df = df.drop("phones")
-            if "ro_open_date" in df.columns:
-                df = self.convert_unix_to_timestamp(df, "ro_open_date")
-                df = self.convert_unix_to_timestamp(df, "ro_close_date")
-                df = df.withColumn("txn_pay_type", F.concat_ws(", ", F.array_distinct(F.col("txn_pay_type"))))
-                df = df.withColumn("advisor_name", F.concat(F.col("advisor_first_name")[0], F.lit(" "), F.col("advisor_last_name")[0]))
-                df = df.withColumn("comment", F.concat_ws(", ", F.array_distinct(F.col("comment"))))
+            if "consumer|phones" in df.columns:
+                df = self.filter_phone_type(df, 'phoneType', 'consumer|home_phone', 'HOME')
+                df = self.filter_phone_type(df, 'phoneType', 'consumer|cell_phone', 'MOBILE')
+                df = df.drop("consumer|phones")
+            if "service_repair_order|ro_open_date" in df.columns:
+                df = self.convert_unix_to_timestamp(df, "service_repair_order|ro_open_date")
+                df = self.convert_unix_to_timestamp(df, "service_repair_order|ro_close_date")
+                df = df.withColumn("service_repair_order|txn_pay_type", F.concat_ws(", ", F.array_distinct(F.col("service_repair_order|txn_pay_type"))))
+                df = df.withColumn("service_repair_order|advisor_name", F.concat(F.col("service_repair_order|advisor_first_name")[0], F.lit(" "), F.col("service_repair_order|advisor_last_name")[0]))
+                df = df.withColumn("service_repair_order|comment", F.concat_ws(", ", F.array_distinct(F.col("service_repair_order|comment"))))
 
-            df = df.drop("advisor_first_name", "advisor_last_name")
+            df = df.drop("service_repair_order|advisor_first_name", "service_repair_order|advisor_last_name")
         return df
-    
+
     def add_list_to_df(
         self, df, add_list, add_list_column_name, temp_col_name="order_temp"
     ):
@@ -543,110 +430,7 @@ class TekionUpsertJob:
             .drop(F.col(temp_col_name))
         )
         return df
-    
-    def upsert_df(self, df, catalog_name):
-        """Upsert dataframe to RDS table."""
-        insert_count = 0
-        current_dealer = None
-        dealers = df.select("dms_id").distinct().collect()
-        if len(dealers) == 0:
-            logger.error("No data found for any dealer")
-        for dealer in dealers:
-            try:
-                current_dealer = dealer.dms_id
-                dealer_df = df.filter(df.dms_id == dealer.dms_id)
-                db_dealer_integration_partner_id = None
 
-                db_dealer_integration_partner_id = (
-                    self.rds.select_db_dealer_integration_partner_id(dealer.dms_id)
-                )
-                dealer_df = dealer_df.withColumn(
-                    "dealer_integration_partner_id",
-                    F.lit(db_dealer_integration_partner_id),
-                )
-                dealer_rows = dealer_df.count()
-                if catalog_name == "tekioncrawlerdb_fi_closed_deal":
-                    # Vehicle sale must insert into consumer table first
-                    inserted_consumer_ids = self.rds.insert_consumer(
-                        dealer_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_consumer_ids)
-                    if count != dealer_rows:
-                        raise RuntimeError(f"Unable to insert consumers, expected {dealer_rows} got {count}")
-                    logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
-                    )
-                    vehicle_sale_df = self.add_list_to_df(
-                        dealer_df, inserted_consumer_ids, "consumer_id"
-                    )
-
-                    # Then insert into vehicle
-                    inserted_vehicle_ids = self.rds.insert_vehicle(
-                        vehicle_sale_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_vehicle_ids)
-                    if count != dealer_rows:
-                        raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
-                    logger.info(
-                        f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
-                    )
-                    vehicle_sale_df = self.add_list_to_df(
-                        vehicle_sale_df, inserted_vehicle_ids, "vehicle_id"
-                    )
-
-                    # Then insert into vehicle sale
-                    vehicle_sale_ids = self.rds.insert_vehicle_sale(
-                        vehicle_sale_df, catalog_name, self.mappings
-                    )
-                    count = len(vehicle_sale_ids)
-                    logger.info(
-                        f"Added {count} rows to vehicle_sale for dealer {db_dealer_integration_partner_id}"
-                    )
-                    insert_count += count
-
-                elif catalog_name == "tekioncrawlerdb_repair_order":
-                    # Service repair order must insert into consumer table first
-                    inserted_consumer_ids = self.rds.insert_consumer(
-                        dealer_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_consumer_ids)
-                    logger.info(
-                        f"Added {count} rows to consumer for dealer {db_dealer_integration_partner_id}"
-                    )
-                    service_repair_order_df = self.add_list_to_df(
-                        dealer_df, inserted_consumer_ids, "consumer_id"
-                    )
-
-                    # Then insert into vehicle
-                    inserted_vehicle_ids = self.rds.insert_vehicle(
-                        service_repair_order_df, catalog_name, self.mappings
-                    )
-                    count = len(inserted_vehicle_ids)
-                    if count != dealer_rows:
-                        raise RuntimeError(f"Unable to insert vehicles, expected {dealer_rows} got {count}")
-                    logger.info(
-                        f"Added {count} rows to vehicle for dealer {db_dealer_integration_partner_id}"
-                    )
-                    service_repair_order_df = self.add_list_to_df(
-                        service_repair_order_df, inserted_vehicle_ids, "vehicle_id"
-                    )
-
-                    # Then insert into service repair orders
-                    service_repair_order_ids = self.rds.insert_service_repair_order(
-                        service_repair_order_df, catalog_name, self.mappings
-                    )
-                    count = len(service_repair_order_ids)
-                    logger.info(
-                        f"Added {count} rows to service_repair_order for dealer {db_dealer_integration_partner_id}"
-                    )
-                    insert_count += count
-
-            except Exception:
-                s3_key = f"{self.integration}/errors/{datetime.now().strftime('%Y-%m-%d')}/{self.job_id}/{uuid.uuid4().hex}.json"
-                logger.exception(f"Error inserting {catalog_name} for dealer {dealer_df} save data {s3_key}")
-                self.save_df_notify(dealer_df, s3_key)
-        return insert_count
-    
     def save_df_notify(self, df, s3_key):
         """Save schema and data to s3, notify of error."""
         schema_json = loads(df.schema.json())
@@ -665,12 +449,23 @@ class TekionUpsertJob:
             MessageBody=dumps({"bucket": self.bucket_name, "key": s3_key}),
         )
 
+    def validate_fields(self, df):
+        """ Check that each df column names matches the database. """
+        # Ignore op codes (many to many array relationship) and partition columns
+        ignore_table_names = ["service_contracts", "op_codes", "PartitionYear", "PartitionMonth", "PartitionDate"]
+        unified_column_names = self.rds.get_unified_column_names()
+        for df_col in df.columns:
+            if df_col.split("|")[0] not in ignore_table_names and df_col not in unified_column_names:
+                raise RuntimeError(f"Column {df_col} not found in database {unified_column_names}")
+
     def run(self):
         """Run ETL for each table in our catalog."""
         for catalog_name in self.catalog_table_names:
             if "tekioncrawlerdb_fi_closed_deal" == catalog_name:
+                s3_key_path = "fi_closed_deal"
                 main_column_name = "dealNumber"
             elif "tekioncrawlerdb_repair_order" == catalog_name:
+                s3_key_path = "repair_order"
                 main_column_name = "repairOrderNumber"
             else:
                 raise RuntimeError(f"Unexpected catalog {catalog_name}")
@@ -690,9 +485,9 @@ class TekionUpsertJob:
 
             # Rename partitions from s3
             datasource = (
-                datasource.withColumnRenamed("partition_0", "Year")
-                .withColumnRenamed("partition_1", "Month")
-                .withColumnRenamed("partition_2", "Date")
+                datasource.withColumnRenamed("partition_0", "PartitionYear")
+                .withColumnRenamed("partition_1", "PartitionMonth")
+                .withColumnRenamed("partition_2", "PartitionDate")
             )
 
             # Resolve choices, flatten dataframe
@@ -707,16 +502,32 @@ class TekionUpsertJob:
 
             # Format necessary base fields to get a standardized df format
             datasource = self.format_df(datasource, catalog_name)
-            
+
+            # Validate dataframe fields meet standardized df format
+            self.validate_fields(datasource)
+
             # Convert the DataFrame back to a DynamicFrame (testing)
             dynamic_frame = DynamicFrame.fromDF(datasource, self.glue_context, "dynamic_frame")
-            
+
             # Write out the result dataset to S3 (testing)
             self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": "s3://integrations-etl-test/tekion/results/"}, format="json")
 
-            # Insert tables to database
-            self.upsert_df(datasource, catalog_name)
-            
+            # Write to S3
+            s3_path = f"s3a://{self.bucket_name}/unified/{s3_key_path}/tekion/"
+
+            datasource.write.partitionBy(
+                "dealer_integration_partner|dms_id",
+                "PartitionYear",
+                "PartitionMonth",
+                "PartitionDate"
+            ).mode(
+                "append"
+            ).parquet(
+                s3_path
+            )
+
+            logger.info(f"Uploaded to {s3_path}")
+
             self.job.commit()
 
 
