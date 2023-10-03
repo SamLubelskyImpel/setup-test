@@ -382,16 +382,16 @@ class TekionUpsertJob:
             if "consumer|postal_mail_optin_flag" in df.columns:
                 df = self.set_optin_flag(df, "consumer|postal_mail_optin_flag", "mail")
             if "vehicle|vehicles" in df.columns:
-                columns_to_extract_first_item = ["vehicle|vehicles", "vehicle|vin", "vehicle|make", "vehicle|model", "vehicle|year"]
+                columns_to_extract_first_item = ["vehicle|vehicles", "vehicle|vin", "vehicle|make", "vehicle|model", "vehicle|year", "vehicle|vehicle_class"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
-                df = df.withColumn("vehicle|type", F.col("vehicle|new_or_used"))
                 df = df.withColumn("vehicle|mileage", F.col("vehicle|mileage")[0].cast('int'))
                 df = df.withColumn("vehicle|new_or_used", F.when(F.col("vehicle|new_or_used")[0] == "NEW", "N").otherwise("U"))
+                df = df.withColumn("vehicle|type", F.col("vehicle|new_or_used"))
             if "vehicle_sale|sale_date" in df.columns:
                 columns_to_extract_first_item = ["vehicle_sale|listed_price", "vehicle_sale|mileage_on_vehicle", "vehicle_sale|oem_msrp",
                                                  "vehicle_sale|payoff_on_trade", "vehicle_sale|profit_on_sale",
-                                                 "vehicle_sale|adjustment_on_price", "vehicle_sale|vehicle_gross", "vehicle_sale|cost_of_vehicle"]
+                                                 "vehicle_sale|adjustment_on_price", "vehicle_sale|vehicle_gross", "vehicle_sale|cost_of_vehicle", "vehicle_sale|vin"]
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
                 df = df.withColumn("vehicle_sale|mileage_on_vehicle", F.col("vehicle_sale|mileage_on_vehicle").cast('int'))
