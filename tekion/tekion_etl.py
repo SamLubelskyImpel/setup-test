@@ -712,7 +712,7 @@ class TekionUpsertJob:
             dynamic_frame = DynamicFrame.fromDF(datasource, self.glue_context, "dynamic_frame")
             
             # Write out the result dataset to S3 (testing)
-            self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": "s3://integrations-etl-test/tekion/results/"}, format="json")
+            self.glue_context.write_dynamic_frame.from_options(frame=dynamic_frame, connection_type="s3", connection_options={"path": f"s3://integrations-etl-{'prod' if self.is_prod else 'test'}/tekion/results/"}, format="json")
 
             # Insert tables to database
             self.upsert_df(datasource, catalog_name)
