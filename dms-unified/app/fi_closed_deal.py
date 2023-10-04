@@ -8,6 +8,7 @@ from os import environ
 import pandas as pd
 import urllib.parse
 from rds_instance import RDSInstance
+from eventbridge import notify_event_bus
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -68,6 +69,17 @@ def insert_fi_deal_parquet(key, bucket):
             return
 
         inserted_service_contract_ids = rds.insert_table_from_df(service_contracts_df, "service_contracts")
+
+    notification_message = {
+        "impel_integration_partner_id": integration,
+        "dealer_integration_partner_id": db_dealer_integration_partner_id,
+        "dms_id": dms_id,
+        "table_inserted": "vehicle_sale",
+        "ids_inserted": inserted_vehicle_sale_ids
+    }
+
+    notify_event_bus(notification_message)
+    logger.info(f"Notify {notification_message}")
 
 
 def lambda_handler(event: dict, context: dict):
