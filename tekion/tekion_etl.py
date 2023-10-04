@@ -395,7 +395,7 @@ class TekionUpsertJob:
                 for column_name in columns_to_extract_first_item:
                     df = self.extract_first_item_from_array(df, column_name)
                 df = df.withColumn("vehicle_sale|mileage_on_vehicle", F.col("vehicle_sale|mileage_on_vehicle").cast('int'))
-                df = df.withColumn("vehicle_sale|has_service_contract", F.when(F.col("vehicle_sale|has_service_contract")[0] == "SERVICE_CONTRACT", True).otherwise(False))
+                df = df.withColumn("vehicle_sale|has_service_contract", F.array_contains(F.col('vehicle_sale|has_service_contract'), 'SERVICE_CONTRACT'))
                 df = self.convert_unix_to_timestamp(df, "vehicle_sale|sale_date")
                 if "vehicle_sale|delivery_date" in df.columns:
                     df = self.convert_unix_to_timestamp(df, "vehicle_sale|delivery_date")
