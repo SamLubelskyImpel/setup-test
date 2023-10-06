@@ -4,6 +4,7 @@ import psycopg2
 from json import loads
 from os import environ
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -52,7 +53,7 @@ class RDSInstance:
         """Get the db dealer id for the given dms id."""
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
-            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
+            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id
             where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
         results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
@@ -91,7 +92,9 @@ class RDSInstance:
                 db_columns.append(table_to_column_name.split("|")[1])
 
         column_data = []
-        for _, row in df[selected_columns].replace(np.nan, None).iterrows():
+
+        df.replace({pd.NaT: None, np.nan: None}, inplace=True)
+        for _, row in df[selected_columns].iterrows():
             data = tuple([x.tolist() if isinstance(x, np.ndarray) else x for x in row.to_numpy()])
             column_data.append(data)
         table_name = f'{self.schema}."{table}"'
@@ -106,8 +109,8 @@ class RDSInstance:
         for _, row in op_code_df.iterrows():
             if row["op_code|op_code"] and row['op_code_repair_order|repair_order_id']:
                 condition = f"""
-                    sro.id = {row['op_code_repair_order|repair_order_id']} 
-                    and oc.dealer_integration_partner_id = '{row['op_code|dealer_integration_partner_id']}' 
+                    sro.id = {row['op_code_repair_order|repair_order_id']}
+                    and oc.dealer_integration_partner_id = '{row['op_code|dealer_integration_partner_id']}'
                     and oc.op_code = '{row['op_code|op_code']}'
                 """
             conditions_list.append(condition)
