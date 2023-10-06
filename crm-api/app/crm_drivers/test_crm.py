@@ -20,7 +20,7 @@ class TestCrm(BaseCrm):
         pass
 
     def handle_activity(self, activity_id):
-        with DBSession as session:
+        with DBSession() as session:
             self.activity = session.query(
                 Activity
             ).filter(

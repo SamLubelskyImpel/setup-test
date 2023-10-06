@@ -1,7 +1,8 @@
 """Consumer Model."""
 
-from datetime import datetime
-from ..base_model import BaseForModels, SCHEMA
+from sqlalchemy.orm import backref, relationship
+from crm_orm.models.dealer import Dealer
+from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, String
 
 
@@ -9,16 +10,12 @@ class Consumer(BaseForModels):
     """Consumer Model."""
 
     __tablename__ = "crm_consumer"
-    __table_args__ = {'schema': SCHEMA}
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     crm_consumer_id = Column(String)
-    dealer_id = Column(
-        Integer, ForeignKey(f'{SCHEMA}.crm_dealer.id')
-    )
-    integration_partner_id = Column(
-        Integer, ForeignKey(f'{SCHEMA}.crm_integration_partner.id')
-    )
+    dealer_id = Column(Integer, ForeignKey("crm_dealer.id"))
+    dealer = relationship(Dealer, backref=backref("consumers", lazy="dynamic"))
+
     first_name = Column(String)
     last_name = Column(String)
     middle_name = Column(String)
@@ -31,7 +28,7 @@ class Consumer(BaseForModels):
     postal_code = Column(String)
     email_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

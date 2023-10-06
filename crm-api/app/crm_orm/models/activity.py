@@ -1,6 +1,8 @@
 """Activity Model."""
 
-from datetime import datetime
+from sqlalchemy.orm import backref, relationship
+from crm_orm.models.lead import Lead
+from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
@@ -11,17 +13,19 @@ class Activity(BaseForModels):
 
     __tablename__ = "crm_activity"
 
-    id = Column(Integer, primary_key=True)
-    integration_partner_id = Column(Integer, ForeignKey("crm_integration_partner.id"))
+    id = Column(Integer, primary_key=True, autoincrement=True)
     lead_id = Column(Integer, ForeignKey("crm_lead.id"))
-    dealer_id = Column(Integer, ForeignKey("crm_dealer.id"))
+    lead = relationship(Lead, backref=backref("activities", lazy="dynamic"))
+
     activity_type_id = Column(Integer, ForeignKey("crm_activity_type.id"))
+    activity_type = relationship(ActivityType, backref=backref("activities", lazy="dynamic"))
+
     activity_requested_ts = Column(DateTime)
     request_product = Column(Integer)
-    metadata = Column(JSONB)
+    metadata_ = Column("metadata", JSONB)
     notes = Column(String)
     activity_due_ts = Column(DateTime)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

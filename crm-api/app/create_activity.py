@@ -1,10 +1,9 @@
 import logging
 from os import environ
 from datetime import datetime
-from json import dumps
+from json import dumps, loads
 
 from crm_orm.models.lead import Lead
-from crm_orm.models.consumer import Consumer
 from crm_orm.models.activity import Activity
 from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import DBSession
@@ -23,8 +22,8 @@ def lambda_handler(event, context):
     """Create activity."""
     logger.info(f"Event: {event}")
 
-    body = event["body"]
-    request_product = event["headers"]["client_id"]
+    body = loads(event["body"])
+    request_product = event["headers"]["partner_id"]
     lead_id = event["pathParameters"]["lead_id"]
 
     activity_type = body["activity_type"].lower()
@@ -32,7 +31,7 @@ def lambda_handler(event, context):
     activity_requested_ts = body["activity_requested_ts"]
     notes = body.get("notes", "")
 
-    with DBSession as session:
+    with DBSession() as session:
         # Check lead existance
         lead = session.query(
             Lead
@@ -54,27 +53,16 @@ def lambda_handler(event, context):
             logger.error(f"Failed to find activity type {activity_type} for lead {lead_id}")
             raise
 
-        dealer_id = session.query(
-            Consumer.dealer_id
-        ).filter(
-            Consumer.id == lead.consumer_id
-        ).first()
-        if not dealer_id:
-            logger.error(f"Failed to find consumer {lead.consumer_id} for lead {lead_id}")
-            raise
-
         # Create activity
         activity = Activity(
-            integration_partner_id=lead.integration_partner_id,
             lead_id=lead.id,
-            dealer_id=dealer_id,
             activity_type_id=activity_type_id,
             activity_requested_ts=convert_to_datetime(activity_requested_ts),
             request_product=request_product,
-            notes=notes,
-            db_creation_date=datetime.utcnow(),
-            db_update_date=datetime.utcnow(),
-            db_update_role="system"
+            notes=notes
+            # db_creation_date=datetime.utcnow(),
+            # db_update_date=datetime.utcnow(),
+            # db_update_role="system"
         )
         if activity_due_ts:
             activity.activity_due_ts = convert_to_datetime(activity_due_ts)
@@ -82,12 +70,14 @@ def lambda_handler(event, context):
         session.add(activity)
         session.commit()
 
-    logger.info(f"Created activity {activity.id}")
+        activity_id = activity.id
 
-    # Trigger CRM ETL syncronously, send integration_partner_id & activity.id
-    # async_etl({"activity_id": activity.id, "integration_partner_id": integration_partner_id}, {})
+    logger.info(f"Created activity {activity_id}")
+
+    # Trigger CRM ETL syncronously, send activity_id
+    # async_etl({"activity_id": activity_id}, {})
 
     return {
         "statusCode": "200",
-        "body": dumps({"activityId": activity.id})
+        "body": dumps({"activityId": activity_id})
     }
