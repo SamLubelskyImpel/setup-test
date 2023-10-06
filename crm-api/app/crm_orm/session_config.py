@@ -18,7 +18,7 @@ from crm_orm.create_db_uri import create_db_uri
 
 _Sessions = {}
 BaseForModels = declarative_base(
-    metadata=MetaData(schema="prod" if env == "prod" else "stage")
+    metadata=MetaData(schema=env if env in ("test", "stage", "prod") else "stage")
 )
 
 

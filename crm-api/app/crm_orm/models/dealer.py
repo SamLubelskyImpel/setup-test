@@ -1,6 +1,8 @@
 """Dealer Model."""
 
 from datetime import datetime
+from sqlalchemy.orm import backref, relationship
+from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -11,9 +13,11 @@ class Dealer(BaseForModels):
 
     __tablename__ = "crm_dealer"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     product_dealer_id = Column(Integer, unique=True)
     integration_partner_id = Column(Integer, ForeignKey("crm_integration_partner.id"))
+    integration_partner = relationship(IntegrationPartner, backref=backref("dealers", lazy="dynamic"))
+
     crm_dealer_id = Column(Integer)
     sfdc_account_id = Column(String)
     dealer_name = Column(String)
@@ -23,8 +27,8 @@ class Dealer(BaseForModels):
     state = Column(String)
     city = Column(String)
     zip_code = Column(String)
-    metadata = Column(JSONB)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    metadata_ = Column("metadata", JSONB)
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

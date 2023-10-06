@@ -15,7 +15,7 @@ def lambda_handler(event, context):
 
     consumer_id = event["pathParameters"]["consumer_id"]
 
-    with DBSession as session:
+    with DBSession() as session:
         consumer = session.query(
             Consumer
         ).filter(
@@ -31,6 +31,8 @@ def lambda_handler(event, context):
     logger.info(f"Found consumer {consumer.as_dict()}")
 
     consumer_record = {
+        "crm_consumer_id": consumer.crm_consumer_id,
+        "dealer_id": consumer.dealer_id,
         "first_name": consumer.first_name,
         "last_name": consumer.last_name,
         "middle_name": consumer.middle_name,

@@ -5,7 +5,7 @@ from os import environ
 
 from crm_drivers import crm_mapper
 
-from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.activity import Activity
 from crm_orm.session_config import DBSession
 
 
@@ -17,15 +17,19 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
 
     body = event["body"]
-    integration_partner_id = body["integration_partner_id"]
     activity_id = body["activity_id"]
 
-    with DBSession as session:
-        crm_name = session.query(
-            IntegrationPartner.impel_integration_partner_name
+    with DBSession() as session:
+        activity = session.query(
+            Activity
         ).filter(
-            IntegrationPartner.id == integration_partner_id
+            Activity.id == activity_id
         ).first()
+        if not activity:
+            logger.error(f"Activity not found {activity_id}")
+            raise
+
+        crm_name = activity.lead.dealer.integration_partner.impel_integration_partner_name
 
     if crm_name.upper() not in crm_mapper:
         logger.error(f"CRM {crm_name} is not defined")

@@ -1,6 +1,9 @@
 """Vehicle Model."""
 
 from datetime import datetime
+from sqlalchemy.orm import backref, relationship
+from crm_orm.models.dealer import Dealer
+from crm_orm.models.lead import Lead
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
@@ -11,9 +14,10 @@ class Vehicle(BaseForModels):
 
     __tablename__ = "crm_vehicle"
 
-    id = Column(Integer, primary_key=True)
-    dealer_id = Column(Integer, ForeignKey("crm_dealer.id"))
+    id = Column(Integer, primary_key=True, autoincrement=True)
     lead_id = Column(Integer, ForeignKey("crm_lead.id"))
+    lead = relationship(Lead, backref=backref("vehicles", lazy="dynamic"))
+
     vin = Column(String, unique=True)
     crm_vehicle_id = Column(String)
     oem_name = Column(String)
@@ -33,8 +37,8 @@ class Vehicle(BaseForModels):
     condition = Column(String)
     odometer_units = Column(String)
     vehicle_comments = Column(String)
-    metadata = Column(JSONB)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    metadata_ = Column("metadata", JSONB)
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

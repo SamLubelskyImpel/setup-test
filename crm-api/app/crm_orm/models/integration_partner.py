@@ -10,10 +10,10 @@ class IntegrationPartner(BaseForModels):
 
     __tablename__ = "crm_integration_partner"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     impel_integration_partner_name = Column(String)
     integration_date = Column(DateTime)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 
