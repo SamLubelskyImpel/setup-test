@@ -298,7 +298,7 @@ class TekionUpsertJob:
                 selected_columns.append(metadata_column)
 
         selected_columns += ["PartitionYear", "PartitionMonth", "PartitionDate"]
-        logging.warning(f"Selected columns: {selected_columns}")
+        logging.info(f"Selected columns: {selected_columns}")
         return df.select(selected_columns)
 
     def apply_mappings(self, df, catalog_name):
@@ -430,24 +430,6 @@ class TekionUpsertJob:
             .drop(F.col(temp_col_name))
         )
         return df
-
-    def save_df_notify(self, df, s3_key):
-        """Save schema and data to s3, notify of error."""
-        schema_json = loads(df.schema.json())
-        data_json = [row.asDict(recursive=True) for row in df.collect()]
-        s3_client = boto3.client("s3")
-        s3_client.put_object(
-            Bucket=self.bucket_name,
-            Key=s3_key,
-            Body=dumps({"schema": schema_json, "data": data_json}),
-            ContentType="application/json",
-        )
-        logger.info(f"Uploaded df info to {s3_key}")
-        sqs_client = boto3.client("sqs")
-        sqs_client.send_message(
-            QueueUrl=self.dlq_url,
-            MessageBody=dumps({"bucket": self.bucket_name, "key": s3_key}),
-        )
 
     def validate_fields(self, df):
         """ Check that each df column names matches the database. """
