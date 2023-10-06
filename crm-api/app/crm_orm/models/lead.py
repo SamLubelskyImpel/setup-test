@@ -37,7 +37,6 @@ class Lead(BaseForModels):
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 
-
     def as_dict(self):
         """Return attributes of the keys in the table."""
         return {
