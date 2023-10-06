@@ -77,7 +77,7 @@ def lambda_handler(event, context):
                 mileage=vehicle.get("mileage", ""),
                 make=vehicle.get("make", ""),
                 model=vehicle.get("model", ""),
-                manufactured_year=vehicle.get("year", ""),
+                manufactured_year=vehicle.get("manufactured_year", ""),
                 body_style=vehicle.get("body_style", ""),
                 transmission=vehicle.get("transmission", ""),
                 interior_color=vehicle.get("interior_color", ""),

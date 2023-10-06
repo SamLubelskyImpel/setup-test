@@ -114,6 +114,30 @@ paths:
         - "$ref": '#/components/parameters/resultCount'
   
   /leads/{lead_id}:
+    get:
+      summary: Get lead by ID
+      #{{RETRIEVE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Leads
+      operationId: get-lead
+      description: Returns a lead by lead ID.
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/leadId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lead'
+        '400':
+          "$ref": "#/components/responses/400"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
     put:
       summary: This endpoint updates an existing lead in the CRM persistance data layer.
       #{{UPDATE_LEAD_LAMBDA_INFO}}
