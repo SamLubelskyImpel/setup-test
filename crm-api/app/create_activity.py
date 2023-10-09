@@ -1,6 +1,5 @@
 import logging
 from os import environ
-from datetime import datetime
 from json import dumps, loads
 
 from crm_orm.models.lead import Lead
@@ -12,10 +11,6 @@ from crm_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-
-def convert_to_datetime(timestamp: str):
-    return datetime.fromisoformat(timestamp)
 
 
 def lambda_handler(event, context):
@@ -44,28 +39,25 @@ def lambda_handler(event, context):
                 "statusCode": "404"
             }
 
-        activity_type_id = session.query(
-            ActivityType.id
+        activity_type_db = session.query(
+            ActivityType
         ).filter(
-            ActivityType.name.lower() == activity_type
+            ActivityType.type == activity_type
         ).first()
-        if not activity_type_id:
+        if not activity_type_db:
             logger.error(f"Failed to find activity type {activity_type} for lead {lead_id}")
             raise
 
         # Create activity
         activity = Activity(
             lead_id=lead.id,
-            activity_type_id=activity_type_id,
-            activity_requested_ts=convert_to_datetime(activity_requested_ts),
+            activity_type_id=activity_type_db.id,
+            activity_requested_ts=activity_requested_ts,
             request_product=request_product,
             notes=notes
-            # db_creation_date=datetime.utcnow(),
-            # db_update_date=datetime.utcnow(),
-            # db_update_role="system"
         )
         if activity_due_ts:
-            activity.activity_due_ts = convert_to_datetime(activity_due_ts)
+            activity.activity_due_ts = activity_due_ts
 
         session.add(activity)
         session.commit()
@@ -79,5 +71,5 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": "200",
-        "body": dumps({"activityId": activity_id})
+        "body": dumps({"activity_id": activity_id})
     }

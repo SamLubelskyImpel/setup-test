@@ -1,6 +1,5 @@
 import logging
 from os import environ
-from datetime import datetime
 from json import loads
 
 from crm_orm.models.consumer import Consumer
@@ -17,6 +16,12 @@ def lambda_handler(event, context):
     body = loads(event["body"])
     consumer_id = event["pathParameters"]["consumer_id"]
 
+    fields_to_update = [
+        "first_name", "last_name", "middle_name", "email", "phone",
+        "email_optin_flag", "sms_optin_flag", "city", "country",
+        "address", "postal_code"
+    ]
+
     with DBSession() as session:
         consumer = session.query(
             Consumer
@@ -29,18 +34,9 @@ def lambda_handler(event, context):
                 "statusCode": "404"
             }
 
-        consumer.first_name = body["first_name"]
-        consumer.last_name = body["last_name"]
-        consumer.middle_name = body["middle_name"]
-        consumer.email = body["email"]
-        consumer.phone = body["phone"]
-        consumer.email_optin_flag = body["email_optin_flag"]
-        consumer.sms_optin_flag = body["sms_optin_flag"]
-        consumer.city = body["city"]
-        consumer.country = body["country"]
-        consumer.address = body["address"]
-        consumer.postal_code = body["postal_code"]
-        # consumer.db_update_date = datetime.utcnow()
+        for field in fields_to_update:
+            if field in body:
+                setattr(consumer, field, body[field])
 
         session.commit()
 

@@ -101,7 +101,6 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/integrationPartnerId"
         - "$ref": '#/components/parameters/dbCreationDateStart'
         - "$ref": '#/components/parameters/dbCreationDateEnd'
         - name: dealer_id
@@ -112,15 +111,13 @@ paths:
             type: string
         - "$ref": '#/components/parameters/page'
         - "$ref": '#/components/parameters/resultCount'
-  
   /leads/{lead_id}:
     get:
-      summary: Get lead by ID
+      operationId: get-lead
+      summary: Retrieve a specific lead by ID
       #{{RETRIEVE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
-      operationId: get-lead
-      description: Returns a lead by lead ID.
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
@@ -286,9 +283,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Consumer'
+                $ref: '#/components/schemas/Consumer3'
         '400':
           "$ref": "#/components/responses/400"
+        '404':
+          description: Not Found. The consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
     put:
@@ -442,7 +441,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  activityId:
+                  activity_id:
                     type: string
                     description: ID of the newly created activity
         '400':
@@ -631,19 +630,80 @@ components:
     Consumer2:
       description: An object containing all information about a person interested in a vehicle
       type: object
-      required:
-      - first_name
-      - last_name
-      - middle_name
-      - email
-      - phone
-      - email_optin_flag
-      - sms_optin_flag
-      - city
-      - country
-      - address
-      - postal_code
       properties:
+        first_name:
+          type: string
+          description: Consumer first name
+          minLength: 1
+          maxLength: 50
+          example: John
+        last_name:
+          type: string
+          description: Consumer last name
+          minLength: 1
+          maxLength: 50
+          example: Doe
+        middle_name:
+          type: string
+          description: Consumer middle name
+          minLength: 1
+          maxLength: 50
+          example: Michael
+        email:
+          type: string
+          format: email
+          description: Consumer primary email address
+          minLength: 1
+          maxLength: 50
+          example: john.doe@example.com
+        phone:
+          type: string
+          description: Consumer primary phone number
+          minLength: 1
+          maxLength: 20
+          example: "+11231231134"
+        email_optin_flag:
+          type: boolean
+          description: Flag to indicate if the consumer has opted in for email
+          default: true
+          example: true
+        sms_optin_flag:
+          type: boolean
+          description: Flag to indicate if the consumer has opted in for SMS notifications
+          default: true
+          example: true
+        city:
+          type: string
+          description: City where the consumer resides
+          minLength: 1
+          maxLength: 100
+          example: New York
+        country:
+          type: string
+          description: Country where the consumer resides
+          minLength: 1
+          maxLength: 100
+          example: USA
+        address:
+          type: string
+          description: Complete address of the consumer
+          minLength: 1
+          maxLength: 255
+          example: "123 Main St, Apt 4B"
+        postal_code:
+          type: string
+          description: Postal or ZIP code for the consumer's address
+          minLength: 1
+          maxLength: 20
+          example: "10001"
+    Consumer3:
+      description: An object containing all information about a person interested in a vehicle
+      type: object
+      properties:
+        dealer_id:
+          type: integer
+          description: The ID that represents the dealership in the CRM API
+          example: 1234567
         first_name:
           type: string
           description: Consumer first name

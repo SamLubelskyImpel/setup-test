@@ -1,5 +1,6 @@
 """Activity Type Model."""
 
+from datetime import datetime
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, DateTime
 
@@ -11,7 +12,7 @@ class ActivityType(BaseForModels):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     type = Column(String)
-    db_creation_date = Column(DateTime)
+    db_creation_date = Column(DateTime, default=datetime.utcnow())
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

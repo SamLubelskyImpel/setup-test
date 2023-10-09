@@ -1,6 +1,5 @@
 import logging
 from os import environ
-from datetime import datetime
 from json import dumps, loads
 
 from crm_orm.models.dealer import Dealer
@@ -43,12 +42,9 @@ def lambda_handler(event, context):
             address=body.get("address", ""),
             country=body.get("country", ""),
             city=body.get("city", ""),
-            email_optin_flag=body["email_optin_flag"],
-            sms_optin_flag=body["sms_optin_flag"],
-            request_product=request_product,
-            db_creation_date=datetime.utcnow(),
-            db_update_date=datetime.utcnow(),
-            db_update_role="system"
+            email_optin_flag=body.get("email_optin_flag", True),
+            sms_optin_flag=body.get("sms_optin_flag", True),
+            request_product=request_product
         )
         session.add(consumer)
         session.commit()
@@ -59,5 +55,5 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": "201",
-        "body": dumps({"consumerId": consumer_id})
+        "body": dumps({"consumer_id": consumer_id})
     }
