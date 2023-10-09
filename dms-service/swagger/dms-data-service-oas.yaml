@@ -23,7 +23,7 @@ paths:
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel.
       - schema:
           type: string
         in: header
@@ -170,7 +170,7 @@ paths:
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel.
       - schema:
           type: string
         in: header
@@ -295,7 +295,7 @@ paths:
         in: header
         name: client_id
         required: true
-        description: Client ID provided by SpinCar
+        description: Client ID provided by Impel.
       - schema:
           type: string
         in: header
