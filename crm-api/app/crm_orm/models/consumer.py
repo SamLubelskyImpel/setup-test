@@ -1,5 +1,6 @@
 """Consumer Model."""
 
+from datetime import datetime
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import BaseForModels
@@ -28,7 +29,7 @@ class Consumer(BaseForModels):
     postal_code = Column(String)
     email_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
-    db_creation_date = Column(DateTime)
+    db_creation_date = Column(DateTime, default=datetime.utcnow())
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

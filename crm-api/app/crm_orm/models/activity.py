@@ -1,5 +1,6 @@
 """Activity Model."""
 
+from datetime import datetime
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity_type import ActivityType
@@ -21,11 +22,11 @@ class Activity(BaseForModels):
     activity_type = relationship(ActivityType, backref=backref("activities", lazy="dynamic"))
 
     activity_requested_ts = Column(DateTime)
-    request_product = Column(Integer)
+    request_product = Column(String)
     metadata_ = Column("metadata", JSONB)
     notes = Column(String)
     activity_due_ts = Column(DateTime)
-    db_creation_date = Column(DateTime)
+    db_creation_date = Column(DateTime, default=datetime.utcnow())
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 

@@ -22,29 +22,28 @@ def lambda_handler(event, context):
             Consumer.id == consumer_id
         ).first()
 
-    if not consumer:
-        logger.error(f"Consumer not found {consumer_id}")
-        return {
-            "statusCode": "404"
+        if not consumer:
+            logger.error(f"Consumer not found {consumer_id}")
+            return {
+                "statusCode": "404"
+            }
+
+        logger.info(f"Found consumer {consumer.as_dict()}")
+
+        consumer_record = {
+            "dealer_id": consumer.dealer_id,
+            "first_name": consumer.first_name,
+            "last_name": consumer.last_name,
+            "middle_name": consumer.middle_name,
+            "email": consumer.email,
+            "phone": consumer.phone,
+            "email_optin_flag": consumer.email_optin_flag,
+            "sms_optin_flag": consumer.sms_optin_flag,
+            "city": consumer.city,
+            "country": consumer.country,
+            "address": consumer.address,
+            "postal_code": consumer.postal_code
         }
-
-    logger.info(f"Found consumer {consumer.as_dict()}")
-
-    consumer_record = {
-        "crm_consumer_id": consumer.crm_consumer_id,
-        "dealer_id": consumer.dealer_id,
-        "first_name": consumer.first_name,
-        "last_name": consumer.last_name,
-        "middle_name": consumer.middle_name,
-        "email": consumer.email,
-        "phone": consumer.phone,
-        "email_optin_flag": consumer.email_optin_flag,
-        "sms_optin_flag": consumer.sms_optin_flag,
-        "city": consumer.city,
-        "country": consumer.country,
-        "address": consumer.address,
-        "postal_code": consumer.postal_code
-    }
 
     return {
         "statusCode": "200",
