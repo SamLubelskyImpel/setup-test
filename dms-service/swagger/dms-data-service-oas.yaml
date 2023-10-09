@@ -591,8 +591,8 @@ components:
       properties:
         id:
           type: integer
-        dealer_id:
-            type: integer
+        dealer_integration_partner_id:
+          type: integer
         vehicle_id:
           type: integer
         consumer_id:
@@ -617,7 +617,7 @@ components:
         oem_msrp:
           type: number
           format: float
-        discount_on_price:
+        adjustment_on_price:
           type: number
           format: float
         days_in_stock:
@@ -626,8 +626,6 @@ components:
           type: string
           format: date
           example: '2021-11-19'
-        is_new:
-          type: boolean
         trade_in_value:
           type: number
           format: float
@@ -647,14 +645,17 @@ components:
         vehicle_gross:
           type: number
           format: float
-        warranty_expiration_date:
+        delivery_date:
           type: string
           format: date
           example: '2021-11-19'
-        service_package:
+        db_creation_date:
           type: string
-        extended_warranty:
+          format: date
+          example: '2021-11-19'
+        vin:
           type: string
+          example: '1G1FX6S05P4158304'  
     RepairOrder:
         type: object
         properties:
