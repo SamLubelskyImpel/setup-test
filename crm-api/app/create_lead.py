@@ -1,11 +1,12 @@
 import logging
 from os import environ
 from datetime import datetime
-from json import dumps
+from json import dumps, loads
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
+from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.consumer import Consumer
 from crm_orm.session_config import DBSession
 
@@ -17,12 +18,13 @@ def lambda_handler(event, context):
     """Create lead."""
     logger.info(f"Event: {event}")
 
-    body = event["body"]
+    body = loads(event["body"])
     request_product = event["headers"]["partner_id"]
     dealer_id = event["headers"]["dealer_id"]
-    consumer_id = event["body"]["consumer_id"]
+    consumer_id = int(body["consumer_id"])
+    salesperson_id = int(body["salesperson_id"])
 
-    with DBSession as session:
+    with DBSession() as session:
         dealer = session.query(
             Dealer
         ).filter(
@@ -47,6 +49,18 @@ def lambda_handler(event, context):
                 "message": f"Consumer not found {consumer_id}"
             }
 
+        salesperson = session.query(
+            Salesperson
+        ).filter(
+            Salesperson.id == salesperson_id
+        ).first()
+        if not salesperson:
+            logger.error(f"Salesperson not found {salesperson_id}")
+            return {
+                "statusCode": "404",
+                "message": f"Salesperson not found {salesperson_id}"
+            }
+
         # Create lead
         lead = Lead(
             consumer_id=consumer_id,
@@ -69,7 +83,6 @@ def lambda_handler(event, context):
         vehicles_of_interest = body["vehicles_of_interest"]
         for vehicle in vehicles_of_interest:
             vehicle = Vehicle(
-                dealer_id=dealer_id,
                 lead_id=lead.id,
                 vin=vehicle.get("vin", ""),
                 type=vehicle.get("type", ""),

@@ -45,10 +45,10 @@ def lambda_handler(event, context):
             city=body.get("city", ""),
             email_optin_flag=body["email_optin_flag"],
             sms_optin_flag=body["sms_optin_flag"],
-            request_product=request_product
-            # db_creation_date=datetime.utcnow(),
-            # db_update_date=datetime.utcnow(),
-            # db_update_role="system"
+            request_product=request_product,
+            db_creation_date=datetime.utcnow(),
+            db_update_date=datetime.utcnow(),
+            db_update_role="system"
         )
         session.add(consumer)
         session.commit()
