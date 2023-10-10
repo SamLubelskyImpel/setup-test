@@ -1,10 +1,9 @@
 """Activity ETL"""
 import logging
-from json import dumps
+from json import dumps, loads
 from os import environ
 
 from crm_drivers import crm_mapper
-
 from crm_orm.models.activity import Activity
 from crm_orm.session_config import DBSession
 
@@ -16,7 +15,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 def lambda_handler(event, context):
     logger.info(f"Event: {event}")
 
-    body = event["body"]
+    body = loads(event["body"])
     activity_id = body["activity_id"]
 
     with DBSession() as session:
@@ -30,6 +29,7 @@ def lambda_handler(event, context):
             raise
 
         crm_name = activity.lead.dealer.integration_partner.impel_integration_partner_name
+        activity_type = activity.type
 
     if crm_name.upper() not in crm_mapper:
         logger.error(f"CRM {crm_name} is not defined")
@@ -44,4 +44,5 @@ def lambda_handler(event, context):
         logger.error(f"An error occured during the handling of an activity {activity_id} {e}")
         raise
 
+    logger.info(f"{crm.name} integration status code {response.status_code} for {activity_type}")
     return dumps(response)

@@ -1,5 +1,6 @@
 """Test CRM class."""
 
+from json import dumps
 from crm_orm.models.activity import Activity
 from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import DBSession
@@ -66,4 +67,22 @@ class TestCrm(BaseCrm):
     def set_lead_status(self):
         return {
             "statusCode": 200
+        }
+
+    def get_lead_salesperson(self):
+        return {
+            "statusCode": 200,
+            "body": dumps({
+                "salesperson_id": 12345,
+                "first_name": "John",
+                "last_name": "Doe"
+            })
+        }
+
+    def get_lead_status(self):
+        return {
+            "statusCode": 200,
+            "body": dumps({
+                "lead_status": "ACTIVE"
+            })
         }

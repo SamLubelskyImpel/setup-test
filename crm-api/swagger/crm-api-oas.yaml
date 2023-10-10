@@ -352,12 +352,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-               - salesperson
-              properties:
-               salesperson:
-                $ref: '#/components/schemas/Salesperson'
+              $ref: '#/components/schemas/Salesperson'
 
   
   /salespersons/{salesperson_id}:

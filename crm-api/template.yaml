@@ -490,4 +490,34 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
+        - Id: LambdaInvokePermission
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowLambdaInvoke
+            Effect: Allow:
+            Action:
+              - lambda:InvokeFunction
+            Resource: !Ref ActivityETLTask.Arn
+      Environment:
+        Variables:
+          ACTIVITY_ETL_ARN: !Ref ActivityETLTask.Arn
+
+  ActivityETLTask:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/crm_etl/
+      Handler: activity_task.lambda_handler
+      Timeout: 30
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !If [ IsProd, 
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                      ]
   
