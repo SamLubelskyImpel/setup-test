@@ -249,3 +249,32 @@ CREATE TABLE stage.op_code_vehicle_sale (
 	CONSTRAINT op_code_vehicle_sale_op_code_id_fkey FOREIGN KEY (op_code_id) REFERENCES stage.op_code(id),
 	CONSTRAINT op_code_vehicle_sale_vehicle_sale_id_fkey FOREIGN KEY (vehicle_sale_id) REFERENCES stage.vehicle_sale(id)
 );
+
+
+-- stage.appointment definition
+
+-- Drop table
+
+-- DROP TABLE stage.appointment;
+
+CREATE TABLE stage.appointment (
+	id serial4 NOT NULL,
+	dealer_integration_partner_id int8 NOT NULL,
+	consumer_id int8 NOT NULL,
+	vehicle_id int8 NOT NULL,
+	appointment_time time NULL,
+	appointment_date date NULL,
+	appointment_source varchar(40) NULL,
+	reason_code varchar(40) NULL, -- what would be the max size here?
+	appointment_create_ts timestamp NULL,
+	appointment_update_ts timestamp NULL,
+	rescheduled_flag bool NULL,
+	appointment_no int8 NULL,
+	last_ro_date date NULL,
+	last_ro_num int8 NULL,
+	db_creation_date timestamp NOT NULL DEFAULT now(),
+	CONSTRAINT appointment_pkey PRIMARY KEY (id),
+	CONSTRAINT dip_appointment_fkey FOREIGN KEY (dealer_integration_partner_id) REFERENCES stage.dealer_integration_partner(id),
+	CONSTRAINT consumer_appointment_fkey FOREIGN KEY (consumer_id) REFERENCES stage.consumer(id),
+	CONSTRAINT vehicle_appointment_fkey FOREIGN KEY (vehicle_id) REFERENCES stage.vehicle(id)
+);
