@@ -1,7 +1,7 @@
 import logging
 from os import environ
 from datetime import datetime
-from json import dumps
+from json import dumps, loads
 
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
@@ -14,9 +14,9 @@ def lambda_handler(event, context):
     """Create salesperson."""
     logger.info(f"Event: {event}")
 
-    body = event["body"]
+    body = loads(event["body"])
 
-    with DBSession as session:
+    with DBSession() as session:
         # Create salesperson
         salesperson = Salesperson(
             first_name=body["first_name"],
@@ -27,12 +27,15 @@ def lambda_handler(event, context):
             db_update_date=datetime.utcnow(),
             db_update_role="system"
         )
+
         session.add(salesperson)
         session.commit()
 
-    logger.info(f"Created salesperson {salesperson.id}")
+        salesperson_id = salesperson.id
+
+    logger.info(f"Created salesperson {salesperson_id }")
 
     return {
         "statusCode": "200",
-        "body": dumps({"salespersonId": salesperson.id})
+        "body": dumps({"salespersonId": salesperson_id})
     }

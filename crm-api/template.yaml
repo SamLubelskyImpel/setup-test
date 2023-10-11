@@ -114,7 +114,7 @@ Resources:
                 - x_api_key
               Context:
                 - resourcePath
-              ReauthorizeEvery: 300
+              ReauthorizeEvery: 0
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-

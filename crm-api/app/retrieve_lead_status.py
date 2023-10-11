@@ -15,7 +15,7 @@ def lambda_handler(event, context):
 
     lead_id = event["pathParameters"]["lead_id"]
 
-    with DBSession as session:
+    with DBSession() as session:
         lead = session.query(
             Lead
         ).filter(

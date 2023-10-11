@@ -16,20 +16,21 @@ def lambda_handler(event, context):
 
     lead_id = event["pathParameters"]["lead_id"]
 
-    with DBSession as session:
-        lead, salesperson = session.query(
+    with DBSession() as session:
+        result = session.query(
             Lead, Salesperson
         ).outerjoin(
             Salesperson, Lead.salesperson_id == Salesperson.id
         ).filter(
             Lead.id == lead_id
         ).first()
-
-    if not lead:
-        logger.error(f"Lead not found {lead_id}")
-        return {
-            "statusCode": "404"
-        }
+        if result is not None:
+            lead, salesperson = result
+        else:
+            logger.error(f"Lead not found {lead_id}")
+            return {
+                "statusCode": "404"
+            }
 
     if not salesperson:
         logger.error(f"Salesperson not found for lead {lead_id}")

@@ -14,7 +14,6 @@ class Salesperson(BaseForModels):
     crm_salesperson_id = Column(String)
     first_name = Column(String)
     last_name = Column(String)
-    middle_name = Column(String)
     email = Column(String)
     phone = Column(String)
     db_creation_date = Column(DateTime)
