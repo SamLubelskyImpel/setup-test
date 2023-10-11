@@ -1,6 +1,7 @@
 import logging
+import json
 from os import environ
-from json import dumps
+from decimal import Decimal
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -8,6 +9,14 @@ from crm_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super(DecimalEncoder, self).default(obj)
+
 
 def lambda_handler(event, context):
     """Retrieve lead."""
@@ -49,6 +58,7 @@ def lambda_handler(event, context):
             "vehicle_comments": vehicle.vehicle_comments
         }
         vehicles.append(vehicle_record)
+        logger.info(f"Found vehicle {vehicle.as_dict()}")
 
     lead_record = {
         "consumer_id": lead.consumer_id,
@@ -63,5 +73,5 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": 200,
-        "body": dumps(lead_record)
+        "body": json.dumps(lead_record, cls=DecimalEncoder)
     }

@@ -20,7 +20,6 @@ class Vehicle(BaseForModels):
 
     vin = Column(String, unique=True)
     crm_vehicle_id = Column(String)
-    oem_name = Column(String)
     type = Column(String)
     vehicle_class = Column(String)
     mileage = Column(Integer)

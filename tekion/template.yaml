@@ -95,7 +95,6 @@ Resources:
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                     ]
-                  - !Sub "arn:aws:s3:::integrations-etl-test/*"
         - PolicyName: TekionSSMPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -215,7 +214,7 @@ Resources:
   TekionETLDeal:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the tekion deal crawler.
+      Description: ETL job to run after the tekion deal crawler
       Name: !Sub 'tekion-etl-deal-${Environment}'
       Role: !GetAtt TekionGlueRole.Arn
       GlueVersion: 3.0
@@ -250,7 +249,7 @@ Resources:
   TekionETLRO:
     Type: AWS::Glue::Job
     Properties:
-      Description: ETL job to run after the tekion RO crawler.
+      Description: ETL job to run after the tekion RO crawler
       Name: !Sub 'tekion-etl-ro-${Environment}'
       Role: !GetAtt TekionGlueRole.Arn
       GlueVersion: 3.0
