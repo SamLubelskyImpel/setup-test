@@ -199,9 +199,3 @@ def lambda_handler(event, context):
         raise
 
 
-print(lambda_handler({"queryStringParameters":{
-    "dms_id":"187451325514506",
-    "ro_open_date_start":"2023-09-19",
-    "ro_open_date_end":"2023-09-29",
-    "page":1 
-}}, None))
