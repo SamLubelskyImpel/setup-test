@@ -10,21 +10,8 @@ from crm_orm.models.activity import Activity
 from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import DBSession
 
-ACTIVITY_ETL_ARN = environ["ACTIVITY_ETL_ARN"]
-
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-lambda_client = boto3.client('lambda')
-
-
-def invoke_lambda(body: dict) -> dict:
-    """Start CRM activity ETL."""
-    return lambda_client.invoke(
-        FunctionName=ACTIVITY_ETL_ARN,
-        InvocationType="Event",
-        Payload=dumps(body).encode('UTF-8')
-    )
 
 
 def lambda_handler(event, context):
@@ -80,11 +67,7 @@ def lambda_handler(event, context):
 
     logger.info(f"Created activity {activity_id}")
 
-    # Trigger CRM ETL asyncronously
-    response = invoke_lambda({"activity_id": activity_id})
-    if response["StatusCode"] != 202:
-        # Raise alarm?
-        logger.error(f"Failed to invoke activity ETL for {activity_id} {response}")
+    # Start ETL?
 
     return {
         "statusCode": "201",
