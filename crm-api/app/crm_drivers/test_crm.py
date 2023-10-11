@@ -1,9 +1,6 @@
 """Test CRM class."""
 
 from json import dumps
-from crm_orm.models.activity import Activity
-from crm_orm.models.activity_type import ActivityType
-from crm_orm.session_config import DBSession
 from base_crm import BaseCrm
 
 
@@ -20,21 +17,9 @@ class TestCrm(BaseCrm):
         # self.api_token = secrets["API_TOKEN"]
         pass
 
-    def handle_activity(self, activity_id):
-        with DBSession() as session:
-            self.activity = session.query(
-                Activity
-            ).filter(
-                Activity.id == activity_id
-            ).first()
+    def handle_activity(self, activity: dict, activity_type: str):
+        self.activity = activity
 
-            activity_type = session.query(
-                ActivityType.type
-            ).filter(
-                ActivityType.id == self.activity.activity_type_id
-            ).first()
-
-        activity_type = activity_type.lower()
         if activity_type == "note":
             return self.add_note()
         elif activity_type == "appointment":
@@ -73,9 +58,11 @@ class TestCrm(BaseCrm):
         return {
             "statusCode": 200,
             "body": dumps({
-                "salesperson_id": 12345,
-                "first_name": "John",
-                "last_name": "Doe"
+                "lead_salesperson": {
+                    "id": 12345,
+                    "first_name": "John",
+                    "last_name": "Doe"
+                }
             })
         }
 

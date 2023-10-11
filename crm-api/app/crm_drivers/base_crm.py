@@ -7,23 +7,17 @@ class BaseCrm:
     name = "BASE"
     activity = None
 
-    def handle_activity(self, activity_id):
-        pass
-
-    def add_note(self):
-        pass
-
-    def appointment(self):
-        pass
-
-    def outbound_call(self):
-        pass
-
-    def set_lead_status(self):
-        pass
+    def handle_activity(self, activity: dict):
+        return {
+            "statusCode": 404
+        }
 
     def get_lead_status(self):
-        pass
+        return {
+            "statusCode": 404
+        }
 
     def get_lead_salesperson(self):
-        pass
+        return {
+            "statusCode": 404
+        }

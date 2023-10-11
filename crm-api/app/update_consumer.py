@@ -31,7 +31,8 @@ def lambda_handler(event, context):
         if not consumer:
             logger.error(f"Consumer not found {consumer_id}")
             return {
-                "statusCode": "404"
+                "statusCode": "404",
+                "message": f"Consumer not found {consumer_id}"
             }
 
         for field in fields_to_update:
