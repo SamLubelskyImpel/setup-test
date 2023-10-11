@@ -28,16 +28,10 @@ def lambda_handler(event, context):
             logger.error(f"Activity not found {activity_id}")
             raise
 
-        activity_type = session.query(
-            ActivityType
-        ).filter(
-            ActivityType.id == activity.activity_type_id
-        ).first()
-
         crm_name = activity.lead.consumer.dealer.integration_partner.impel_integration_partner_name
 
+        activity_type = activity.activity_type.type
         activity = activity.as_dict()
-        activity_type = activity_type.type
 
     if crm_name.upper() not in crm_mapper:
         logger.error(f"CRM {crm_name} is not defined")
