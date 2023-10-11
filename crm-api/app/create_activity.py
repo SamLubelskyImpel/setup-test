@@ -85,6 +85,6 @@ def lambda_handler(event, context):
         logger.error(f"Failed to invoke activity ETL for {activity_id} {response}")
 
     return {
-        "statusCode": "200",
+        "statusCode": "201",
         "body": dumps({"activity_id": activity_id})
     }

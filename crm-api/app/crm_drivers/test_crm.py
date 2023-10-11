@@ -1,10 +1,9 @@
 """Test CRM class."""
 
 from json import dumps
-from base_crm import BaseCrm
 
 
-class TestCrm(BaseCrm):
+class TestCrm():
     """Test CRM class."""
 
     name = "TESTCRM"

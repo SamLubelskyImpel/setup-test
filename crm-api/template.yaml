@@ -494,19 +494,19 @@ Resources:
           Version: '2012-10-17'
           Statement:
           - Sid: AllowLambdaInvoke
-            Effect: Allow:
+            Effect: Allow
             Action:
               - lambda:InvokeFunction
-            Resource: !Ref ActivityETLTask.Arn
+            Resource: !GetAtt ActivityETLTask.Arn
       Environment:
         Variables:
-          ACTIVITY_ETL_ARN: !Ref ActivityETLTask.Arn
+          ACTIVITY_ETL_ARN: !GetAtt ActivityETLTask.Arn
 
   ActivityETLTask:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/crm_etl/
-      Handler: activity_task.lambda_handler
+      CodeUri: app/
+      Handler: activity_etl_task.lambda_handler
       Timeout: 30
       Policies:
         - Id: DBAuthorizerPermissions

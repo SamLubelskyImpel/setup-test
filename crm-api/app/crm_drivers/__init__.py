@@ -1,4 +1,4 @@
-from test_crm import TestCrm
+from .test_crm import TestCrm
 
 crm_mapper = {
     "TESTCRM": TestCrm
