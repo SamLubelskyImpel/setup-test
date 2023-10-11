@@ -1,3 +1,5 @@
+"""Create consumer."""
+
 import logging
 from os import environ
 from json import dumps, loads

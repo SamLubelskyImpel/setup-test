@@ -1,3 +1,5 @@
+"""Retrieve consumer."""
+
 import logging
 from os import environ
 from json import dumps
@@ -10,7 +12,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 def lambda_handler(event, context):
-    """Retrive consumer."""
+    """Retrieve consumer."""
     logger.info(f"Event: {event}")
 
     consumer_id = event["pathParameters"]["consumer_id"]

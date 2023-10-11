@@ -1,3 +1,5 @@
+"""Create activity."""
+
 import boto3
 import logging
 from os import environ

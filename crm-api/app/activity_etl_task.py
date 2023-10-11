@@ -1,19 +1,19 @@
-"""Activity ETL"""
+"""CRM activity ETL."""
+
 import logging
 from json import dumps
 from os import environ
 
 from crm_drivers import crm_mapper
 from crm_orm.models.activity import Activity
-from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import DBSession
-
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 def lambda_handler(event, context):
+    """CRM activity ETL."""
     logger.info(f"Event: {event}")
 
     activity_id = event["activity_id"]
@@ -46,5 +46,5 @@ def lambda_handler(event, context):
         logger.error(f"An error occured during the handling of an activity {activity_id} {e}")
         raise
 
-    logger.info("{} responded for activity {} with {}".format(crm.name, activity_id, crm_response))
+    logger.info(f"{crm.name} responded for activity {activity_id} with {crm_response}")
     return dumps(crm_response)
