@@ -1,7 +1,9 @@
+"""Retrieve lead by lead_id from the shared CRM layer."""
 import logging
 import json
 from os import environ
 from decimal import Decimal
+from typing import Any
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -12,13 +14,16 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
+    """JSONEncoder that turns Decimal objects into strings."""
+
+    def default(self, obj: object) -> object:
+        """Return string if obj is Decimal, else calls superclass method."""
         if isinstance(obj, Decimal):
             return str(obj)
         return super(DecimalEncoder, self).default(obj)
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve lead."""
     logger.info(f"Event: {event}")
 

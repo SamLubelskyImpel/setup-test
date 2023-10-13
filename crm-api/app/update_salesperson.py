@@ -1,7 +1,9 @@
+"""Updates Salesperson information in the shared CRM data layer."""
 import logging
 from os import environ
 from json import dumps, loads
 from datetime import datetime
+from typing import Any
 
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
@@ -10,7 +12,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Update salesperson by salesperson id."""
     logger.info(f"Event: {event}")
 
@@ -20,7 +22,7 @@ def lambda_handler(event, context):
     first_name = body["first_name"]
     last_name = body["last_name"]
     email = body["email"]
-    phone = body.get("phone")
+    phone = body["phone"]
 
     with DBSession() as session:
         salesperson = session.query(
@@ -38,6 +40,7 @@ def lambda_handler(event, context):
         salesperson.last_name = last_name
         salesperson.email = email
         salesperson.phone = phone
+        # TODO: Remove these fields after adding DB triggers.
         salesperson.db_update_date = datetime.utcnow()
         salesperson.update_role = 'system'
 

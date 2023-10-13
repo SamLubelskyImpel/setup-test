@@ -1,14 +1,15 @@
 """Return appropriate DB URI."""
 from json import loads
+from typing import Dict
 
 import boto3
 
 SM_CLIENT = boto3.client("secretsmanager")
 
 
-def __get_db_secrets(secretId):
+def __get_db_secrets(secretId: str) -> str:
     """Get DB secrets from SecretsManager."""
-    SecretString = loads(SM_CLIENT.get_secret_value(SecretId=secretId)["SecretString"])
+    SecretString: Dict[str, str] = loads(SM_CLIENT.get_secret_value(SecretId=secretId)["SecretString"])
 
     return "postgresql://{}:{}@{}/{}".format(
         SecretString["user"],
@@ -18,9 +19,9 @@ def __get_db_secrets(secretId):
     )
 
 
-def create_db_uri(env):
+def create_db_uri(env: str) -> str:
     """Construct and return database URI."""
-    sm_env = f"{'prod' if env == 'prod' else 'test'}/DMSDB"
-    uri = __get_db_secrets(sm_env)
+    sm_env: str = f"{'prod' if env == 'prod' else 'test'}/DMSDB"
+    uri: str = __get_db_secrets(sm_env)
 
     return uri

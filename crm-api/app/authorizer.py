@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from typing import Any, Dict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -12,8 +13,8 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
 
-def _lambda_handler(event, context):
-    """Take in the API_KEY/partner_id pair sent to our API Gateway and verifies against secrets manager."""
+def _lambda_handler(event: Any, context: Any) -> Any:
+    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
 
     method_arn = event["methodArn"]
@@ -22,7 +23,7 @@ def _lambda_handler(event, context):
 
     SM_CLIENT = boto3.client("secretsmanager")
 
-    policy = {
+    policy: Dict[str, Any] = {
         "Version": "2012-10-17",
         "Statement": [
             {"Action": "execute-api:Invoke", "Effect": "Deny", "Resource": method_arn}
@@ -53,7 +54,7 @@ def _lambda_handler(event, context):
     raise Exception("Unauthorized")
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Run the authorization lambda."""
     try:
         return _lambda_handler(event, context)

@@ -1,6 +1,8 @@
+"""Retrieve salesperson data from the shared CRM layer."""
 import logging
 from os import environ
 from json import dumps
+from typing import Any
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.salesperson import Salesperson
@@ -10,7 +12,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve salesperson data by lead id."""
     logger.info(f"Event: {event}")
 

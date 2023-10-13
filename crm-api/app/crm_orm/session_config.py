@@ -1,22 +1,21 @@
 """Create reusable sqlalchemy session object."""
-
-import sys
 import traceback
 from builtins import object
 from os import environ
+from typing import Any, Dict, Tuple, Type
+
+from crm_orm.create_db_uri import create_db_uri
 
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm.session import Session, sessionmaker
 
 assert environ["ENVIRONMENT"], "Environment variable `ENVIRONMENT` was not defined"
 
 env = environ["ENVIRONMENT"]
 
-
-from crm_orm.create_db_uri import create_db_uri
-
-_Sessions = {}
+_Sessions: Dict[str, Tuple[Engine, Type[Session]]] = {}
 BaseForModels = declarative_base(
     metadata=MetaData(schema=env if env in ("test", "stage", "prod") else "stage")
 )
@@ -25,32 +24,30 @@ BaseForModels = declarative_base(
 class DBSession(object):
     """Create reusable sqlalchemy session object."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Create DB Session."""
-        self.uri = create_db_uri(env)
+        self.uri: str = create_db_uri(env)
         if self.uri in _Sessions:
-            self.engine = _Sessions[self.uri][0]
-            self.Session = _Sessions[self.uri][1]
+            self.engine, self.Session = _Sessions[self.uri]
         else:
             self.engine = create_engine(
                 self.uri,
-                # TODO: unsure how long connections are open for in our database (look into this)
                 pool_recycle=300,
                 connect_args={"options": "-c timezone=UTC"}
             )
             self.Session = sessionmaker(bind=self.engine)
             _Sessions[self.uri] = (self.engine, self.Session)
-        self.__state = "pre-open"
+        self.__state: str = "pre-open"
 
-    def __enter__(self):
+    def __enter__(self) -> 'DBSession':
         """Initialize DB Session."""
         if self.__state != "pre-open":
             raise RuntimeError("this session was already used in a context manager")
-        self.session = self.Session()
+        self.session: Session = self.Session()
         self.__state = "open"
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Close DB Session."""
         self.__state = "closed"
         try:
@@ -58,12 +55,12 @@ class DBSession(object):
         except Exception:
             traceback.print_exc()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """Return DB session attributes."""
         if self.__state != "open":
             raise RuntimeError("using session that is not open")
         return getattr(self.session, name)
 
-    def query(self, *args, **kwds):
+    def query(self, *args: Any, **kwds: Any) -> Any:
         """Return a new query object that uses this wrapper as the session."""
         return self.session.query(*args, **kwds).with_session(self)

@@ -1,7 +1,9 @@
+"""Create lead in the shared CRM layer."""
 import logging
 from os import environ
 from datetime import datetime
 from json import dumps, loads
+from typing import Any
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.lead import Lead
@@ -14,7 +16,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     logger.info(f"Event: {event}")
 
@@ -30,11 +32,11 @@ def lambda_handler(event, context):
         ).filter(
             Dealer.product_dealer_id == dealer_id
         ).first()
+
         if not dealer:
             logger.error(f"Dealer not found {dealer_id}")
             return {
-                "statusCode": "404",
-                "message": f"Dealer not found {dealer_id}"
+                "statusCode": "404"
             }
 
         consumer = session.query(
@@ -42,11 +44,11 @@ def lambda_handler(event, context):
         ).filter(
             Consumer.id == consumer_id
         ).first()
+
         if not consumer:
             logger.error(f"Consumer not found {consumer_id}")
             return {
-                "statusCode": "404",
-                "message": f"Consumer not found {consumer_id}"
+                "statusCode": "404"
             }
 
         salesperson = session.query(
@@ -54,11 +56,11 @@ def lambda_handler(event, context):
         ).filter(
             Salesperson.id == salesperson_id
         ).first()
+
         if not salesperson:
             logger.error(f"Salesperson not found {salesperson_id}")
             return {
-                "statusCode": "404",
-                "message": f"Salesperson not found {salesperson_id}"
+                "statusCode": "404"
             }
 
         # Create lead
@@ -106,7 +108,7 @@ def lambda_handler(event, context):
                 db_update_role="system",
             )
             lead.vehicles.append(vehicle)
-        
+
         session.commit()
         lead_id = lead.id
 

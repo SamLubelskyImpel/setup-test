@@ -1,7 +1,9 @@
+"""Create salesperson in the shared CRM layer."""
 import logging
 from os import environ
 from datetime import datetime
 from json import dumps, loads
+from typing import Any
 
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
@@ -10,14 +12,13 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Create salesperson."""
     logger.info(f"Event: {event}")
 
     body = loads(event["body"])
 
     with DBSession() as session:
-        # Create salesperson
         salesperson = Salesperson(
             first_name=body["first_name"],
             last_name=body["last_name"],

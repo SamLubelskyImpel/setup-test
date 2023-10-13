@@ -1,12 +1,11 @@
 """Vehicle Model."""
 
-from datetime import datetime
 from sqlalchemy.orm import backref, relationship
-from crm_orm.models.dealer import Dealer
 from crm_orm.models.lead import Lead
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
+from typing import Dict, Any
 
 
 class Vehicle(BaseForModels):
@@ -16,7 +15,7 @@ class Vehicle(BaseForModels):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lead_id = Column(Integer, ForeignKey("crm_lead.id"))
-    lead = relationship(Lead, backref=backref("vehicles", lazy="dynamic"))
+    lead = relationship(Lead, backref=backref("vehicles", lazy="joined"))
 
     vin = Column(String, unique=True)
     crm_vehicle_id = Column(String)
@@ -41,7 +40,7 @@ class Vehicle(BaseForModels):
     db_update_date = Column(DateTime)
     db_update_role = Column(String)
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""
         return {
             key.name: getattr(self, key.name)

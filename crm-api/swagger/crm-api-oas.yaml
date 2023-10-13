@@ -27,6 +27,8 @@ paths:
           "$ref": "#/components/responses/400"
         '401':
           "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The dealer_id, lead_id, or consumer_id in the request didn't match any existing records in Impel, or the lead isn't associated with a salesperson.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
