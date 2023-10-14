@@ -61,3 +61,4 @@ for integration in ["repair_order", "fi_closed_deal"]:
             upload_file_to_s3(test_bucket_name, prod_file_path, temp_file_name, is_prod=False)
             remove(temp_file_name)
             print(f"Added {prod_file_path}")
+            break

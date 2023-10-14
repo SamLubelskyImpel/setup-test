@@ -54,6 +54,7 @@ def insert_repair_order_parquet(key, bucket):
     df["op_code_repair_order|repair_order_id"] = service_repair_order_ids
 
     if "op_codes|op_codes" in list(df.columns):
+        # Explode op_codes arrays of dict such that each row contains op_code data
         op_code_df = df.explode("op_codes|op_codes").reset_index(drop=True)
         op_code_df = op_code_df.dropna(subset=["op_codes|op_codes"]).reset_index(drop=True)
         op_code_split_df = pd.DataFrame(op_code_df["op_codes|op_codes"].tolist())
@@ -62,18 +63,33 @@ def insert_repair_order_parquet(key, bucket):
         if len(op_code_df) == 0:
             return
 
+        # Insert only unique op codes to avoid insertion error
         op_code_df_columns = [x.split("|")[1] for x in op_code_df.columns if x.startswith("op_code|")]
         additional_op_code_query = f"""ON CONFLICT ON CONSTRAINT unique_op_code DO UPDATE
                 SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, op_code.{x})' for x in op_code_df_columns])}"""
-        op_code_df_dedupped = op_code_df[~op_code_df["op_code|op_code"].duplicated(keep="first")]
-        rds.insert_table_from_df(op_code_df_dedupped, "op_code", additional_query=additional_op_code_query)
+        op_code_df_dedupped = op_code_df.copy()
+        op_code_unique_constraint = [
+            "op_code|op_code",
+            "op_code|op_code_desc",
+            "op_code|dealer_integration_partner_id",
+        ]
+        op_code_df_dedupped = op_code_df_dedupped.drop_duplicates(subset=op_code_unique_constraint, keep="first").reset_index(drop=True)
+        inserted_op_code_ids = rds.insert_table_from_df(op_code_df_dedupped, "op_code", additional_query=additional_op_code_query)
+        op_code_df_dedupped["op_code_repair_order|op_code_id"] = inserted_op_code_ids
 
-        op_code_repair_order_query = rds.get_op_code_repair_order_query(op_code_df)
-        op_code_repair_order_results = rds.commit_rds(op_code_repair_order_query)
-        if op_code_repair_order_results is None:
-            raise RuntimeError(f"No results from query {op_code_repair_order_query}")
-        op_code_repair_order_ids = [x[0] for x in op_code_repair_order_results.fetchall()]
-        logger.info(f"Inserted {len(op_code_repair_order_ids)} rows for op_code_repair_order")
+        # Add op_code_repair_order|op_code_id to all of the op codes where they match
+        op_code_df_columns_full_name = [x for x in op_code_df.columns if x.startswith("op_code|")]
+        op_code_df = op_code_df.merge(
+            op_code_df_dedupped[op_code_df_columns_full_name + ["op_code_repair_order|op_code_id"]],
+            on=op_code_df_columns_full_name,
+            how="left"
+        )
+
+        missing_op_code_id = op_code_df["op_code_repair_order|op_code_id"].isna().any()
+        if missing_op_code_id:
+            raise RuntimeError("Some op codes missing op_code_repair_order|op_code_id after inserting and merging")
+
+        rds.insert_table_from_df(op_code_df, "op_code_repair_order")
 
 
 def lambda_handler(event: dict, context: dict):

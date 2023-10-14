@@ -39,11 +39,115 @@ Globals:
     Environment:
       Variables:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        REGION: !Sub '${AWS::Region}'
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !If [ IsProd, 
+          !Sub "integrations-${AWS::Region}-prod",
+          !Sub "integrations-${AWS::Region}-test"
+        ]
 
 Resources:
+  ReyReyFormatRODLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ReyReyFormatRODLQ
+  
+  ReyReyFormatROQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ReyReyFormatRODLQ
+    Properties:
+      QueueName: ReyReyFormatROQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReyReyFormatRODLQ.Arn
+        maxReceiveCount: 5
+
+  ReyReyFormatROQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd, 
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true 
+      Endpoint: !GetAtt ReyReyFormatROQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ReyReyFormatROQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ReyReyFormatROQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ReyReyFormatROQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ReyReyFormatROQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd, 
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  ReyReyFormatROInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Format ReyRey RO data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: repair_order_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd, 
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ReyReyFormatROQueue.Arn
+
+  ReyReyFormatRODLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub ReyReyFormatRODLQ-${Environment}
+      AlarmDescription: Messages are in the reyrey format RO lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ReyReyFormatRODLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
   ReyReyGlueRole:
     Type: AWS::IAM::Role
     Properties:

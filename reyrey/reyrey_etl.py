@@ -394,9 +394,6 @@ class ReyReyUpsertJob:
             },
             "reyreycrawlerdb_repair_order": {
                 "dealer_integration_partner": {"dms_id": "ApplicationArea.Sender.DealerNumber"},
-                "op_codes": {
-                    "op_codes": "RepairOrder.RoRecord.Rogen.RecommendedServc",
-                },
                 "consumer": {
                     "dealer_customer_no": "RepairOrder.CustRecord.ContactInfo._NameRecId",
                     "first_name": "RepairOrder.CustRecord.ContactInfo._FirstName",

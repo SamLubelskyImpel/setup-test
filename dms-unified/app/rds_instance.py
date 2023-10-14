@@ -91,36 +91,24 @@ class RDSInstance:
                 db_columns.append(table_to_column_name.split("|")[1])
 
         column_data = []
-        for _, row in df[selected_columns].replace(np.nan, None).iterrows():
-            data = tuple([x.tolist() if isinstance(x, np.ndarray) else x for x in row.to_numpy()])
-            column_data.append(data)
+
+        insertion_df = df.copy()
+        insertion_df.replace({pd.NaT: None, np.nan: None}, inplace=True)
+        for _, row in insertion_df[selected_columns].iterrows():
+            data = []
+            for x in row.to_numpy():
+                # Convert numpy data to python data for psycopg2 mogrify
+                if isinstance(x, np.ndarray):
+                    x = x.tolist()
+                elif isinstance(x, np.integer):
+                    x = int(x)
+                data.append(x)
+            column_data.append(tuple(data))
         table_name = f'{self.schema}."{table}"'
         query = self.get_multi_insert_query(
             column_data, db_columns, table_name, additional_query
         )
         return query
-
-    def get_op_code_repair_order_query(self, op_code_df):
-        """ Get query for inserting into the op_code_repair_order linking op codes to repair orders. """
-        conditions_list = []
-        for _, row in op_code_df.iterrows():
-            if row["op_code|op_code"] and row['op_code_repair_order|repair_order_id']:
-                condition = f"""
-                    sro.id = {row['op_code_repair_order|repair_order_id']} 
-                    and oc.dealer_integration_partner_id = '{row['op_code|dealer_integration_partner_id']}' 
-                    and oc.op_code = '{row['op_code|op_code']}'
-                """
-            conditions_list.append(condition)
-        conditions_str = ") or (".join(conditions_list)
-        insert_op_code_repair_order_query = f"""
-            insert into {self.schema}.op_code_repair_order (op_code_id, repair_order_id)
-            select oc.id as op_code_id, sro.id as repair_order_id
-            from {self.schema}.service_repair_order sro
-            join {self.schema}.op_code oc on oc.dealer_integration_partner_id=sro.dealer_integration_partner_id
-            where ({conditions_str})
-            RETURNING id
-        """
-        return insert_op_code_repair_order_query
 
     def insert_table_from_df(self, df, table, additional_query="", expect_all_inserted=True):
         """ Insert a table from a dataframe and return inserted ids. """

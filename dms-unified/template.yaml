@@ -90,7 +90,7 @@ Resources:
     DependsOn: UnifiedRODLQ
     Properties:
       QueueName: UnifiedROQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt UnifiedRODLQ.Arn
         maxReceiveCount: 5
@@ -197,7 +197,7 @@ Resources:
     DependsOn: UnifiedFIDLQ
     Properties:
       QueueName: UnifiedFIQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt UnifiedFIDLQ.Arn
         maxReceiveCount: 5

@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 AWS_PROFILE = environ["AWS_PROFILE"]
 
 sm_client = boto3.client("secretsmanager")
+s3_client = boto3.client("s3")
 secret_string = loads(
     sm_client.get_secret_value(
         SecretId="prod/DMSDB" if AWS_PROFILE == "unified-prod" else "test/DMSDB"
@@ -25,17 +26,26 @@ rds_connection = psycopg2.connect(
 
 db_schema = "prod" if AWS_PROFILE == "unified-prod" else "stage"
 
-def list_files_in_bucket(bucket_name, prefix):
-    s3 = boto3.client("s3")
-    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+def list_files_in_bucket(bucket_name, prefix, files=[], continuation_token=None):
+    """ List all the files in a given bucket with a given prefix. """
+    if continuation_token:
+        response = s3_client.list_objects_v2(
+            Bucket=bucket_name,
+            Prefix=prefix,
+            ContinuationToken=continuation_token
+        )
+    else:
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
 
-    files = []
     if "Contents" in response:
         for obj in response["Contents"]:
             files.append(obj["Key"])
 
-    return files
+    if not response.get("IsTruncated"):
+        return files
 
+    continuation_token = response.get("NextContinuationToken")
+    return list_files_in_bucket(bucket_name, prefix, files, continuation_token)
 
 query_str = f"""select sro.repair_order_no  from {db_schema}.service_repair_order sro 
 join {db_schema}.dealer_integration_partner dip on dip.id = sro.dealer_integration_partner_id 
@@ -88,4 +98,4 @@ for ro_num in all_ro_numbers:
     if ro_num not in all_db_ro_nums:
         print(ro_num)
         i += 1
-print(f"{i} total missing ros")
+print(f"{i} total missing ros of {len(all_db_ro_nums)}")
