@@ -8,6 +8,7 @@ from os import environ
 import pandas as pd
 import urllib.parse
 from rds_instance import RDSInstance
+from eventbridge import notify_event_bus
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -90,6 +91,17 @@ def insert_repair_order_parquet(key, bucket):
             raise RuntimeError("Some op codes missing op_code_repair_order|op_code_id after inserting and merging")
 
         rds.insert_table_from_df(op_code_df, "op_code_repair_order")
+
+    notification_message = {
+        "impel_integration_partner_id": integration,
+        "dealer_integration_partner_id": db_dealer_integration_partner_id,
+        "dms_id": dms_id,
+        "table_inserted": "service_repair_order",
+        "ids_inserted": service_repair_order_ids
+    }
+
+    notify_event_bus(notification_message)
+    logger.info(f"Notify {notification_message}")
 
 
 def lambda_handler(event: dict, context: dict):

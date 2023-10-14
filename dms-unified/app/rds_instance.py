@@ -4,6 +4,7 @@ import psycopg2
 from json import loads
 from os import environ
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -52,7 +53,7 @@ class RDSInstance:
         """Get the db dealer id for the given dms id."""
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
-            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id 
+            join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id
             where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
         results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
         if results is None:
