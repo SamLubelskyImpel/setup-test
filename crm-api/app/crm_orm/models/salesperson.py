@@ -1,8 +1,7 @@
 """Salesperson Model."""
 
-from datetime import datetime
 from crm_orm.session_config import BaseForModels
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String, Boolean
 
 
 class Salesperson(BaseForModels):
@@ -16,6 +15,8 @@ class Salesperson(BaseForModels):
     last_name = Column(String)
     email = Column(String)
     phone = Column(String)
+    position_name = Column(String)
+    is_primary = Column(Boolean)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
     db_update_role = Column(String)

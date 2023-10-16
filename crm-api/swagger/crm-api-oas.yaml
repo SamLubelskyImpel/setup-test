@@ -28,7 +28,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not Found. The dealer_id, lead_id, or consumer_id in the request didn't match any existing records in Impel, or the lead isn't associated with a salesperson.
+          description: Not Found. The dealer_id, lead_id or consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
@@ -69,10 +69,6 @@ paths:
                         consumer_id:
                           type: string
                           description: Consumer ID
-                          example: "123"
-                        salesperson_id:
-                          type: string
-                          description: Salesperson ID
                           example: "123"
                         lead_status:
                           type: string
@@ -205,10 +201,10 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
 
-  /leads/{lead_id}/salesperson:
+  /leads/{lead_id}/salespersons:
     get:
-      summary: Get assigned salesperson information for a lead.
-      #{{RETRIEVE_SALESPERSON_DATA_LAMBDA_INFO}}
+      summary: Get an array of salespersons assigned to a lead, with the primary salesperson listed first.
+      #{{RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO}}
       tags:
         - Leads
       parameters:
@@ -269,6 +265,8 @@ paths:
           "$ref": "#/components/responses/400"
         '401':
           "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The dealer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
 
@@ -332,73 +330,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Consumer' 
-  
-  /salespersons:
-    post:
-      summary: This endpoint creates a record fo a Salesperson in the CRM persistance data layer.
-      #{{CREATE_SALESPERSON_LAMBDA_INFO}}
-      tags:
-        - Salespersons
-      operationId: post-salesperson
-      responses:
-        '201':
-          description: Salesperson successfully created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  salesperson_id:
-                    type: string
-                    description: ID of the newly created salesperson
-        '400':
-          "$ref": "#/components/responses/400"
-        '401':
-          "$ref": "#/components/responses/401"
-        '500':
-          "$ref": "#/components/responses/500"
-      parameters:
-      - "$ref": "#/components/parameters/partnerId"
-      - "$ref": "#/components/parameters/xApiKey"
-      requestBody:
-        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Salesperson'
-
-  
-  /salespersons/{salesperson_id}:
-    put:
-      summary: This endpoint updates an existing salesperson in the CRM persistance data layer.
-      #{{UPDATE_SALESPERSON_LAMBDA_INFO}}
-      tags:
-        - Salespersons
-      operationId: put-salesperson
-      responses:
-        '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
-        '400':
-          "$ref": "#/components/responses/400"
-        '401':
-          "$ref": "#/components/responses/401"
-        '404':
-          description: Not Found. The salesperson_id of the request didn't match any existing records on Impel.
-        '500':
-          "$ref": "#/components/responses/500"
-      parameters:
-      - "$ref": "#/components/parameters/partnerId"
-      - "$ref": "#/components/parameters/xApiKey"
-      - "$ref": "#/components/parameters/salespersonId"
-      requestBody:
-        description: Updated details of the salesperson
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Salesperson' 
-    
   
   /activities/{lead_id}:
     post:
@@ -648,10 +579,6 @@ components:
           type: string
           description: Unique identifier for the associated consumer
           example: "23"
-        salesperson_id:
-          type: string
-          description: Salesperson ID
-          example: "123"
         lead_status:
           type: string
           description: A status that can be used to group leads that are in similar state
@@ -708,6 +635,14 @@ components:
           type: string
           description: Phone number of the salesperson
           example: "123-456-7890"
+        position_name:
+          type: string
+          description: Salesperson position or role
+          example: "Sales Manager"
+        is_primary:
+          type: boolean
+          description: "Indicates whether the salesperson is the primary contact"
+          example: true
   responses:
     '201':
       description: Lead successfully created
@@ -781,13 +716,6 @@ components:
       in: path
       required: true
       description: ID of the consumer
-      schema:
-        type: string
-    salespersonId:
-      name: salesperson_id
-      in: path
-      required: true
-      description: ID of the salesperson
       schema:
         type: string
     dbCreationDateStart:

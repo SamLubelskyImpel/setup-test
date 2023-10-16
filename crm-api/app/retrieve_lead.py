@@ -2,8 +2,10 @@
 import logging
 import json
 from os import environ
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from sqlalchemy import desc
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -13,14 +15,16 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-class DecimalEncoder(json.JSONEncoder):
-    """JSONEncoder that turns Decimal objects into strings."""
+class CustomEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime and Decimal objects."""
 
-    def default(self, obj: object) -> object:
-        """Return string if obj is Decimal, else calls superclass method."""
+    def default(self, obj: Any) -> Any:
+        """Serialize datetime and Decimal objects."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
         if isinstance(obj, Decimal):
             return str(obj)
-        return super(DecimalEncoder, self).default(obj)
+        return super(CustomEncoder, self).default(obj)
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -31,7 +35,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     with DBSession() as session:
         lead = session.query(Lead).filter(Lead.id == lead_id).first()
-        vehicles_db = session.query(Vehicle).filter(Vehicle.lead_id == lead_id).all()
+        vehicles_db = (
+            session.query(Vehicle)
+            .filter(Vehicle.lead_id == lead_id)
+            .order_by(desc(Vehicle.db_creation_date))
+            .all()
+        )
 
     if not lead:
         logger.error(f"Lead not found {lead_id}")
@@ -60,14 +69,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "status": vehicle.status,
             "condition": vehicle.condition,
             "odometer_units": vehicle.odometer_units,
-            "vehicle_comments": vehicle.vehicle_comments
+            "vehicle_comments": vehicle.vehicle_comments,
+            "db_creation_date": vehicle.db_creation_date
         }
         vehicles.append(vehicle_record)
         logger.info(f"Found vehicle {vehicle.as_dict()}")
 
     lead_record = {
         "consumer_id": lead.consumer_id,
-        "salesperson_id": lead.salesperson_id,
         "lead_status": lead.status,
         "lead_substatus": lead.substatus,
         "lead_comment": lead.comment,
@@ -78,5 +87,5 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     return {
         "statusCode": 200,
-        "body": json.dumps(lead_record, cls=DecimalEncoder)
+        "body": json.dumps(lead_record, cls=CustomEncoder)
     }

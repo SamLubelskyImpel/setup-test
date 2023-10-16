@@ -315,11 +315,11 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
   
-  RetrieveSalespersonData:
+  RetrieveSalespersonsData:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: app/
-      Handler: retrieve_salesperson_data.lambda_handler
+      Handler: retrieve_salespersons_data.lambda_handler
       Timeout: 30
       Events:
         Get:
@@ -415,56 +415,7 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
-  CreateSalesperson:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: create_salesperson.lambda_handler
-      Timeout: 30
-      Events:
-        Post:
-          Type: Api
-          Properties:
-            RestApiId: !Ref CrmApiGateway
-            Path: /salespersons
-            Method: POST
-      Policies:
-        - Id: DBAuthorizerPermissions
-          Version: '2012-10-17'
-          Statement:
-          - Sid: AllowGetDBInfo
-            Effect: Allow
-            Action:
-              - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                      ]
-  UpdateSalesperson:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: app/
-      Handler: update_salesperson.lambda_handler
-      Timeout: 30
-      Events:
-        Put:
-          Type: Api
-          Properties:
-            RestApiId: !Ref CrmApiGateway
-            Path: /salespersons/{salesperson_id}
-            Method: PUT
-      Policies:
-        - Id: DBAuthorizerPermissions
-          Version: '2012-10-17'
-          Statement:
-          - Sid: AllowGetDBInfo
-            Effect: Allow
-            Action:
-              - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                      ]
+
   CreateActivity:
     Type: AWS::Serverless::Function
     Properties:

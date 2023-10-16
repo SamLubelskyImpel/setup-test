@@ -8,7 +8,6 @@ from typing import Any
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
-from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.consumer import Consumer
 from crm_orm.session_config import DBSession
 
@@ -24,7 +23,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
     request_product = event["headers"]["partner_id"]
     dealer_id = event["headers"]["dealer_id"]
     consumer_id = int(body["consumer_id"])
-    salesperson_id = int(body["salesperson_id"])
 
     with DBSession() as session:
         dealer = session.query(
@@ -51,22 +49,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "statusCode": "404"
             }
 
-        salesperson = session.query(
-            Salesperson
-        ).filter(
-            Salesperson.id == salesperson_id
-        ).first()
-
-        if not salesperson:
-            logger.error(f"Salesperson not found {salesperson_id}")
-            return {
-                "statusCode": "404"
-            }
-
         # Create lead
         lead = Lead(
             consumer_id=consumer_id,
-            salesperson_id=body.get("salesperson_id", ""),
             status=body["lead_status"],
             substatus=body["lead_substatus"],
             comment=body["lead_comment"],

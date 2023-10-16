@@ -58,10 +58,10 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
-RETRIEVE_SALESPERSON_DATA_LAMBDA_INFO = """
+RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveSalespersonData.Arn}/invocations
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveSalespersonsData.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
@@ -94,24 +94,6 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
-CREATE_SALESPERSON_LAMBDA_INFO = """
-x-amazon-apigateway-integration:
-  uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateSalesperson.Arn}/invocations
-  passthroughBehavior: never
-  httpMethod: POST
-  type: aws_proxy
-"""
-
-UPDATE_SALESPERSON_LAMBDA_INFO = """
-x-amazon-apigateway-integration:
-  uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateSalesperson.Arn}/invocations
-  passthroughBehavior: never
-  httpMethod: POST
-  type: aws_proxy
-"""
-
 CREATE_ACTIVITY_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -128,11 +110,9 @@ CRM_API_INTERPOLATION_DATA = {
     "RETRIEVE_LEAD_LAMBDA_INFO": RETRIEVE_LEAD_LAMBDA_INFO,
     "UPDATE_LEAD_LAMBDA_INFO": UPDATE_LEAD_LAMBDA_INFO,
     "RETRIEVE_LEAD_STATUS_LAMBDA_INFO": RETRIEVE_LEAD_STATUS_LAMBDA_INFO,
-    "RETRIEVE_SALESPERSON_DATA_LAMBDA_INFO": RETRIEVE_SALESPERSON_DATA_LAMBDA_INFO,
+    "RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO": RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO,
     "CREATE_CONSUMER_LAMBDA_INFO": CREATE_CONSUMER_LAMBDA_INFO,
     "RETRIEVE_CONSUMER_LAMBDA_INFO": RETRIEVE_CONSUMER_LAMBDA_INFO,
     "UPDATE_CONSUMER_LAMBDA_INFO": UPDATE_CONSUMER_LAMBDA_INFO,
-    "CREATE_SALESPERSON_LAMBDA_INFO": CREATE_SALESPERSON_LAMBDA_INFO,
-    "UPDATE_SALESPERSON_LAMBDA_INFO": UPDATE_SALESPERSON_LAMBDA_INFO,
     "CREATE_ACTIVITY_LAMBDA_INFO": CREATE_ACTIVITY_LAMBDA_INFO,
 }

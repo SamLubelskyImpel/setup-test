@@ -3,6 +3,7 @@ import logging
 import json
 from os import environ
 from decimal import Decimal
+from datetime import datetime
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
 from typing import Any
@@ -17,14 +18,16 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-class DecimalEncoder(json.JSONEncoder):
-    """JSONEncoder that turns Decimal objects into strings."""
+class CustomEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime and Decimal objects."""
 
-    def default(self, obj: object) -> object:
-        """Return string if obj is Decimal, else calls superclass method."""
+    def default(self, obj: Any) -> Any:
+        """Serialize datetime and Decimal objects."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
         if isinstance(obj, Decimal):
             return str(obj)
-        return super(DecimalEncoder, self).default(obj)
+        return super(CustomEncoder, self).default(obj)
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -124,21 +127,27 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "status": vehicle.status,
                     "condition": vehicle.condition,
                     "odometer_units": vehicle.odometer_units,
-                    "vehicle_comments": vehicle.vehicle_comments
+                    "vehicle_comments": vehicle.vehicle_comments,
+                    "db_creation_date": vehicle.db_creation_date
                 }
                 vehicles_by_lead[vehicle.lead_id].append(vehicle_record)
 
             # Build lead records for the current page
             for lead in leads_page:
+                # Sort vehicles_of_interest by db_creation_date
+                vehicles_of_interest_sorted = sorted(
+                    vehicles_by_lead[lead.id],
+                    key=lambda x: x["db_creation_date"],
+                    reverse=True
+                )
                 lead_record = {
                     "consumer_id": lead.consumer_id,
-                    "salesperson_id": lead.salesperson_id,
                     "lead_status": lead.status,
                     "lead_substatus": lead.substatus,
                     "lead_comment": lead.comment,
                     "lead_origin": lead.origin_channel,
                     "lead_source": lead.source_channel,
-                    "vehicles_of_interest": vehicles_by_lead[lead.id]
+                    "vehicles_of_interest": vehicles_of_interest_sorted
                 }
                 leads.append(lead_record)
 
@@ -146,7 +155,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         return {
             "statusCode": 200,
-            "body": json.dumps(leads, cls=DecimalEncoder)
+            "body": json.dumps(leads, cls=CustomEncoder)
         }
 
     except Exception as e:
