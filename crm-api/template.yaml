@@ -326,7 +326,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref CrmApiGateway
-            Path: /leads/{lead_id}/salesperson
+            Path: /leads/{lead_id}/salespersons
             Method: GET
       Policies:
         - Id: DBAuthorizerPermissions

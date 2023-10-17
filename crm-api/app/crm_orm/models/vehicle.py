@@ -3,7 +3,7 @@
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.lead import Lead
 from crm_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric
+from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from typing import Dict, Any
 

@@ -58,10 +58,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             origin_channel=body["lead_origin"],
             source_channel=body["lead_source"],
             request_product=request_product,
-            lead_ts=datetime.utcnow(),
-            db_creation_date=datetime.utcnow(),
-            db_update_date=datetime.utcnow(),
-            db_update_role="system"
+            lead_ts=datetime.utcnow()
         )
 
         session.add(lead)
@@ -87,10 +84,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 status=vehicle.get("status", None),
                 condition=vehicle.get("condition", None),
                 odometer_units=vehicle.get("odometer_units", None),
-                vehicle_comments=vehicle.get("vehicle_comments", None),
-                db_creation_date=datetime.utcnow(),
-                db_update_date=datetime.utcnow(),
-                db_update_role="system",
+                vehicle_comments=vehicle.get("vehicle_comments", None)
             )
             lead.vehicles.append(vehicle)
 
