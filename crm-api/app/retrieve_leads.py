@@ -38,7 +38,10 @@ def get_dealer_id(dealer_id: str) -> Any:
 
         if not dealer:
             logger.error(f"Dealer not found {dealer_id}")
-            return None  # Return None to indicate that the dealer was not found
+            return {
+                "statusCode": 404,
+                "body": json.dumps({"error": f"Dealer not found {dealer_id}"})
+            }
 
         return dealer.id
 
@@ -154,16 +157,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "statusCode": 400,
                 "body": json.dumps({"error": "End date must be after start date"})
             }
-            
+
         impel_dealer_id = None
         if dealer_id:
             impel_dealer_id = get_dealer_id(dealer_id)
-        
-        if impel_dealer_id is None:
-            return {
-                "statusCode": 404,
-                "body": json.dumps({"error": f"Dealer not found {dealer_id}"})
-            }
 
         leads = retrieve_leads_from_db(db_creation_date_start, db_creation_date_end, page, result_count, max_results, impel_dealer_id)
 

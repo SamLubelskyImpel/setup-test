@@ -17,83 +17,93 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
-    logger.info(f"Event: {event}")
+    try:
+        logger.info(f"Event: {event}")
 
-    body = loads(event["body"])
-    request_product = event["headers"]["partner_id"]
-    dealer_id = event["headers"]["dealer_id"]
-    consumer_id = int(body["consumer_id"])
+        body = loads(event["body"])
+        request_product = event["headers"]["partner_id"]
+        dealer_id = event["headers"]["dealer_id"]
+        consumer_id = int(body["consumer_id"])
 
-    with DBSession() as session:
-        dealer = session.query(
-            Dealer
-        ).filter(
-            Dealer.product_dealer_id == dealer_id
-        ).first()
+        with DBSession() as session:
+            dealer = session.query(
+                Dealer
+            ).filter(
+                Dealer.product_dealer_id == dealer_id
+            ).first()
 
-        if not dealer:
-            logger.error(f"Dealer not found {dealer_id}")
-            return {
-                "statusCode": "404"
-            }
+            if not dealer:
+                logger.error(f"Dealer not found {dealer_id}")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Dealer not found {dealer_id}"})
+                }
 
-        consumer = session.query(
-            Consumer
-        ).filter(
-            Consumer.id == consumer_id
-        ).first()
+            consumer = session.query(
+                Consumer
+            ).filter(
+                Consumer.id == consumer_id
+            ).first()
 
-        if not consumer:
-            logger.error(f"Consumer not found {consumer_id}")
-            return {
-                "statusCode": "404"
-            }
+            if not consumer:
+                logger.error(f"Consumer not found {consumer_id}")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Consumer not found {consumer_id}"})
+                }
 
-        # Create lead
-        lead = Lead(
-            consumer_id=consumer_id,
-            status=body["lead_status"],
-            substatus=body["lead_substatus"],
-            comment=body["lead_comment"],
-            origin_channel=body["lead_origin"],
-            source_channel=body["lead_source"],
-            request_product=request_product,
-            lead_ts=datetime.utcnow()
-        )
-
-        session.add(lead)
-
-        # Create vehicles of interest
-        vehicles_of_interest = body["vehicles_of_interest"]
-        for vehicle in vehicles_of_interest:
-            vehicle = Vehicle(
-                lead_id=lead.id,
-                vin=vehicle.get("vin", None),
-                type=vehicle.get("type", None),
-                vehicle_class=vehicle.get("vehicle_class", None),
-                mileage=vehicle.get("mileage", None),
-                make=vehicle.get("make", None),
-                model=vehicle.get("model", ""),
-                manufactured_year=vehicle.get("manufactured_year", None),
-                body_style=vehicle.get("body_style", None),
-                transmission=vehicle.get("transmission", None),
-                interior_color=vehicle.get("interior_color", None),
-                exterior_color=vehicle.get("exterior_color", None),
-                trim=vehicle.get("trim", None),
-                price=vehicle.get("price", None),
-                status=vehicle.get("status", None),
-                condition=vehicle.get("condition", None),
-                odometer_units=vehicle.get("odometer_units", None),
-                vehicle_comments=vehicle.get("vehicle_comments", None)
+            # Create lead
+            lead = Lead(
+                consumer_id=consumer_id,
+                status=body["lead_status"],
+                substatus=body["lead_substatus"],
+                comment=body["lead_comment"],
+                origin_channel=body["lead_origin"],
+                source_channel=body["lead_source"],
+                request_product=request_product,
+                lead_ts=datetime.utcnow()
             )
-            lead.vehicles.append(vehicle)
 
-        session.commit()
-        lead_id = lead.id
+            session.add(lead)
 
-    logger.info(f"Created lead {lead_id}")
+            # Create vehicles of interest
+            vehicles_of_interest = body["vehicles_of_interest"]
+            for vehicle in vehicles_of_interest:
+                vehicle = Vehicle(
+                    lead_id=lead.id,
+                    vin=vehicle.get("vin", None),
+                    type=vehicle.get("type", None),
+                    vehicle_class=vehicle.get("vehicle_class", None),
+                    mileage=vehicle.get("mileage", None),
+                    make=vehicle.get("make", None),
+                    model=vehicle.get("model", ""),
+                    manufactured_year=vehicle.get("manufactured_year", None),
+                    body_style=vehicle.get("body_style", None),
+                    transmission=vehicle.get("transmission", None),
+                    interior_color=vehicle.get("interior_color", None),
+                    exterior_color=vehicle.get("exterior_color", None),
+                    trim=vehicle.get("trim", None),
+                    price=vehicle.get("price", None),
+                    status=vehicle.get("status", None),
+                    condition=vehicle.get("condition", None),
+                    odometer_units=vehicle.get("odometer_units", None),
+                    vehicle_comments=vehicle.get("vehicle_comments", None)
+                )
+                lead.vehicles.append(vehicle)
 
-    return {
-        "statusCode": "200",
-        "body": dumps({"leadId": lead_id})
-    }
+            session.commit()
+            lead_id = lead.id
+
+        logger.info(f"Created lead {lead_id}")
+
+        return {
+            "statusCode": "200",
+            "body": dumps({"lead_id": lead_id})
+        }
+
+    except Exception as e:
+        logger.exception(f"Error creating lead: {e}.")
+        return {
+            "statusCode": 500,
+            "body": dumps({"error": "An error occurred while processing the request."})
+        }

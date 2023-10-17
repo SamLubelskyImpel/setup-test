@@ -10,31 +10,39 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-
 def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve lead status."""
-    logger.info(f"Event: {event}")
+    try:
+        logger.info(f"Event: {event}")
 
-    lead_id = event["pathParameters"]["lead_id"]
+        lead_id = event["pathParameters"]["lead_id"]
 
-    with DBSession() as session:
-        lead = session.query(
-            Lead
-        ).filter(
-            Lead.id == lead_id
-        ).first()
+        with DBSession() as session:
+            lead = session.query(
+                Lead
+            ).filter(
+                Lead.id == lead_id
+            ).first()
 
-    if not lead:
-        logger.error(f"Lead not found {lead_id}")
-        return {
-            "statusCode": "404"
+        if not lead:
+            logger.error(f"Lead not found {lead_id}")
+            return {
+                "statusCode": 404,
+                "body": dumps({"error": f"Lead not found {lead_id}"})
+            }
+
+        lead_status_record = {
+            "lead_status": lead.status
         }
 
-    lead_status_record = {
-        "lead_status": lead.status
-    }
+        return {
+            "statusCode": "200",
+            "body": dumps(lead_status_record)
+        }
 
-    return {
-        "statusCode": "200",
-        "body": dumps(lead_status_record)
-    }
+    except Exception as e:
+        logger.exception(f"Error retrieving lead status: {e}.")
+        return {
+            "statusCode": 500,
+            "body": dumps({"error": "An error occurred while processing the request."})
+        }
