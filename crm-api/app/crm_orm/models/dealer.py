@@ -1,11 +1,11 @@
 """Dealer Model."""
 
-from datetime import datetime
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
+from typing import Dict, Any
 
 
 class Dealer(BaseForModels):
@@ -30,9 +30,8 @@ class Dealer(BaseForModels):
     metadata_ = Column("metadata", JSONB)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
-    db_update_role = Column(String)
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""
         return {
             key.name: getattr(self, key.name)

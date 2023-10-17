@@ -147,7 +147,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          "$ref": "#/components/responses/404"
+          description: Not Found. The lead_id or consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
@@ -217,7 +217,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Salesperson'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Salesperson' 
         '400':
           "$ref": "#/components/responses/400"
         '403':
@@ -642,7 +644,6 @@ components:
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
-          example: true
   responses:
     '201':
       description: Lead successfully created
@@ -690,7 +691,7 @@ components:
     dealerId:
       name: dealer_id
       in: header
-      description: An ID that represents the dealership in the CRM. In some CRM systems, an additional ID is assigned to a store, if it is part of a parent account. If this additional store ID is present append it to the dealer ID using an underscore as a separator, i.e. dealerID_storeID.
+      description: The ID assigned to the dealership by Impel during onboarding.
       required: true
       schema:
         type: string

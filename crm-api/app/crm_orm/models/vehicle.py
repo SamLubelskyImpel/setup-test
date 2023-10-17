@@ -38,7 +38,6 @@ class Vehicle(BaseForModels):
     metadata_ = Column("metadata", JSONB)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
-    db_update_role = Column(String)
 
     def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""

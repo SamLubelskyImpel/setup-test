@@ -1,9 +1,9 @@
 """Create activity."""
 
-import boto3
 import logging
 from os import environ
 from json import dumps, loads
+from typing import Any
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -14,7 +14,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Create activity."""
     logger.info(f"Event: {event}")
 

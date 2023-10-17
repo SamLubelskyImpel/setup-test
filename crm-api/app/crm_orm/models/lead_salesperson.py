@@ -1,7 +1,7 @@
 """Lead_Salesperson Model."""
 
 from crm_orm.session_config import BaseForModels
-from sqlalchemy import Column, ForeignKey, Integer, Boolean
+from sqlalchemy import Column, ForeignKey, Integer, Boolean, DateTime
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.lead import Lead
 from crm_orm.models.salesperson import Salesperson
@@ -21,6 +21,8 @@ class Lead_Salesperson(BaseForModels):
     salesperson = relationship(Salesperson, backref=backref("salespersons", lazy="dynamic"))
 
     is_primary = Column(Boolean)
+    db_creation_date = Column(DateTime)
+    db_update_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

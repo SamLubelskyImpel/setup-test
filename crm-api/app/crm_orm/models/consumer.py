@@ -1,10 +1,10 @@
 """Consumer Model."""
 
-from datetime import datetime
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, String
+from typing import Dict, Any
 
 
 class Consumer(BaseForModels):
@@ -29,11 +29,10 @@ class Consumer(BaseForModels):
     postal_code = Column(String)
     email_optin_flag = Column(Boolean)
     sms_optin_flag = Column(Boolean)
-    db_creation_date = Column(DateTime, default=datetime.utcnow())
+    db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
-    db_update_role = Column(String)
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""
         return {
             key.name: getattr(self, key.name)

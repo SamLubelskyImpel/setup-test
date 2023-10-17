@@ -3,6 +3,7 @@
 import logging
 from os import environ
 from json import loads
+from typing import Any
 
 from crm_orm.models.consumer import Consumer
 from crm_orm.session_config import DBSession
@@ -11,7 +12,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Update consumer."""
     logger.info(f"Event: {event}")
 
@@ -33,8 +34,7 @@ def lambda_handler(event, context):
         if not consumer:
             logger.error(f"Consumer not found {consumer_id}")
             return {
-                "statusCode": "404",
-                "message": f"Consumer not found {consumer_id}"
+                "statusCode": "404"
             }
 
         for field in fields_to_update:

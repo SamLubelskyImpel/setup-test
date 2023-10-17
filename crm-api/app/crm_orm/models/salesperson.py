@@ -1,7 +1,7 @@
 """Salesperson Model."""
 
 from crm_orm.session_config import BaseForModels
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime
 
 
 class Salesperson(BaseForModels):
@@ -16,6 +16,8 @@ class Salesperson(BaseForModels):
     email = Column(String)
     phone = Column(String)
     position_name = Column(String)
+    db_creation_date = Column(DateTime)
+    db_update_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

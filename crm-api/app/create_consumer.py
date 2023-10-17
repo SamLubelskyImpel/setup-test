@@ -3,6 +3,7 @@
 import logging
 from os import environ
 from json import dumps, loads
+from typing import Any
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.consumer import Consumer
@@ -12,7 +13,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Create consumer."""
     logger.info(f"Event: {event}")
 
@@ -29,8 +30,7 @@ def lambda_handler(event, context):
         if not dealer:
             logger.error(f"Dealer not found {dealer_id}")
             return {
-                "statusCode": "404",
-                "message": f"Dealer not found {dealer_id}"
+                "statusCode": "404"
             }
 
         consumer = Consumer(

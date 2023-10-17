@@ -2,7 +2,6 @@
 
 from sqlalchemy.orm import backref, relationship
 from crm_orm.models.consumer import Consumer
-from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, ForeignKey, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,9 +17,6 @@ class Lead(BaseForModels):
     consumer_id = Column(Integer, ForeignKey("crm_consumer.id"))
     consumer = relationship(Consumer, backref=backref("leads", lazy="dynamic"))
 
-    salesperson_id = Column(Integer, ForeignKey("crm_salesperson.id"))
-    salesperson = relationship(Salesperson, backref=backref("leads", lazy="dynamic"))
-
     lead_ts = Column(DateTime)
     status = Column(String)
     substatus = Column(String)
@@ -31,7 +27,6 @@ class Lead(BaseForModels):
     metadata_ = Column("metadata", JSONB)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
-    db_update_role = Column(String)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""
