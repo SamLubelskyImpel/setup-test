@@ -5,7 +5,7 @@ import gzip
 import io
 import pandas as pd
 import urllib.parse
-from bs4 import BeautifulSoup
+import xml.etree.ElementTree as ET
 from json import loads, dumps
 from os import environ
 from uuid import uuid4
@@ -22,13 +22,19 @@ s3_client = boto3.client("s3")
 def parse_reyrey_repair_order_xml(xml_string, s3_url):
     """Format reyrey xml data to unified format."""
     entries = []
-    soup = BeautifulSoup(xml_string, "xml")
-    application_area = soup.find("ApplicationArea")
-    if application_area:
-        boid = application_area.find("BODId").contents[0]
-        sender = application_area.find("Sender")
-        if sender:
-            dealer_number = sender.find("DealerNumber").contents[0]
+    root = ET.fromstring(xml_string)
+
+    ns = {'ns': 'http://www.starstandards.org/STAR'}
+
+    application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
+
+    dealer_number = None
+    if application_area is not None:
+        boid = application_area.find(".//ns:BODId", namespaces=ns).text
+        sender = application_area.find(".//ns:Sender", namespaces=ns)
+        if sender is not None:
+            dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
+
     if not dealer_number:
         raise RuntimeError("Unknown dealer id")
 
@@ -41,7 +47,7 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
         "s3_url": s3_url
     }
 
-    repair_orders = soup.find_all("RepairOrder")
+    repair_orders = root.findall(".//ns:RepairOrder", namespaces=ns)
     for repair_order in repair_orders:
         db_dealer_integration_partner = {
             "dms_id": dealer_number
@@ -50,10 +56,11 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
         db_vehicle = {}
         db_consumer = {}
         db_op_codes = []
-        ro_record = repair_order.find("RoRecord")
-        if ro_record:
-            rogen = ro_record.find("Rogen")
-            if rogen:
+
+        ro_record = repair_order.find(".//ns:RoRecord", namespaces=ns)
+        if ro_record is not None:
+            rogen = ro_record.find(".//ns:Rogen", namespaces=ns)
+            if rogen is not None:
                 db_service_repair_order["repair_order_no"] = rogen.get("RoNo")
                 db_service_repair_order["ro_open_date"] = rogen.get("RoCreateDate")
                 db_service_repair_order["advisor_name"] = rogen.get("AdvName")
@@ -75,54 +82,55 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
                         0.0 if db_service_repair_order["warranty_total_amount"] is None else float(db_service_repair_order["warranty_total_amount"]),
                     ])
 
-                ro_comment_infos = rogen.find_all("RoCommentInfo")
+                ro_comment_infos = rogen.findall(".//ns:RoCommentInfo", namespaces=ns)
                 for ro_comment_info in ro_comment_infos:
                     comment = ro_comment_info.get("RoComment")
-                    if comment:
+                    if comment is not None:
                         db_service_repair_order.setdefault("comment", []).append(comment)
 
-                tech_recommends = rogen.find_all("TechRecommends")
+                tech_recommends = rogen.findall(".//ns:TechRecommends", namespaces=ns)
                 for tech_recommend in tech_recommends:
                     recommendation = tech_recommend.get("TechRecommend")
-                    if recommendation:
+                    if recommendation is not None:
                         db_service_repair_order.setdefault("recommendation", []).append(recommendation)
 
-            ro_labor = ro_record.find("Rolabor")
-            if ro_labor:
-                ro_amounts = ro_labor.find_all("RoAmts")
+            ro_labor = ro_record.find(".//ns:Rolabor", namespaces=ns)
+            if ro_labor is not None:
+                ro_amounts = ro_labor.findall(".//ns:RoAmts", namespaces=ns)
                 txn_pay_type_arr = set()
                 for ro_amount in ro_amounts:
                     pay_type = ro_amount.get("PayType")
                     txn_pay_type_arr.add(pay_type)
                 db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
 
-                op_code_labor_infos = ro_labor.find_all("OpCodeLaborInfo")
+                op_code_labor_infos = ro_labor.findall(".//ns:OpCodeLaborInfo", namespaces=ns)
                 for op_code_labor_info in op_code_labor_infos:
                     db_op_code = {}
                     db_op_code["op_code|op_code"] = op_code_labor_info.get("OpCode")
                     db_op_code["op_code|op_code_desc"] = op_code_labor_info.get("OpCodeDesc")
                     db_op_codes.append(db_op_code)
-        service_vehicle = repair_order.find("ServVehicle")
-        if service_vehicle:
-            vehicle_service_info = service_vehicle.find("VehicleServInfo")
-            if vehicle_service_info:
+
+        service_vehicle = repair_order.find(".//ns:ServVehicle", namespaces=ns)
+        if service_vehicle is not None:
+            vehicle_service_info = service_vehicle.find(".//ns:VehicleServInfo", namespaces=ns)
+            if vehicle_service_info is not None:
                 db_service_repair_order["ro_close_date"] = vehicle_service_info.get("LastRODate")
                 db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
-            rr_vehicle = service_vehicle.find("Vehicle")
-            if rr_vehicle:
+            rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
+            if rr_vehicle is not None:
                 db_vehicle["make"] = rr_vehicle.get("VehicleMake")
                 db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
 
-        customer_record = repair_order.find("CustRecord")
-        if customer_record:
-            contact_info = customer_record.find("ContactInfo")
-            if contact_info:
+        customer_record = repair_order.find(".//ns:CustRecord", namespaces=ns)
+        if customer_record is not None:
+            contact_info = customer_record.find(".//ns:ContactInfo", namespaces=ns)
+            if contact_info is not None:
                 db_consumer["dealer_customer_no"] = contact_info.get("NameRecId")
                 db_consumer["first_name"] = contact_info.get("FirstName")
                 db_consumer["last_name"] = contact_info.get("LastName")
 
-                phones = contact_info.find_all("Phone")
+                phones = contact_info.findall(".//ns:Phone", namespaces=ns)
                 for phone in phones:
                     phone_type = phone.get("Type")
                     phone_number = phone.get("Num")
@@ -131,15 +139,15 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
                     if phone_type == "H":
                         db_consumer["home_phone"] = phone_number
 
-                email = contact_info.find("Email")
-                if email:
+                email = contact_info.find(".//ns:Email", namespaces=ns)
+                if email is not None:
                     mail_to = email.get("MailTo")
                     db_consumer["email"] = mail_to
                     email_optin_flag = isinstance(mail_to, str) and "@" in mail_to
                     db_consumer["email_optin_flag"] = email_optin_flag
 
-                address = contact_info.find("Address")
-                if address:
+                address = contact_info.find(".//ns:Address", namespaces=ns)
+                if address is not None:
                     db_consumer["postal_code"] = address.get("Zip")
 
         entry = {
