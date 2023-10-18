@@ -85,6 +85,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: UnifiedRODLQ
+      MessageRetentionPeriod: 1209600  # 14 days
   
   UnifiedROQueue:
     Type: AWS::SQS::Queue
@@ -197,6 +198,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: UnifiedFIDLQ
+      MessageRetentionPeriod: 1209600  # 14 days
   
   UnifiedFIQueue:
     Type: AWS::SQS::Queue
