@@ -1,14 +1,14 @@
 """Dealer Model."""
 
-from sqlalchemy.orm import backref, relationship
-from crm_orm.models.integration_partner import IntegrationPartner
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import backref, relationship
 from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+from crm_orm.models.integration_partner import IntegrationPartner
 
 
-class Dealer(BaseForModels):
+class Dealer(BaseForModels):  # type: ignore
     """Dealer Model."""
 
     __tablename__ = "crm_dealer"

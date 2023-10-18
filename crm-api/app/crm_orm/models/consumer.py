@@ -1,13 +1,13 @@
 """Consumer Model."""
 
-from sqlalchemy.orm import backref, relationship
-from crm_orm.models.dealer import Dealer
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, ForeignKey, DateTime, Integer, String
+from sqlalchemy.orm import backref, relationship
 from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+from crm_orm.models.dealer import Dealer
 
 
-class Consumer(BaseForModels):
+class Consumer(BaseForModels):  # type: ignore
     """Consumer Model."""
 
     __tablename__ = "crm_consumer"

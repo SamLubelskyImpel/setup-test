@@ -5,7 +5,6 @@ from datetime import datetime
 from json import dumps, loads
 from typing import Any
 
-from crm_orm.models.dealer import Dealer
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
@@ -22,23 +21,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
-        dealer_id = event["headers"]["dealer_id"]
         consumer_id = int(body["consumer_id"])
 
         with DBSession() as session:
-            dealer = session.query(
-                Dealer
-            ).filter(
-                Dealer.product_dealer_id == dealer_id
-            ).first()
-
-            if not dealer:
-                logger.error(f"Dealer not found {dealer_id}")
-                return {
-                    "statusCode": 404,
-                    "body": dumps({"error": f"Dealer not found {dealer_id}"})
-                }
-
             consumer = session.query(
                 Consumer
             ).filter(
@@ -46,10 +31,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             ).first()
 
             if not consumer:
-                logger.error(f"Consumer not found {consumer_id}")
+                logger.error(f"Consumer {consumer_id} not found")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Consumer not found {consumer_id}"})
+                    "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
                 }
 
             # Create lead

@@ -1,11 +1,11 @@
 """Activity Type Model."""
 
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, DateTime
 from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
 
 
-class ActivityType(BaseForModels):
+class ActivityType(BaseForModels):  # type: ignore
     """Activity Type Model."""
 
     __tablename__ = "crm_activity_type"

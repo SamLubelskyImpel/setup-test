@@ -1,13 +1,14 @@
 """Lead Model."""
 
-from sqlalchemy.orm import backref, relationship
-from crm_orm.models.consumer import Consumer
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, ForeignKey, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import backref, relationship
+from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+from crm_orm.models.consumer import Consumer
 
 
-class Lead(BaseForModels):
+class Lead(BaseForModels):   # type: ignore
     """Lead Model."""
 
     __tablename__ = "crm_lead"
@@ -28,7 +29,7 @@ class Lead(BaseForModels):
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""
         return {
             key.name: getattr(self, key.name)

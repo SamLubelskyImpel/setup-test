@@ -10,6 +10,7 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+
 def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve lead status."""
     try:

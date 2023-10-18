@@ -1,14 +1,14 @@
 """Vehicle Model."""
 
-from sqlalchemy.orm import backref, relationship
-from crm_orm.models.lead import Lead
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import backref, relationship
 from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+from crm_orm.models.lead import Lead
 
 
-class Vehicle(BaseForModels):
+class Vehicle(BaseForModels):   # type: ignore
     """Vehicle Model."""
 
     __tablename__ = "crm_vehicle"

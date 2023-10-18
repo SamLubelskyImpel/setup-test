@@ -1,15 +1,15 @@
 """Activity Model."""
 
-from sqlalchemy.orm import backref, relationship
-from crm_orm.models.lead import Lead
-from crm_orm.models.activity_type import ActivityType
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import backref, relationship
 from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+from crm_orm.models.activity_type import ActivityType
+from crm_orm.models.lead import Lead
 
 
-class Activity(BaseForModels):
+class Activity(BaseForModels):  # type: ignore
     """Activity Model."""
 
     __tablename__ = "crm_activity"

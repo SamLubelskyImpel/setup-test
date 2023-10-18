@@ -12,7 +12,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-def get_salespersons_for_lead(lead_id):
+def get_salespersons_for_lead(lead_id: str) -> Any:
     """Retrieve all salespersons for a given lead ID."""
     with DBSession() as session:
         results = session.query(Salesperson, Lead_Salesperson.is_primary)\
@@ -22,6 +22,7 @@ def get_salespersons_for_lead(lead_id):
             ).filter(Lead_Salesperson.lead_id == lead_id)\
             .all()
         return results
+
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve a list of all salespersons for a given lead id."""

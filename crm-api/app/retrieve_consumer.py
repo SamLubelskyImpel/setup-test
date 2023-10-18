@@ -16,39 +16,44 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve consumer."""
     logger.info(f"Event: {event}")
 
-    consumer_id = event["pathParameters"]["consumer_id"]
+    try:
+        consumer_id = event["pathParameters"]["consumer_id"]
 
-    with DBSession() as session:
-        consumer = session.query(
-            Consumer
-        ).filter(
-            Consumer.id == consumer_id
-        ).first()
+        with DBSession() as session:
+            consumer = session.query(Consumer).filter(Consumer.id == consumer_id).first()
 
-        if not consumer:
-            logger.error(f"Consumer not found {consumer_id}")
-            return {
-                "statusCode": "404"
+            if not consumer:
+                logger.error(f"Consumer {consumer_id} not found")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Consumer {consumer_id} not found."})
+                }
+
+            logger.info(f"Found consumer {consumer.as_dict()}")
+
+            consumer_record = {
+                "dealer_id": consumer.dealer.product_dealer_id,
+                "first_name": consumer.first_name,
+                "last_name": consumer.last_name,
+                "middle_name": consumer.middle_name,
+                "email": consumer.email,
+                "phone": consumer.phone,
+                "email_optin_flag": consumer.email_optin_flag,
+                "sms_optin_flag": consumer.sms_optin_flag,
+                "city": consumer.city,
+                "country": consumer.country,
+                "address": consumer.address,
+                "postal_code": consumer.postal_code
             }
 
-        logger.info(f"Found consumer {consumer.as_dict()}")
-
-        consumer_record = {
-            "dealer_id": consumer.dealer.product_dealer_id,
-            "first_name": consumer.first_name,
-            "last_name": consumer.last_name,
-            "middle_name": consumer.middle_name,
-            "email": consumer.email,
-            "phone": consumer.phone,
-            "email_optin_flag": consumer.email_optin_flag,
-            "sms_optin_flag": consumer.sms_optin_flag,
-            "city": consumer.city,
-            "country": consumer.country,
-            "address": consumer.address,
-            "postal_code": consumer.postal_code
+        return {
+            "statusCode": "200",
+            "body": dumps(consumer_record)
         }
 
-    return {
-        "statusCode": "200",
-        "body": dumps(consumer_record)
-    }
+    except Exception as e:
+        logger.error(f"Error retrieving consumer: {str(e)}")
+        return {
+            "statusCode": 500,
+            "body": dumps({"error": "An error occurred while processing the request."})
+        }

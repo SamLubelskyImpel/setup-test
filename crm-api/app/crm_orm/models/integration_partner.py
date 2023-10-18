@@ -1,10 +1,11 @@
 """Integration Partner Model."""
 
-from crm_orm.session_config import BaseForModels
 from sqlalchemy import Column, DateTime, Integer, String
+from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
 
 
-class IntegrationPartner(BaseForModels):
+class IntegrationPartner(BaseForModels):  # type: ignore
     """Integration Partner Model."""
 
     __tablename__ = "crm_integration_partner"
@@ -15,7 +16,7 @@ class IntegrationPartner(BaseForModels):
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
 
-    def as_dict(self):
+    def as_dict(self) -> Dict[str, Any]:
         """Return attributes of the keys in the table."""
         return {
             key.name: getattr(self, key.name)

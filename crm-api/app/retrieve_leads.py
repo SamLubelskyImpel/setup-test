@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -46,7 +46,14 @@ def get_dealer_id(dealer_id: str) -> Any:
         return dealer.id
 
 
-def retrieve_leads_from_db(start_date: str, end_date: str, page: int, result_count: int, max_results: int, dealer_id: Optional[int] = None) -> Any:
+def retrieve_leads_from_db(
+    start_date: str,
+    end_date: str,
+    page: int,
+    result_count: int,
+    max_results: int,
+    dealer_id: Optional[int] = None
+) -> Any:
     """Retrieve leads from the database."""
     leads = []
 
@@ -82,7 +89,7 @@ def retrieve_leads_from_db(start_date: str, end_date: str, page: int, result_cou
     return leads
 
 
-def build_lead_records(leads_page: list, session: Any) -> Any:
+def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, Any]]:
     """Build lead records for the current page."""
     leads = []
     lead_ids = [lead.id for lead in leads_page]
@@ -121,7 +128,7 @@ def build_lead_records(leads_page: list, session: Any) -> Any:
     for lead in leads_page:
         vehicles_of_interest_sorted = sorted(
             vehicles_by_lead[lead.id],
-            key=lambda x: x["db_creation_date"],
+            key=lambda x: x["db_creation_date"],  # type: ignore
             reverse=True
         )
         lead_record = {
@@ -162,7 +169,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if dealer_id:
             impel_dealer_id = get_dealer_id(dealer_id)
 
-        leads = retrieve_leads_from_db(db_creation_date_start, db_creation_date_end, page, result_count, max_results, impel_dealer_id)
+        leads = retrieve_leads_from_db(
+                db_creation_date_start,
+                db_creation_date_end,
+                page,
+                result_count,
+                max_results,
+                impel_dealer_id
+        )
 
         return {
             "statusCode": 200,
