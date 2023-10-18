@@ -15,7 +15,7 @@ class Consumer(BaseForModels):
     id = Column(Integer, primary_key=True, autoincrement=True)
     crm_consumer_id = Column(String)
     dealer_id = Column(Integer, ForeignKey("crm_dealer.id"))
-    dealer = relationship(Dealer, backref=backref("consumers", lazy="dynamic"))
+    dealer = relationship(Dealer, backref=backref("consumers", lazy="joined"))
 
     first_name = Column(String)
     last_name = Column(String)

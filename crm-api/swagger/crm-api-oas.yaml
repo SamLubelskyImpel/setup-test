@@ -3,7 +3,7 @@ info:
   title: CRM API
   version: 1.0.0
   description: "All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS.
-  This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer information, and adding new activities.\n\n**Glossary:**\n1. 
+  This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer infor  mation, and adding new activities.\n\n**Glossary:**\n1. 
     Impel CRM Layer: A unified persistence data layer designed for integration with all CRM partners. This layer aggregates all leads and activities from every CRM partner into one central repository.\n2. 
     Lead: A sales opportunity that a dealership can pursue. Every lead contains information about the consumer, a vehicle of interest, sales team information and other details.\n3.
     Consumer: A person who may be interested in buying a specific vehicle(s). The Consumer stores the personal information and preferences of its subject. A Consumer may be referenced in one or more Leads.\n4.
@@ -28,13 +28,12 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not Found. The dealer_id, lead_id or consumer_id of the request didn't match any existing records on Impel.
+          description: Not Found. The lead_id or consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
       - "$ref": "#/components/parameters/partnerId"
       - "$ref": "#/components/parameters/xApiKey"
-      - "$ref": "#/components/parameters/dealerId"
       requestBody:
         description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
         required: true
@@ -103,7 +102,7 @@ paths:
         - "$ref": '#/components/parameters/dbCreationDateEnd'
         - name: dealer_id
           in: query
-          description: An ID that represents the dealership in the CRM. In some CRM systems, an additional ID is assigned to a store, if it is part of a parent account. If this additional store ID is present append it to the dealer ID using an underscore as a separator, i.e. dealerID_storeID.
+          description: The ID assigned to the dealership by Impel during onboarding.
           required: false
           schema:
             type: string
@@ -294,9 +293,9 @@ paths:
                   - type: object
                     properties:
                       dealer_id:
-                        type: integer
-                        description: The ID that represents the dealership in the CRM API
-                        example: 1234567
+                        type: string
+                        description: The ID assigned to the dealership by Impel during onboarding.
+                        example: 8806
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
