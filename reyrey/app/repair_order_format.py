@@ -1,14 +1,14 @@
 """Format reyrey xml data to unified format."""
-import logging
-import boto3
 import gzip
 import io
-import pandas as pd
+import logging
 import urllib.parse
 import xml.etree.ElementTree as ET
-from json import loads, dumps
+from json import dumps, loads
 from os import environ
-from uuid import uuid4
+
+import boto3
+from unified_df import upload_unified_json
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -19,12 +19,16 @@ INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
 
-def parse_reyrey_repair_order_xml(xml_string, s3_url):
+def parse_xml_to_entries(xml_string, s3_uri):
     """Format reyrey xml data to unified format."""
     entries = []
-    root = ET.fromstring(xml_string)
+    try:
+        root = ET.fromstring(xml_string)
+    except Exception:
+        logger.exception(f"Unable to parse xml at {s3_uri}")
+        raise
 
-    ns = {'ns': 'http://www.starstandards.org/STAR'}
+    ns = {"ns": "http://www.starstandards.org/STAR"}
 
     application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
 
@@ -34,24 +38,24 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
         sender = application_area.find(".//ns:Sender", namespaces=ns)
         if sender is not None:
             dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
+            store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
+            area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
 
     if not dealer_number:
         raise RuntimeError("Unknown dealer id")
 
     db_metadata = {
         "Region": REGION,
-        "PartitionYear": s3_url.split("/")[2],
-        "PartitionMonth": s3_url.split("/")[3],
-        "PartitionDate": s3_url.split("/")[4],
+        "PartitionYear": s3_uri.split("/")[2],
+        "PartitionMonth": s3_uri.split("/")[3],
+        "PartitionDate": s3_uri.split("/")[4],
         "BODId": boid,
-        "s3_url": s3_url
+        "s3_url": s3_uri,
     }
 
     repair_orders = root.findall(".//ns:RepairOrder", namespaces=ns)
     for repair_order in repair_orders:
-        db_dealer_integration_partner = {
-            "dms_id": dealer_number
-        }
+        db_dealer_integration_partner = {"dms_id": dealer_number}
         db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
@@ -64,35 +68,61 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
                 db_service_repair_order["repair_order_no"] = rogen.get("RoNo")
                 db_service_repair_order["ro_open_date"] = rogen.get("RoCreateDate")
                 db_service_repair_order["advisor_name"] = rogen.get("AdvName")
-                db_service_repair_order["internal_total_amount"] = rogen.get("IntrRoTotalAmt")
-                db_service_repair_order["consumer_total_amount"] = rogen.get("CustRoTotalAmt")
-                db_service_repair_order["warranty_total_amount"] = rogen.get("WarrRoTotalAmt")
+                db_service_repair_order["internal_total_amount"] = rogen.get(
+                    "IntrRoTotalAmt"
+                )
+                db_service_repair_order["consumer_total_amount"] = rogen.get(
+                    "CustRoTotalAmt"
+                )
+                db_service_repair_order["warranty_total_amount"] = rogen.get(
+                    "WarrRoTotalAmt"
+                )
 
                 db_vehicle["vin"] = rogen.get("Vin")
                 db_vehicle["mileage"] = rogen.get("MileageIn")
 
-                if (db_service_repair_order["internal_total_amount"] is None and
-                    db_service_repair_order["consumer_total_amount"] is None and
-                    db_service_repair_order["warranty_total_amount"] is None):
+                if (
+                    db_service_repair_order["internal_total_amount"] is None
+                    and db_service_repair_order["consumer_total_amount"] is None
+                    and db_service_repair_order["warranty_total_amount"] is None
+                ):
                     db_service_repair_order["total_amount"] = None
                 else:
-                    db_service_repair_order["total_amount"] = sum([
-                        0.0 if db_service_repair_order["internal_total_amount"] is None else float(db_service_repair_order["internal_total_amount"]),
-                        0.0 if db_service_repair_order["consumer_total_amount"] is None else float(db_service_repair_order["consumer_total_amount"]),
-                        0.0 if db_service_repair_order["warranty_total_amount"] is None else float(db_service_repair_order["warranty_total_amount"]),
-                    ])
+                    db_service_repair_order["total_amount"] = sum(
+                        [
+                            0.0
+                            if db_service_repair_order["internal_total_amount"] is None
+                            else float(
+                                db_service_repair_order["internal_total_amount"]
+                            ),
+                            0.0
+                            if db_service_repair_order["consumer_total_amount"] is None
+                            else float(
+                                db_service_repair_order["consumer_total_amount"]
+                            ),
+                            0.0
+                            if db_service_repair_order["warranty_total_amount"] is None
+                            else float(
+                                db_service_repair_order["warranty_total_amount"]
+                            ),
+                        ]
+                    )
 
                 ro_comment_infos = rogen.findall(".//ns:RoCommentInfo", namespaces=ns)
                 for ro_comment_info in ro_comment_infos:
                     comment = ro_comment_info.get("RoComment")
                     if comment is not None:
-                        db_service_repair_order.setdefault("comment", []).append(comment)
+                        db_service_repair_order.setdefault("comment", []).append(
+                            comment
+                        )
 
                 tech_recommends = rogen.findall(".//ns:TechRecommends", namespaces=ns)
                 for tech_recommend in tech_recommends:
                     recommendation = tech_recommend.get("TechRecommend")
                     if recommendation is not None:
-                        db_service_repair_order.setdefault("recommendation", []).append(recommendation)
+                        db_service_repair_order.setdefault("recommendation", []).append(
+                            recommendation
+                        )
 
             ro_labor = ro_record.find(".//ns:Rolabor", namespaces=ns)
             if ro_labor is not None:
@@ -101,20 +131,30 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
                 for ro_amount in ro_amounts:
                     pay_type = ro_amount.get("PayType")
                     txn_pay_type_arr.add(pay_type)
-                db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
+                db_service_repair_order["txn_pay_type"] = ",".join(
+                    list(txn_pay_type_arr)
+                )
 
-                op_code_labor_infos = ro_labor.findall(".//ns:OpCodeLaborInfo", namespaces=ns)
+                op_code_labor_infos = ro_labor.findall(
+                    ".//ns:OpCodeLaborInfo", namespaces=ns
+                )
                 for op_code_labor_info in op_code_labor_infos:
                     db_op_code = {}
                     db_op_code["op_code|op_code"] = op_code_labor_info.get("OpCode")
-                    db_op_code["op_code|op_code_desc"] = op_code_labor_info.get("OpCodeDesc")
+                    db_op_code["op_code|op_code_desc"] = op_code_labor_info.get(
+                        "OpCodeDesc"
+                    )
                     db_op_codes.append(db_op_code)
 
         service_vehicle = repair_order.find(".//ns:ServVehicle", namespaces=ns)
         if service_vehicle is not None:
-            vehicle_service_info = service_vehicle.find(".//ns:VehicleServInfo", namespaces=ns)
+            vehicle_service_info = service_vehicle.find(
+                ".//ns:VehicleServInfo", namespaces=ns
+            )
             if vehicle_service_info is not None:
-                db_service_repair_order["ro_close_date"] = vehicle_service_info.get("LastRODate")
+                db_service_repair_order["ro_close_date"] = vehicle_service_info.get(
+                    "LastRODate"
+                )
                 db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
@@ -150,6 +190,11 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
                 if address is not None:
                     db_consumer["postal_code"] = address.get("Zip")
 
+        metadata = dumps(db_metadata)
+        db_vehicle["metadata"] = metadata
+        db_consumer["metadata"] = metadata
+        db_service_repair_order["metadata"] = metadata
+
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
             "service_repair_order": db_service_repair_order,
@@ -158,26 +203,7 @@ def parse_reyrey_repair_order_xml(xml_string, s3_url):
             "op_codes.op_codes": db_op_codes,
         }
         entries.append(entry)
-
-    df = pd.json_normalize(entries)
-    df.columns = [str(col).replace(".", "|") for col in df.columns]
-    df["vehicle|metadata"] = dumps(db_metadata)
-    df["consumer|metadata"] = dumps(db_metadata)
-    df["service_repair_order|metadata"] = dumps(db_metadata)
-
-    if len(df) > 0:
-        buffer = io.BytesIO()
-        df.to_parquet(buffer)
-        buffer.seek(0)
-        original_file = s3_url.split('/')[-1].split('.')[0]
-        parquet_name = f"{original_file}_{str(uuid4())}.parquet"
-        dealer_integration_path = f"dealer_integration_partner|dms_id={dealer_number}"
-        partition_path = f"PartitionYear={db_metadata['PartitionYear']}/PartitionMonth={db_metadata['PartitionMonth']}/PartitionDate={db_metadata['PartitionDate']}"
-        s3_key = f"unified/repair_order/reyrey/{dealer_integration_path}/{partition_path}/{parquet_name}"
-        s3_client.upload_fileobj(buffer, INTEGRATIONS_BUCKET, s3_key)
-        logger.info(f"Uploaded {len(df)} rows for {s3_url} to {s3_key}")
-    else:
-        logger.info(f"No data uploaded for {s3_url}")
+    return entries, dealer_number
 
 
 def lambda_handler(event, context):
@@ -191,9 +217,10 @@ def lambda_handler(event, context):
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                with gzip.GzipFile(fileobj=io.BytesIO(response['Body'].read())) as file:
-                    xml_string = file.read().decode('utf-8')
-                parse_reyrey_repair_order_xml(xml_string, decoded_key)
+                with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
+                    xml_string = file.read().decode("utf-8")
+                entries, dealer_number = parse_xml_to_entries(xml_string, decoded_key)
+                upload_unified_json(entries, "repair_order", decoded_key, dealer_number)
     except Exception:
         logger.exception(f"Error transforming reyrey repair order file {event}")
         raise

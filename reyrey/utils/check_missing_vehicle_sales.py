@@ -26,12 +26,10 @@ rds_connection = psycopg2.connect(
 
 
 def list_files_in_bucket(bucket_name, prefix, files=[], continuation_token=None):
-    """ List all the files in a given bucket with a given prefix. """
+    """List all the files in a given bucket with a given prefix."""
     if continuation_token:
         response = s3_client.list_objects_v2(
-            Bucket=bucket_name,
-            Prefix=prefix,
-            ContinuationToken=continuation_token
+            Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token
         )
     else:
         response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
@@ -45,6 +43,7 @@ def list_files_in_bucket(bucket_name, prefix, files=[], continuation_token=None)
 
     continuation_token = response.get("NextContinuationToken")
     return list_files_in_bucket(bucket_name, prefix, files, continuation_token)
+
 
 db_schema = "prod" if AWS_PROFILE == "unified-prod" else "stage"
 

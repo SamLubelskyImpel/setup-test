@@ -1,10 +1,11 @@
 import logging
-import boto3
-import psycopg2
 from json import loads
 from os import environ
+
+import boto3
 import numpy as np
 import pandas as pd
+import psycopg2
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -15,6 +16,7 @@ s3_client = boto3.client("s3")
 
 class RDSInstance:
     """Manage RDS connection."""
+
     def __init__(self, is_prod, integration):
         self.integration = integration
         self.is_prod = is_prod
@@ -49,17 +51,27 @@ class RDSInstance:
         self.rds_connection.commit()
         return cursor
 
-    def select_db_dealer_integration_partner_id(self, dms_id):
+    def select_db_dealer_integration_partner_ids(self, dms_id):
         """Get the db dealer id for the given dms id."""
         db_dealer_integration_partner_id_query = f"""
             select dip.id from {self.schema}."dealer_integration_partner" dip
             join {self.schema}."integration_partner" i on dip.integration_partner_id = i.id
             where dip.dms_id = '{dms_id}' and i.impel_integration_partner_id = '{self.integration}' and dip.is_active = true;"""
-        results = self.execute_rds(db_dealer_integration_partner_id_query).fetchone()
+        results = self.execute_rds(db_dealer_integration_partner_id_query)
+        db_dealer_integration_partner_ids = [x[0] for x in results.fetchall()]
+        if not results:
+            return []
+        else:
+            return db_dealer_integration_partner_ids
+
+    def select_dealer_id(self, impel_dealer_id):
+        """Get the db dealer id for the given unique impel_dealer_id."""
+        db_dealer_id_query = f"""
+            select d.id from {self.schema}."dealer" d
+            where d.impel_dealer_id = '{impel_dealer_id}';"""
+        results = self.execute_rds(db_dealer_id_query).fetchone()
         if results is None:
-            raise RuntimeError(
-                f"No active dealer {dms_id} found with query {db_dealer_integration_partner_id_query}."
-            )
+            return None
         else:
             return int(results[0])
 
@@ -111,8 +123,10 @@ class RDSInstance:
         )
         return query
 
-    def insert_table_from_df(self, df, table, additional_query="", expect_all_inserted=True):
-        """ Insert a table from a dataframe and return inserted ids. """
+    def insert_table_from_df(
+        self, df, table, additional_query="", expect_all_inserted=True
+    ):
+        """Insert a table from a dataframe and return inserted ids."""
         additional_query += " RETURNING id"
         query = self.get_insert_query_from_df(df, table, additional_query)
         results = self.commit_rds(query)
@@ -121,5 +135,7 @@ class RDSInstance:
         inserted_ids = [x[0] for x in results.fetchall()]
         logger.info(f"Inserted {len(inserted_ids)} rows for {table}")
         if expect_all_inserted and len(inserted_ids) != len(df):
-            raise RuntimeError(f"Inserted {len(inserted_ids)} {table} entries but expected {len(df)}")
+            raise RuntimeError(
+                f"Inserted {len(inserted_ids)} {table} entries but expected {len(df)}"
+            )
         return inserted_ids

@@ -24,6 +24,18 @@ Conditions:
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
 
 Mappings:
+  Subnets:
+    us-east-1:
+      '196800776222':
+        - subnet-0d29a385efe83bf1c
+        - subnet-0e88ecdd743701e96
+        - subnet-00291e028e21cb78f
+        - subnet-0b1555d5fa3c8ba8e
+      '143813444726':
+        - subnet-030d57e39ec0df603
+        - subnet-01044d580678ea63c
+        - subnet-0b29db0aeb6cdabec
+        - subnet-0e28d592f2ca28fb7
   VpcId:
     us-east-1:
       '196800776222': vpc-03417e688cee5bc07
@@ -47,8 +59,41 @@ Globals:
           !Sub "integrations-${AWS::Region}-prod",
           !Sub "integrations-${AWS::Region}-test"
         ]
+    VpcConfig:
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: Permit traffic from the ReyRey integration service
+      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      SecurityGroupEgress:
+        - Description: AllowAll
+          CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Product
+          Value: reyrey-integration
+
+  RDSInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "reyrey integration rds access"
+      GroupId: !If [ IsProd, 
+                      'sg-00e12bc4c116eb820',
+                      'sg-00b911ee260ce5153'
+                    ]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
+
   ReyReyFormatRODLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -87,7 +132,7 @@ Resources:
           Version: '2012-10-17'
           Id: ReyReyFormatROQueuePolicy
           Statement:
-          -   Sid: Allow-SNS-SendMessage
+            - Sid: Allow-SNS-SendMessage
               Action:
                 - sqs:SendMessage
               Effect: Allow
@@ -113,6 +158,14 @@ Resources:
         - Id: FunctionPermissions
           Version: "2012-10-17"
           Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd, 
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
             - Sid: S3
               Effect: Allow
               Action:
@@ -148,499 +201,22 @@ Resources:
       Threshold: 0
       TreatMissingData: notBreaching
 
-  ReyReyGlueRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - "glue.amazonaws.com"
-            Action:
-              - "sts:AssumeRole"
-      ManagedPolicyArns:
-          - 'arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole'
-      Policies:
-        - PolicyName: ReyReyGluePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: SMPolicy
-                Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !If [ IsProd, 
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                      ]
-        - PolicyName: ReyReyGlueS3Policy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: SPolicy
-                Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                  - s3:*Object
-                Resource: 
-                  - !If [ IsProd, 
-                      'arn:aws:s3:::integrations-etl-prod/raw_data/*',
-                      'arn:aws:s3:::integrations-etl-test/raw_data/*'
-                    ]
-                  - !If [ IsProd, 
-                      'arn:aws:s3:::integrations-etl-prod/glue_etl_job/reyrey_glue_job.py',
-                      'arn:aws:s3:::integrations-etl-test/glue_etl_job/reyrey_glue_job.py'
-                    ]
-                  - !If [ IsProd, 
-                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                    ]
-        - PolicyName: ReyReySSMPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: SSMPolicy
-                Effect: Allow
-                Action:
-                  - ssm:GetParameters
-                Resource: "*"
-        - PolicyName: ReyReyGlueSQSPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Sid: SQSPolicy
-                Effect: Allow
-                Action:
-                  - sqs:DeleteMessage
-                  - sqs:GetQueueUrl
-                  - sqs:CreateQueue
-                  - sqs:SendMessage
-                  - sqs:SendMessageBatch
-                  - sqs:ListDeadLetterSourceQueues
-                  - sqs:ChangeMessageVisibility
-                  - sqs:PurgeQueue
-                  - sqs:ReceiveMessage
-                  - sqs:GetQueueAttributes
-                  - sqs:ListQueueTags
-                  - sqs:SetQueueAttributes
-                Resource: 
-                  - !GetAtt ReyReyROQueue.Arn
-                  - !GetAtt ReyReyRODLQ.Arn
-                  - !GetAtt ReyReyFIQueue.Arn
-                  - !GetAtt ReyReyFIDLQ.Arn
-                  - !GetAtt ReyReyETLDLQ.Arn
-
-  ReyReyCrawlerDB:
-    Type: AWS::Glue::Database
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      DatabaseInput:
-        Name: "reyreycrawlerdb"
-        Description: "ReyReyDB"
-
-  ReyReyRepairOrderClassifier:
-    Type: AWS::Glue::Classifier
-    Properties:
-      XMLClassifier:
-        Name: "ReyReyRepairOrderClassifier"
-        Classification: "xml"
-        RowTag: "rey_ImpelRepairOrder"
-
-  ReyReyFIClassifier:
-    Type: AWS::Glue::Classifier
-    Properties:
-      XMLClassifier:
-        Name: "ReyReyFIClassifier"
-        Classification: "xml"
-        RowTag: "rey_ImpelFIClosedDeal"
-
-  ReyReyLakeFormationPermissionRaw:
-    Type: AWS::LakeFormation::Permissions
-    Properties:
-      DataLakePrincipal:
-        DataLakePrincipalIdentifier: !GetAtt ReyReyGlueRole.Arn
-      Resource:
-        DatabaseResource:
-          Name: !Ref ReyReyCrawlerDB
-        TableResource:
-          DatabaseName: !Ref ReyReyCrawlerDB
-          TableWildcard: {}
-      Permissions:
-        - 'ALL'
-      PermissionsWithGrantOption: []
-
-  ReyReyFICrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Name: !Sub 'reyrey-crawler-fi-${Environment}'
-      Description: Crawl raw xml data for rey rey fi folder.
-      Role: !GetAtt ReyReyGlueRole.Arn
-      TablePrefix: !Sub 'ReyReyCrawlerDB_'
-      DatabaseName: !Ref ReyReyCrawlerDB
-      Classifiers:
-        - !Ref ReyReyRepairOrderClassifier
-        - !Ref ReyReyFIClassifier
-      Targets:
-        S3Targets:
-          - Path: !If [ IsProd, 
-                    !Sub "s3://integrations-${AWS::Region}-prod/reyrey/fi_closed_deal/",
-                    !Sub "s3://integrations-${AWS::Region}-test/reyrey/fi_closed_deal/",
-                  ]
-            DlqEventQueueArn: !GetAtt ReyReyFIDLQ.Arn
-            EventQueueArn: !GetAtt ReyReyFIQueue.Arn    
-      SchemaChangePolicy:
-        UpdateBehavior: 'UPDATE_IN_DATABASE'
-        DeleteBehavior: 'LOG'
-      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
-      RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVENT_MODE'
-        
-  ReyReyROCrawler:
-    Type: AWS::Glue::Crawler
-    Properties:
-      Name: !Sub 'reyrey-crawler-ro-${Environment}'
-      Description: Crawl raw xml data for rey rey repair order folder
-      Role: !GetAtt ReyReyGlueRole.Arn
-      TablePrefix: !Sub 'ReyReyCrawlerDB_'
-      DatabaseName: !Ref ReyReyCrawlerDB
-      Classifiers:
-        - !Ref ReyReyRepairOrderClassifier
-        - !Ref ReyReyFIClassifier
-      Targets:
-        S3Targets:    
-          - Path: !If [ IsProd, 
-                    !Sub "s3://integrations-${AWS::Region}-prod/reyrey/repair_order/",
-                    !Sub "s3://integrations-${AWS::Region}-test/reyrey/repair_order/",
-                  ]
-            DlqEventQueueArn: !GetAtt ReyReyRODLQ.Arn
-            EventQueueArn: !GetAtt ReyReyROQueue.Arn
-      SchemaChangePolicy:
-        UpdateBehavior: 'UPDATE_IN_DATABASE'
-        DeleteBehavior: 'LOG'
-      Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
-      RecrawlPolicy:
-        RecrawlBehavior: 'CRAWL_EVENT_MODE'
-
-  ReyReyETLFI:
-    Type: AWS::Glue::Job
-    Properties:
-      Description: ETL job to run after the reyrey fi crawler
-      Name: !Sub 'reyrey-etl-fi-${Environment}'
-      Role: !GetAtt ReyReyGlueRole.Arn
-      GlueVersion: 3.0
-      WorkerType: G.8X
-      NumberOfWorkers: 2
-      ExecutionProperty:
-        MaxConcurrentRuns: 1
-      Connections:
-        Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
-      Command:
-        Name: glueetl
-        PythonVersion: 3
-        ScriptLocation: !If [ IsProd, 
-                      's3://integrations-etl-prod/glue_etl_job/reyrey_glue_job.py',
-                      's3://integrations-etl-test/glue_etl_job/reyrey_glue_job.py'
-                    ]
-      DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-enable'
-        '--TempDir': !If [ IsProd, 
-                      's3://integrations-etl-prod/reyrey/temporaryFI/',
-                      's3://integrations-etl-test/reyrey/temporaryFI/'
-                    ]
-        '--dlq_url': !Ref ReyReyETLDLQ
-        '--region': !Ref AWS::Region
-        '--db_name': !Ref ReyReyCrawlerDB
-        '--catalog_table_names': "reyreycrawlerdb_fi_closed_deal"
-        '--catalog_connection': !Ref RDSConnection
-        '--environment': !Ref Environment
-        '--additional-python-modules': 'psycopg2-binary==2.9.3'
-
-  ReyReyETLRO:
-    Type: AWS::Glue::Job
-    Properties:
-      Description: ETL job to run after the reyrey RO crawler
-      Name: !Sub 'reyrey-etl-ro-${Environment}'
-      Role: !GetAtt ReyReyGlueRole.Arn
-      GlueVersion: 3.0
-      WorkerType: G.8X
-      NumberOfWorkers: 2
-      ExecutionProperty:
-        MaxConcurrentRuns: 1
-      Connections:
-        Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
-      Command:
-        Name: glueetl
-        PythonVersion: 3
-        ScriptLocation: !If [ IsProd, 
-                      's3://integrations-etl-prod/glue_etl_job/reyrey_glue_job.py',
-                      's3://integrations-etl-test/glue_etl_job/reyrey_glue_job.py'
-                    ]
-      DefaultArguments: 
-        '--job-bookmark-option': 'job-bookmark-enable'
-        '--TempDir': !If [ IsProd, 
-                      's3://integrations-etl-prod/reyrey/temporaryRO/',
-                      's3://integrations-etl-test/reyrey/temporaryRO/'
-                    ]
-        '--dlq_url': !Ref ReyReyETLDLQ
-        '--region': !Ref AWS::Region
-        '--db_name': !Ref ReyReyCrawlerDB
-        '--catalog_table_names': "reyreycrawlerdb_repair_order"
-        '--catalog_connection': !Ref RDSConnection
-        '--environment': !Ref Environment
-        '--additional-python-modules': 'psycopg2-binary==2.9.3'
-
-  GlueTriggerReyReyPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Action:
-          - glue:notifyEvent
-          Resource:
-          - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
-          - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
-
-  ReyReyEventBridgeRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub reyrey-eventbridge-role-${Environment}
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: NotifyGlueWorkflow
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                - glue:notifyEvent
-                Resource:
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
-
-  ReyReyWorkflowRO:
-    Type: AWS::Glue::Workflow
-    Properties: 
-      Description: Workflow for orchestrating glue rey rey RO jobs
-      Name: !Sub 'reyrey-glue-workflow-ro-${Environment}'
-
-  ReyReyWorkflowRORuleEvent: 
-    Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
-        source:
-        - "aws.s3"
-        detail-type:
-        - "Object Created"
-        detail:
-          bucket:
-            name:
-            - !If [ IsProd, 
-                    !Sub "integrations-${AWS::Region}-prod",
-                    !Sub "integrations-${AWS::Region}-test",
-                  ]
-          object:
-            key:
-            - prefix: "reyrey/repair_order/"
-      Targets:
-        - Id: !Sub reyrey-workflow-ro-target-${Environment}
-          Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
-          RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
-
-  ReyReyWorkflowROStart:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'reyrey-workflow-start-ro-${Environment}'
-      Type: EVENT
-      EventBatchingCondition:
-        BatchSize: 100
-        BatchWindow: 900
-      WorkflowName: !Ref ReyReyWorkflowRO
-      Actions:
-        - CrawlerName: !Ref ReyReyROCrawler
-
-  ReyReyWorkflowROJobTrigger:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'reyrey-ro-crawler-glue-success-${Environment}'
-      Type: CONDITIONAL
-      Description: Trigger to start the universal integration glue job
-      WorkflowName: !Ref ReyReyWorkflowRO
-      StartOnCreation: true
-      Actions:
-        - JobName: !Ref ReyReyETLRO
-      Predicate:
-        Logical: ANY
-        Conditions:
-            - LogicalOperator: EQUALS
-              CrawlerName: !Ref ReyReyROCrawler
-              CrawlState: SUCCEEDED
-
-  ReyReyWorkflowFI:
-    Type: AWS::Glue::Workflow
-    Properties: 
-      Description: Workflow for orchestrating glue rey rey FI jobs
-      Name: !Sub 'reyrey-glue-workflow-fi-${Environment}'
-
-  ReyReyWorkflowFIRuleEvent: 
-    Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
-        source:
-        - "aws.s3"
-        detail-type:
-        - "Object Created"
-        detail:
-          bucket:
-            name:
-            - !If [ IsProd, 
-                    !Sub "integrations-${AWS::Region}-prod",
-                    !Sub "integrations-${AWS::Region}-test",
-                  ]
-          object:
-            key:
-            - prefix: "reyrey/fi_closed_deal/"
-      Targets:
-        - Id: !Sub reyrey-workflow-fi-target-${Environment}
-          Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
-          RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
-
-  ReyReyWorkflowFIStart:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'reyrey-workflow-start-fi-${Environment}'
-      Type: EVENT
-      EventBatchingCondition:
-        BatchSize: 100
-        BatchWindow: 900
-      WorkflowName: !Ref ReyReyWorkflowFI
-      Actions:
-        - CrawlerName: !Ref ReyReyFICrawler
-
-  ReyReyWorkflowFIJobTrigger:
-    Type: AWS::Glue::Trigger
-    Properties:
-      Name: !Sub 'reyrey-fi-crawler-glue-success-${Environment}'
-      Type: CONDITIONAL
-      Description: Trigger to start the universal integration glue job
-      WorkflowName: !Ref ReyReyWorkflowFI
-      StartOnCreation: true
-      Actions:
-        - JobName: !Ref ReyReyETLFI
-      Predicate:
-        Logical: ANY
-        Conditions:
-            - LogicalOperator: EQUALS
-              CrawlerName: !Ref ReyReyFICrawler
-              CrawlState: SUCCEEDED
-
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    DeletionPolicy: Delete
-    Properties:
-      GroupDescription: Permit traffic from the reyrey glue etl
-      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-      SecurityGroupEgress:
-        - Description: AllowAll
-          CidrIp: 0.0.0.0/0
-          IpProtocol: '-1'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Product
-          Value: reyrey-glue-job
-
-  SelfInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "reyrey glue rds self reference"
-      GroupId: !GetAtt SecurityGroup.GroupId
-      IpProtocol: tcp
-      FromPort: 0
-      ToPort: 65535
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "reyrey glue rds access"
-      GroupId: !If [ IsProd, 
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
-  RDSConnection:
-    Type: AWS::Glue::Connection
-    Properties: 
-      CatalogId: !Ref AWS::AccountId
-      ConnectionInput:
-        Name: !Sub 'dms-rds-connection-${Environment}'
-        PhysicalConnectionRequirements:
-          AvailabilityZone: 'us-east-1b'
-          SecurityGroupIdList: 
-            - !GetAtt SecurityGroup.GroupId
-          SubnetId: !If [ IsProd, 
-                  'subnet-0b1555d5fa3c8ba8e',
-                  'subnet-030d57e39ec0df603'
-                ] 
-        ConnectionProperties:
-          Type: JDBC
-          JDBC_CONNECTION_URL: !If [ IsProd, 
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:jdbc_url}}',
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:jdbc_url}}'
-                  ]
-          USERNAME: !If [ IsProd, 
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:user}}',
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:user}}'
-                  ]
-          PASSWORD: !If [ IsProd, 
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:password}}',
-                    !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:password}}'
-                  ]
-        ConnectionType: JDBC
-
-  ReyReyETLDLQ:
+  ReyReyFormatFIDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: ReyReyETLDLQ
-        
-  ReyReyFIDLQ:
+      QueueName: ReyReyFormatFIDLQ
+  
+  ReyReyFormatFIQueue:
     Type: AWS::SQS::Queue
+    DependsOn: ReyReyFormatFIDLQ
     Properties:
-      QueueName: ReyReyFIDLQ
-
-  ReyReyRODLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: ReyReyRODLQ
-
-  ReyReyROQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: ReyReyRODLQ
-    Properties:
-      QueueName: ReyReyROQueue
+      QueueName: ReyReyFormatFIQueue
+      VisibilityTimeout: 900
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ReyReyRODLQ.Arn
-        maxReceiveCount: 1
+        deadLetterTargetArn: !GetAtt ReyReyFormatFIDLQ.Arn
+        maxReceiveCount: 5
 
-  ReyReyFIQueueSubscription:
+  ReyReyFormatFIQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !If [ IsProd, 
@@ -649,25 +225,25 @@ Resources:
                   ]
       Protocol: sqs
       RawMessageDelivery: true 
-      Endpoint: !GetAtt ReyReyFIQueue.Arn
+      Endpoint: !GetAtt ReyReyFormatFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
         '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  ReyReyFIQueuePolicy:
+  ReyReyFormatFIQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
       Queues:
-        - !Ref ReyReyFIQueue
+        - !Ref ReyReyFormatFIQueue
       PolicyDocument:
           Version: '2012-10-17'
-          Id: ReyReyFIQueuePolicy
+          Id: ReyReyFormatFIQueuePolicy
           Statement:
-          -   Sid: Allow-SNS-SendMessage
+            - Sid: Allow-SNS-SendMessage
               Action:
                 - sqs:SendMessage
               Effect: Allow
-              Resource: !GetAtt ReyReyFIQueue.Arn
+              Resource: !GetAtt ReyReyFormatFIQueue.Arn
               Principal:
                   Service: sns.amazonaws.com
               Condition:
@@ -677,143 +253,60 @@ Resources:
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
 
-  ReyReyFIQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: ReyReyFIDLQ
+  ReyReyFormatFIInsertFunction:
+    Type: AWS::Serverless::Function
     Properties:
-      QueueName: ReyReyFIQueue
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ReyReyFIDLQ.Arn
-        maxReceiveCount: 1
-
-  ReyReyROQueueSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !If [ IsProd, 
-                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
-                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
-                  ]
-      Protocol: sqs
-      RawMessageDelivery: true 
-      Endpoint: !GetAtt ReyReyROQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
-
-  ReyReyROQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref ReyReyROQueue
-      PolicyDocument:
-          Version: '2012-10-17'
-          Id: ReyReyROQueuePolicy
+      Description: Format ReyRey FI data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: vehicle_sale_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
           Statement:
-          -   Sid: Allow-SNS-SendMessage
-              Action:
-                - sqs:SendMessage
+            - Sid: AllowGetDBInfo
               Effect: Allow
-              Resource: !GetAtt ReyReyROQueue.Arn
-              Principal:
-                  Service: sns.amazonaws.com
-              Condition:
-                  ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
-                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
-                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
-                          ]
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd, 
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd, 
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ReyReyFormatFIQueue.Arn
 
-  ReyreyROCrawlerAlert:
-    Type: 'AWS::Events::Rule'
+  ReyReyFormatFIDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
     Properties:
-      Description: Alert for when ReyRey RO Glue Crawler fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-      EventPattern:
-        source:
-          - aws.glue
-        detail-type:
-          - "Glue Crawler State Change"
-        detail:
-          state:
-            - "Failed"
-          crawlerName:
-            - !Ref ReyReyROCrawler
-      Targets:
-        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
-          Id: !Sub ReyreyROCrawlerAlert-target-${Environment}
-
-  ReyreyFICrawlerAlert:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      Description: Alert for when ReyRey FI Glue Crawler fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-      EventPattern:
-        source:
-          - aws.glue
-        detail-type:
-          - "Glue Crawler State Change"
-        detail:
-          state:
-            - "Failed"
-          crawlerName:
-            - !Ref ReyReyFICrawler
-      Targets:
-        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
-          Id: !Sub ReyreyFICrawlerAlert-target-${Environment}
-
-  ReyreyETLFIAlert:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      Description: Alert for when ReyRey Glue ETL fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-      EventPattern:
-        source:
-          - aws.glue
-        detail-type:
-          - "Glue Job State Change"
-        detail:
-          state:
-            - "Failed"
-          jobName:
-            - !Ref ReyReyETLFI
-      Targets:
-        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
-          Id: !Sub ReyreyETLFIAlert-target-${Environment}
-
-  ReyreyETLROAlert:
-    Type: 'AWS::Events::Rule'
-    Properties:
-      Description: Alert for when ReyRey Glue ETL fails
-      State: DISABLED # !If [ IsProd, ENABLED, DISABLED ] TODO: Enable once reyrey sends data to avoid alert spam
-      EventPattern:
-        source:
-          - aws.glue
-        detail-type:
-          - "Glue Job State Change"
-        detail:
-          state:
-            - "Failed"
-          jobName:
-            - !Ref ReyReyETLRO
-      Targets:
-        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
-          Id: !Sub ReyreyETLROAlert-target-${Environment}
-
-  AlertTopicPolicy:
-    Type: 'AWS::SNS::TopicPolicy'
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Sid: AllowSNS
-            Effect: Allow
-            Principal:
-              Service:
-                - events.amazonaws.com
-            Action: 'sns:Publish'
-            Resource:
-              - !Ref TopicUnivClientEngineeringAlertTopic
-      Topics:
-        - !Ref TopicUnivClientEngineeringAlertTopic
+      AlarmName: !Sub ReyReyFormatFIDLQ-${Environment}
+      AlarmDescription: Messages are in the reyrey format FI lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ReyReyFormatFIDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
 
   TopicUnivClientEngineeringAlertTopic:
     Type: AWS::SNS::Topic
@@ -826,69 +319,3 @@ Resources:
                   ]
           Protocol: email
       TopicName: alert_client_engineering
-
-  ReyReyETLDLQRule:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub 'reyrey-glue-etl-dql-rule-${Environment}'
-      AlarmDescription: There are messages in the ReyRey ETL DLQ
-      ActionsEnabled: true
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt ReyReyETLDLQ.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 1800
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 0
-      TreatMissingData: notBreaching
-
-  ReyReyETLDLQRuleEvent:
-    Type: AWS::Events::Rule
-    Properties:
-      State: ENABLED
-      RoleArn: !GetAtt ReyReyEventBridgeRole.Arn
-      EventPattern:
-        source:
-        - aws.cloudwatch
-        detail-type:
-        - CloudWatch Alarm State Change
-        detail:
-          alarmName:
-            - !Sub 'reyrey-glue-etl-dql-rule-${Environment}'
-          state:
-            value:
-            - ALARM
-      Description: Runs on reyrey ETL alarm triggered
-      Targets:
-        - Arn: !Ref TopicUnivClientEngineeringAlertTopic
-          Id: !Sub ReyreyETLDLQAlert-target-${Environment}
-
-  ReyReyDevPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowDevGlueROWorkflow
-            Effect: Allow
-            Action: 'glue:*'
-            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowRO}
-          - Sid: AllowDevGlueFIWorkflow
-            Effect: Allow
-            Action: 'glue:*'
-            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${ReyReyWorkflowFI}
-          - Sid: ReyReyDevGlueCrawlerRI
-            Effect: Allow
-            Action:
-              - glue:*
-            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${ReyReyROCrawler}
-          - Sid: ReyReyDevGlueCrawlerFI
-            Effect: Allow
-            Action:
-              - glue:*
-            Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${ReyReyFICrawler}
-      Roles: 
-        - "dev"

@@ -1,3 +1,4 @@
 lxml
 pandas
-pyarrow
+fastparquet
+psycopg2-binary
