@@ -263,3 +263,29 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
+
+  AppointmentInbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: appointment_inbound.lambda_handler
+      Timeout: 30
+      Events:
+        Get: 
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /appointment/v1
+            Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !If [ IsProd, 
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                      ] 

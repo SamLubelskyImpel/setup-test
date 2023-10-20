@@ -9,7 +9,8 @@ AWS_PROFILE = environ["AWS_PROFILE"]
 if AWS_PROFILE == "unified-prod":
     url = "https://dms-service.impel.io/"
 else:
-    url = "https://dms-service.testenv.impel.io/"
+    url = "https://nafwn0vks3.execute-api.us-east-1.amazonaws.com/ssachdeva-ce-1015/"
+    # url = "https://dms-service.testenv.impel.io/"
 
 client_id = "impel_service"
 
@@ -20,7 +21,7 @@ secret = boto3.client("secretsmanager").get_secret_value(
 secret = loads(secret["SecretString"])[client_id]
 x_api_key = loads(secret)["api_key"]
 
-endpoint = "vehicle-sale"
+endpoint = "appointment"
 
 headers = {
     "accept": "application/json",
