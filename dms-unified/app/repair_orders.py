@@ -158,7 +158,7 @@ def lambda_handler(event: dict, context: dict):
                     and decoded_key.split("/")[3] != "_temporary"
                 ):
                     logger.info(f"Parsing {decoded_key}")
-                    s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                    s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                     df = pd.read_parquet(BytesIO(s3_obj["Body"].read()))
                     insert_repair_order_parquet(decoded_key, df)
                 elif (
@@ -166,7 +166,7 @@ def lambda_handler(event: dict, context: dict):
                     and decoded_key.split("/")[3] != "_temporary"
                 ):
                     logger.info(f"Parsing {decoded_key}")
-                    s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                    s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                     df = pd.read_json(loads(s3_obj["Body"].read()))
                     insert_repair_order_parquet(decoded_key, df)
                 else:
