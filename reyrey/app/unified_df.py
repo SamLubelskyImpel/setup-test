@@ -95,7 +95,7 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
         validate_unified_df_columns(df)
         json_data = df.to_json(orient="records")
         original_file = source_s3_uri.split("/")[-1].split(".")[0]
-        parquet_name = f"{original_file}_{str(uuid4())}.parquet"
+        parquet_name = f"{original_file}_{str(uuid4())}.json"
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
         s3_key = f"unified/{integration_type}/reyrey/{dealer_integration_path}/{partition_path}/{parquet_name}"
