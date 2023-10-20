@@ -33,6 +33,8 @@ def parse_xml_to_entries(xml_string, s3_uri):
     application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
 
     dealer_number = None
+    store_number = None
+    area_number = None
     if application_area is not None:
         boid = application_area.find(".//ns:BODId", namespaces=ns).text
         sender = application_area.find(".//ns:Sender", namespaces=ns)
@@ -41,8 +43,10 @@ def parse_xml_to_entries(xml_string, s3_uri):
             store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
             area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
 
-    if not dealer_number:
+    if not dealer_number and not store_number and not area_number:
         raise RuntimeError("Unknown dealer id")
+    
+    dms_id = f"{store_number}_{area_number}_{dealer_number}"
 
     db_metadata = {
         "Region": REGION,
@@ -55,7 +59,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
     repair_orders = root.findall(".//ns:RepairOrder", namespaces=ns)
     for repair_order in repair_orders:
-        db_dealer_integration_partner = {"dms_id": dealer_number}
+        db_dealer_integration_partner = {"dms_id": dms_id}
         db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
