@@ -45,7 +45,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
     if not dealer_number and not store_number and not area_number:
         raise RuntimeError("Unknown dealer id")
-    
+
     dms_id = f"{store_number}_{area_number}_{dealer_number}"
 
     db_metadata = {

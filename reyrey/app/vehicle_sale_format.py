@@ -45,7 +45,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
     if not dealer_number and not store_number and not area_number:
         raise RuntimeError("Unknown dealer id")
-    
+
     dms_id = f"{store_number}_{area_number}_{dealer_number}"
 
     db_metadata = {
@@ -117,7 +117,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
                 service_conts = warranty_info.findall(
                     ".//ns:ServiceCont", namespaces=ns
                 )
-                
+
                 service_package_flag = []
                 for service_cont in service_conts:
                     # Track all service contracts
@@ -128,9 +128,13 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     False if not service_package_flag else any(service_package_flag)
                 )
 
-                veh_extended_warranty = warranty_info.find(".//ns:VehExtWarranty", namespaces=ns)
+                veh_extended_warranty = warranty_info.find(
+                    ".//ns:VehExtWarranty", namespaces=ns
+                )
                 if veh_extended_warranty is not None:
-                    db_service_contract["service_contracts|warranty_expiration_date"] = veh_extended_warranty.get("ExpirationDate")
+                    db_service_contract[
+                        "service_contracts|warranty_expiration_date"
+                    ] = veh_extended_warranty.get("ExpirationDate")
 
                 db_service_contracts.append(db_service_contract)
             db_vehicle_sale["has_service_contract"] = (
@@ -246,9 +250,7 @@ def lambda_handler(event, context):
                 with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
                     xml_string = file.read().decode("utf-8")
                 entries, dms_id = parse_xml_to_entries(xml_string, decoded_key)
-                upload_unified_json(
-                    entries, "fi_closed_deal", decoded_key, dms_id
-                )
+                upload_unified_json(entries, "fi_closed_deal", decoded_key, dms_id)
     except Exception:
         logger.exception(f"Error transforming reyrey repair order file {event}")
         raise
