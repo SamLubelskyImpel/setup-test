@@ -110,17 +110,32 @@ def parse_xml_to_entries(xml_string, s3_uri):
             db_vehicle_sale["deal_type"] = fi_deal_fin.get("Category")
             db_vehicle_sale["delivery_date"] = fi_deal_fin.get("DeliveryDate")
 
-            warranty_info = fi_deal_fin.find(".//ns:WarrantyInfo", namespaces=ns)
-            if warranty_info is not None:
+            has_service_contract = []
+            warranty_infos = fi_deal_fin.findall(".//ns:WarrantyInfo", namespaces=ns)
+            for warranty_info in warranty_infos:
+                db_service_contract = {}
                 service_conts = warranty_info.findall(
                     ".//ns:ServiceCont", namespaces=ns
                 )
-                has_service_contract = []
+                
+                service_package_flag = []
                 for service_cont in service_conts:
+                    # Track all service contracts
                     has_service_contract.append(service_cont.get("ServContYN") == "Y")
-                db_vehicle_sale["has_service_contract"] = (
-                    False if not has_service_contract else any(has_service_contract)
+                    # Track this specific service contract
+                    service_package_flag.append(service_cont.get("ServContYN") == "Y")
+                db_service_contract["service_contracts|service_package_flag"] = (
+                    False if not service_package_flag else any(service_package_flag)
                 )
+
+                veh_extended_warranty = warranty_info.find(".//ns:VehExtWarranty", namespaces=ns)
+                if veh_extended_warranty is not None:
+                    db_service_contract["service_contracts|warranty_expiration_date"] = veh_extended_warranty.get("ExpirationDate")
+
+                db_service_contracts.append(db_service_contract)
+            db_vehicle_sale["has_service_contract"] = (
+                False if not has_service_contract else any(has_service_contract)
+            )
 
             finance_info = fi_deal_fin.find(".//ns:FinanceInfo", namespaces=ns)
             if finance_info is not None:
@@ -214,7 +229,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "service_contracts": db_service_contracts,
         }
         entries.append(entry)
-    return entries, dealer_number
+    return entries, dms_id
 
 
 def lambda_handler(event, context):
@@ -230,9 +245,9 @@ def lambda_handler(event, context):
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                 with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
                     xml_string = file.read().decode("utf-8")
-                entries, dealer_number = parse_xml_to_entries(xml_string, decoded_key)
+                entries, dms_id = parse_xml_to_entries(xml_string, decoded_key)
                 upload_unified_json(
-                    entries, "fi_closed_deal", decoded_key, dealer_number
+                    entries, "fi_closed_deal", decoded_key, dms_id
                 )
     except Exception:
         logger.exception(f"Error transforming reyrey repair order file {event}")

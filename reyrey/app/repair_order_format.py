@@ -207,7 +207,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "op_codes.op_codes": db_op_codes,
         }
         entries.append(entry)
-    return entries, dealer_number
+    return entries, dms_id
 
 
 def lambda_handler(event, context):
@@ -223,8 +223,8 @@ def lambda_handler(event, context):
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                 with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
                     xml_string = file.read().decode("utf-8")
-                entries, dealer_number = parse_xml_to_entries(xml_string, decoded_key)
-                upload_unified_json(entries, "repair_order", decoded_key, dealer_number)
+                entries, dms_id = parse_xml_to_entries(xml_string, decoded_key)
+                upload_unified_json(entries, "repair_order", decoded_key, dms_id)
     except Exception:
         logger.exception(f"Error transforming reyrey repair order file {event}")
         raise
