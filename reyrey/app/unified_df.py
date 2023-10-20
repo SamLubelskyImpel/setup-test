@@ -1,10 +1,10 @@
-import io
 import logging
 from os import environ
 from uuid import uuid4
 
 import boto3
 import pandas as pd
+from json import dumps
 from rds_instance import RDSInstance
 
 logger = logging.getLogger()
@@ -28,24 +28,6 @@ IGNORE_POSSIBLE_COLUMNS = [
     "vehicle_sale_id",
     "db_creation_date",
 ]
-
-
-def df_to_parquet(df):
-    """ Write pandas df to parquet as io stream
-    fastparquet has a bug which does not allow writing parquets to io streams.
-    pyarrow is too large for lambda deployments.
-    workaround for fastparquet bug: https://github.com/pandas-dev/pandas/issues/51140
-    """
-    data = io.BytesIO()
-    
-    orig_close = data.close
-    data.close = lambda: None
-    try:
-        df.to_parquet(data, engine="fastparquet")
-    finally:
-        data.close = orig_close
-
-    return data
 
 
 def validate_unified_df_columns(df):
@@ -111,14 +93,13 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)
-        buffer = df_to_parquet(df)
-        buffer.seek(0)
+        json_data = df.to_json(orient='records')
         original_file = source_s3_uri.split("/")[-1].split(".")[0]
         parquet_name = f"{original_file}_{str(uuid4())}.parquet"
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
         s3_key = f"unified/{integration_type}/reyrey/{dealer_integration_path}/{partition_path}/{parquet_name}"
-        s3_client.upload_fileobj(buffer, INTEGRATIONS_BUCKET, s3_key)
+        s3_client.upload_fileobj(dumps(json_data), INTEGRATIONS_BUCKET, s3_key)
         logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
     else:
         logger.info(f"No data uploaded for {source_s3_uri}")

@@ -1,3 +1,2 @@
 psycopg2-binary==2.9.9
-fastparquet==2023.8.0
 pandas==2.0.3

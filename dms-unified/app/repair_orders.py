@@ -18,11 +18,9 @@ IS_PROD = ENVIRONMENT == "prod"
 s3_client = boto3.client("s3")
 
 
-def insert_repair_order_parquet(key, bucket):
+def insert_repair_order_parquet(key, df):
     """Insert to repair order table and linked tables."""
     integration = key.split("/")[2]
-    s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
-    df = pd.read_parquet(BytesIO(s3_obj["Body"].read()))
     if len(df) == 0:
         logger.info(f"No rows for {key}")
         return
@@ -160,7 +158,17 @@ def lambda_handler(event: dict, context: dict):
                     and decoded_key.split("/")[3] != "_temporary"
                 ):
                     logger.info(f"Parsing {decoded_key}")
-                    insert_repair_order_parquet(decoded_key, bucket)
+                    s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                    df = pd.read_parquet(BytesIO(s3_obj["Body"].read()))
+                    insert_repair_order_parquet(decoded_key, df)
+                elif (
+                    decoded_key.endswith(".json")
+                    and decoded_key.split("/")[3] != "_temporary"
+                ):
+                    logger.info(f"Parsing {decoded_key}")
+                    s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
+                    df = pd.read_json(BytesIO(s3_obj["Body"].read()))
+                    insert_repair_order_parquet(decoded_key, df)
                 else:
                     logger.info(f"Ignore temp pyspark file {decoded_key}")
     except Exception as e:
