@@ -226,7 +226,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "vehicle_sale": db_vehicle_sale,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
-            "service_contracts": db_service_contracts,
+            "service_contracts.service_contracts": db_service_contracts,
         }
         entries.append(entry)
     return entries, dms_id
