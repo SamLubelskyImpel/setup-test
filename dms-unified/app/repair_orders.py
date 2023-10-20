@@ -167,7 +167,7 @@ def lambda_handler(event: dict, context: dict):
                 ):
                     logger.info(f"Parsing {decoded_key}")
                     s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
-                    df = pd.read_json(s3_obj["Body"].read())
+                    df = pd.read_json(loads(s3_obj["Body"].read()))
                     insert_repair_order_parquet(decoded_key, df)
                 else:
                     logger.info(f"Ignore temp pyspark file {decoded_key}")
