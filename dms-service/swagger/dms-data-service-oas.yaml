@@ -383,6 +383,73 @@ paths:
         name: x_api_key
         required: true
         description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel.
+      - schema:
+          type: string
+        in: query
+        name: dms_id
+        required: false
+        description: The id of the dealer assigned by the dms of the vehicle to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the DMS assigned by Impel.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_start
+        required: false
+        description: The earliest db_creation_date of the appointment to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the appointment to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25
+        in: query
+        name: appointment_date
+        required: false
+        description: The appointment_date of the appointment to query for.
+      - schema:
+          type: string
+        in: query
+        name: stock_num
+        description: The Stock Number of the vehicle to query for.
+      - schema:
+          type: string
+        in: query
+        name: vin
+        description: The Vehicle Identification Number of the vehicle to query for.
       responses:
         '200':
           description: Success
@@ -423,16 +490,18 @@ components:
               - $ref: '#/components/schemas/Appointment'
               - type: object
                 properties:
-                  dealer_integration_partner:
-                    $ref: '#/components/schemas/DealerIntegrationPartner'
-              - type: object
-                properties:
                   consumer:
                     $ref: '#/components/schemas/Consumer'
               - type: object
                 properties:
                   vehicle:
                     $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  service_contracts_list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceContracts'
     RepairOrderResponse:
       type: object
       properties:
@@ -810,5 +879,42 @@ components:
         db_creation_date:
           type: string
           format: date-time
+    ServiceContracts:
+      type: object
+      properties:
+        id:
+          type: integer
+        dealer_integration_partner_id:
+            type: integer
+        contract_id:
+            type: string
+        contract_name:
+            type: string
+        start_date:
+            type: string
+            format: datetime
+        amount:
+            type: string
+        cost:
+            type: string
+        deductible:
+            type: string
+        expiration_months:
+            type: string
+        expiration_miles:
+            type: string
+        db_creation_date:
+            type: string
+            format: datetime
+        warranty_expiration_date:
+            type: string
+            format: datetime
+        extended_warranty:
+            type: object
+        service_package_flag:
+            type: boolean
+        vehicle_sale_id:
+            type: integer
+        appointment_id:
+            type: integer
 
-          
