@@ -27,41 +27,41 @@ def json_serial(obj):
     return str(obj)
 
 def filterQuery(query, filters, tables):
-    if filters:
-        for attr, value in filters.items():
-            if attr == "ro_open_date_start":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "ro_open_date") >= value
-                )
-            elif attr == "ro_open_date_end":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "ro_open_date") <= value
-                )
-            elif attr == "ro_close_date_start":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "ro_close_date") >= value
-                )
-            elif attr == "ro_close_date_end":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "ro_close_date") <= value
-                )
-            elif attr == "db_creation_date_start":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "db_creation_date") >= value
-                )
-            elif attr == "db_creation_date_end":
-                query = query.filter(
-                    getattr(ServiceRepairOrder, "db_creation_date") <= value
-                )
-            else:
-                filtered_table = None
-                for table in tables:
-                    if attr in table.__table__.columns:
-                        filtered_table = table
+    
+    for attr, value in filters.items():
+        if attr == "ro_open_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_open_date") >= value
+            )
+        elif attr == "ro_open_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_open_date") <= value
+            )
+        elif attr == "ro_close_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_close_date") >= value
+            )
+        elif attr == "ro_close_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_close_date") <= value
+            )
+        elif attr == "db_creation_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "db_creation_date") >= value
+            )
+        elif attr == "db_creation_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "db_creation_date") <= value
+            )
+        else:
+            filtered_table = None
+            for table in tables:
+                if attr in table.__table__.columns:
+                    filtered_table = table
 
-                if not filtered_table:
-                    continue
-                query = query.filter(getattr(filtered_table, attr) == value)
+            if not filtered_table:
+                continue
+            query = query.filter(getattr(filtered_table, attr) == value)
     return query
 
 
@@ -100,11 +100,13 @@ def lambda_handler(event, context):
                 
             )
 
-            subquery = filterQuery(subquery, filters, [
-                ServiceRepairOrder, 
-                OpCodeRepairOrder, 
-                op_code_1
-            ])      
+            if filters:
+                subquery = filterQuery(subquery, filters, [
+                    ServiceRepairOrder, 
+                    OpCodeRepairOrder, 
+                    op_code_1
+                ])      
+            
             subquery = subquery.subquery()
 
             query = (
@@ -142,15 +144,16 @@ def lambda_handler(event, context):
                 .outerjoin(subquery, subquery.c.id == ServiceRepairOrder.id)
             )
 
-            query = filterQuery(query, filters, [
-                    ServiceRepairOrder,
-                    Consumer,
-                    DealerIntegrationPartner,
-                    Dealer,
-                    IntegrationPartner,
-                    Vehicle
-                ]
-            )
+            if filters:
+                query = filterQuery(query, filters, [
+                        ServiceRepairOrder,
+                        Consumer,
+                        DealerIntegrationPartner,
+                        Dealer,
+                        IntegrationPartner,
+                        Vehicle
+                    ]
+                )
             
             service_repair_orders = (
                 query.order_by(ServiceRepairOrder.db_creation_date)
@@ -197,5 +200,4 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception("Error running repair order api.")
         raise
-
 
