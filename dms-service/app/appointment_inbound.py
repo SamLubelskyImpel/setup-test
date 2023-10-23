@@ -25,6 +25,32 @@ def json_serial(obj):
         return obj.isoformat()
     return str(obj)
 
+def filterQuery(query, filters, tables):
+    if filters:
+        for attr, value in filters.items():
+            if attr == "appointment_date":
+                query = query.filter(
+                    getattr(Appointment, "appointment_date") == value
+                )
+            elif attr == "db_creation_date_start":
+                query = query.filter(
+                    getattr(Appointment, "db_creation_date") >= value
+                )
+            elif attr == "db_creation_date_end":
+                query = query.filter(
+                    getattr(Appointment, "db_creation_date") <= value
+                )
+            else:
+                filtered_table = None
+                for table in tables:
+                    if attr in table.__table__.columns:
+                        filtered_table = table
+
+                if not filtered_table:
+                    continue
+                query = query.filter(getattr(filtered_table, attr) == value)
+    return query
+
 def lambda_handler(event, context):
     """Run appointment API."""
     logger.info(f"Event: {event}")
@@ -55,22 +81,35 @@ def lambda_handler(event, context):
                     service_contracts_1.appointment_id == Appointment.id,
                 )
                 .group_by(Appointment.id)
-                .subquery()
             )
 
+            if filters:
+                subquery = filterQuery(subquery, filters, [
+                    Appointment, 
+                    service_contracts_1
+                ])     
+            
+            subquery = subquery.subquery()
+
             query = (
-                session.query(Appointment, DealerIntegrationPartner, Consumer, Vehicle)
+                session.query(Appointment, Consumer, Vehicle, subquery.c.service_contracts_list)
                 .outerjoin(DealerIntegrationPartner, Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id)
                 .outerjoin(Consumer, Appointment.consumer_id == Consumer.id)
                 .outerjoin(Vehicle, Appointment.vehicle_id == Vehicle.id)
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
-                # .outerjoin(subquery, subquery.c.id == Appointment.id)
+                .outerjoin(subquery, subquery.c.id == Appointment.id)
             )
 
-            print(query)
-
-
+            if filters: 
+                query = filterQuery(query, filters, [
+                    Appointment,
+                    DealerIntegrationPartner,
+                    Consumer,
+                    Vehicle,
+                    Dealer,
+                    IntegrationPartner
+                ])
 
             
             appointments = (
@@ -82,10 +121,11 @@ def lambda_handler(event, context):
             
             results = []
 
-            for(appointment, dealer_integration_partner, consumer, vehicle) in appointments[:max_results]:
+            for(appointment, consumer, vehicle, service_contracts_list) in appointments[:max_results]:
                 result_dict = appointment.as_dict()
                 result_dict['consumer'] = consumer.as_dict()
                 result_dict['vehicle'] = vehicle.as_dict()
+                result_dict['service_contracts_list'] = service_contracts_list
                 results.append(result_dict)
              
         
@@ -107,4 +147,5 @@ def lambda_handler(event, context):
         logger.exception("Error running appointment api.")
         raise
 
-lambda_handler({}, None)
+
+print(lambda_handler({}, None))
