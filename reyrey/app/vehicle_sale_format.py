@@ -156,16 +156,18 @@ def parse_xml_to_entries(xml_string, s3_uri):
             payoff_on_trade = None
             for trade_in in trade_ins:
                 actual_cash_value = trade_in.get("ActualCashValue")
-                if trade_in_value is None:
-                    trade_in_value = actual_cash_value
-                elif actual_cash_value is not None:
-                    trade_in_value += actual_cash_value
+                if actual_cash_value is not None and actual_cash_value != "":
+                    if trade_in_value is None:
+                        trade_in_value = float(actual_cash_value)
+                    else:
+                        trade_in_value += float(actual_cash_value)
 
                 payoff = trade_in.get("Payoff")
-                if payoff_on_trade is None:
-                    payoff_on_trade = payoff
-                elif payoff is not None:
-                    payoff_on_trade += payoff
+                if payoff is not None and payoff != "":
+                    if payoff_on_trade is None:
+                        payoff_on_trade = float(payoff)
+                    else:
+                        payoff_on_trade += float(payoff)
             db_vehicle_sale["trade_in_value"] = trade_in_value
             db_vehicle_sale["payoff_on_trade"] = payoff_on_trade
 

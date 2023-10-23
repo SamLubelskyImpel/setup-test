@@ -1,5 +1,4 @@
 import logging
-from json import dumps
 from os import environ
 from uuid import uuid4
 
@@ -93,14 +92,14 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)
-        json_data = df.to_json(orient="records")
+        json_str = df.to_json(orient="records")
         original_file = source_s3_uri.split("/")[-1].split(".")[0]
         parquet_name = f"{original_file}_{str(uuid4())}.json"
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
         s3_key = f"unified/{integration_type}/reyrey/{dealer_integration_path}/{partition_path}/{parquet_name}"
         s3_client.put_object(
-            Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=dumps(json_data)
+            Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
         )
         logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
     else:
