@@ -224,7 +224,7 @@ Resources:
         MaxConcurrentRuns: 1
       Connections:
         Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
+            - !Sub 'tekion-rds-connection-${Environment}'
       Command:
         Name: glueetl
         PythonVersion: 3
@@ -242,7 +242,7 @@ Resources:
         '--region': !Ref AWS::Region
         '--db_name': !Ref TekionCrawlerDB
         '--catalog_table_names': "tekioncrawlerdb_fi_closed_deal"
-        '--catalog_connection': !Ref RDSConnection
+        '--catalog_connection': !Ref TekionRDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
@@ -259,7 +259,7 @@ Resources:
         MaxConcurrentRuns: 1
       Connections:
         Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
+            - !Sub 'tekion-rds-connection-${Environment}'
       Command:
         Name: glueetl
         PythonVersion: 3
@@ -277,7 +277,7 @@ Resources:
         '--db_name': !Ref TekionCrawlerDB
         '--region': !Ref AWS::Region
         '--catalog_table_names': "tekioncrawlerdb_repair_order"
-        '--catalog_connection': !Ref RDSConnection
+        '--catalog_connection': !Ref TekionRDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
@@ -472,13 +472,21 @@ Resources:
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
 
-  RDSConnection:
+  TekionRDSConnection:
     Type: AWS::Glue::Connection
     Properties: 
       CatalogId: !Ref AWS::AccountId
       ConnectionInput: 
+        Name: !Sub 'tekion-rds-connection-${Environment}'
+        PhysicalConnectionRequirements:
+          AvailabilityZone: 'us-east-1b'
+          SecurityGroupIdList: 
+            - !GetAtt SecurityGroup.GroupId
+          SubnetId: !If [ IsProd, 
+                  'subnet-0b1555d5fa3c8ba8e',
+                  'subnet-030d57e39ec0df603'
+                ] 
         ConnectionProperties:
-          Name: 'TekionConnection'
           Type: JDBC
           JDBC_CONNECTION_URL: !If [ IsProd, 
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:jdbc_url}}',
