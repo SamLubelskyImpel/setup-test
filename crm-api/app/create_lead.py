@@ -21,7 +21,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
-        consumer_id = int(body["consumer_id"])
+        consumer_id = body["consumer_id"]
 
         with DBSession() as session:
             consumer = session.query(
@@ -61,7 +61,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     vehicle_class=vehicle.get("vehicle_class", None),
                     mileage=vehicle.get("mileage", None),
                     make=vehicle.get("make", None),
-                    model=vehicle.get("model", ""),
+                    model=vehicle.get("model", None),
                     manufactured_year=vehicle.get("manufactured_year", None),
                     body_style=vehicle.get("body_style", None),
                     transmission=vehicle.get("transmission", None),
@@ -82,7 +82,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
 
         return {
-            "statusCode": "200",
+            "statusCode": "201",
             "body": dumps({"lead_id": lead_id})
         }
 

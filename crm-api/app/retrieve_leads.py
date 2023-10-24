@@ -132,6 +132,7 @@ def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, A
             reverse=True
         )
         lead_record = {
+            "lead_id": lead.id,
             "consumer_id": lead.consumer_id,
             "lead_status": lead.status,
             "lead_substatus": lead.substatus,

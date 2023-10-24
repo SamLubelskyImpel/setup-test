@@ -577,9 +577,9 @@ components:
         - vehicles_of_interest
       properties:
         consumer_id:
-          type: string
+          type: integer
           description: Unique identifier for the associated consumer
-          example: "23"
+          example: 2
         lead_status:
           type: string
           description: A status that can be used to group leads that are in similar state
