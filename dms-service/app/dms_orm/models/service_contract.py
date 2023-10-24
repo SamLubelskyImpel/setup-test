@@ -23,8 +23,8 @@ class ServiceContract(BaseForModels):
     warranty_expiration_date = Column(DateTime)
     extended_warranty = Column(JSON)
     service_package_flag = Column(Boolean)
-    vehicle_sale_id = Column(Integer, ForeignKey("Vehicle.id"))
-    appointment_id = Column(Integer, ForeignKey("Appointment.id"))
+    vehicle_sale_id = Column(Integer, ForeignKey("vehicle_sale.id"))
+    appointment_id = Column(Integer, ForeignKey("appointment.id"))
 
     def as_dict(self):
         '''Return attributes of the keys in the table.'''
