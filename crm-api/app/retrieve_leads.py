@@ -152,8 +152,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         filters = event.get("queryStringParameters", {})
         page = int(filters.get("page", 1))
-        max_results = int(filters.get("max_results", 100))
-        result_count = min(max_results, int(filters.get("result_count", max_results)))
+        max_results = 1000
+        result_count = (
+            max_results
+            if not filters
+            else int(filters.get("result_count", max_results))
+        )
+        max_results = min(max_results, result_count)
         dealer_id = filters.get("dealer_id", None)
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
