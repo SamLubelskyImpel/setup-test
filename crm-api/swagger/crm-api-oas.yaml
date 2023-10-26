@@ -403,7 +403,7 @@ paths:
                 type: object
                 properties:
                   activity_id:
-                    type: string
+                    type: integer
                     description: ID of the newly created activity
         '400':
           "$ref": "#/components/responses/400"
@@ -737,7 +737,7 @@ components:
       required: true
       description: ID of the consumer
       schema:
-        type: string
+        type: integer
     dbCreationDateStart:
       name: db_creation_date_start
       in: query
