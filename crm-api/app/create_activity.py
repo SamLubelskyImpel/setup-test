@@ -70,7 +70,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "statusCode": "201",
             "body": dumps({"activity_id": activity_id})
         }
-    
+
     except Exception as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {

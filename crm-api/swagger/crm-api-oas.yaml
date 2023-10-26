@@ -55,6 +55,26 @@ paths:
               schema:
                 type: object
                 properties:
+                  pagination:
+                    type: object
+                    description: Information related to pagination.
+                    properties:
+                      records_on_page:
+                        type: integer
+                        description: The number of records on the page.
+                        example: 1
+                      total_records:
+                        type: integer
+                        description: Total records available for request.
+                        example: 1
+                      total_pages:
+                        type: integer
+                        description: Total pages available with records.
+                        example: 1
+                      current_page:
+                        type: integer
+                        description: The current page number.
+                        example: 1
                   leads:
                     type: array
                     description: A list of all leads for a given partner id and dealer id.
@@ -62,11 +82,11 @@ paths:
                       type: object
                       properties:
                         lead_id:
-                          type: string
+                          type: integer
                           description: The ID of the lead
-                          example: "8fce3e71-4e15-4635-b8f0-e0659532af46"
+                          example: "123456"
                         consumer_id:
-                          type: string
+                          type: integer
                           description: Consumer ID
                           example: "123"
                         lead_status:
@@ -133,7 +153,7 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
-      summary: This endpoint updates an existing lead in the CRM persistance data layer.
+      summary: This endpoint updates an existing lead in the CRM persistance data layer. The existing vehicles in the 'vehicles_of_interest' array won't be modified. Instead, new vehicles will be added to the array.
       #{{UPDATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
@@ -260,7 +280,7 @@ paths:
                 type: object
                 properties:
                   consumer_id:
-                    type: string
+                    type: integer
                     description: ID of the newly created consumer
         '400':
           "$ref": "#/components/responses/400"
@@ -652,7 +672,7 @@ components:
             type: object
             properties:
               lead_id:
-                type: string
+                type: integer
                 description: ID of the lead that was created.
     '400':
       description: This indicates Bad Request. For example this error can occur if
@@ -710,7 +730,7 @@ components:
       required: true
       description: Impel Lead ID for which details are to be retrieved or updated.
       schema:
-        type: string
+        type: integer
     consumerId:
       name: consumer_id
       in: path
@@ -752,4 +772,4 @@ components:
       schema:
         type: integer
         minimum: 1
-        maximum: 10000
+        maximum: 1000

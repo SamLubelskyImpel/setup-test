@@ -1,6 +1,7 @@
 """Retrieve leads from the shared CRM layer."""
 import logging
 import json
+from math import ceil
 from json import dumps
 from os import environ
 from decimal import Decimal
@@ -38,10 +39,7 @@ def get_dealer_id(dealer_id: str) -> Any:
 
         if not dealer:
             logger.error(f"Dealer not found {dealer_id}")
-            return {
-                "statusCode": 404,
-                "body": json.dumps({"error": f"Dealer not found {dealer_id}"})
-            }
+            return None
 
         return dealer.id
 
@@ -50,43 +48,48 @@ def retrieve_leads_from_db(
     start_date: str,
     end_date: str,
     page: int,
-    result_count: int,
     max_results: int,
     dealer_id: Optional[int] = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
 
-    while True:
-        with DBSession() as session:
-            leads_query = (
-                session.query(Lead)
-                .join(Consumer, Lead.consumer_id == Consumer.id)
-                .options(joinedload(Lead.vehicles))
-                .filter(
-                    Lead.db_creation_date >= start_date,
-                    Lead.db_creation_date <= end_date
-                )
+    with DBSession() as session:
+        leads_query = (
+            session.query(Lead)
+            .join(Consumer, Lead.consumer_id == Consumer.id)
+            .options(joinedload(Lead.vehicles))
+            .filter(
+                Lead.db_creation_date >= start_date,
+                Lead.db_creation_date <= end_date
             )
+        )
 
-            if dealer_id:
-                leads_query = leads_query.filter(Consumer.dealer_id == dealer_id)
+        if dealer_id:
+            leads_query = leads_query.filter(Consumer.dealer_id == dealer_id)
 
-            leads_page = (
-                leads_query.order_by(Lead.db_creation_date)
-                .limit(max_results)
-                .offset((page - 1) * max_results)
-                .all()
-            )
+        leads_page = (
+            leads_query.order_by(Lead.db_creation_date)
+            .limit(max_results)
+            .offset((page - 1) * max_results)
+            .all()
+        )
 
-            if not leads_page:
-                break
+        total_records = leads_query.count()
+        records_on_page = len(leads_page)
+        total_pages = ceil(total_records / max_results)
 
-            leads.extend(build_lead_records(leads_page, session))
+        leads.extend(build_lead_records(leads_page, session))
 
-            page += 1
-
-    return leads
+    return {
+        "pagination": {
+            "records_on_page": records_on_page,
+            "total_records": total_records,
+            "total_pages": total_pages,
+            "current_page": page
+        },
+        "leads": leads
+    }
 
 
 def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, Any]]:
@@ -152,13 +155,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         filters = event.get("queryStringParameters", {})
         page = int(filters.get("page", 1))
-        max_results = 1000
-        result_count = (
-            max_results
-            if not filters
-            else int(filters.get("result_count", max_results))
-        )
-        max_results = min(max_results, result_count)
+        max_results = min(1000, int(filters.get("result_count", 1000)))
         dealer_id = filters.get("dealer_id", None)
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
@@ -174,12 +171,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
         impel_dealer_id = None
         if dealer_id:
             impel_dealer_id = get_dealer_id(dealer_id)
+            if not impel_dealer_id:
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps({"error": f"Dealer not found {dealer_id}"})
+                }
 
         leads = retrieve_leads_from_db(
                 db_creation_date_start,
                 db_creation_date_end,
                 page,
-                result_count,
                 max_results,
                 impel_dealer_id
         )
