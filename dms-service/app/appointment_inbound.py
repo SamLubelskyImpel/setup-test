@@ -26,29 +26,28 @@ def json_serial(obj):
     return str(obj)
 
 def filterQuery(query, filters, tables):
-    if filters:
-        for attr, value in filters.items():
-            if attr == "appointment_date":
-                query = query.filter(
-                    getattr(Appointment, "appointment_date") == value
-                )
-            elif attr == "db_creation_date_start":
-                query = query.filter(
-                    getattr(Appointment, "db_creation_date") >= value
-                )
-            elif attr == "db_creation_date_end":
-                query = query.filter(
-                    getattr(Appointment, "db_creation_date") <= value
-                )
-            else:
-                filtered_table = None
-                for table in tables:
-                    if attr in table.__table__.columns:
-                        filtered_table = table
+    for attr, value in filters.items():
+        if attr == "appointment_date":
+            query = query.filter(
+                getattr(Appointment, "appointment_date") == value
+            )
+        elif attr == "db_creation_date_start":
+            query = query.filter(
+                getattr(Appointment, "db_creation_date") >= value
+            )
+        elif attr == "db_creation_date_end":
+            query = query.filter(
+                getattr(Appointment, "db_creation_date") <= value
+            )
+        else:
+            filtered_table = None
+            for table in tables:
+                if attr in table.__table__.columns:
+                    filtered_table = table
 
-                if not filtered_table:
-                    continue
-                query = query.filter(getattr(filtered_table, attr) == value)
+            if not filtered_table:
+                continue
+            query = query.filter(getattr(filtered_table, attr) == value)
     return query
 
 def lambda_handler(event, context):
@@ -159,6 +158,4 @@ def lambda_handler(event, context):
         logger.exception("Error running appointment api.")
         raise
 
-print(lambda_handler({"queryStringParameters":{
-    "vin": "5XYPG4A5XG1504185"
-}}, None))
+print(lambda_handler({}, None))
