@@ -226,7 +226,7 @@ Resources:
   CreateLead:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: create_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -237,11 +237,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads
             Method: POST
+      Layers:
+        - !Ref CrmApiDataLayer
 
   RetrieveLeads:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: retrieve_leads.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -252,11 +254,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads
             Method: GET
+      Layers:
+        - !Ref CrmApiDataLayer
 
   RetrieveLead:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: retrieve_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -267,11 +271,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/{lead_id}
             Method: GET
+      Layers:
+        - !Ref CrmApiDataLayer
 
   UpdateLead:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: update_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -282,11 +288,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/{lead_id}
             Method: PUT
+      Layers:
+        - !Ref CrmApiDataLayer
 
   RetrieveLeadStatus:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: retrieve_lead_status.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -297,11 +305,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/{lead_id}/status
             Method: GET
+      Layers:
+        - !Ref CrmApiDataLayer
   
   RetrieveSalespersonsData:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/lead/
       Handler: retrieve_salespersons_data.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -312,11 +322,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/{lead_id}/salespersons
             Method: GET
+      Layers:
+        - !Ref CrmApiDataLayer
 
   CreateConsumer:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/consumer/
       Handler: create_consumer.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -327,11 +339,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /consumers
             Method: POST
+      Layers:
+        - !Ref CrmApiDataLayer
 
   RetrieveConsumer:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/consumer/
       Handler: retrieve_consumer.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -342,11 +356,13 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /consumers/{consumer_id}
             Method: GET
+      Layers:
+        - !Ref CrmApiDataLayer
 
   UpdateConsumer:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/
+      CodeUri: app/consumer/
       Handler: update_consumer.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -357,6 +373,8 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /consumers/{consumer_id}
             Method: PUT
+      Layers:
+        - !Ref CrmApiDataLayer
 
   CreateActivity:
     Type: AWS::Serverless::Function
@@ -372,4 +390,16 @@ Resources:
             RestApiId: !Ref CrmApiGateway
             Path: /activities/{lead_id}
             Method: POST
+      Layers:
+        - !Ref CrmApiDataLayer
 
+  CrmApiDataLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub 'crm-api-data-layer-${Environment}'
+      Description: Data layer
+      ContentUri: ./data_layer
+      CompatibleRuntimes:
+        - python3.9
+      LicenseInfo: MIT
+      RetentionPolicy: Retain

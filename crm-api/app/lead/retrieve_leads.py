@@ -82,13 +82,13 @@ def retrieve_leads_from_db(
         leads.extend(build_lead_records(leads_page, session))
 
     return {
+        "leads": leads,
         "pagination": {
             "records_on_page": records_on_page,
             "total_records": total_records,
             "total_pages": total_pages,
             "current_page": page
         },
-        "leads": leads
     }
 
 
