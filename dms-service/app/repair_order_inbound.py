@@ -88,6 +88,28 @@ def lambda_handler(event, context):
                     ServiceRepairOrder.id.label("id"),
                     func.jsonb_agg(text("op_code_1")).label("op_codes"),
                 )
+                .outerjoin(
+                    Consumer,
+                    ServiceRepairOrder.consumer_id == Consumer.id,
+                )
+                .outerjoin(
+                    DealerIntegrationPartner,
+                    ServiceRepairOrder.dealer_integration_partner_id
+                    == DealerIntegrationPartner.id,
+                )
+                .outerjoin(
+                    Dealer,
+                    DealerIntegrationPartner.dealer_id == Dealer.id,
+                )
+                .outerjoin(
+                    IntegrationPartner,
+                    DealerIntegrationPartner.integration_partner_id
+                    == IntegrationPartner.id,
+                )
+                .outerjoin(
+                    Vehicle,
+                    ServiceRepairOrder.vehicle_id == Vehicle.id,
+                )
                 .join(
                     OpCodeRepairOrder,
                     OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
@@ -103,6 +125,11 @@ def lambda_handler(event, context):
             if filters:
                 subquery = filterQuery(subquery, filters, [
                     ServiceRepairOrder, 
+                    Consumer,
+                    DealerIntegrationPartner,
+                    Dealer,
+                    IntegrationPartner,
+                    Vehicle,
                     OpCodeRepairOrder, 
                     op_code_1
                 ])      
@@ -154,6 +181,7 @@ def lambda_handler(event, context):
                         Vehicle
                     ]
                 )
+            print(query)
             
             service_repair_orders = (
                 query.order_by(ServiceRepairOrder.db_creation_date)
