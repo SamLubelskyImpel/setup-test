@@ -158,4 +158,3 @@ def lambda_handler(event, context):
         logger.exception("Error running appointment api.")
         raise
 
-print(lambda_handler({}, None))
