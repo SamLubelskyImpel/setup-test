@@ -12,6 +12,8 @@ info:
 servers:
   - description: Impel test environment
     url: https://2y26660ywf.execute-api.us-east-1.amazonaws.com/test
+  - description: Impel test environment
+    url: https://crm-api-test.testenv.impel.io/
 paths:
   /leads:
     post:
@@ -55,26 +57,6 @@ paths:
               schema:
                 type: object
                 properties:
-                  pagination:
-                    type: object
-                    description: Information related to pagination.
-                    properties:
-                      records_on_page:
-                        type: integer
-                        description: The number of records on the page.
-                        example: 1
-                      total_records:
-                        type: integer
-                        description: Total records available for request.
-                        example: 1
-                      total_pages:
-                        type: integer
-                        description: Total pages available with records.
-                        example: 1
-                      current_page:
-                        type: integer
-                        description: The current page number.
-                        example: 1
                   leads:
                     type: array
                     description: A list of all leads for a given partner id and dealer id.
@@ -111,6 +93,26 @@ paths:
                           example: cars.com
                         vehicles_of_interest:
                           $ref: '#/components/schemas/VehiclesOfInterest'
+                  pagination:
+                    type: object
+                    description: Information related to pagination.
+                    properties:
+                      records_on_page:
+                        type: integer
+                        description: The number of records on the page.
+                        example: 1
+                      total_records:
+                        type: integer
+                        description: Total records available for request.
+                        example: 1
+                      total_pages:
+                        type: integer
+                        description: Total pages available with records.
+                        example: 1
+                      current_page:
+                        type: integer
+                        description: The current page number.
+                        example: 1
         '400':
           "$ref": "#/components/responses/400"
         '500':
