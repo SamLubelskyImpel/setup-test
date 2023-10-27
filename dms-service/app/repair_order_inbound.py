@@ -181,8 +181,7 @@ def lambda_handler(event, context):
                         Vehicle
                     ]
                 )
-            print(query)
-            
+                            
             service_repair_orders = (
                 query.order_by(ServiceRepairOrder.db_creation_date)
                 .limit(max_results + 1)
