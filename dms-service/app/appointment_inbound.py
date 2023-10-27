@@ -119,9 +119,6 @@ def lambda_handler(event, context):
                     Dealer,
                     IntegrationPartner
                 ])
-
-            print(query)
-
             
             appointments = (
                     query.order_by(Appointment.db_creation_date)
