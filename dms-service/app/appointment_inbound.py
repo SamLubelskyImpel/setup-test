@@ -110,7 +110,7 @@ def lambda_handler(event, context):
                 result_dict = appointment.as_dict()
                 result_dict['consumer'] = consumer.as_dict()
                 result_dict['vehicle'] = vehicle.as_dict()
-                result_dict['service_contracts'] = service_contracts
+                result_dict['service_contracts'] = [x for x in service_contracts if x]
                 results.append(result_dict)
              
         
@@ -131,4 +131,3 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception("Error running appointment api.")
         raise
-    
