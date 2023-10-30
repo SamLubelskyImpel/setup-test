@@ -9,8 +9,6 @@ servers:
     description: Impel test environment endpoint.
   - url: https://dms-service.impel.io
     description: Impel prod environment endpoint.
-  - url: https://nafwn0vks3.execute-api.us-east-1.amazonaws.com/ssachdeva-ce-1015
-    description: Impel ssachdeva-ce-1015 test environment endpoint.
 
 #{{DMS_DATA_SERVICE_AWS_VALIDATION}}
 paths:
@@ -419,27 +417,19 @@ paths:
       - schema:
           type: string
           format: date-time
-          example: 2023-05-25T06:35:34
+          example: 2023-05-25
         in: query
-        name: db_creation_date_start
+        name: appointment_date_start
         required: false
-        description: The earliest db_creation_date of the appointment to query for.
-      - schema:
-          type: string
-          format: date-time
-          example: 2023-05-25T06:35:34
-        in: query
-        name: db_creation_date_end
-        required: false
-        description: The latest db_creation_date of the appointment to query for.
+        description: The earliest appointment_date of the appointment to query for.
       - schema:
           type: string
           format: date-time
           example: 2023-05-25
         in: query
-        name: appointment_date
+        name: appointment_date_end
         required: false
-        description: The appointment_date of the appointment to query for.
+        description: The latest appointment_date of the appointment to query for.
       - schema:
           type: string
         in: query
