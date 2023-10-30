@@ -25,11 +25,16 @@ def json_serial(obj):
         return obj.isoformat()
     return str(obj)
 
+
 def filterQuery(query, filters, tables):
     for attr, value in filters.items():
-        if attr == "appointment_date":
+        if attr == "appointment_date_start":
             query = query.filter(
-                getattr(Appointment, "appointment_date") == value
+                getattr(Appointment, "appointment_date") >= value
+            )
+        elif attr == "appointment_date_end":
+            query = query.filter(
+                getattr(Appointment, "appointment_date") <= value
             )
         elif attr == "db_creation_date_start":
             query = query.filter(
@@ -68,18 +73,16 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
 
-            service_contracts_1 = aliased(ServiceContract)
-
             query = (
-                session.query(Appointment, Consumer, Vehicle, func.jsonb_agg(text("service_contracts_1")).label("service_contracts_list"))
+                session.query(Appointment, Consumer, Vehicle, func.jsonb_agg(text('service_contracts.*')).label("service_contracts"))
                 .outerjoin(DealerIntegrationPartner, Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id)
                 .outerjoin(Consumer, Appointment.consumer_id == Consumer.id)
                 .outerjoin(Vehicle, Appointment.vehicle_id == Vehicle.id)
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
                 .outerjoin(
-                    service_contracts_1,
-                    service_contracts_1.appointment_id == Appointment.id,
+                    ServiceContract,
+                    ServiceContract.appointment_id == Appointment.id,
                 )
                 .group_by(Appointment.id, DealerIntegrationPartner.id, Consumer.id, Vehicle.id, Dealer.id, IntegrationPartner.id)
             )
@@ -103,11 +106,11 @@ def lambda_handler(event, context):
             
             results = []
 
-            for(appointment, consumer, vehicle, service_contracts_list) in appointments[:max_results]:
+            for(appointment, consumer, vehicle, service_contracts) in appointments[:max_results]:
                 result_dict = appointment.as_dict()
                 result_dict['consumer'] = consumer.as_dict()
                 result_dict['vehicle'] = vehicle.as_dict()
-                result_dict['service_contracts_list'] = service_contracts_list
+                result_dict['service_contracts'] = service_contracts
                 results.append(result_dict)
              
         
@@ -129,4 +132,3 @@ def lambda_handler(event, context):
         logger.exception("Error running appointment api.")
         raise
 
-print(lambda_handler({}, None))
