@@ -182,9 +182,3 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception("Error running repair order api.")
         raise
-
-print(lambda_handler({
-    "queryStringParameters": {
-        "vin":'1GNFK130X7J254543'
-    }
-}, None))
