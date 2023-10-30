@@ -83,58 +83,6 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
             op_code_1 = aliased(OpCode)
-            subquery = (
-                session.query(
-                    ServiceRepairOrder.id.label("id"),
-                    func.jsonb_agg(text("op_code_1")).label("op_codes"),
-                )
-                .outerjoin(
-                    Consumer,
-                    ServiceRepairOrder.consumer_id == Consumer.id,
-                )
-                .outerjoin(
-                    DealerIntegrationPartner,
-                    ServiceRepairOrder.dealer_integration_partner_id
-                    == DealerIntegrationPartner.id,
-                )
-                .outerjoin(
-                    Dealer,
-                    DealerIntegrationPartner.dealer_id == Dealer.id,
-                )
-                .outerjoin(
-                    IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id
-                    == IntegrationPartner.id,
-                )
-                .outerjoin(
-                    Vehicle,
-                    ServiceRepairOrder.vehicle_id == Vehicle.id,
-                )
-                .join(
-                    OpCodeRepairOrder,
-                    OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
-                )
-                .join(
-                    op_code_1,
-                    op_code_1.id == OpCodeRepairOrder.op_code_id,
-                )
-                .group_by(ServiceRepairOrder.id)
-                
-            )
-
-            if filters:
-                subquery = filterQuery(subquery, filters, [
-                    ServiceRepairOrder, 
-                    Consumer,
-                    DealerIntegrationPartner,
-                    Dealer,
-                    IntegrationPartner,
-                    Vehicle,
-                    OpCodeRepairOrder, 
-                    op_code_1
-                ])      
-            
-            subquery = subquery.subquery()
 
             query = (
                 session.query(
@@ -144,7 +92,7 @@ def lambda_handler(event, context):
                     Dealer,
                     IntegrationPartner,
                     Vehicle,
-                    subquery.c.op_codes,
+                    func.jsonb_agg(text("op_code_1")).label("op_codes")
                 )
                 .outerjoin(
                     Consumer,
@@ -168,7 +116,15 @@ def lambda_handler(event, context):
                     Vehicle,
                     ServiceRepairOrder.vehicle_id == Vehicle.id,
                 )
-                .outerjoin(subquery, subquery.c.id == ServiceRepairOrder.id)
+                .outerjoin(
+                    OpCodeRepairOrder,
+                    OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
+                )
+                .outerjoin(
+                    op_code_1,
+                    op_code_1.id == OpCodeRepairOrder.op_code_id,
+                )
+                .group_by(ServiceRepairOrder.id, Consumer.id, DealerIntegrationPartner.id, Dealer.id, IntegrationPartner.id, Vehicle.id)
             )
 
             if filters:
@@ -181,9 +137,8 @@ def lambda_handler(event, context):
                         Vehicle
                     ]
                 )
-                            
             service_repair_orders = (
-                query.order_by(ServiceRepairOrder.db_creation_date)
+                query.order_by(ServiceRepairOrder.id)
                 .limit(max_results + 1)
                 .offset((page - 1) * max_results)
                 .all()
@@ -228,3 +183,8 @@ def lambda_handler(event, context):
         logger.exception("Error running repair order api.")
         raise
 
+print(lambda_handler({
+    "queryStringParameters": {
+        "vin":'1GNFK130X7J254543'
+    }
+}, None))
