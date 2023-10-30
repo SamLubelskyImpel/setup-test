@@ -450,7 +450,7 @@ paths:
                 properties:
                   next_fetch_key:
                     type: string
-                  repair_orders:
+                  appointments:
                     type: array
                     items:
                       "$ref": "#/components/schemas/AppointmentResponse"
@@ -488,7 +488,7 @@ components:
                     $ref: '#/components/schemas/Vehicle'
               - type: object
                 properties:
-                  service_contracts_list:
+                  service_contracts:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceContracts'
