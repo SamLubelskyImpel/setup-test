@@ -12,7 +12,6 @@ from dms_orm.models.integration_partner import IntegrationPartner
 from dms_orm.models.service_contract import ServiceContract
 from dms_orm.session_config import DBSession
 from sqlalchemy import func, text
-from sqlalchemy.orm import aliased
 
 
 logger = logging.getLogger()
