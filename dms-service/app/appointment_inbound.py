@@ -36,6 +36,14 @@ def filter_query(query, filters, tables):
             query = query.filter(
                 getattr(Appointment, "appointment_date") <= value
             )
+        elif attr == "db_creation_date_start":
+            query = query.filter(
+                getattr(Appointment, "db_creation_date") >= value
+            )
+        elif attr == "db_creation_date_end":
+            query = query.filter(
+                getattr(Appointment, "db_creation_date") <= value
+            )
         else:
             filtered_table = None
             for table in tables:

@@ -432,6 +432,22 @@ paths:
         description: The latest appointment_date of the appointment to query for.
       - schema:
           type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_start
+        required: false
+        description: The earliest db_creation_date of the appointment to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the appointment to query for.
+      - schema:
+          type: string
         in: query
         name: stock_num
         description: The Stock Number of the vehicle to query for.
