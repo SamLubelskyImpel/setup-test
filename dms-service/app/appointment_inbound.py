@@ -25,7 +25,8 @@ def json_serial(obj):
     return str(obj)
 
 
-def filterQuery(query, filters, tables):
+def filter_query(query, filters, tables):
+    """Function filters the query based on filters."""
     for attr, value in filters.items():
         if attr == "appointment_date_start":
             query = query.filter(
@@ -34,14 +35,6 @@ def filterQuery(query, filters, tables):
         elif attr == "appointment_date_end":
             query = query.filter(
                 getattr(Appointment, "appointment_date") <= value
-            )
-        elif attr == "db_creation_date_start":
-            query = query.filter(
-                getattr(Appointment, "db_creation_date") >= value
-            )
-        elif attr == "db_creation_date_end":
-            query = query.filter(
-                getattr(Appointment, "db_creation_date") <= value
             )
         else:
             filtered_table = None
@@ -54,10 +47,11 @@ def filterQuery(query, filters, tables):
             query = query.filter(getattr(filtered_table, attr) == value)
     return query
 
+
 def lambda_handler(event, context):
     """Run appointment API."""
-    logger.info(f"Event: {event}")
-    
+    logger.info("Event: %s",event)
+
     try:
         filters = event.get("queryStringParameters", {})
         page = 1 if not filters else int(filters.get("page", "1"))
@@ -73,21 +67,38 @@ def lambda_handler(event, context):
         with DBSession() as session:
 
             query = (
-                session.query(Appointment, Consumer, Vehicle, func.jsonb_agg(text('service_contracts.*')).label("service_contracts"))
-                .outerjoin(DealerIntegrationPartner, Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id)
+                session.query(
+                    Appointment,
+                    Consumer,
+                    Vehicle,
+                    func.jsonb_agg(text('service_contracts')).label("service_contracts"))
+                .outerjoin(
+                    DealerIntegrationPartner,
+                    Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id
+                )
                 .outerjoin(Consumer, Appointment.consumer_id == Consumer.id)
                 .outerjoin(Vehicle, Appointment.vehicle_id == Vehicle.id)
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
-                .outerjoin(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
+                .outerjoin(
+                    IntegrationPartner,
+                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+                )
                 .outerjoin(
                     ServiceContract,
                     ServiceContract.appointment_id == Appointment.id,
                 )
-                .group_by(Appointment.id, DealerIntegrationPartner.id, Consumer.id, Vehicle.id, Dealer.id, IntegrationPartner.id)
+                .group_by(
+                    Appointment.id,
+                    DealerIntegrationPartner.id,
+                    Consumer.id,
+                    Vehicle.id,
+                    Dealer.id,
+                    IntegrationPartner.id
+                )
             )
 
-            if filters: 
-                query = filterQuery(query, filters, [
+            if filters:
+                query = filter_query(query, filters, [
                     Appointment,
                     DealerIntegrationPartner,
                     Consumer,
@@ -95,14 +106,14 @@ def lambda_handler(event, context):
                     Dealer,
                     IntegrationPartner
                 ])
-            
+
             appointments = (
                     query.order_by(Appointment.id)
                     .limit(max_results + 1)
                     .offset((page - 1) * max_results)
                     .all()
-                )
-            
+            )
+
             results = []
 
             for(appointment, consumer, vehicle, service_contracts) in appointments[:max_results]:
@@ -111,9 +122,8 @@ def lambda_handler(event, context):
                 result_dict['vehicle'] = vehicle.as_dict()
                 result_dict['service_contracts'] = [x for x in service_contracts if x]
                 results.append(result_dict)
-             
-        
-        return {
+
+            return {
                 "statusCode": "200",
                 "body": dumps(
                     {

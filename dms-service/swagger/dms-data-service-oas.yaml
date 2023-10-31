@@ -416,7 +416,7 @@ paths:
         description: The id of the DMS assigned by Impel.
       - schema:
           type: string
-          format: date-time
+          format: date
           example: 2023-05-25
         in: query
         name: appointment_date_start
@@ -424,7 +424,7 @@ paths:
         description: The earliest appointment_date of the appointment to query for.
       - schema:
           type: string
-          format: date-time
+          format: date
           example: 2023-05-25
         in: query
         name: appointment_date_end
@@ -784,7 +784,7 @@ components:
           example: '2021-11-19'
         vin:
           type: string
-          example: '1G1FX6S05P4158304'  
+          example: '1G1FX6S05P4158304'
     RepairOrder:
         type: object
         properties:
@@ -851,10 +851,10 @@ components:
           type: string
         reason_code:
           type: string
-        appointment_create_ts: 
+        appointment_create_ts:
           type: string
           format: date-time
-        appointment_update_ts: 
+        appointment_update_ts:
           type: string
           format: date-time
         rescheduled_flag:

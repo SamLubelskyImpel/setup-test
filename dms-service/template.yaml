@@ -15,7 +15,7 @@ Parameters:
     AllowedPattern: '^[a-zA-z0-9-]+$|'
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
     Default: ""
-    
+
 Conditions:
   IsProd:
     Fn::Equals:
@@ -79,7 +79,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "dms service rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]
@@ -181,7 +181,7 @@ Resources:
             Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
+            Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*"
                       ]
@@ -207,7 +207,7 @@ Resources:
             Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
+            Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
@@ -233,7 +233,7 @@ Resources:
             Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
+            Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
@@ -259,7 +259,7 @@ Resources:
             Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
+            Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
@@ -271,7 +271,7 @@ Resources:
       Handler: appointment_inbound.lambda_handler
       Timeout: 30
       Events:
-        Get: 
+        Get:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway
@@ -285,8 +285,7 @@ Resources:
             Effect: Allow
             Action:
               - secretsmanager:GetSecretValue
-            Resource: !If [ IsProd, 
+            Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                      ] 
-                      
+                      ]
