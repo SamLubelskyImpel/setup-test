@@ -14,7 +14,6 @@ from dms_orm.models.service_repair_order import ServiceRepairOrder
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import DBSession
 from sqlalchemy import func, text
-from sqlalchemy.orm import aliased
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
