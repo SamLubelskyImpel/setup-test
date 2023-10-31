@@ -26,8 +26,9 @@ def json_serial(obj):
         return obj.isoformat()
     return str(obj)
 
-def filterQuery(query, filters, tables):
-    
+def filter_query(query, filters, tables):
+    """Function filters the query based on filters."""
+
     for attr, value in filters.items():
         if attr == "ro_open_date_start":
             query = query.filter(
@@ -82,8 +83,6 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
-            op_code_1 = aliased(OpCode)
-
             query = (
                 session.query(
                     ServiceRepairOrder,
@@ -92,7 +91,7 @@ def lambda_handler(event, context):
                     Dealer,
                     IntegrationPartner,
                     Vehicle,
-                    func.jsonb_agg(text("op_code_1")).label("op_codes")
+                    func.jsonb_agg(text("op_code")).label("op_codes")
                 )
                 .outerjoin(
                     Consumer,
@@ -121,14 +120,20 @@ def lambda_handler(event, context):
                     OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
                 )
                 .outerjoin(
-                    op_code_1,
-                    op_code_1.id == OpCodeRepairOrder.op_code_id,
+                    OpCode,
+                    OpCode.id == OpCodeRepairOrder.op_code_id,
                 )
-                .group_by(ServiceRepairOrder.id, Consumer.id, DealerIntegrationPartner.id, Dealer.id, IntegrationPartner.id, Vehicle.id)
+                .group_by(
+                    ServiceRepairOrder.id,
+                    Consumer.id,
+                    DealerIntegrationPartner.id,
+                    Dealer.id, IntegrationPartner.id,
+                    Vehicle.id
+                )
             )
 
             if filters:
-                query = filterQuery(query, filters, [
+                query = filter_query(query, filters, [
                         ServiceRepairOrder,
                         Consumer,
                         DealerIntegrationPartner,
@@ -162,7 +167,7 @@ def lambda_handler(event, context):
                 result_dict["dealer"] = dealer.as_dict()
                 result_dict["integration_partner"] = integration_partner.as_dict()
                 result_dict["vehicle"] = vehicle.as_dict() if vehicle else None
-                result_dict["op_codes"] = op_codes
+                result_dict["op_codes"] = [x for x in op_codes if x]
                 results.append(result_dict)
 
         return {
