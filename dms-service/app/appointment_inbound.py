@@ -50,7 +50,7 @@ def filter_query(query, filters, tables):
 
 def lambda_handler(event, context):
     """Run appointment API."""
-    logger.info("Event: %s",event)
+    logger.info(f"Event: {event}")
 
     try:
         filters = event.get("queryStringParameters", {})
