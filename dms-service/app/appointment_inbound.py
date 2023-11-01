@@ -79,7 +79,7 @@ def lambda_handler(event, context):
                     Appointment,
                     Consumer,
                     Vehicle,
-                    func.jsonb_agg(text('service_contracts')).label("service_contracts"))
+                    func.jsonb_agg(text('service_contracts.*')).label("service_contracts"))
                 .outerjoin(
                     DealerIntegrationPartner,
                     Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id
