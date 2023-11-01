@@ -137,6 +137,10 @@ Resources:
     Properties:
       Name: !Sub "crm-api-${Environment}"
       StageName: !Ref Environment
+      Domain:
+        DomainName: !If [ IsProd, 'crm-api.impel.io', 'crm-api.testenv.impel.io' ]
+        CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+        SecurityPolicy: TLS_1_2
       Auth:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
