@@ -1,10 +1,7 @@
 """ Copy the prod s3 data to test. """
-from os import environ, remove
+from os import remove
 
 import boto3
-
-session = boto3.Session(profile_name="unified-prod")
-s3_client = session.client("s3")
 
 
 def download_file_from_s3(bucket_name, object_key, local_filename, is_prod=False):
@@ -37,12 +34,27 @@ def list_files_in_bucket(bucket_name, prefix, is_prod=False):
     profile_name = f"unified-{env_name}"
     session = boto3.Session(profile_name=profile_name)
     s3_client = session.client("s3")
-    response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
 
     files = []
-    if "Contents" in response:
-        for obj in response["Contents"]:
-            files.append(obj["Key"])
+
+    continuation_token = None
+    while True:
+        if continuation_token:
+            response = s3_client.list_objects_v2(
+                Bucket=bucket_name, Prefix=prefix, ContinuationToken=continuation_token
+            )
+        else:
+            response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                files.append(obj["Key"])
+
+        if "NextContinuationToken" in response:
+            continuation_token = response["NextContinuationToken"]
+        else:
+            # No more continuation tokens, exit the loop
+            break
 
     return files
 
