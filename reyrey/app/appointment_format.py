@@ -6,6 +6,8 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from json import dumps, loads
 from os import environ
+from datetime import date
+
 
 import boto3
 from unified_df import upload_unified_json
@@ -67,7 +69,9 @@ def parse_xml_to_entries(xml_string, s3_uri):
         db_service_appointment = {}
         db_vehicle = {}
         db_consumer = {}
-        db_op_codes = []
+        db_service_contracts = []
+
+        db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
 
         appointment_time = service_appointment.find(".//ns:AppointmentTime", namespaces=ns)
         if appointment_time is not None:
@@ -116,14 +120,24 @@ def parse_xml_to_entries(xml_string, s3_uri):
                 db_service_appointment["last_ro_num"] = vehicle_service_info.get(
                     "LastRONum"
                 )
-
                 db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
+
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
                 db_vehicle["vin"] = rr_vehicle.get("Vin")
                 db_vehicle["make"] = rr_vehicle.get("VehicleMake")
                 db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
+
+        outside_appointment_source = service_appointment.find(
+            ".//ns:OutsideApptSource", namespaces=ns
+        )
+        if outside_appointment_source is not None:
+            date_time_stamp = outside_appointment_source.find(
+                ".//ns:DateTimeStamp", namespaces=ns
+            )
+            if date_time_stamp is not None:
+                db_service_appointment["appointment_create_ts"] =
 
 
 
