@@ -117,6 +117,29 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     "LastRONum"
                 )
                 db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
+                db_vehicle["warranty_expiration_miles"] = vehicle_service_info.get(
+                    "FactoryWarrExpOdom"
+                )
+                db_vehicle["warranty_expiration_date"] = vehicle_service_info.get(
+                    "FactoryWarrExpDate"
+                )
+                for vehicle_ext_warranty in vehicle_service_info.findall(
+                    ".//ns:VehicleExtWarr", namespaces=ns
+                ):
+                    db_service_contract = {}
+                    db_service_contract["service_contracts|contract_id"] = vehicle_ext_warranty.get(
+                        "ContractNo"
+                    )
+                    db_service_contract["service_contracts|contract_name"] = vehicle_ext_warranty.get(
+                        "ContractName"
+                    )
+                    db_service_contract["service_contracts|expiration_miles"] = vehicle_ext_warranty.get(
+                        "ExpirationOdom"
+                    )
+                    db_service_contract["service_contracts|contract_expiration_date"] = vehicle_ext_warranty.get(
+                        "ExpirationDate"
+                    )
+                    db_service_contracts.append(db_service_contract)
 
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
@@ -124,18 +147,9 @@ def parse_xml_to_entries(xml_string, s3_uri):
                 db_vehicle["make"] = rr_vehicle.get("VehicleMake")
                 db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
-
-        outside_appointment_source = service_appointment.find(
-            ".//ns:OutsideApptSource", namespaces=ns
-        )
-        if outside_appointment_source is not None:
-            date_time_stamp = outside_appointment_source.find(
-                ".//ns:DateTimeStamp", namespaces=ns
-            )
-            if date_time_stamp is not None:
-                db_service_appointment["appointment_create_ts"] =
-
-
+                vehicle_detail = rr_vehicle.find(".//ns:VehicleDetail", namespaces=ns)
+                if vehicle_detail is not None:
+                    db_vehicle["mileage"] = vehicle_detail.get("OdomReading")
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
@@ -146,7 +160,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "appointment": db_service_appointment,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
-            "op_codes.op_codes": db_op_codes,
+            "service_contracts.service_contracts": db_service_contracts,
         }
         entries.append(entry)
     return entries, dms_id
