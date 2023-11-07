@@ -6,9 +6,6 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from json import dumps, loads
 from os import environ
-from datetime import date
-
-
 import boto3
 from unified_df import upload_unified_json
 
@@ -145,11 +142,15 @@ def parse_xml_to_entries(xml_string, s3_uri):
             if rr_vehicle is not None:
                 db_vehicle["vin"] = rr_vehicle.get("Vin")
                 db_vehicle["make"] = rr_vehicle.get("VehicleMake")
-                db_vehicle["model"] = rr_vehicle.get("Carline")
+                db_vehicle["model"] = rr_vehicle.get("ModelDesc") + rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
                 vehicle_detail = rr_vehicle.find(".//ns:VehicleDetail", namespaces=ns)
                 if vehicle_detail is not None:
                     db_vehicle["mileage"] = vehicle_detail.get("OdomReading")
+
+            outside_appt_src = service_appointment.find(".//ns:OutsideApptSrc", namespaces=ns)
+            if outside_appt_src is not None:
+                db_service_appointment["appointment_source"] = outside_appt_src.get("outside")
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
