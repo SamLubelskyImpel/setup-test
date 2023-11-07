@@ -37,8 +37,6 @@ def parse_xml_to_entries(xml_string, s3_uri):
     dealer_number = None
     store_number = None
     area_number = None
-    component = None
-    task = None
     if application_area is not None:
         boid = application_area.find(".//ns:BODId", namespaces=ns).text
         sender = application_area.find(".//ns:Sender", namespaces=ns)
@@ -46,8 +44,6 @@ def parse_xml_to_entries(xml_string, s3_uri):
             dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
             store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
             area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
-            component = sender.find(".//ns:Component", namespaces=ns).text
-            task = sender.find(".//ns:Task", namespaces=ns).text
 
     if not dealer_number and not store_number and not area_number:
         raise RuntimeError("Unknown dealer id")
