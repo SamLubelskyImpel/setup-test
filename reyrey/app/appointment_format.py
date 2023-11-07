@@ -66,6 +66,14 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
         db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
 
+        if service_appointment.get("ApptStatus") == "Update" or service_appointment.get("ApptStatus") == "Delete":
+            db_service_appointment["rescheduled_flag"] = True
+        else:
+            db_service_appointment["rescheduled_flag"] = False
+
+        if application_area is not None:
+            db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
+
         appointment_time = service_appointment.find(".//ns:AppointmentTime", namespaces=ns)
         if appointment_time is not None:
             date_time_stamp = appointment_time.find(".//ns:DateTimeStamp", namespaces=ns)
@@ -142,15 +150,15 @@ def parse_xml_to_entries(xml_string, s3_uri):
             if rr_vehicle is not None:
                 db_vehicle["vin"] = rr_vehicle.get("Vin")
                 db_vehicle["make"] = rr_vehicle.get("VehicleMake")
-                db_vehicle["model"] = rr_vehicle.get("ModelDesc") + rr_vehicle.get("Carline")
+                db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
                 vehicle_detail = rr_vehicle.find(".//ns:VehicleDetail", namespaces=ns)
                 if vehicle_detail is not None:
                     db_vehicle["mileage"] = vehicle_detail.get("OdomReading")
 
             outside_appt_src = service_appointment.find(".//ns:OutsideApptSrc", namespaces=ns)
-            if outside_appt_src is not None:
-                db_service_appointment["appointment_source"] = outside_appt_src.get("outside")
+            if outside_appt_src.get("Appointment") is not None:
+                db_service_appointment["appointment_source"] = 'External'
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
