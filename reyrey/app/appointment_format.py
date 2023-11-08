@@ -35,7 +35,6 @@ def parse_xml_to_entries(xml_string, s3_uri):
     store_number = None
     area_number = None
     if application_area is not None:
-        boid = application_area.find(".//ns:BODId", namespaces=ns).text
         sender = application_area.find(".//ns:Sender", namespaces=ns)
         if sender is not None:
             dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
@@ -52,7 +51,6 @@ def parse_xml_to_entries(xml_string, s3_uri):
         "PartitionYear": s3_uri.split("/")[2],
         "PartitionMonth": s3_uri.split("/")[3],
         "PartitionDate": s3_uri.split("/")[4],
-        "BODId": boid,
         "s3_url": s3_uri,
     }
 
@@ -119,7 +117,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     "LastRODate"
                 )
                 db_service_appointment["last_ro_num"] = vehicle_service_info.get(
-                    "LastRONum"
+                    "LastRONo"
                 )
                 db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
                 db_vehicle["warranty_expiration_miles"] = vehicle_service_info.get(
@@ -129,7 +127,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     "FactoryWarrExpDate"
                 )
                 for vehicle_ext_warranty in vehicle_service_info.findall(
-                    ".//ns:VehicleExtWarr", namespaces=ns
+                    ".//ns:VehExtWarranty", namespaces=ns
                 ):
                     db_service_contract = {}
                     db_service_contract["service_contracts|contract_id"] = vehicle_ext_warranty.get(
@@ -141,7 +139,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     db_service_contract["service_contracts|expiration_miles"] = vehicle_ext_warranty.get(
                         "ExpirationOdom"
                     )
-                    db_service_contract["service_contracts|contract_expiration_date"] = vehicle_ext_warranty.get(
+                    db_service_contract["service_contracts|warranty_expiration_date"] = vehicle_ext_warranty.get(
                         "ExpirationDate"
                     )
                     db_service_contracts.append(db_service_contract)
@@ -188,7 +186,7 @@ def lambda_handler(event, context):
                 with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
                     xml_string = file.read().decode("utf-8")
                 entries, dms_id = parse_xml_to_entries(xml_string, decoded_key)
-                upload_unified_json(entries, "repair_order", decoded_key, dms_id)
+                upload_unified_json(entries, "service_appointment", decoded_key, dms_id)
     except Exception:
         logger.exception(f"Error transforming reyrey appointment file {event}")
         raise
