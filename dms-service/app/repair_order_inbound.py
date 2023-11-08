@@ -14,7 +14,6 @@ from dms_orm.models.service_repair_order import ServiceRepairOrder
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import DBSession
 from sqlalchemy import func, text
-from sqlalchemy.orm import aliased
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -25,6 +24,45 @@ def json_serial(obj):
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     return str(obj)
+
+def filter_query(query, filters, tables):
+    """Function filters the query based on filters."""
+
+    for attr, value in filters.items():
+        if attr == "ro_open_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_open_date") >= value
+            )
+        elif attr == "ro_open_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_open_date") <= value
+            )
+        elif attr == "ro_close_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_close_date") >= value
+            )
+        elif attr == "ro_close_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "ro_close_date") <= value
+            )
+        elif attr == "db_creation_date_start":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "db_creation_date") >= value
+            )
+        elif attr == "db_creation_date_end":
+            query = query.filter(
+                getattr(ServiceRepairOrder, "db_creation_date") <= value
+            )
+        else:
+            filtered_table = None
+            for table in tables:
+                if attr in table.__table__.columns:
+                    filtered_table = table
+
+            if not filtered_table:
+                continue
+            query = query.filter(getattr(filtered_table, attr) == value)
+    return query
 
 
 def lambda_handler(event, context):
@@ -44,24 +82,6 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
-            op_code_1 = aliased(OpCode)
-            subquery = (
-                session.query(
-                    ServiceRepairOrder.id.label("id"),
-                    func.jsonb_agg(text("op_code_1")).label("op_codes"),
-                )
-                .join(
-                    OpCodeRepairOrder,
-                    OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
-                )
-                .join(
-                    op_code_1,
-                    op_code_1.id == OpCodeRepairOrder.op_code_id,
-                )
-                .group_by(ServiceRepairOrder.id)
-                .subquery()
-            )
-
             query = (
                 session.query(
                     ServiceRepairOrder,
@@ -70,7 +90,7 @@ def lambda_handler(event, context):
                     Dealer,
                     IntegrationPartner,
                     Vehicle,
-                    subquery.c.op_codes,
+                    func.jsonb_agg(text("op_code.*")).label("op_codes")
                 )
                 .outerjoin(
                     Consumer,
@@ -94,55 +114,35 @@ def lambda_handler(event, context):
                     Vehicle,
                     ServiceRepairOrder.vehicle_id == Vehicle.id,
                 )
-                .outerjoin(subquery, subquery.c.id == ServiceRepairOrder.id)
+                .outerjoin(
+                    OpCodeRepairOrder,
+                    OpCodeRepairOrder.repair_order_id == ServiceRepairOrder.id,
+                )
+                .outerjoin(
+                    OpCode,
+                    OpCode.id == OpCodeRepairOrder.op_code_id,
+                )
+                .group_by(
+                    ServiceRepairOrder.id,
+                    Consumer.id,
+                    DealerIntegrationPartner.id,
+                    Dealer.id, IntegrationPartner.id,
+                    Vehicle.id
+                )
             )
 
             if filters:
-                tables = [
-                    ServiceRepairOrder,
-                    Consumer,
-                    DealerIntegrationPartner,
-                    Dealer,
-                    IntegrationPartner,
-                    Vehicle,
-                ]
-                for attr, value in filters.items():
-                    if attr == "ro_open_date_start":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "ro_open_date") >= value
-                        )
-                    elif attr == "ro_open_date_end":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "ro_open_date") <= value
-                        )
-                    elif attr == "ro_close_date_start":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "ro_close_date") >= value
-                        )
-                    elif attr == "ro_close_date_end":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "ro_close_date") <= value
-                        )
-                    elif attr == "db_creation_date_start":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "db_creation_date") >= value
-                        )
-                    elif attr == "db_creation_date_end":
-                        query = query.filter(
-                            getattr(ServiceRepairOrder, "db_creation_date") <= value
-                        )
-                    else:
-                        filtered_table = None
-                        for table in tables:
-                            if attr in table.__table__.columns:
-                                filtered_table = table
-
-                        if not filtered_table:
-                            continue
-                        query = query.filter(getattr(filtered_table, attr) == value)
-
+                query = filter_query(query, filters, [
+                        ServiceRepairOrder,
+                        Consumer,
+                        DealerIntegrationPartner,
+                        Dealer,
+                        IntegrationPartner,
+                        Vehicle
+                    ]
+                )
             service_repair_orders = (
-                query.order_by(ServiceRepairOrder.db_creation_date)
+                query.order_by(ServiceRepairOrder.id)
                 .limit(max_results + 1)
                 .offset((page - 1) * max_results)
                 .all()
@@ -166,7 +166,7 @@ def lambda_handler(event, context):
                 result_dict["dealer"] = dealer.as_dict()
                 result_dict["integration_partner"] = integration_partner.as_dict()
                 result_dict["vehicle"] = vehicle.as_dict() if vehicle else None
-                result_dict["op_codes"] = op_codes
+                result_dict["op_codes"] = [x for x in op_codes if x]
                 results.append(result_dict)
 
         return {

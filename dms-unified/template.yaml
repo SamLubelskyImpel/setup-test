@@ -85,13 +85,14 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: UnifiedRODLQ
+      MessageRetentionPeriod: 1209600  # 14 days
   
   UnifiedROQueue:
     Type: AWS::SQS::Queue
     DependsOn: UnifiedRODLQ
     Properties:
       QueueName: UnifiedROQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt UnifiedRODLQ.Arn
         maxReceiveCount: 5
@@ -197,13 +198,14 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: UnifiedFIDLQ
+      MessageRetentionPeriod: 1209600  # 14 days
   
   UnifiedFIQueue:
     Type: AWS::SQS::Queue
     DependsOn: UnifiedFIDLQ
     Properties:
       QueueName: UnifiedFIQueue
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt UnifiedFIDLQ.Arn
         maxReceiveCount: 5
