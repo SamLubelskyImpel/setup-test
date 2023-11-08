@@ -12,7 +12,7 @@ class DealerIntegrationPartner(BaseForModels):
     __tablename__ = "dealer_integration_partner"
 
     id = Column(Integer, primary_key=True)
-    integration_partner_id = Column(Integer, ForeignKey("integration.id"))
+    integration_partner_id = Column(Integer, ForeignKey("integration_partner.id"))
     dealer_id = Column(Integer, ForeignKey("dealer.id"))
     dms_id = Column(String)
     is_active = Column(Boolean)
