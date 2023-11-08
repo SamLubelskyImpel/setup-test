@@ -161,6 +161,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = metadata
+        db_service_appointment["metadata"] = metadata
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
