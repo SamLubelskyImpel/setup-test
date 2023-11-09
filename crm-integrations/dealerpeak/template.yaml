@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: dealerpeak crm integration
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - 196800776222
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
+                    ]
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                - !If [
+                    IsProd,
+                    "arn:aws:s3:::crm-integrations-prod/raw*",
+                    "arn:aws:s3:::crm-integrations-test/raw*"
+                  ]
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt InvokeDataPullQueue.Arn
+
+  InvokeDataPull:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub invoke_dealerpeak_data_pull-${Environment}
+      CodeUri: app/
+      Handler: invoke_dealerpeak.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+          SECRET_KEY: "DEALERPEAK"
+
+  InvokeDataPullEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt InvokeDataPull.Arn
+
+  InvokeDataPullQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "invoke_dealerpeak_queue-${Environment}"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      
+  InvokeDataPullDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "invoke_dealerpeak_dlq-${Environment}"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
