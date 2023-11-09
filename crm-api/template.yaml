@@ -397,6 +397,23 @@ Resources:
       Layers:
         - !Ref CrmApiDataLayer
 
+  UploadData:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/upload/
+      Handler: upload_data.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /upload
+            Method: POST
+      Layers:
+        - !Ref CrmApiDataLayer
+
   CrmApiDataLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:

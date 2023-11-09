@@ -411,6 +411,34 @@ paths:
           "$ref": "#/components/responses/400"
         '404':
           "$ref": "#/components/responses/404"
+  /upload:
+    post:
+      summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
+      #{{UPLOAD_DATA_LAMBDA_INFO}}
+      tags:
+        - Upload
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lead:
+                  $ref: '#/components/schemas/Lead'
+                consumer:
+                  $ref: '#/components/schemas/Consumer'
+                salesperson:
+                  $ref: '#/components/schemas/Salesperson'
+      responses:
+        '200':
+          description: Data successfully uploaded
+        '400':
+          "$ref": "#/components/responses/400"
+        '404':
+          "$ref": "#/components/responses/404"
 components:
   schemas:
     VehiclesOfInterest:
