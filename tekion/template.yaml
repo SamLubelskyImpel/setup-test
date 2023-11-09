@@ -42,6 +42,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        CE_TOPIC: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
 
 Resources:
   TekionGlueRole:
@@ -67,7 +68,7 @@ Resources:
                 Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !If [ IsProd, 
+                Resource: !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
                       ]
@@ -82,16 +83,16 @@ Resources:
                   - s3:PutObject
                   - s3:ListBucket
                   - s3:*Object
-                Resource: 
-                  - !If [ IsProd, 
+                Resource:
+                  - !If [ IsProd,
                       'arn:aws:s3:::integrations-etl-prod/raw_data/*',
                       'arn:aws:s3:::integrations-etl-test/raw_data/*'
                     ]
-                  - !If [ IsProd, 
+                  - !If [ IsProd,
                       'arn:aws:s3:::integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
                       'arn:aws:s3:::integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
-                  - !If [ IsProd, 
+                  - !If [ IsProd,
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                     ]
@@ -123,7 +124,7 @@ Resources:
                   - sqs:GetQueueAttributes
                   - sqs:ListQueueTags
                   - sqs:SetQueueAttributes
-                Resource: 
+                Resource:
                   - !GetAtt TekionROQueue.Arn
                   - !GetAtt TekionRODLQ.Arn
                   - !GetAtt TekionDealQueue.Arn
@@ -185,7 +186,7 @@ Resources:
       Configuration: '{"Version":1.0,"CrawlerOutput":{"Partitions":{"AddOrUpdateBehavior":"InheritFromTable"},"Tables":{"AddOrUpdateBehavior":"MergeNewColumns"}},"Grouping":{"TableGroupingPolicy":"CombineCompatibleSchemas"}}'
       RecrawlPolicy:
         RecrawlBehavior: 'CRAWL_EVENT_MODE'
-  
+
   TekionROCrawler:
     Type: AWS::Glue::Crawler
     Properties:
@@ -224,17 +225,17 @@ Resources:
         MaxConcurrentRuns: 1
       Connections:
         Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
+            - !Sub 'tekion-rds-connection-${Environment}'
       Command:
         Name: glueetl
         PythonVersion: 3
-        ScriptLocation: !If [ IsProd, 
+        ScriptLocation: !If [ IsProd,
                       's3://integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
-      DefaultArguments: 
+      DefaultArguments:
         '--job-bookmark-option': 'job-bookmark-enable'
-        '--TempDir': !If [ IsProd, 
+        '--TempDir': !If [ IsProd,
                       's3://integrations-etl-prod/temporaryDeal/',
                       's3://integrations-etl-test/temporaryDeal/'
                     ]
@@ -242,7 +243,7 @@ Resources:
         '--region': !Ref AWS::Region
         '--db_name': !Ref TekionCrawlerDB
         '--catalog_table_names': "tekioncrawlerdb_fi_closed_deal"
-        '--catalog_connection': !Ref RDSConnection
+        '--catalog_connection': !Ref TekionRDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
@@ -259,17 +260,17 @@ Resources:
         MaxConcurrentRuns: 1
       Connections:
         Connections:
-            - !Sub 'dms-rds-connection-${Environment}'
+            - !Sub 'tekion-rds-connection-${Environment}'
       Command:
         Name: glueetl
         PythonVersion: 3
-        ScriptLocation: !If [ IsProd, 
+        ScriptLocation: !If [ IsProd,
                       's3://integrations-etl-prod/glue_etl_job/tekion_glue_job.py',
                       's3://integrations-etl-test/glue_etl_job/tekion_glue_job.py'
                     ]
-      DefaultArguments: 
+      DefaultArguments:
         '--job-bookmark-option': 'job-bookmark-enable'
-        '--TempDir': !If [ IsProd, 
+        '--TempDir': !If [ IsProd,
                       's3://integrations-etl-prod/temporaryRO/',
                       's3://integrations-etl-test/temporaryRO/'
                     ]
@@ -277,7 +278,7 @@ Resources:
         '--db_name': !Ref TekionCrawlerDB
         '--region': !Ref AWS::Region
         '--catalog_table_names': "tekioncrawlerdb_repair_order"
-        '--catalog_connection': !Ref RDSConnection
+        '--catalog_connection': !Ref TekionRDSConnection
         '--environment': !Ref Environment
         '--additional-python-modules': 'psycopg2-binary==2.9.3'
 
@@ -319,14 +320,14 @@ Resources:
 
   TekionWorkflowRO:
     Type: AWS::Glue::Workflow
-    Properties: 
+    Properties:
       Description: Workflow for orchestrating glue tekion RO jobs
       Name: !Sub 'tekion-glue-workflow-ro-${Environment}'
-  
-  TekionWorkflowRORuleEvent: 
+
+  TekionWorkflowRORuleEvent:
     Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
+    Properties:
+      EventPattern:
         source:
         - "aws.s3"
         detail-type:
@@ -334,7 +335,7 @@ Resources:
         detail:
           bucket:
             name:
-            - !If [ IsProd, 
+            - !If [ IsProd,
                     !Sub "integrations-${AWS::Region}-prod",
                     !Sub "integrations-${AWS::Region}-test",
                   ]
@@ -345,7 +346,7 @@ Resources:
         - Id: !Sub tekion-workflow-ro-target-${Environment}
           Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${TekionWorkflowRO}
           RoleArn: !GetAtt TekionEventBridgeRole.Arn
-  
+
   TekionWorkflowROStart:
     Type: AWS::Glue::Trigger
     Properties:
@@ -374,17 +375,17 @@ Resources:
             - LogicalOperator: EQUALS
               CrawlerName: !Ref TekionROCrawler
               CrawlState: SUCCEEDED
-  
+
   TekionWorkflowDeal:
     Type: AWS::Glue::Workflow
-    Properties: 
+    Properties:
       Description: Workflow for orchestrating glue tekion deal jobs
       Name: !Sub 'tekion-glue-workflow-deal-${Environment}'
-  
-  TekionWorkflowDealRuleEvent: 
+
+  TekionWorkflowDealRuleEvent:
     Type: AWS::Events::Rule
-    Properties: 
-      EventPattern: 
+    Properties:
+      EventPattern:
         source:
         - "aws.s3"
         detail-type:
@@ -392,7 +393,7 @@ Resources:
         detail:
           bucket:
             name:
-            - !If [ IsProd, 
+            - !If [ IsProd,
                     !Sub "integrations-${AWS::Region}-prod",
                     !Sub "integrations-${AWS::Region}-test",
                   ]
@@ -403,7 +404,7 @@ Resources:
         - Id: !Sub tekion-workflow-ro-target-${Environment}
           Arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:workflow/${TekionWorkflowDeal}
           RoleArn: !GetAtt TekionEventBridgeRole.Arn
-  
+
   TekionWorkflowDealStart:
     Type: AWS::Glue::Trigger
     Properties:
@@ -463,7 +464,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "tekion glue rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]
@@ -472,28 +473,36 @@ Resources:
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
 
-  RDSConnection:
+  TekionRDSConnection:
     Type: AWS::Glue::Connection
-    Properties: 
+    Properties:
       CatalogId: !Ref AWS::AccountId
-      ConnectionInput: 
+      ConnectionInput:
+        Name: !Sub 'tekion-rds-connection-${Environment}'
+        PhysicalConnectionRequirements:
+          AvailabilityZone: 'us-east-1b'
+          SecurityGroupIdList:
+            - !GetAtt SecurityGroup.GroupId
+          SubnetId: !If [ IsProd,
+                  'subnet-0b1555d5fa3c8ba8e',
+                  'subnet-030d57e39ec0df603'
+                ]
         ConnectionProperties:
-          Name: 'TekionConnection'
           Type: JDBC
-          JDBC_CONNECTION_URL: !If [ IsProd, 
+          JDBC_CONNECTION_URL: !If [ IsProd,
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:jdbc_url}}',
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:jdbc_url}}'
                   ]
-          USERNAME: !If [ IsProd, 
+          USERNAME: !If [ IsProd,
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:user}}',
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:user}}'
                   ]
-          PASSWORD: !If [ IsProd, 
+          PASSWORD: !If [ IsProd,
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:prod/DMSDB:SecretString:password}}',
                     !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:test/DMSDB:SecretString:password}}'
                   ]
         ConnectionType: JDBC
-  
+
   TekionETLDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -503,12 +512,12 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: TekionDealDLQ
-  
+
   TekionRODLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: TekionRODLQ
-  
+
   TekionROQueue:
     Type: AWS::SQS::Queue
     DependsOn: TekionRODLQ
@@ -521,12 +530,12 @@ Resources:
   TekionDealQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt TekionDealQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -550,7 +559,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -567,12 +576,12 @@ Resources:
   TekionROQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt TekionROQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -596,7 +605,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -756,7 +765,7 @@ Resources:
             Action:
               - glue:*
             Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:crawler/${TekionDealCrawler}
-      Roles: 
+      Roles:
         - "dev"
 
   RepairOrderQueue:
@@ -766,6 +775,7 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt RepairOrderDLQ.Arn
         maxReceiveCount: 5
+
   RepairOrderDLQ:
     Type: AWS::SQS::Queue
 
@@ -776,6 +786,7 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DealsDLQ.Arn
         maxReceiveCount: 5
+
   DealsDLQ:
     Type: AWS::SQS::Queue
 
@@ -819,14 +830,14 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !If [ IsProd, 
+                  - !If [ IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
                     ]
-                  - !If [ IsProd, 
+                  - !If [ IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
-                    ]     
+                    ]
         - PolicyName: S3Policy
           PolicyDocument:
             Version: "2012-10-17"
@@ -838,10 +849,28 @@ Resources:
                   - s3:ListBucket
                   - s3:*Object
                 Resource:
-                  - !If [ IsProd, 
+                  - !If [ IsProd,
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                       !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                    ]    
+                    ]
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tekion-refresh-token-${Environment}"
 
   InvokeTekionFunction:
     Type: AWS::Serverless::Function
@@ -942,3 +971,14 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
+
+  RefreshTokenLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Refresh Tekion token
+      FunctionName: !Sub tekion-refresh-token-${Environment}
+      CodeUri: app/
+      Handler: refresh_token.lambda_handler
+      ReservedConcurrentExecutions: 1
+      Timeout: 30
+      Role: !GetAtt TekionDataPullRole.Arn

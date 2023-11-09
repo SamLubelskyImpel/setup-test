@@ -98,7 +98,7 @@ def lambda_handler(event, context):
                         query = query.filter(getattr(filtered_table, attr) == value)
 
             vehicle_sales = (
-                query.order_by(VehicleSale.db_creation_date)
+                query.order_by(VehicleSale.id)
                 .limit(max_results + 1)
                 .offset((page - 1) * max_results)
                 .all()
