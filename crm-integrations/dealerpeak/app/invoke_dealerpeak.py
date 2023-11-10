@@ -16,14 +16,12 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 
-
-logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
@@ -79,12 +77,27 @@ def save_raw_leads(leads: list, product_dealer_id: str):
     date_key = datetime.utcnow().strftime(format_string)
 
     s3_key = f"raw/dealerpeak/{product_dealer_id}/{date_key}_{uuid4()}.json"
-
+    logger.info(f"Saving leads to {s3_key}")
     s3_client.put_object(
         Body=dumps(leads),
         Bucket=BUCKET,
         Key=s3_key,
     )
+
+
+def filter_leads(leads: list, start_time: str):
+    """Filter leads by dateCreated."""
+    logger.info(f"Total leads found {len(leads)}")
+
+    filtered_leads = []
+    start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
+    for lead in leads:
+        created_date = datetime.strptime(lead["dateCreated"], "%B, %d %Y %H:%M:%S")
+        if created_date >= start_date:
+            filtered_leads.append(lead)
+
+    logger.info(f"Total leads after filtering {len(filtered_leads)}")
+    return filtered_leads
 
 
 def record_handler(record: SQSRecord):
@@ -99,21 +112,10 @@ def record_handler(record: SQSRecord):
         product_dealer_id = body['product_dealer_id']
 
         leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
-        if not leads:
-            logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
-            return True
-
-        # API may return updated leads, filter found leads by dateCreated
-        filtered_leads = []
-        start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
-        for lead in leads:
-            created_date = datetime.strptime(lead["dateCreated"], "%B, %d %Y %H:%M:%S")
-            if created_date >= start_date:
-                filtered_leads.append(lead)
-
+        filtered_leads = filter_leads(leads, start_time)
         if not filtered_leads:
             logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
-            return True
+            return
 
         save_raw_leads(filtered_leads, product_dealer_id)
 
@@ -134,7 +136,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             processor=processor,
             context=context
         )
-
         return result
 
     except Exception as e:
