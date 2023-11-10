@@ -88,6 +88,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                 - !GetAtt InvokeDataPullQueue.Arn
+                - !GetAtt TransformDealerpeakDataQueue.Arn
 
   InvokeDataPull:
     Type: AWS::Serverless::Function
@@ -125,3 +126,63 @@ Resources:
       QueueName: !Sub "invoke_dealerpeak_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
+
+  TransformDealerpeakData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub transform_dealerpeak_data-${Environment}
+      CodeUri: app/
+      Handler: transform_data.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformDealerpeakDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformDealerpeakData.Arn
+
+  TransformDealerpeakDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "transform_dealerpeak_queue-${Environment}"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformDealerpeakDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "transform_dealerpeak_dlq-${Environment}"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  TransformDealerpeakDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformDealerpeakDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "s3.amazonaws.com"
+            Action: "sqs:SendMessage"
+            Resource: !GetAtt TransformDealerpeakDataQueue.Arn
+            Condition:
+              ArnLike:
+                "aws:SourceArn":
+                  !If
+                    - IsProd
+                    - "arn:aws:s3:::crm-integrations-prod"
+                    - "arn:aws:s3:::crm-integrations-test"
+
+Outputs:
+  TransformDealerpeakDataQueueArn:
+    Value: !GetAtt TransformDealerpeakDataQueue.Arn
+    Export:
+      Name: TransformDealerpeakDataQueueArn
