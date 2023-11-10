@@ -186,3 +186,8 @@ Outputs:
     Value: !GetAtt TransformDealerpeakDataQueue.Arn
     Export:
       Name: TransformDealerpeakDataQueueArn
+  
+  InvokeDataPullQueueArn:
+    Value: !GetAtt InvokeDataPullQueue.Arn
+    Export:
+      Name: InvokeDataPullQueueArn
