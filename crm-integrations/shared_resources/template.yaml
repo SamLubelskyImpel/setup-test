@@ -52,6 +52,19 @@ Globals:
       SubnetIds: !FindInMap [Subnets, !Ref "AWS::Region", !Ref "AWS::AccountId"]
 
 Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: Permit traffic from the unified CRM lambdas
+      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      SecurityGroupEgress:
+        - Description: AllowAll
+          CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
 
   RDSInboundRule:
     Type: AWS::EC2::SecurityGroupIngress
@@ -107,6 +120,16 @@ Resources:
                 Action:
                   - "sqs:PutMessage"
                 Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: LambdaEC2ENIManagement
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                Resource: "*"
 
   GetActiveDealers:
     Type: AWS::Serverless::Function
@@ -117,7 +140,7 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
 
   ScheduledCRMDataPull:
     Type: AWS::Events::Rule
@@ -129,3 +152,17 @@ Resources:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers"
           Input: !Sub '{"impel_integration_partner_name": "DEALERPEAK"}'
+
+  IntegrationsBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Queue: !ImportValue TransformDealerpeakDataQueueArn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: "prefix"
+                    Value: "raw/dealerpeak"
