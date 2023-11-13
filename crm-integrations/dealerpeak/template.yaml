@@ -169,18 +169,26 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Effect: "Allow"
+          # - Effect: "Allow"
+          #   Principal:
+          #     Service: "s3.amazonaws.com"
+          #   Action: "sqs:SendMessage"
+          #   Resource: !GetAtt TransformDealerpeakDataQueue.Arn
+          #   Condition:
+          #     ArnLike:
+          #       "aws:SourceArn":
+          #         !If
+          #           - IsProd
+          #           - "arn:aws:s3:::crm-integrations-prod"
+          #           - "arn:aws:s3:::crm-integrations-test"
+          - Effect: Allow
             Principal:
-              Service: "s3.amazonaws.com"
-            Action: "sqs:SendMessage"
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
             Resource: !GetAtt TransformDealerpeakDataQueue.Arn
             Condition:
-              ArnLike:
-                "aws:SourceArn":
-                  !If
-                    - IsProd
-                    - "arn:aws:s3:::crm-integrations-prod"
-                    - "arn:aws:s3:::crm-integrations-test"
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
   
   EventBridgeRule:
     Type: AWS::Events::Rule
@@ -192,14 +200,15 @@ Resources:
           - "Object Created"
         detail:
           bucket:
-            - !If [
-                  IsProd,
-                  "crm-integrations-prod",
-                  "crm-integrations-test"
-                ]
+            name:
+              - !If [
+                    IsProd,
+                    "crm-integrations-prod",
+                    "crm-integrations-test"
+                  ]
           object:
             key:
-              - "raw/dealerpeak/"
+              - {"prefix" : "raw/dealerpeak/"}
       Targets:
         - Id: "TransformDealerpeakDataTarget"
           Arn: !GetAtt TransformDealerpeakDataQueue.Arn
