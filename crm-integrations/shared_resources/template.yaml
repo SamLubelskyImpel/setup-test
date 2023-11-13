@@ -157,12 +157,12 @@ Resources:
     Type: 'AWS::S3::Bucket'
     Properties:
       BucketName: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
-      NotificationConfiguration:
-        QueueConfigurations:
-          - Event: 's3:ObjectCreated:*'
-            Queue: !ImportValue TransformDealerpeakDataQueueArn
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: "prefix"
-                    Value: "raw/dealerpeak/"
+      # NotificationConfiguration:
+      #   QueueConfigurations:
+      #     - Event: 's3:ObjectCreated:*'
+      #       Queue: !ImportValue TransformDealerpeakDataQueueArn
+      #       Filter:
+      #         S3Key:
+      #           Rules:
+      #             - Name: "prefix"
+      #               Value: "raw/dealerpeak/"

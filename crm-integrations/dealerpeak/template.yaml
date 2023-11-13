@@ -70,6 +70,7 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - "s3:PutObject"
+                  - "s3:GetObject"
                   - "s3:DeleteObject"
                 Resource:
                 - !If [
@@ -180,14 +181,36 @@ Resources:
                     - IsProd
                     - "arn:aws:s3:::crm-integrations-prod"
                     - "arn:aws:s3:::crm-integrations-test"
-
-Outputs:
-  TransformDealerpeakDataQueueArn:
-    Value: !GetAtt TransformDealerpeakDataQueue.Arn
-    Export:
-      Name: TransformDealerpeakDataQueueArn
   
-  InvokeDataPullQueueArn:
-    Value: !GetAtt InvokeDataPullQueue.Arn
-    Export:
-      Name: InvokeDataPullQueueArn
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            - !If [
+                  IsProd,
+                  "crm-integrations-prod",
+                  "crm-integrations-test"
+                ]
+          object:
+            key:
+              - "raw/dealerpeak/"
+      Targets:
+        - Id: "TransformDealerpeakDataTarget"
+          Arn: !GetAtt TransformDealerpeakDataQueue.Arn
+  
+# Outputs:
+#   TransformDealerpeakDataQueueArn:
+#     Value: !GetAtt TransformDealerpeakDataQueue.Arn
+#     Export:
+#       Name: TransformDealerpeakDataQueueArn
+  
+#   InvokeDataPullQueueArn:
+#     Value: !GetAtt InvokeDataPullQueue.Arn
+#     Export:
+#       Name: InvokeDataPullQueueArn
