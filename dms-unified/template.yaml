@@ -307,6 +307,119 @@ Resources:
       Threshold: 0
       TreatMissingData: notBreaching
 
+  UnifiedAppointmentDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: UnifiedAppointmentDLQ
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  UnifiedAppointmentQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: UnifiedAppointmentDLQ
+    Properties:
+      QueueName: UnifiedAppointmentQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt UnifiedAppointmentDLQ.Arn
+        maxReceiveCount: 5
+
+  UnifiedAppointmentQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt UnifiedAppointmentQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  UnifiedAppointmentQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UnifiedAppointmentQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UnifiedAppointmentQueuePolicy
+          Statement:
+          -   Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UnifiedAppointmentQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  UnifiedAppointmentInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Insert unified DMS appointment data to the database.
+      CodeUri: app/
+      Handler: appointments.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+            - Sid: SMPolicy
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                ]
+            - Sid: EventBridgePolicy
+              Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !GetAtt UnifiedDMSNotifications.Arn
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt UnifiedAppointmentQueue.Arn
+
+  UnifiedAppointmentDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub UnifiedAppointmentDLQ-${Environment}
+      AlarmDescription: Messages are in the unified DMS appointment insertion lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UnifiedAppointmentDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
   UnifiedDMSNotifications:
     Type: AWS::Events::EventBus
     Properties:
