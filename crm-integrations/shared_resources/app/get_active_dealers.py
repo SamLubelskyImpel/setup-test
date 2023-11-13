@@ -11,12 +11,11 @@ from crm_orm.models.crm_integration_partner import IntegrationPartner
 from crm_orm.models.crm_dealer import Dealer
 from crm_orm.session_config import DBSession
 
-logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
 
