@@ -35,7 +35,7 @@ def get_salespersons_from_crm(body: dict, partner_name: str) -> Any:
         Payload=dumps(body),
     )
     logger.info(f"Response from lambda: {response}")
-    return response["Payload"].read()
+    return loads(response["Payload"].read().decode('utf-8'))
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -58,6 +58,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
+            logger.info(f"lead: {lead.as_dict()}")
 
             crm_lead_id = lead.crm_lead_id
             dealer_id = lead.consumer.dealer.id
@@ -77,7 +78,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             raise
 
         if response["statusCode"] != 200:
-            logger.error(f"Error retrieving salespersons {response['statusCode']}: {response['body']}")
+            logger.error(f"Error retrieving salespersons {response['statusCode']}: {response}")
             return {
                 "statusCode": 202,
                 "body": dumps({"message": "Accepted. The request was received by failed to be processed by the CRM"})

@@ -62,7 +62,7 @@ def get_lead(crm_dealer_id, crm_lead_id):
 def parse_salesperson(lead: dict):
     """Parse salesperson from lead."""
     agent = lead["agent"]
-    user_id = agent["userId"]
+    user_id = agent["userID"]
 
     first_name = agent.get("givenName", "")
     last_name = agent.get("familyName", "")
@@ -102,10 +102,9 @@ def lambda_handler(event, context):
     """Get lead updates."""
     logger.info(f"Event: {event}")
     try:
-        body = loads(event["body"])
-        lead_id = body["lead_id"]
-        crm_dealer_id = body["crm_dealer_id"]
-        crm_lead_id = body["crm_lead_id"]
+        lead_id = event["lead_id"]
+        crm_dealer_id = event["crm_dealer_id"]
+        crm_lead_id = event["crm_lead_id"]
 
         lead = get_lead(crm_dealer_id, crm_lead_id)
         if not lead:

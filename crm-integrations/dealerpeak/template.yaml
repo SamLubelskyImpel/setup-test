@@ -104,7 +104,7 @@ Resources:
   InvokeDataPull:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub invoke_dealerpeak_data_pull-${Environment}
+      FunctionName: !Sub dealerpeak_invoke_data_pull-${Environment}
       CodeUri: app/
       Handler: invoke_dealerpeak.lambda_handler
       Timeout: 30
@@ -121,7 +121,7 @@ Resources:
   InvokeDataPullQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "invoke_dealerpeak_queue-${Environment}"
+      QueueName: !Sub "dealerpeak_invoke_queue-${Environment}"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
@@ -130,14 +130,14 @@ Resources:
   InvokeDataPullDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "invoke_dealerpeak_dlq-${Environment}"
+      QueueName: !Sub "dealerpeak_invoke_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
   TransformDealerpeakData:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub transform_dealerpeak_data-${Environment}
+      FunctionName: !Sub dealerpeak_transform_data-${Environment}
       CodeUri: app/
       Handler: transform_data.lambda_handler
       Timeout: 30
@@ -154,7 +154,7 @@ Resources:
   TransformDealerpeakDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "transform_dealerpeak_queue-${Environment}"
+      QueueName: !Sub "dealerpeak_transform_queue-${Environment}"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
@@ -163,7 +163,7 @@ Resources:
   TransformDealerpeakDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "transform_dealerpeak_dlq-${Environment}"
+      QueueName: !Sub "dealerpeak_transform_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -222,7 +222,7 @@ Resources:
   GetLeadUpdates:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub lead_updates_dealerpeak-${Environment}
+      FunctionName: !Sub dealerpeak_lead_updates-${Environment}
       CodeUri: app/
       Handler: lead_updates.lambda_handler
       Timeout: 30
