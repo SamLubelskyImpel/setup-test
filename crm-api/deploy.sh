@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the dms data service.
+    Deploy the crm api.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -39,7 +39,7 @@ fi
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 
-python3 oas_interpolator.py
+python3 ./swagger/oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
@@ -48,6 +48,12 @@ if [[ $config_env == "prod" ]]; then
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"prod\""
+elif [[ $config_env == "stage" ]]; then
+  sam deploy --config-env "stage" \
+    --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
+    --region "$region" \
+    --s3-bucket "spincar-deploy-$region" \
+    --parameter-overrides "Environment=\"stage\""
 elif [[ $config_env == "test" ]]; then
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
@@ -58,7 +64,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "dms-service-$env" \
+    --stack-name "crm-api-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
