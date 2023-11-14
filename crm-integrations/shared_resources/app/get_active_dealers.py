@@ -33,12 +33,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         body = loads(event["body"])
         partner_name = body["impel_integration_partner_name"]
-
+        s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
         queue_url = loads(
             s3_client.get_object(
                 Bucket=BUCKET,
-                Key=f"configurations/{partner_name}.json"
-            )
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
         )["invoke_dealer_queue_url"]
 
         with DBSession() as session:

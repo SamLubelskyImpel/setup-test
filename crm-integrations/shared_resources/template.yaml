@@ -120,6 +120,17 @@ Resources:
                 Action:
                   - "sqs:PutMessage"
                 Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt ProcessLeadUpdatesQueue.Arn
         - PolicyName: LambdaEC2ENIManagement
           PolicyDocument:
             Version: "2012-10-17"
@@ -134,7 +145,7 @@ Resources:
   GetActiveDealers:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub get_active_dealers-${Environment}
+      FunctionName: !Sub crm-shared_get_active_dealers-${Environment}
       CodeUri: app/
       Handler: get_active_dealers.lambda_handler
       Timeout: 30
@@ -160,3 +171,52 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
+        # Event: 's3:ObjectCreated:*'
+        # EventBridge:
+        #   EventBus: !GetAtt IntegrationsEventBridgeBus.Arn
+        # Filter:
+        #   S3Key:
+        #     Rules:
+        #       - Name: prefix
+        #         Value: "raw/"
+
+  ProcessLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub crm-shared_lead_updates-${Environment}
+      CodeUri: app/
+      Handler: process_lead_updates.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Layers:
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+
+  ProcessLeadUpdatesEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt ProcessLeadUpdatesQueue.Arn
+      MaximumBatchingWindowInSeconds: 300
+      FunctionName: !GetAtt ProcessLeadUpdates.Arn
+  
+  ProcessLeadUpdatesQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared_lead_updates_queue-${Environment}"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      
+  ProcessLeadUpdatesDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared_lead_updates_dlq-${Environment}"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+# Outputs:
+#   ProcessLeadUpdatesQueueUrl:
+#     Value: !GetAtt ProcessLeadUpdatesQueue.QueueUrl
+#     Export:
+#       Name: ProcessLeadUpdatesQueueUrl
