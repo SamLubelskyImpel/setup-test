@@ -11,44 +11,101 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
-s3_client = boto3.client('s3')
+s3_client = boto3.client("s3")
 
 
-# def record_handler() -> Any:
-#     """Process individual SQS record."""
-#     logger.info(f"Record: {record}")
+def extract_contact_information(item, db_entity):
+    """Extract contact information from the dealerpeak json data."""
 
-#     try:
+    db_entity[f'crm_{item}_id'] = item.get('userID', None)
+    db_entity["first_name"] = item.get('givenName', None)
+    db_entity["last_name"] = item.get('familyName', None)
+    emails = item.get('contactInformation', {}).get('emails', None)
+    db_entity["email"] = emails[0].get('address', None) if emails else None
+    phone_numbers = item.get('contactInformation', {}).get('phoneNumbers', [])
+    db_entity["phone"] = phone_numbers[0].get("number") if phone_numbers else None
 
-#         # Process json_data as needed
+    # Iterate to find a mobile or cell phone number
+    for phone in phone_numbers:
+        if phone.get("type", "").lower() in ["mobile", "cell"]:
+            db_entity["phone"] = phone.get('number')
+            break
 
-#         for item in json_data:
-#             salesperson = json_data.get('agent', None)
-#             salesperson_id = salesperson.get('userID', None)
-#             salesperson_first_name = salesperson.get('givenName', None)
-#             salesperson_last_name = salesperson.get('familyName', None)
-#             salesperson_emails = salesperson.get('contactInformation', None).get('emails', None)
-#             logger.info(salesperson_id, salesperson_first_name, salesperson_last_name, salesperson_emails)  
+    if item == 'consumer':
+        addresses = item.get('contactInformation', {}).get('addresses', [])
+        address = addresses[0] if addresses else None
 
-#     except Exception as e:
-#         logger.error(f"Error processing record: {e}")
-#         raise
+        if address:
+            line1 = address.get('line1', '')
+            line2 = address.get('line2', '')
+            db_entity["address"] = f"{line1} {line2}".strip() if line1 or line2 else None
+            db_entity["city"] = address.get('city', None)
+            db_entity["postal_code"] = address.get('postcode', None)
+
+
+def parse_json_to_entries(json_data) -> Any:
+    """Format dealerpeak json data to unified format."""
+    entries = []
+    try:
+        for item in json_data:
+            db_lead = {}
+            db_vehicles = []
+            db_consumer = {}
+            db_salesperson = {}
+
+            db_lead["lead_id"] = item.get('leadID', None)
+            db_lead["lead_ts"] = item.get('dateCreated', None)
+            db_lead["status"] = item.get('status', {}).get('status', None)
+            db_lead["comment"] = item.get('comment', {}).get('note', None)
+            db_lead["source_channel"] = item.get('source', {}).get('source', None)
+
+            vehicles = item.get('vehiclesOfInterest', [])
+            for vehicle in vehicles:
+                db_vehicle = {}
+                db_vehicle["crm_vehicle_id"] = vehicle.get('carID', None)
+                db_vehicles.append(db_vehicle)
+
+            consumer = item.get('customer', None)
+            extract_contact_information(consumer, db_consumer)
+
+            salesperson = item.get('agent', None)
+            extract_contact_information(salesperson, db_salesperson)
+
+            entry = {
+                "lead": db_lead,
+                "vehicles": db_vehicles,
+                "consumer": db_consumer,
+                "salesperson": db_salesperson,
+            }
+            entries.append(entry)
+        return entries
+    except Exception as e:
+        logger.error(f"Error processing record: {e}")
+        raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw dealerpeak data to the unified format."""
     logger.info(f"Event: {event}")
-
     try:
         for record in event["Records"]:
             message = loads(record["body"])
-            for s3_record in message["Records"]:
-                bucket = s3_record["s3"]["bucket"]["name"]
-                key = s3_record["s3"]["object"]["key"]
-                response = s3_client.get_object(Bucket=bucket, Key=key)
-                content = response['Body'].read()
-                json_data = loads(content)
-                logger.info(f"Data: {json_data}")
+            bucket = message["detail"]["bucket"]["name"]
+            key = message["detail"]["object"]["key"]
+
+            # Retrieve the object from S3
+            response = s3_client.get_object(Bucket=bucket, Key=key)
+            content = response['Body'].read()
+            json_data = loads(content)
+
+            logger.info(f"Raw data: {json_data}")
+
+            entries = parse_json_to_entries(json_data)
+
+            logger.info(f"Processed entries: {entries}")
+
+            # send it to the /upload endpoint
+
     except Exception:
         logger.exception(f"Error transforming dealerpeak file {event}")
         raise
