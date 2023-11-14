@@ -145,7 +145,7 @@ Resources:
   GetActiveDealers:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub get_active_dealers-${Environment}
+      FunctionName: !Sub crm-shared_get_active_dealers-${Environment}
       CodeUri: app/
       Handler: get_active_dealers.lambda_handler
       Timeout: 30
@@ -183,7 +183,7 @@ Resources:
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub process_lead_updates-${Environment}
+      FunctionName: !Sub crm-shared_lead_updates-${Environment}
       CodeUri: app/
       Handler: process_lead_updates.lambda_handler
       Timeout: 30
@@ -202,7 +202,7 @@ Resources:
   ProcessLeadUpdatesQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "process_lead_updates_queue-${Environment}"
+      QueueName: !Sub "crm-shared_lead_updates_queue-${Environment}"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
@@ -211,7 +211,7 @@ Resources:
   ProcessLeadUpdatesDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "process_lead_updates_dlq-${Environment}"
+      QueueName: !Sub "crm-shared_lead_updates_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
