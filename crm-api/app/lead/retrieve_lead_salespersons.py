@@ -22,16 +22,12 @@ lambda_client = boto3.client("lambda")
 def get_salespersons_from_crm(body: dict, partner_name: str) -> Any:
     """Get lead salespersons from CRM."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-    logger.info(f"BUCKET: {BUCKET}, s3_key: {s3_key}")
     lambda_arn = loads(
             s3_client.get_object(
                 Bucket=BUCKET,
                 Key=s3_key
-            )
+            )['Body'].read().decode('utf-8')
         )["get_lead_salesperson_arn"]
-
-    logger.info(f'lambda_arn: {lambda_arn}')
-    raise
 
     response = lambda_client.invoke(
         FunctionName=lambda_arn,

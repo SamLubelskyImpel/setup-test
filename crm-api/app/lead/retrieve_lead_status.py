@@ -19,11 +19,12 @@ lambda_client = boto3.client("lambda")
 
 def get_status_from_crm(body: dict, partner_name: str) -> Any:
     """Get lead status from CRM."""
+    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     lambda_arn = loads(
             s3_client.get_object(
                 Bucket=BUCKET,
-                Key=f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-            )
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
         )["get_lead_status_arn"]
 
     response = lambda_client.invoke(
