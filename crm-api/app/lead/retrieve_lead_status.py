@@ -33,7 +33,7 @@ def get_status_from_crm(body: dict, partner_name: str) -> Any:
         Payload=dumps(body),
     )
     logger.info(f"Response from lambda: {response}")
-    return response["Payload"].read()
+    return loads(response["Payload"].read().decode('utf-8'))
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -75,7 +75,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             raise
 
         if response["statusCode"] != 200:
-            logger.error(f"Error retrieving lead status {response['statusCode']}: {response['body']}")
+            logger.error(f"Error retrieving lead status {response['statusCode']}: {response}")
             return {
                 "statusCode": 202,
                 "body": dumps({"message": "Accepted. The request was received by failed to be processed by the CRM"})
