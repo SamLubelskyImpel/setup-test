@@ -238,30 +238,3 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception(f"Error transforming tekion deals file {event}")
         raise
-
-logging.basicConfig()
-# s3://integrations-us-east-1-test/
-context = None
-event = {
-    "Records": [
-        {"body": dumps(
-            {
-                "Records": [
-                    {
-                        "s3": {
-                            "bucket": {
-                                "name": "integrations-us-east-1-test"
-                            },
-                            "object":
-                                {
-                                    "key": "tekion/fi_closed_deal/2023/11/7/techmotors_4_36a62d14-920f-4567-be7b-2440e79aa560.json"
-                                }
-                        }
-                    }
-                ]
-            }
-        )}
-    ]
-}
-lambda_handler(event, context)
-
