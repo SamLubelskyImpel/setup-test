@@ -1,0 +1,143 @@
+"""Invoke DealerPeak data pull."""
+
+import boto3
+import logging
+from os import environ
+from json import dumps, loads
+from typing import Any
+import requests
+from uuid import uuid4
+from base64 import b64encode
+from datetime import datetime
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
+
+ENVIRONMENT = environ.get("ENVIRONMENT")
+SECRET_KEY = environ.get("SECRET_KEY")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+s3_client = boto3.client("s3")
+secret_client = boto3.client("secretsmanager")
+
+
+def basic_auth(username: str, password: str) -> str:
+    """Convert api crendentials to base64 encoded string."""
+    token = b64encode(f"{username}:{password}".encode('ascii')).decode('ascii')
+    return token
+
+
+def get_secrets():
+    """Get DealerPeak API secrets."""
+    secret = secret_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integration-partner"
+    )
+    secret = loads(secret["SecretString"])[str(SECRET_KEY)]
+    secret_data = loads(secret)
+
+    return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
+
+
+def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
+    """Fetch new leads from DealerPeak CRM."""
+    api_url, username, password = get_secrets()
+    token = basic_auth(username, password)
+
+    dealer_group_id, location_id = crm_dealer_id.split("__")
+
+    try:
+        response = requests.get(
+            url=f"{api_url}/dealergroup/{dealer_group_id}/location/{location_id}/leads",
+            params={
+                "deltaDate": start_time,
+                "includeCustomerComment": True,
+            },
+            headers={
+                "Authorization": f"Basic {token}",
+                "Content-Type": "application/json",
+            },
+            timeout=3,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    except Exception as e:
+        logger.error(f"Error occured calling DealerPeak APIs: {e}")
+        raise
+
+
+def save_raw_leads(leads: list, product_dealer_id: str):
+    """Save raw leads to S3."""
+    format_string = '%Y/%m/%d/%H/%M'
+    date_key = datetime.utcnow().strftime(format_string)
+
+    s3_key = f"raw/dealerpeak/{product_dealer_id}/{date_key}_{uuid4()}.json"
+    logger.info(f"Saving leads to {s3_key}")
+    s3_client.put_object(
+        Body=dumps(leads),
+        Bucket=BUCKET,
+        Key=s3_key,
+    )
+
+
+def filter_leads(leads: list, start_time: str):
+    """Filter leads by dateCreated."""
+    logger.info(f"Total leads found {len(leads)}")
+
+    filtered_leads = []
+    start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
+    for lead in leads:
+        created_date = datetime.strptime(lead["dateCreated"], "%B, %d %Y %H:%M:%S")
+        if created_date >= start_date:
+            filtered_leads.append(lead)
+
+    logger.info(f"Total leads after filtering {len(filtered_leads)}")
+    return filtered_leads
+
+
+def record_handler(record: SQSRecord):
+    """Invoke DealerPeak data pull."""
+    logger.info(f"Record: {record}")
+    try:
+        body = loads(record['body'])
+
+        start_time = body['start_time']
+        end_time = body['end_time']
+        crm_dealer_id = body['crm_dealer_id']
+        product_dealer_id = body['product_dealer_id']
+
+        leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
+        filtered_leads = filter_leads(leads, start_time)
+        if not filtered_leads:
+            logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
+            return
+
+        save_raw_leads(filtered_leads, product_dealer_id)
+
+    except Exception as e:
+        logger.error(f"Error processing record: {e}")
+        raise
+
+
+def lambda_handler(event: Any, context: Any) -> Any:
+    """Invoke DealerPeak data pull."""
+    logger.info(f"Event: {event}")
+
+    try:
+        processor = BatchProcessor(event_type=EventType.SQS)
+        result = process_partial_response(
+            event=event,
+            record_handler=record_handler,
+            processor=processor,
+            context=context
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"Error processing batch: {e}")
+        raise

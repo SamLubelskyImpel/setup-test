@@ -53,6 +53,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -130,6 +131,27 @@ Resources:
                   - "ec2:CreateNetworkInterface"
                   - "ec2:DescribeNetworkInterfaces"
                   - "ec2:DeleteNetworkInterface"
+                Resource: "*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                - !If [
+                    IsProd,
+                    "arn:aws:s3:::crm-integrations-prod/configurations*",
+                    "arn:aws:s3:::crm-integrations-test/configurations*"
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
                 Resource: "*"
 
   CrmApiGateway:

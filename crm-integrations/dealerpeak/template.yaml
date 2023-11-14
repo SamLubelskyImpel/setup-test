@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: dealerpeak crm integration
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - 196800776222
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        SECRET_KEY: "DEALERPEAK"
+
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
+                    ]
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:DeleteObject"
+                Resource:
+                - !If [
+                    IsProd,
+                    "arn:aws:s3:::crm-integrations-prod/raw*",
+                    "arn:aws:s3:::crm-integrations-test/raw*"
+                  ]
+        - PolicyName: SQSGetPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt InvokeDataPullQueue.Arn
+                - !GetAtt TransformDealerpeakDataQueue.Arn
+        - PolicyName: SQSPutPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+
+  InvokeDataPull:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealerpeak_invoke_data_pull-${Environment}
+      CodeUri: app/
+      Handler: invoke_dealerpeak.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  InvokeDataPullEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt InvokeDataPull.Arn
+
+  InvokeDataPullQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_invoke_queue-${Environment}"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      
+  InvokeDataPullDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_invoke_dlq-${Environment}"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  TransformDealerpeakData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealerpeak_transform_data-${Environment}
+      CodeUri: app/
+      Handler: transform_data.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformDealerpeakDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformDealerpeakData.Arn
+
+  TransformDealerpeakDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_transform_queue-${Environment}"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformDealerpeakDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_transform_dlq-${Environment}"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  TransformDealerpeakDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformDealerpeakDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # - Effect: "Allow"
+          #   Principal:
+          #     Service: "s3.amazonaws.com"
+          #   Action: "sqs:SendMessage"
+          #   Resource: !GetAtt TransformDealerpeakDataQueue.Arn
+          #   Condition:
+          #     ArnLike:
+          #       "aws:SourceArn":
+          #         !If
+          #           - IsProd
+          #           - "arn:aws:s3:::crm-integrations-prod"
+          #           - "arn:aws:s3:::crm-integrations-test"
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformDealerpeakDataQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+  
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !If [
+                    IsProd,
+                    "crm-integrations-prod",
+                    "crm-integrations-test"
+                  ]
+          object:
+            key:
+              - {"prefix" : "raw/dealerpeak/"}
+      Targets:
+        - Id: "TransformDealerpeakDataTarget"
+          Arn: !GetAtt TransformDealerpeakDataQueue.Arn
+    
+  GetLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealerpeak_lead_updates-${Environment}
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      # Environment:
+      #   Variables:
+      #     PROCESSING_QUEUE_URL: !ImportValue ProcessLeadUpdatesQueueUrl
+
+# Outputs:
+  # TransformDealerpeakDataQueueArn:
+  #   Value: !GetAtt TransformDealerpeakDataQueue.Arn
+  #   Export:
+  #     Name: TransformDealerpeakDataQueueArn

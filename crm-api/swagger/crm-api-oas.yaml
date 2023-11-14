@@ -11,9 +11,7 @@ info:
     Activity: Actions, interactions, or events associated with a lead. Activities provide insights into the progress and status of a lead and can include notes, appointments, outbound calls, etc."
 servers:
   - description: Impel test environment
-    url: https://2y26660ywf.execute-api.us-east-1.amazonaws.com/test
-  - description: Impel test environment
-    url: https://crm-api-test.testenv.impel.io/
+    url: https://crm-api-stage.testenv.impel.io/
 paths:
   /leads:
     post:
@@ -665,11 +663,16 @@ components:
       description: An object containing all information about a salesperson
       type: object
       required:
+        - crm_salesperson_id
         - first_name
         - last_name
         - email
         - phone
       properties:
+        crm_salesperson_id:
+          type: string
+          description: The ID of th salesperson in the CRM
+          example: "123abc-1234ab-123abc"
         first_name:
           type: string
           description: First name of the salesperson
