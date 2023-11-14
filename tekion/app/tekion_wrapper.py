@@ -120,7 +120,7 @@ class TekionWrapper:
 
     def get_deals(self, next_fetch_key=""):
         """Retrieve Deals by dealer id"""
-        deal_url = f"{self.base_url}/api/v2/deal"
+        deal_url = f"{self.base_url}/api/v2.2/deal"
         end_date = self.end_dt.replace(hour=0, minute=0, second=0)
         start_date = end_date - timedelta(days=1)
         start_time = int(start_date.timestamp() * 1000)
