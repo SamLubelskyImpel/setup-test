@@ -160,25 +160,3 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
-        # Event: 's3:ObjectCreated:*'
-        # EventBridge:
-        #   EventBus: !GetAtt IntegrationsEventBridgeBus.Arn
-        # Filter:
-        #   S3Key:
-        #     Rules:
-        #       - Name: prefix
-        #         Value: "raw/"
-    
-  # IntegrationsEventBridgeBus:
-  #   Type: AWS::Events::EventBus
-  #   Properties:
-  #     Name: !Sub crm-integrations-bus-${Environment}
-      # NotificationConfiguration:
-      #   QueueConfigurations:
-      #     - Event: 's3:ObjectCreated:*'
-      #       Queue: !ImportValue TransformDealerpeakDataQueueArn
-      #       Filter:
-      #         S3Key:
-      #           Rules:
-      #             - Name: "prefix"
-      #               Value: "raw/dealerpeak/"
