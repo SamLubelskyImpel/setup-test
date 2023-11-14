@@ -42,7 +42,6 @@ def parse_json_to_entries(json_data):
         contract_date = default_get(entry, "contractDate")
         if contract_date and contract_date != 0 and isinstance(contract_date, int):
             db_vehicle_sale["sale_date"] = datetime.utcfromtimestamp(contract_date / 1000).strftime('%Y-%m-%d %H:%M:%S')
-            print(db_vehicle_sale["sale_date"])
 
         gross_details = default_get(entry, "grossDetails", {})
         vehicle_gross = default_get(gross_details, "vehicleGross", {})
