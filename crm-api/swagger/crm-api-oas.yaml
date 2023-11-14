@@ -11,9 +11,7 @@ info:
     Activity: Actions, interactions, or events associated with a lead. Activities provide insights into the progress and status of a lead and can include notes, appointments, outbound calls, etc."
 servers:
   - description: Impel test environment
-    url: https://2y26660ywf.execute-api.us-east-1.amazonaws.com/test
-  - description: Impel test environment
-    url: https://crm-api-test.testenv.impel.io/
+    url: https://crm-api-stage.testenv.impel.io/
 paths:
   /leads:
     post:
@@ -411,6 +409,34 @@ paths:
           "$ref": "#/components/responses/400"
         '404':
           "$ref": "#/components/responses/404"
+  # /upload:
+  #   post:
+  #     summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
+  #     #{{UPLOAD_DATA_LAMBDA_INFO}}
+  #     tags:
+  #       - Upload
+  #     parameters:
+  #       - "$ref": "#/components/parameters/partnerId"
+  #       - "$ref": "#/components/parameters/xApiKey"
+  #     requestBody:
+  #       content:
+  #         application/json:
+  #           schema:
+  #             type: object
+  #             properties:
+  #               lead:
+  #                 $ref: '#/components/schemas/Lead'
+  #               consumer:
+  #                 $ref: '#/components/schemas/Consumer'
+  #               salesperson:
+  #                 $ref: '#/components/schemas/Salesperson'
+  #     responses:
+  #       '200':
+  #         description: Data successfully uploaded
+  #       '400':
+  #         "$ref": "#/components/responses/400"
+  #       '404':
+  #         "$ref": "#/components/responses/404"
 components:
   schemas:
     VehiclesOfInterest:
@@ -637,11 +663,16 @@ components:
       description: An object containing all information about a salesperson
       type: object
       required:
+        - crm_salesperson_id
         - first_name
         - last_name
         - email
         - phone
       properties:
+        crm_salesperson_id:
+          type: string
+          description: The ID of th salesperson in the CRM
+          example: "123abc-1234ab-123abc"
         first_name:
           type: string
           description: First name of the salesperson

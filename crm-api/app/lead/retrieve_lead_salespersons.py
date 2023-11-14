@@ -1,27 +1,45 @@
 """Retrieve salespersons data from the shared CRM layer."""
+import boto3
 import logging
 from os import environ
-from json import dumps
+from json import dumps, loads
 from typing import Any
 
-from crm_orm.models.salesperson import Salesperson
-from crm_orm.models.lead_salesperson import Lead_Salesperson
+# from crm_orm.models.salesperson import Salesperson
+# from crm_orm.models.lead_salesperson import Lead_Salesperson
+from crm_orm.models.lead import Lead
 from crm_orm.session_config import DBSession
+
+ENVIRONMENT = environ.get("ENVIRONMENT")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+s3_client = boto3.client("s3")
+lambda_client = boto3.client("lambda")
 
 
-def get_salespersons_for_lead(lead_id: str) -> Any:
-    """Retrieve all salespersons for a given lead ID."""
-    with DBSession() as session:
-        results = session.query(Salesperson, Lead_Salesperson.is_primary)\
-            .join(
-                Lead_Salesperson,
-                Salesperson.id == Lead_Salesperson.salesperson_id,
-            ).filter(Lead_Salesperson.lead_id == lead_id)\
-            .all()
-        return results
+def get_salespersons_from_crm(body: dict, partner_name: str) -> Any:
+    """Get lead salespersons from CRM."""
+    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    logger.info(f"BUCKET: {BUCKET}, s3_key: {s3_key}")
+    lambda_arn = loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )
+        )["get_lead_salesperson_arn"]
+
+    logger.info(f'lambda_arn: {lambda_arn}')
+    raise
+
+    response = lambda_client.invoke(
+        FunctionName=lambda_arn,
+        InvocationType="RequestResponse",
+        Payload=dumps(body),
+    )
+    logger.info(f"Response from lambda: {response}")
+    return response["Payload"].read()
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -30,7 +48,58 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         lead_id = event["pathParameters"]["lead_id"]
-        salespersons = get_salespersons_for_lead(lead_id)
+
+        with DBSession() as session:
+            lead = session.query(
+                Lead
+            ).filter(
+                Lead.id == lead_id
+            ).first()
+
+            if not lead:
+                logger.error(f"Lead not found {lead_id}")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Lead not found {lead_id}"})
+                }
+
+            crm_lead_id = lead.crm_lead_id
+            dealer_id = lead.consumer.dealer.id
+            crm_dealer_id = lead.consumer.dealer.crm_dealer_id
+            partner_name = lead.consumer.dealer.integration_partner.impel_integration_partner_name
+
+        payload = {
+            "lead_id": lead_id,
+            "crm_lead_id": crm_lead_id,
+            "dealer_id": dealer_id,
+            "crm_dealer_id": crm_dealer_id
+        }
+        try:
+            response = get_salespersons_from_crm(payload, partner_name)
+        except Exception as e:
+            logger.error(f"Failed to retrieve lead salespersons from CRM. {e}")
+            raise
+
+        if response["statusCode"] != 200:
+            logger.error(f"Error retrieving salespersons {response['statusCode']}: {response['body']}")
+            return {
+                "statusCode": 202,
+                "body": dumps({"message": "Accepted. The request was received by failed to be processed by the CRM"})
+            }
+
+        salespersons = []
+        for person in loads(response["body"]).get("salespersons", []):
+            salespersons.append(
+                {
+                    "crm_salesperson_id": person.get("crm_salesperson_id", ""),
+                    "first_name": person.get("first_name", ""),
+                    "last_name": person.get("last_name", ""),
+                    "email": person.get("email", ""),
+                    "phone": person.get("phone", ""),
+                    "position_name": person.get("position_name", ""),
+                    "is_primary": person.get("is_primary", False)
+                }
+            )
 
         if not salespersons:
             logger.error(f"No salespersons found for lead {lead_id}")
@@ -39,33 +108,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": dumps({"error": "No salespersons found for the given lead."})
             }
 
-        primary_salesperson = None
-        other_salespersons = []
-
-        for salesperson, is_primary in salespersons:
-            salesperson_record = {
-                "first_name": salesperson.first_name,
-                "last_name": salesperson.last_name,
-                "email": salesperson.email,
-                "phone": salesperson.phone,
-                "position_name": salesperson.position_name,
-                "is_primary": is_primary
-            }
-
-            if is_primary:
-                primary_salesperson = salesperson_record
-            else:
-                other_salespersons.append(salesperson_record)
-
-        # Put the primary salesperson first in the array
-        if primary_salesperson:
-            salespersons_list = [primary_salesperson] + other_salespersons
-        else:
-            salespersons_list = other_salespersons
-
         return {
             "statusCode": 200,
-            "body": dumps(salespersons_list)
+            "body": dumps(salespersons)
         }
 
     except Exception as e:

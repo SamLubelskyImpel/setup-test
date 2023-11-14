@@ -24,6 +24,8 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        SECRET_KEY: "DEALERPEAK"
 
 Resources:
 
@@ -78,7 +80,7 @@ Resources:
                     "arn:aws:s3:::crm-integrations-prod/raw*",
                     "arn:aws:s3:::crm-integrations-test/raw*"
                   ]
-        - PolicyName: SQSPolicy
+        - PolicyName: SQSGetPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -90,6 +92,14 @@ Resources:
                 Resource:
                 - !GetAtt InvokeDataPullQueue.Arn
                 - !GetAtt TransformDealerpeakDataQueue.Arn
+        - PolicyName: SQSPutPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
 
   InvokeDataPull:
     Type: AWS::Serverless::Function
@@ -99,10 +109,6 @@ Resources:
       Handler: invoke_dealerpeak.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
-      Environment:
-        Variables:
-          INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
-          SECRET_KEY: "DEALERPEAK"
 
   InvokeDataPullEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -212,14 +218,21 @@ Resources:
       Targets:
         - Id: "TransformDealerpeakDataTarget"
           Arn: !GetAtt TransformDealerpeakDataQueue.Arn
-  
+    
+  GetLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub lead_updates_dealerpeak-${Environment}
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      # Environment:
+      #   Variables:
+      #     PROCESSING_QUEUE_URL: !ImportValue ProcessLeadUpdatesQueueUrl
+
 # Outputs:
-#   TransformDealerpeakDataQueueArn:
-#     Value: !GetAtt TransformDealerpeakDataQueue.Arn
-#     Export:
-#       Name: TransformDealerpeakDataQueueArn
-  
-#   InvokeDataPullQueueArn:
-#     Value: !GetAtt InvokeDataPullQueue.Arn
-#     Export:
-#       Name: InvokeDataPullQueueArn
+  # TransformDealerpeakDataQueueArn:
+  #   Value: !GetAtt TransformDealerpeakDataQueue.Arn
+  #   Export:
+  #     Name: TransformDealerpeakDataQueueArn
