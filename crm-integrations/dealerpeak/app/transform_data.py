@@ -14,10 +14,10 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
-def extract_contact_information(item, db_entity):
+def extract_contact_information(item_name, item, db_entity):
     """Extract contact information from the dealerpeak json data."""
 
-    db_entity[f'crm_{item}_id'] = item.get('userID', None)
+    db_entity[f'crm_{item_name}_id'] = item.get('userID', None)
     db_entity["first_name"] = item.get('givenName', None)
     db_entity["last_name"] = item.get('familyName', None)
     emails = item.get('contactInformation', {}).get('emails', None)
@@ -65,15 +65,16 @@ def parse_json_to_entries(json_data) -> Any:
                 db_vehicle["crm_vehicle_id"] = vehicle.get('carID', None)
                 db_vehicles.append(db_vehicle)
 
+            db_lead["vehicles_of_interest"] = db_vehicles
+
             consumer = item.get('customer', None)
-            extract_contact_information(consumer, db_consumer)
+            extract_contact_information('consumer', consumer, db_consumer)
 
             salesperson = item.get('agent', None)
-            extract_contact_information(salesperson, db_salesperson)
+            extract_contact_information('salesperson', salesperson, db_salesperson)
 
             entry = {
                 "lead": db_lead,
-                "vehicles": db_vehicles,
                 "consumer": db_consumer,
                 "salesperson": db_salesperson,
             }
