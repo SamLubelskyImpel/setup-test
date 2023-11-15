@@ -20,12 +20,16 @@ lambda_client = boto3.client("lambda")
 def get_status_from_crm(body: dict, partner_name: str) -> Any:
     """Get lead status from CRM."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-    lambda_arn = loads(
-            s3_client.get_object(
-                Bucket=BUCKET,
-                Key=s3_key
-            )['Body'].read().decode('utf-8')
-        )["get_lead_status_arn"]
+    try:
+        lambda_arn = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )["get_lead_status_arn"]
+    except Exception as e:
+        logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
+        raise
 
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
@@ -78,7 +82,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.error(f"Error retrieving lead status {response['statusCode']}: {response}")
             return {
                 "statusCode": 202,
-                "body": dumps({"message": "Accepted. The request was received by failed to be processed by the CRM"})
+                "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM"})
             }
 
         status = loads(response["body"]).get("status", "")
