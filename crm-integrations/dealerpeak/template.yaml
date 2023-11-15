@@ -24,11 +24,11 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        INTEGRATIONS_BUCKET:
+          !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
         SECRET_KEY: "DEALERPEAK"
 
 Resources:
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -75,11 +75,11 @@ Resources:
                   - "s3:GetObject"
                   - "s3:DeleteObject"
                 Resource:
-                - !If [
-                    IsProd,
-                    "arn:aws:s3:::crm-integrations-prod/raw*",
-                    "arn:aws:s3:::crm-integrations-test/raw*"
-                  ]
+                  - !If [
+                      IsProd,
+                      "arn:aws:s3:::crm-integrations-prod/raw*",
+                      "arn:aws:s3:::crm-integrations-test/raw*",
+                    ]
         - PolicyName: SQSGetPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -90,8 +90,8 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                - !GetAtt InvokeDataPullQueue.Arn
-                - !GetAtt TransformDealerpeakDataQueue.Arn
+                  - !GetAtt InvokeDataPullQueue.Arn
+                  - !GetAtt TransformDealerpeakDataQueue.Arn
         - PolicyName: SQSPutPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -104,11 +104,31 @@ Resources:
   InvokeDataPull:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_invoke_data_pull-${Environment}
+      FunctionName: !Sub dealerpeak_invoke-${Environment}
       CodeUri: app/
-      Handler: invoke_dealerpeak.lambda_handler
+      Handler: invoke_data_pull.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+
+  InvokeDataPullErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub dealerpeak_invoke-${Environment}
+      AlarmDescription: Lambda invocation errors detected from the DealerPeak Invoke
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeDataPull
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   InvokeDataPullEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -126,13 +146,34 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
         maxReceiveCount: 3
-      
+
   InvokeDataPullDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "dealerpeak_invoke_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
+
+  InvokeDataPullDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub "dealerpeak_invoke_dlq-${Environment}"
+      AlarmDescription: There are messages in the DealerPeak Invoke DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
 
   TransformDealerpeakData:
     Type: AWS::Serverless::Function
@@ -183,7 +224,7 @@ Resources:
             Condition:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRule.Arn
-  
+
   EventBridgeRule:
     Type: AWS::Events::Rule
     Properties:
@@ -195,18 +236,14 @@ Resources:
         detail:
           bucket:
             name:
-              - !If [
-                    IsProd,
-                    "crm-integrations-prod",
-                    "crm-integrations-test"
-                  ]
+              - !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
           object:
             key:
-              - {"prefix" : "raw/dealerpeak/"}
+              - { "prefix": "raw/dealerpeak/" }
       Targets:
         - Id: "TransformDealerpeakDataTarget"
           Arn: !GetAtt TransformDealerpeakDataQueue.Arn
-    
+
   GetLeadUpdates:
     Type: AWS::Serverless::Function
     Properties:
@@ -215,12 +252,23 @@ Resources:
       Handler: lead_updates.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
-      # Environment:
-      #   Variables:
-      #     PROCESSING_QUEUE_URL: !ImportValue ProcessLeadUpdatesQueueUrl
 
-# Outputs:
-  # TransformDealerpeakDataQueueArn:
-  #   Value: !GetAtt TransformDealerpeakDataQueue.Arn
-  #   Export:
-  #     Name: TransformDealerpeakDataQueueArn
+  GetLeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub dealerpeak_lead_updates-${Environment}
+      AlarmDescription: Lambda invocation errors detected from the DealerPeak Lead Updates
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetLeadUpdates
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching

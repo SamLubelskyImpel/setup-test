@@ -34,12 +34,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         partner_name = body["impel_integration_partner_name"]
         s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-        queue_url = loads(
-            s3_client.get_object(
-                Bucket=BUCKET,
-                Key=s3_key
-            )['Body'].read().decode('utf-8')
-        )["invoke_dealer_queue_url"]
+        try:
+            queue_url = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )["invoke_dealer_queue_url"]
+        except Exception as e:
+            logger.error(f"Failed to retrieve queue url from S3 config. Partner: {partner_name.upper()}, {e}")
+            raise
 
         with DBSession() as session:
             crm_partner = session.query(

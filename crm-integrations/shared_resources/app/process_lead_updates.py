@@ -11,10 +11,9 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-
-from crm_orm.models.crm_lead import Lead
-from crm_orm.models.crm_lead_salesperson import Lead_Salesperson
-from crm_orm.models.crm_salesperson import Salesperson
+from crm_orm.models.lead import Lead
+from crm_orm.models.lead_salesperson import Lead_Salesperson
+from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -35,71 +34,100 @@ def get_salespersons_for_lead(lead_id: str) -> Any:
         return results
 
 
-def update_salespersons(lead_id, new_salespersons):
+def update_salespersons(lead_id, updated_salespersons, dealer_id):
     """Update salespersons for a given lead ID."""
-    updated_salespersons = new_salespersons
     to_delete = []
 
-    # Update existing salespersons if crm_salesperson_id matches
+    # Update existing salespersons, filter out old salespersons
     for salesperson, is_primary in get_salespersons_for_lead(lead_id):
         for new_salesperson in updated_salespersons:
             if new_salesperson["crm_salesperson_id"] == salesperson.crm_salesperson_id:
-                new_salesperson.update({"id": salesperson.id})
+                new_salesperson.update({"salesperson_id": salesperson.id})
                 break
-            else:
-                to_delete.append(salesperson.id)
+        else:
+            to_delete.append(salesperson.id)
 
     with DBSession() as session:
-        # Delete salespersons that are not in the new list
+        # Delete lead salespersons/salespersons that are not in the new list
         session.query(
                 Lead_Salesperson
             ).filter(
                 Lead_Salesperson.lead_id == lead_id,
-                Lead_Salesperson.id.in_([s for s in to_delete])
+                Lead_Salesperson.salesperson_id.in_([s for s in to_delete])
             ).delete(synchronize_session=False)
+        session.commit()
 
-        # Update existing salespersons
         for person in updated_salespersons:
-            if person.get("id", ""):
-                lead_salesperson = session.query(
+            salesperson_id = person.get("salesperson_id", "")
+
+            if salesperson_id:
+                # Update existing salespersons
+                session.query(
                         Lead_Salesperson,
                     ).filter(
                         Lead_Salesperson.lead_id == lead_id,
-                        Lead_Salesperson.salesperson_id == person["id"]
-                    ).first()
-                lead_salesperson.is_primary = person.get("is_primary", False)
-
-                salesperson = session.query(
-                        Salesperson,
-                    ).filter(
-                        Salesperson.id == person["id"]
+                        Lead_Salesperson.salesperson_id == salesperson_id
                     ).update(
                         {
-                            "crm_salesperson_id": salesperson.get("crm_salesperson_id", ""),
-                            "first_name": salesperson.get("first_name", ""),
-                            "last_name": salesperson.get("last_name", ""),
-                            "phone": salesperson.get("phone", ""),
-                            "email": salesperson.get("email", ""),
-                            "position_name": salesperson.get("position_name", "")
+                            "is_primary": person.get("is_primary", False)
                         }
                     )
+
+                session.query(
+                        Salesperson,
+                    ).filter(
+                        Salesperson.id == salesperson_id
+                    ).update(
+                        {
+                            "crm_salesperson_id": person.get("crm_salesperson_id", ""),
+                            "first_name": person.get("first_name", ""),
+                            "last_name": person.get("last_name", ""),
+                            "phone": person.get("phone", ""),
+                            "email": person.get("email", ""),
+                            "position_name": person.get("position_name", "")
+                        }
+                    )
+                session.commit()
             else:
-                # Add new salespersons
-                salesperson = Salesperson(
-                    crm_salesperson_id=person.get("crm_salesperson_id", ""),
-                    first_name=person.get("first_name", ""),
-                    last_name=person.get("last_name", ""),
-                    phone=person.get("phone", ""),
-                    email=person.get("email", ""),
-                    position_name=person.get("position_name", "")
+                # Check if salesperson already exists for that dealer
+                salesperson = session.query(
+                        Salesperson
+                    ).filter(
+                        Salesperson.dealer_id == dealer_id,
+                        Salesperson.crm_salesperson_id == person.get("crm_salesperson_id", "")
+                    ).first()
+                if salesperson:
+                    salesperson.first_name = person.get("first_name", "")
+                    salesperson.last_name = person.get("last_name", "")
+                    salesperson.phone = person.get("phone", "")
+                    salesperson.email = person.get("email", "")
+                    salesperson.position_name = person.get("position_name", "")
+                    session.commit()
+                else:
+                    # Create new salesperson
+                    salesperson = Salesperson(
+                        crm_salesperson_id=person.get("crm_salesperson_id", ""),
+                        first_name=person.get("first_name", ""),
+                        last_name=person.get("last_name", ""),
+                        phone=person.get("phone", ""),
+                        email=person.get("email", ""),
+                        position_name=person.get("position_name", ""),
+                        dealer_id=dealer_id
+                    )
+                    session.add(salesperson)
+                    session.commit()
+
+                lead_salesperson = Lead_Salesperson(
+                    lead_id=lead_id,
+                    salesperson_id=salesperson.id,
+                    is_primary=person.get("is_primary", False)
                 )
-                session.add(salesperson)
-                session.flush()
-                person.update({"id": salesperson.id})
+                session.add(lead_salesperson)
+                person.update({"salesperson_id": salesperson.id})
+                session.commit()
 
-        session.commit()
-
-    logger.info(f"Updates Salespersons for lead_id {lead_id}, {updated_salespersons}")
+    logger.info(f"Deleted Salespersons for lead_id {lead_id}, {to_delete}")
+    logger.info(f"Created/Updated Salespersons for lead_id {lead_id}, {updated_salespersons}")
 
 
 def update_lead_status(lead_id, status):
@@ -126,15 +154,15 @@ def update_lead_status(lead_id, status):
 def record_handler(record: SQSRecord):
     """Process lead updates."""
     logger.info(f"Record: {record}")
-    return
     try:
         body = loads(record["body"])
 
         lead_id = body["lead_id"]
+        dealer_id = body["dealer_id"]
         status = body.get("status", "")
         salespersons = body.get("salespersons", [])
         if salespersons:
-            update_salespersons(lead_id, salespersons)
+            update_salespersons(lead_id, salespersons, dealer_id)
 
         if status:
             update_lead_status(lead_id, status)

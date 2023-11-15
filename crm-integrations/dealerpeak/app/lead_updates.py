@@ -103,6 +103,7 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         lead_id = event["lead_id"]
+        dealer_id = event["dealer_id"]
         crm_dealer_id = event["crm_dealer_id"]
         crm_lead_id = event["crm_lead_id"]
 
@@ -112,19 +113,22 @@ def lambda_handler(event, context):
             return {
                 "statusCode": 404,
                 "body": dumps({
-                    "message": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
+                    "error": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
                 })
             }
 
         salesperson = parse_salesperson(lead)
         status = lead["status"].get("status", "")
 
-        logger.info(f"Found lead_id {lead_id}, crm_lead_id {crm_lead_id} with status {status} and salesperson {salesperson}")
-        # send_sqs_message({
-        #     "lead_id": lead_id,
-        #     "status": status,
-        #     "salespersons": [salesperson]
-        # })
+        logger.info("Found lead {}, dealer {}, with status {} and salesperson {}".format(
+            lead_id, dealer_id, status, salesperson
+        ))
+        send_sqs_message({
+            "lead_id": lead_id,
+            "dealer_id": dealer_id,
+            "status": status,
+            "salespersons": [salesperson]
+        })
 
         return {
             "statusCode": 200,

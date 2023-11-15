@@ -112,7 +112,7 @@ Resources:
                     "arn:aws:s3:::crm-integrations-prod/configurations*",
                     "arn:aws:s3:::crm-integrations-test/configurations*"
                   ]
-        - PolicyName: SQSPolicy
+        - PolicyName: SQSPutPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -141,6 +141,19 @@ Resources:
                   - "ec2:DescribeNetworkInterfaces"
                   - "ec2:DeleteNetworkInterface"
                 Resource: "*"
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
+                    ]
 
   GetActiveDealers:
     Type: AWS::Serverless::Function
@@ -152,6 +165,26 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Layers:
         - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+  
+  GetActiveDealersErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-shared_get_active_dealers-${Environment}
+      AlarmDescription: Lambda invocation errors detected from the DealerPeak Lead Updates
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetActiveDealers
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   ScheduledCRMDataPull:
     Type: AWS::Events::Rule
@@ -214,9 +247,3 @@ Resources:
       QueueName: !Sub "crm-shared_lead_updates_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
-
-# Outputs:
-#   ProcessLeadUpdatesQueueUrl:
-#     Value: !GetAtt ProcessLeadUpdatesQueue.QueueUrl
-#     Export:
-#       Name: ProcessLeadUpdatesQueueUrl
