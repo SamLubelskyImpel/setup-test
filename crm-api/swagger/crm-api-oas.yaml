@@ -90,7 +90,27 @@ paths:
                           description: The specific channel through which the lead was generated
                           example: cars.com
                         vehicles_of_interest:
-                          $ref: '#/components/schemas/VehiclesOfInterest'
+                          allOf:
+                            - $ref: '#/components/schemas/VehiclesOfInterest'
+                            - type: array
+                              items:
+                                type: object
+                                properties:
+                                  db_creation_date:
+                                    type: string
+                                    format: date-time
+                                    description: The created datetime of the vehicle in the unified CRM layer.
+                                    example: "2023-10-16T20:44:12.027184+00:00"
+                        lead_ts:
+                          type: string
+                          format: date-time
+                          description: The created datetime of the lead in the CRM.
+                          example: "2023-10-16T20:44:12.027184+00:00"
+                        db_creation_date:
+                          type: string
+                          format: date-time
+                          description: The created datetime of the lead in the unified CRM layer.
+                          example: "2023-10-16T20:44:12.027184+00:00"
                   pagination:
                     type: object
                     description: Information related to pagination.
@@ -145,7 +165,32 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Lead'
+                allOf:
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
         '400':
           "$ref": "#/components/responses/400"
         '404':
@@ -193,7 +238,7 @@ paths:
         - "$ref": "#/components/parameters/leadId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed bythe CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
           content:
             application/json:
               schema:
@@ -211,6 +256,8 @@ paths:
                       - INACTIVE
                       - CLOSED
                     example: "ACTIVE"
+        '202':
+          "$ref": "#/components/responses/202"
         '400':
           "$ref": "#/components/responses/400"
         '403':
@@ -238,7 +285,9 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Salesperson' 
+                  $ref: '#/components/schemas/Salesperson'
+        '202':
+          "$ref": "#/components/responses/202"
         '400':
           "$ref": "#/components/responses/400"
         '403':
@@ -422,14 +471,20 @@ paths:
   #       content:
   #         application/json:
   #           schema:
-  #             type: object
-  #             properties:
-  #               lead:
-  #                 $ref: '#/components/schemas/Lead'
-  #               consumer:
-  #                 $ref: '#/components/schemas/Consumer'
-  #               salesperson:
-  #                 $ref: '#/components/schemas/Salesperson'
+  #             type: array
+  #             items:
+  #               type: object
+  #               properties:
+  #                 dealer_product_id:
+  #                   type: string
+  #                   description: Dealer ID assigned during onboarding
+  #                   example: test_dealer
+  #                 lead:
+  #                   $ref: '#/components/schemas/Lead'
+  #                 consumer:
+  #                   $ref: '#/components/schemas/Consumer'
+  #                 salesperson:
+  #                   $ref: '#/components/schemas/Salesperson'
   #     responses:
   #       '200':
   #         description: Data successfully uploaded
@@ -707,6 +762,15 @@ components:
               lead_id:
                 type: integer
                 description: ID of the lead that was created.
+    '202':
+      description: Accepted. The request was received but failed to be processed by the CRM.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
     '400':
       description: This indicates Bad Request. For example this error can occur if
         a required property in the request JSON is missing.
