@@ -164,7 +164,7 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:3
   
   GetActiveDealersErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -222,7 +222,7 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:3
 
   ProcessLeadUpdatesEventMapping:
     Type: AWS::Lambda::EventSourceMapping

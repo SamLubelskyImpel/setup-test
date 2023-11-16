@@ -5,8 +5,6 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 
-# from crm_orm.models.salesperson import Salesperson
-# from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.models.lead import Lead
 from crm_orm.session_config import DBSession
 
