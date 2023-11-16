@@ -112,7 +112,7 @@ Resources:
                     "arn:aws:s3:::crm-integrations-prod/configurations*",
                     "arn:aws:s3:::crm-integrations-test/configurations*"
                   ]
-        - PolicyName: SQSPutPolicy
+        - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -120,10 +120,6 @@ Resources:
                 Action:
                   - "sqs:PutMessage"
                 Resource: "arn:aws:sqs:*:*:*"
-        - PolicyName: SQSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
               - Effect: "Allow"
                 Action:
                   - "sqs:ReceiveMessage"
@@ -204,14 +200,6 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
-        # Event: 's3:ObjectCreated:*'
-        # EventBridge:
-        #   EventBus: !GetAtt IntegrationsEventBridgeBus.Arn
-        # Filter:
-        #   S3Key:
-        #     Rules:
-        #       - Name: prefix
-        #         Value: "raw/"
 
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function
@@ -229,7 +217,7 @@ Resources:
     Properties:
       BatchSize: 10
       EventSourceArn: !GetAtt ProcessLeadUpdatesQueue.Arn
-      MaximumBatchingWindowInSeconds: 300
+      MaximumBatchingWindowInSeconds: 30
       FunctionName: !GetAtt ProcessLeadUpdates.Arn
   
   ProcessLeadUpdatesQueue:

@@ -1,9 +1,8 @@
 """Process lead updates."""
 
-import boto3
 import logging
 from os import environ
-from json import dumps, loads
+from json import loads
 from typing import Any
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (

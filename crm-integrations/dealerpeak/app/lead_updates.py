@@ -9,12 +9,13 @@ import requests
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
-PROCESSING_QUEUE_URL = environ.get("PROCESSING_QUEUE_URL", "")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 sqs_client = boto3.client("sqs")
+s3_client = boto3.client("s3")
 
 
 def basic_auth(username: str, password: str) -> str:
@@ -89,9 +90,17 @@ def parse_salesperson(lead: dict):
 
 def send_sqs_message(message_body: dict):
     """Send SQS message."""
+    s3_key = f"configurations/{ENVIRONMENT}_DEALERPEAK.json"
     try:
+        queue_url = loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )["process_lead_updates_queue_url"]
+
         sqs_client.send_message(
-            QueueUrl=PROCESSING_QUEUE_URL,
+            QueueUrl=queue_url,
             MessageBody=dumps(message_body)
         )
     except Exception as e:

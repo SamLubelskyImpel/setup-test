@@ -72,7 +72,6 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - "s3:PutObject"
-                  - "s3:GetObject"
                   - "s3:DeleteObject"
                 Resource:
                   - !If [
@@ -80,7 +79,16 @@ Resources:
                       "arn:aws:s3:::crm-integrations-prod/raw*",
                       "arn:aws:s3:::crm-integrations-test/raw*",
                     ]
-        - PolicyName: SQSGetPolicy
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                  - !If [
+                      IsProd,
+                      "arn:aws:s3:::crm-integrations-prod*",
+                      "arn:aws:s3:::crm-integrations-test*"
+                    ]
+        - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -92,10 +100,6 @@ Resources:
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
                   - !GetAtt TransformDealerpeakDataQueue.Arn
-        - PolicyName: SQSPutPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
