@@ -85,7 +85,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_comment": lead.comment,
             "lead_origin": lead.origin_channel,
             "lead_source": lead.source_channel,
-            "vehicles_of_interest": vehicles
+            "vehicles_of_interest": vehicles,
+            "lead_ts": lead.lead_ts,
+            "db_creation_date": lead.db_creation_date
         }
 
         return {

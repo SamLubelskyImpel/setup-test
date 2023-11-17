@@ -9,12 +9,13 @@ import requests
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
-PROCESSING_QUEUE_URL = environ.get("PROCESSING_QUEUE_URL", "")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 sqs_client = boto3.client("sqs")
+s3_client = boto3.client("s3")
 
 
 def basic_auth(username: str, password: str) -> str:
@@ -89,9 +90,17 @@ def parse_salesperson(lead: dict):
 
 def send_sqs_message(message_body: dict):
     """Send SQS message."""
+    s3_key = f"configurations/{ENVIRONMENT}_DEALERPEAK.json"
     try:
+        queue_url = loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )["process_lead_updates_queue_url"]
+
         sqs_client.send_message(
-            QueueUrl=PROCESSING_QUEUE_URL,
+            QueueUrl=queue_url,
             MessageBody=dumps(message_body)
         )
     except Exception as e:
@@ -103,6 +112,7 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         lead_id = event["lead_id"]
+        dealer_id = event["dealer_id"]
         crm_dealer_id = event["crm_dealer_id"]
         crm_lead_id = event["crm_lead_id"]
 
@@ -112,19 +122,22 @@ def lambda_handler(event, context):
             return {
                 "statusCode": 404,
                 "body": dumps({
-                    "message": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
+                    "error": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
                 })
             }
 
         salesperson = parse_salesperson(lead)
         status = lead["status"].get("status", "")
 
-        logger.info(f"Found lead_id {lead_id}, crm_lead_id {crm_lead_id} with status {status} and salesperson {salesperson}")
-        # send_sqs_message({
-        #     "lead_id": lead_id,
-        #     "status": status,
-        #     "salespersons": [salesperson]
-        # })
+        logger.info("Found lead {}, dealer {}, with status {} and salesperson {}".format(
+            lead_id, dealer_id, status, salesperson
+        ))
+        send_sqs_message({
+            "lead_id": lead_id,
+            "dealer_id": dealer_id,
+            "status": status,
+            "salespersons": [salesperson]
+        })
 
         return {
             "statusCode": 200,

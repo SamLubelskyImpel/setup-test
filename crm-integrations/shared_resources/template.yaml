@@ -46,6 +46,8 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET:
+          !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -118,12 +120,8 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
-                  - "sqs:PutMessage"
+                  - "sqs:SendMessage"
                 Resource: "arn:aws:sqs:*:*:*"
-        - PolicyName: SQSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
               - Effect: "Allow"
                 Action:
                   - "sqs:ReceiveMessage"
@@ -141,6 +139,19 @@ Resources:
                   - "ec2:DescribeNetworkInterfaces"
                   - "ec2:DeleteNetworkInterface"
                 Resource: "*"
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
+                    ]
 
   GetActiveDealers:
     Type: AWS::Serverless::Function
@@ -151,18 +162,46 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:4
+  
+  GetActiveDealersErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-shared_get_active_dealers-${Environment}
+      AlarmDescription: Lambda invocation errors detected from the GetActiveDealers lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetActiveDealers
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   ScheduledCRMDataPull:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Scheduled CRM Data Pull - DealerPeak"
+      Description: "Scheduled CRM Data Pull"
       ScheduleExpression: "cron(*/5 * * * ? *)"
-      State: "ENABLED"
+      State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers"
-          Input: !Sub '{"impel_integration_partner_name": "DEALERPEAK"}'
+          Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+  
+  ScheduledCRMDataPullLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetActiveDealers.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduledCRMDataPull.Arn
 
   IntegrationsBucket:
     Type: 'AWS::S3::Bucket'
@@ -171,14 +210,6 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
-        # Event: 's3:ObjectCreated:*'
-        # EventBridge:
-        #   EventBus: !GetAtt IntegrationsEventBridgeBus.Arn
-        # Filter:
-        #   S3Key:
-        #     Rules:
-        #       - Name: prefix
-        #         Value: "raw/"
 
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function
@@ -189,14 +220,14 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:2
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:4
 
   ProcessLeadUpdatesEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 10
       EventSourceArn: !GetAtt ProcessLeadUpdatesQueue.Arn
-      MaximumBatchingWindowInSeconds: 300
+      MaximumBatchingWindowInSeconds: 30
       FunctionName: !GetAtt ProcessLeadUpdates.Arn
   
   ProcessLeadUpdatesQueue:
@@ -214,9 +245,3 @@ Resources:
       QueueName: !Sub "crm-shared_lead_updates_dlq-${Environment}"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
-
-# Outputs:
-#   ProcessLeadUpdatesQueueUrl:
-#     Value: !GetAtt ProcessLeadUpdatesQueue.QueueUrl
-#     Export:
-#       Name: ProcessLeadUpdatesQueueUrl

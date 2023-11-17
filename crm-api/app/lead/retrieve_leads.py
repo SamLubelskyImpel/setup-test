@@ -142,7 +142,9 @@ def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, A
             "lead_comment": lead.comment,
             "lead_origin": lead.origin_channel,
             "lead_source": lead.source_channel,
-            "vehicles_of_interest": vehicles_of_interest_sorted
+            "vehicles_of_interest": vehicles_of_interest_sorted,
+            "lead_ts": lead.lead_ts,
+            "db_creation_date": lead.db_creation_date
         }
         leads.append(lead_record)
 
