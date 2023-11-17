@@ -7,8 +7,8 @@ from json import dumps, loads
 from typing import Any
 from datetime import datetime, timedelta
 
-from crm_orm.models.crm_integration_partner import IntegrationPartner
-from crm_orm.models.crm_dealer import Dealer
+from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import DBSession
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -31,8 +31,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     end_time = current_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     try:
-        body = loads(event["body"])
-        partner_name = body["impel_integration_partner_name"]
+        partner_name = event["impel_integration_partner_name"]
         s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
         try:
             queue_url = loads(
@@ -59,13 +58,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
             dealers = session.query(
                     Dealer
                 ).filter(
-                    Dealer.crm_integration_partner_id == crm_partner.id,
-                    Dealer.is_active is True
+                    Dealer.integration_partner_id == crm_partner.id,
+                    Dealer.is_active == True
                 ).all()
 
             if not dealers:
                 logger.error(f"No active dealers found for {partner_name}")
-                raise
+                return
 
             for dealer in dealers:
                 dealer_configs.append({

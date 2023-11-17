@@ -46,6 +46,8 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET:
+          !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -118,7 +120,7 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
-                  - "sqs:PutMessage"
+                  - "sqs:SendMessage"
                 Resource: "arn:aws:sqs:*:*:*"
               - Effect: "Allow"
                 Action:
@@ -160,13 +162,13 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:3
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:4
   
   GetActiveDealersErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub crm-shared_get_active_dealers-${Environment}
-      AlarmDescription: Lambda invocation errors detected from the DealerPeak Lead Updates
+      AlarmDescription: Lambda invocation errors detected from the GetActiveDealers lambda
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -177,7 +179,7 @@ Resources:
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
-      Period: 900
+      Period: 300
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
@@ -185,13 +187,21 @@ Resources:
   ScheduledCRMDataPull:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Scheduled CRM Data Pull - DealerPeak"
+      Description: "Scheduled CRM Data Pull"
       ScheduleExpression: "cron(*/5 * * * ? *)"
-      State: "ENABLED"
+      State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers"
-          Input: !Sub '{"impel_integration_partner_name": "DEALERPEAK"}'
+          Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+  
+  ScheduledCRMDataPullLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetActiveDealers.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduledCRMDataPull.Arn
 
   IntegrationsBucket:
     Type: 'AWS::S3::Bucket'
@@ -210,7 +220,7 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Layers:
-        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:3
+        - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:crm-api-data-layer-${Environment}:4
 
   ProcessLeadUpdatesEventMapping:
     Type: AWS::Lambda::EventSourceMapping
