@@ -91,7 +91,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         "body": dumps({"error": f"Dealer {dealer_product_id} not found."})
                     }
 
-                logger.info(f"Dealer id {dealer.id}")
                 dealer_id = dealer.id
                 
                 crm_consumer_id = consumer.get("crm_consumer_id")
@@ -160,16 +159,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 if not salesperson_db:
                     salesperson_db = Salesperson()
-                    
+
                 update_salesperson_attrs(salesperson_db, salesperson, dealer_id)
-                
+
                 # Add and flush the session if the consumer is new
                 if not salesperson_db.id:
                     session.add(salesperson_db)
                     session.flush()
 
                 session.commit()
-                lead_id = lead.id
+                lead_id = lead_db.id
 
             logger.info(f"Created lead {lead_id}")
 
