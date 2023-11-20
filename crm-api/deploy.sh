@@ -53,7 +53,7 @@ elif [[ $config_env == "stage" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"stage\""
+    --parameter-overrides "Environment=\"stage\" DomainSuffix=\"-stage\""
 elif [[ $config_env == "test" ]]; then
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
