@@ -59,7 +59,7 @@ elif [[ $config_env == "test" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"test\""
+    --parameter-overrides "Environment=\"test\" DomainSuffix=\"-test\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
