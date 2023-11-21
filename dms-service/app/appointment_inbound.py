@@ -60,7 +60,7 @@ def lambda_handler(event, context):
         filters = event.get("queryStringParameters", {})
         page = 1 if not filters else int(filters.get("page", "1"))
         results = []
-        max_results = 1000
+        max_results = 500
         result_count = (
             max_results
             if not filters
