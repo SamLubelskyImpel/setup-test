@@ -448,6 +448,27 @@ paths:
         description: The latest db_creation_date of the appointment to query for.
       - schema:
           type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_update_date_start
+        required: false
+        description: The earliest db_update_date of the appointment to query for. On first insertion this is the same as db_creation_date.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_update_date_end
+        required: false
+        description: The latest db_update_date of the appointment to query for. On first insertion this is the same as db_creation_date.
+      - schema:
+          type: string
+        in: query
+        name: appointment_no
+        description: The dealer's appointment number of the vehicle to query for.
+      - schema:
+          type: string
         in: query
         name: stock_num
         description: The Stock Number of the vehicle to query for.
@@ -494,6 +515,18 @@ components:
           items:
             allOf:
               - $ref: '#/components/schemas/Appointment'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
               - type: object
                 properties:
                   consumer:

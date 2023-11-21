@@ -3,16 +3,16 @@ from datetime import date, datetime, timezone
 from json import dumps
 from os import environ
 
-from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
-from dms_orm.models.vehicle import Vehicle
-from dms_orm.models.consumer import Consumer
-from dms_orm.models.appointment import Appointment
-from dms_orm.models.dealer import Dealer
-from dms_orm.models.integration_partner import IntegrationPartner
-from dms_orm.models.service_contract import ServiceContract
-from dms_orm.session_config import DBSession
 from sqlalchemy import func, text
 
+from dms_orm.models.appointment import Appointment
+from dms_orm.models.consumer import Consumer
+from dms_orm.models.dealer import Dealer
+from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from dms_orm.models.integration_partner import IntegrationPartner
+from dms_orm.models.service_contract import ServiceContract
+from dms_orm.models.vehicle import Vehicle
+from dms_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -29,21 +29,17 @@ def filter_query(query, filters, tables):
     """Function filters the query based on filters."""
     for attr, value in filters.items():
         if attr == "appointment_date_start":
-            query = query.filter(
-                getattr(Appointment, "appointment_date") >= value
-            )
+            query = query.filter(getattr(Appointment, "appointment_date") >= value)
         elif attr == "appointment_date_end":
-            query = query.filter(
-                getattr(Appointment, "appointment_date") <= value
-            )
+            query = query.filter(getattr(Appointment, "appointment_date") <= value)
         elif attr == "db_creation_date_start":
-            query = query.filter(
-                getattr(Appointment, "db_creation_date") >= value
-            )
+            query = query.filter(getattr(Appointment, "db_creation_date") >= value)
         elif attr == "db_creation_date_end":
-            query = query.filter(
-                getattr(Appointment, "db_creation_date") <= value
-            )
+            query = query.filter(getattr(Appointment, "db_creation_date") <= value)
+        elif attr == "db_update_date_start":
+            query = query.filter(getattr(Appointment, "db_update_date") >= value)
+        elif attr == "db_update_date_end":
+            query = query.filter(getattr(Appointment, "db_update_date") <= value)
         else:
             filtered_table = None
             for table in tables:
@@ -73,23 +69,30 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
-
             query = (
                 session.query(
                     Appointment,
                     Consumer,
+                    DealerIntegrationPartner,
+                    Dealer,
+                    IntegrationPartner,
                     Vehicle,
-                    func.jsonb_agg(text('service_contracts.*')).label("service_contracts"))
+                    func.jsonb_agg(text("service_contracts.*")).label(
+                        "service_contracts"
+                    ),
+                )
                 .outerjoin(
                     DealerIntegrationPartner,
-                    Appointment.dealer_integration_partner_id == DealerIntegrationPartner.id
+                    Appointment.dealer_integration_partner_id
+                    == DealerIntegrationPartner.id,
                 )
                 .outerjoin(Consumer, Appointment.consumer_id == Consumer.id)
                 .outerjoin(Vehicle, Appointment.vehicle_id == Vehicle.id)
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
                 .outerjoin(
                     IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+                    DealerIntegrationPartner.integration_partner_id
+                    == IntegrationPartner.id,
                 )
                 .outerjoin(
                     ServiceContract,
@@ -101,34 +104,51 @@ def lambda_handler(event, context):
                     Consumer.id,
                     Vehicle.id,
                     Dealer.id,
-                    IntegrationPartner.id
+                    IntegrationPartner.id,
                 )
             )
 
             if filters:
-                query = filter_query(query, filters, [
-                    Appointment,
-                    DealerIntegrationPartner,
-                    Consumer,
-                    Vehicle,
-                    Dealer,
-                    IntegrationPartner
-                ])
+                query = filter_query(
+                    query,
+                    filters,
+                    [
+                        Appointment,
+                        DealerIntegrationPartner,
+                        Consumer,
+                        Vehicle,
+                        Dealer,
+                        IntegrationPartner,
+                    ],
+                )
 
             appointments = (
-                    query.order_by(Appointment.id)
-                    .limit(max_results + 1)
-                    .offset((page - 1) * max_results)
-                    .all()
+                query.order_by(Appointment.id)
+                .limit(max_results + 1)
+                .offset((page - 1) * max_results)
+                .all()
             )
 
             results = []
 
-            for(appointment, consumer, vehicle, service_contracts) in appointments[:max_results]:
+            for (
+                appointment,
+                consumer,
+                dealer_integration_partner,
+                dealer,
+                integration_partner,
+                vehicle,
+                service_contracts,
+            ) in appointments[:max_results]:
                 result_dict = appointment.as_dict()
-                result_dict['consumer'] = consumer.as_dict()
-                result_dict['vehicle'] = vehicle.as_dict()
-                result_dict['service_contracts'] = [x for x in service_contracts if x]
+                result_dict["consumer"] = consumer.as_dict()
+                result_dict[
+                    "dealer_integration_partner"
+                ] = dealer_integration_partner.as_dict()
+                result_dict["dealer"] = dealer.as_dict()
+                result_dict["integration_partner"] = integration_partner.as_dict()
+                result_dict["vehicle"] = vehicle.as_dict()
+                result_dict["service_contracts"] = [x for x in service_contracts if x]
                 results.append(result_dict)
 
             return {
