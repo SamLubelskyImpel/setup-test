@@ -55,7 +55,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !If [ IsProd, 
+        INTEGRATIONS_BUCKET: !If [ IsProd,
           !Sub "integrations-${AWS::Region}-prod",
           !Sub "integrations-${AWS::Region}-test"
         ]
@@ -85,7 +85,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "reyrey integration rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]
@@ -98,7 +98,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: ReyReyFormatRODLQ
-  
+
   ReyReyFormatROQueue:
     Type: AWS::SQS::Queue
     DependsOn: ReyReyFormatRODLQ
@@ -112,12 +112,12 @@ Resources:
   ReyReyFormatROQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt ReyReyFormatROQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -141,7 +141,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -162,7 +162,7 @@ Resources:
               Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                           !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                           !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                         ]
@@ -170,7 +170,7 @@ Resources:
               Effect: Allow
               Action:
                 - s3:*
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                 ]
@@ -205,7 +205,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: ReyReyFormatFIDLQ
-  
+
   ReyReyFormatFIQueue:
     Type: AWS::SQS::Queue
     DependsOn: ReyReyFormatFIDLQ
@@ -219,12 +219,12 @@ Resources:
   ReyReyFormatFIQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt ReyReyFormatFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -248,7 +248,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -269,7 +269,7 @@ Resources:
               Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                           !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                           !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                         ]
@@ -277,7 +277,7 @@ Resources:
               Effect: Allow
               Action:
                 - s3:*
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                 ]
@@ -308,12 +308,119 @@ Resources:
       Threshold: 0
       TreatMissingData: notBreaching
 
+  ReyReyFormatSADLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ReyReyFormatSADLQ
+
+  ReyReyFormatSAQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: ReyReyFormatSADLQ
+    Properties:
+      QueueName: ReyReyFormatSAQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ReyReyFormatSADLQ.Arn
+        maxReceiveCount: 5
+
+  ReyReyFormatSAQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt ReyReyFormatSAQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"reyrey/service_appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ReyReyFormatSAQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ReyReyFormatSAQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ReyReyFormatSAQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ReyReyFormatSAQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  ReyReyFormatSAInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Format ReyRey SA data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: appointment_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ReyReyFormatSAQueue.Arn
+
+  ReyReyFormatSADLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub ReyReyFormatSADLQ-${Environment}
+      AlarmDescription: Messages are in the reyrey format SA lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ReyReyFormatSADLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
   TopicUnivClientEngineeringAlertTopic:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: alert_client_engineering
       Subscription:
-        - Endpoint: !If [ IsProd, 
+        - Endpoint: !If [ IsProd,
                     "impel_alert_client_engineering@impel.io",
                     "ken@impel.io",
                   ]
