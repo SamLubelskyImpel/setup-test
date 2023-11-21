@@ -57,11 +57,13 @@ def update_salesperson_attrs(salesperson_db, salesperson_data, dealer_id):
 
 
 def format_ts(input_ts):
-    # Parse the input timestamp
-    input_format = "%B, %d %Y %H:%M:%S"
+    if 'T' in input_ts:
+        input_format = "%Y-%m-%dT%H:%M:%S"
+    else:
+        input_format = "%B, %d %Y %H:%M:%S"
+
     dt = datetime.strptime(input_ts, input_format)
 
-    # Format the output timestamp
     output_format = "%Y-%m-%d %H:%M:%S.000"
     return dt.strftime(output_format)
 
@@ -117,7 +119,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     consumer_id=consumer_db.id,
                     crm_lead_id=lead.get("lead_id"),
                     status=lead.get("status"),
-                    substatus=lead.get("lead_substatus"),
+                    substatus=lead.get("substatus"),
                     comment=lead.get("comment"),
                     origin_channel=lead.get("origin_channel"),
                     source_channel=lead.get("source_channel"),
