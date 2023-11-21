@@ -134,7 +134,7 @@ def lambda_handler(event: dict, context: dict):
                 logger.info(f"Parsing {decoded_key}")
                 
                 # Pyspark auto generates temp files when writing to s3, ignore these files.
-                if decoded_key.split("/")[3] != "_temporary":
+                if decoded_key.endswith(".parquet") and decoded_key.split("/")[3] != "_temporary":
                     continue
                 
                 s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
