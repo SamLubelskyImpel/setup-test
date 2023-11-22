@@ -64,7 +64,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
         db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
 
-        if service_appointment.get("ApptStatus") == "Update" or service_appointment.get("ApptStatus") == "Delete":
+        if service_appointment.get("ApptStatus").upper() == "UPDATE" or service_appointment.get("ApptStatus").upper() == "DELETE":
             db_service_appointment["rescheduled_flag"] = True
         else:
             db_service_appointment["rescheduled_flag"] = False
