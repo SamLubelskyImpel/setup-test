@@ -176,11 +176,3 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception("Error running appointment api.")
         raise
-
-event = {
-    "queryStringParameters": {
-        "db_update_date_start": "2023-11-22",
-        "db_update_date_end": "2023-11-23"
-    }
-}
-print(lambda_handler(event, None))
