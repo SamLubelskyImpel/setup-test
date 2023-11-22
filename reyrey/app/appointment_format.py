@@ -142,7 +142,8 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     db_service_contract["service_contracts|warranty_expiration_date"] = vehicle_ext_warranty.get(
                         "ExpirationDate"
                     )
-                    db_service_contracts.append(db_service_contract)
+                    if db_service_contract and any(value is not None for value in db_service_contract.values()):
+                        db_service_contracts.append(db_service_contract)
 
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
