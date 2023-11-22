@@ -64,10 +64,11 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
         db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
 
-        if service_appointment.get("ApptStatus").upper() == "UPDATE" or service_appointment.get("ApptStatus").upper() == "DELETE":
-            db_service_appointment["rescheduled_flag"] = True
-        else:
-            db_service_appointment["rescheduled_flag"] = False
+        if service_appointment.get("ApptStatus", ""):
+            if service_appointment.get("ApptStatus", "").upper() == "UPDATE" or service_appointment.get("ApptStatus", "").upper() == "DELETE":
+                db_service_appointment["rescheduled_flag"] = True
+            else:
+                db_service_appointment["rescheduled_flag"] = False
 
         if application_area is not None:
             db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
