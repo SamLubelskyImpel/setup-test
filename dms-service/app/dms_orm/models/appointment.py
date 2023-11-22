@@ -28,6 +28,7 @@ class Appointment(BaseForModels):
     last_ro_date = Column(Date)
     last_ro_num = Column(Integer)
     db_creation_date = Column(DateTime)
+    db_update_date = Column(DateTime)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""
