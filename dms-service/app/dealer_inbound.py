@@ -20,6 +20,14 @@ def json_serial(obj):
     return str(obj)
 
 
+def convert_dt(value):
+    """ Convert date or datetime string into datetime object """
+    if "T" in value:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
+    else:
+        return datetime.strptime(value, '%Y-%m-%d')
+
+
 def lambda_handler(event, context):
     """Run dealer API."""
     logger.info(f"Event: {event}")
@@ -53,12 +61,12 @@ def lambda_handler(event, context):
                         if attr == "db_creation_date_start":
                             query = query.filter(
                                 getattr(DealerIntegrationPartner, "db_creation_date")
-                                >= value
+                                >= convert_dt(value)
                             )
                         elif attr == "db_creation_date_end":
                             query = query.filter(
                                 getattr(DealerIntegrationPartner, "db_creation_date")
-                                <= value
+                                <= convert_dt(value)
                             )
                         else:
                             filtered_table = None

@@ -25,21 +25,29 @@ def json_serial(obj):
     return str(obj)
 
 
+def convert_dt(value):
+    """ Convert date or datetime string into datetime object """
+    if "T" in value:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
+    else:
+        return datetime.strptime(value, '%Y-%m-%d')
+
+
 def filter_query(query, filters, tables):
     """Function filters the query based on filters."""
     for attr, value in filters.items():
         if attr == "appointment_date_start":
-            query = query.filter(getattr(Appointment, "appointment_date") >= value)
+            query = query.filter(getattr(Appointment, "appointment_date") >= convert_dt(value))
         elif attr == "appointment_date_end":
-            query = query.filter(getattr(Appointment, "appointment_date") <= value)
+            query = query.filter(getattr(Appointment, "appointment_date") <= convert_dt(value))
         elif attr == "db_creation_date_start":
-            query = query.filter(getattr(Appointment, "db_creation_date") >= value)
+            query = query.filter(getattr(Appointment, "db_creation_date") >= convert_dt(value))
         elif attr == "db_creation_date_end":
-            query = query.filter(getattr(Appointment, "db_creation_date") <= value)
+            query = query.filter(getattr(Appointment, "db_creation_date") <= convert_dt(value))
         elif attr == "db_update_date_start":
-            query = query.filter(getattr(Appointment, "db_update_date") >= value)
+            query = query.filter(getattr(Appointment, "db_update_date") >= convert_dt(value))
         elif attr == "db_update_date_end":
-            query = query.filter(getattr(Appointment, "db_update_date") <= value)
+            query = query.filter(getattr(Appointment, "db_update_date") <= convert_dt(value))
         else:
             filtered_table = None
             for table in tables:
@@ -168,3 +176,11 @@ def lambda_handler(event, context):
     except Exception:
         logger.exception("Error running appointment api.")
         raise
+
+event = {
+    "queryStringParameters": {
+        "db_update_date_start": "2023-11-22",
+        "db_update_date_end": "2023-11-23"
+    }
+}
+print(lambda_handler(event, None))
