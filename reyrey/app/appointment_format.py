@@ -66,12 +66,15 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
         if service_appointment.get("TransType", ""):
             if service_appointment.get("TransType", "").upper() == "UPDATE" or service_appointment.get("TransType", "").upper() == "DELETE":
+                # Update appointment
                 db_service_appointment["rescheduled_flag"] = True
+                if application_area is not None:
+                    db_service_appointment["appointment_update_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
             else:
+                # New appointment
                 db_service_appointment["rescheduled_flag"] = False
-
-        if application_area is not None:
-            db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
+                if application_area is not None:
+                    db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
 
         appointment_time = service_appointment.find(".//ns:AppointmentTime", namespaces=ns)
         if appointment_time is not None:
@@ -149,7 +152,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
                 db_vehicle["vin"] = rr_vehicle.get("Vin")
-                db_vehicle["make"] = rr_vehicle.get("VehicleMake")
+                db_vehicle["make"] = rr_vehicle.get("MakeName")
                 db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
                 vehicle_detail = rr_vehicle.find(".//ns:VehicleDetail", namespaces=ns)
