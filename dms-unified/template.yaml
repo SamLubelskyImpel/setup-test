@@ -335,7 +335,7 @@ Resources:
       Endpoint: !GetAtt UnifiedAppointmentQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/service_appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   UnifiedAppointmentQueuePolicy:
     Type: AWS::SQS::QueuePolicy

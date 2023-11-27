@@ -25,33 +25,42 @@ def json_serial(obj):
         return obj.isoformat()
     return str(obj)
 
+
+def convert_dt(value):
+    """ Convert date or datetime string into datetime object """
+    if "T" in value:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
+    else:
+        return datetime.strptime(value, '%Y-%m-%d')
+
+
 def filter_query(query, filters, tables):
     """Function filters the query based on filters."""
 
     for attr, value in filters.items():
         if attr == "ro_open_date_start":
             query = query.filter(
-                getattr(ServiceRepairOrder, "ro_open_date") >= value
+                getattr(ServiceRepairOrder, "ro_open_date") >= convert_dt(value)
             )
         elif attr == "ro_open_date_end":
             query = query.filter(
-                getattr(ServiceRepairOrder, "ro_open_date") <= value
+                getattr(ServiceRepairOrder, "ro_open_date") <= convert_dt(value)
             )
         elif attr == "ro_close_date_start":
             query = query.filter(
-                getattr(ServiceRepairOrder, "ro_close_date") >= value
+                getattr(ServiceRepairOrder, "ro_close_date") >= convert_dt(value)
             )
         elif attr == "ro_close_date_end":
             query = query.filter(
-                getattr(ServiceRepairOrder, "ro_close_date") <= value
+                getattr(ServiceRepairOrder, "ro_close_date") <= convert_dt(value)
             )
         elif attr == "db_creation_date_start":
             query = query.filter(
-                getattr(ServiceRepairOrder, "db_creation_date") >= value
+                getattr(ServiceRepairOrder, "db_creation_date") >= convert_dt(value)
             )
         elif attr == "db_creation_date_end":
             query = query.filter(
-                getattr(ServiceRepairOrder, "db_creation_date") <= value
+                getattr(ServiceRepairOrder, "db_creation_date") <= convert_dt(value)
             )
         else:
             filtered_table = None

@@ -64,13 +64,17 @@ def parse_xml_to_entries(xml_string, s3_uri):
 
         db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
 
-        if service_appointment.get("ApptStatus") == "Update" or service_appointment.get("ApptStatus") == "Delete":
-            db_service_appointment["rescheduled_flag"] = True
-        else:
-            db_service_appointment["rescheduled_flag"] = False
-
-        if application_area is not None:
-            db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
+        if service_appointment.get("TransType", ""):
+            if service_appointment.get("TransType", "").upper() == "UPDATE" or service_appointment.get("TransType", "").upper() == "DELETE":
+                # Update appointment
+                db_service_appointment["rescheduled_flag"] = True
+                if application_area is not None:
+                    db_service_appointment["appointment_update_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
+            else:
+                # New appointment
+                db_service_appointment["rescheduled_flag"] = False
+                if application_area is not None:
+                    db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
 
         appointment_time = service_appointment.find(".//ns:AppointmentTime", namespaces=ns)
         if appointment_time is not None:
@@ -142,12 +146,13 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     db_service_contract["service_contracts|warranty_expiration_date"] = vehicle_ext_warranty.get(
                         "ExpirationDate"
                     )
-                    db_service_contracts.append(db_service_contract)
+                    if db_service_contract and any(value is not None for value in db_service_contract.values()):
+                        db_service_contracts.append(db_service_contract)
 
             rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
             if rr_vehicle is not None:
                 db_vehicle["vin"] = rr_vehicle.get("Vin")
-                db_vehicle["make"] = rr_vehicle.get("VehicleMake")
+                db_vehicle["make"] = rr_vehicle.get("MakeName")
                 db_vehicle["model"] = rr_vehicle.get("Carline")
                 db_vehicle["year"] = rr_vehicle.get("VehicleYr")
                 vehicle_detail = rr_vehicle.find(".//ns:VehicleDetail", namespaces=ns)

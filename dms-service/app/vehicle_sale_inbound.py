@@ -23,6 +23,14 @@ def json_serial(obj):
     return str(obj)
 
 
+def convert_dt(value):
+    """ Convert date or datetime string into datetime object """
+    if "T" in value:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S')
+    else:
+        return datetime.strptime(value, '%Y-%m-%d')
+
+
 def lambda_handler(event, context):
     """Run vehicle sale API."""
     logger.info(f"Event: {event}")
@@ -76,16 +84,16 @@ def lambda_handler(event, context):
                 ]
                 for attr, value in filters.items():
                     if attr == "sale_date_start":
-                        query = query.filter(getattr(VehicleSale, "sale_date") >= value)
+                        query = query.filter(getattr(VehicleSale, "sale_date") >= convert_dt(value))
                     elif attr == "sale_date_end":
-                        query = query.filter(getattr(VehicleSale, "sale_date") <= value)
+                        query = query.filter(getattr(VehicleSale, "sale_date") <= convert_dt(value))
                     elif attr == "db_creation_date_start":
                         query = query.filter(
-                            getattr(VehicleSale, "db_creation_date") >= value
+                            getattr(VehicleSale, "db_creation_date") >= convert_dt(value)
                         )
                     elif attr == "db_creation_date_end":
                         query = query.filter(
-                            getattr(VehicleSale, "db_creation_date") <= value
+                            getattr(VehicleSale, "db_creation_date") <= convert_dt(value)
                         )
                     else:
                         filtered_table = None

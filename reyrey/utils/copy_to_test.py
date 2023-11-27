@@ -59,7 +59,7 @@ def list_files_in_bucket(bucket_name, prefix, is_prod=False):
     return files
 
 
-for integration in ["repair_order", "fi_closed_deal"]:
+for integration in ["service_appointment", "repair_order", "fi_closed_deal"]:
     prefix = f"reyrey/{integration}/"
     prod_bucket_name = "integrations-us-east-1-prod"
     prod_file_paths = list_files_in_bucket(prod_bucket_name, prefix, is_prod=True)

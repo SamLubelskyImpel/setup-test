@@ -37,7 +37,9 @@ def insert_appointment_parquet(key, df):
         logger.info(f"Inserting appointments for {db_dealer_integration_partner_id}")
         df["consumer|dealer_integration_partner_id"] = db_dealer_integration_partner_id
         df["vehicle|dealer_integration_partner_id"] = db_dealer_integration_partner_id
-        df["appointment|dealer_integration_partner_id"] = db_dealer_integration_partner_id
+        df[
+            "appointment|dealer_integration_partner_id"
+        ] = db_dealer_integration_partner_id
 
         # Unique dealer_integration_partner_id, appointment_no SQL can't insert duplicates
         appointment_unique_constraint = [
@@ -55,27 +57,27 @@ def insert_appointment_parquet(key, df):
         df["appointment|vehicle_id"] = inserted_vehicle_ids
 
         appointment_columns = [
-            x.split("|")[1]
-            for x in list(df.columns)
-            if x.startswith("appointment|")
+            x.split("|")[1] for x in list(df.columns) if x.startswith("appointment|")
         ]
         additional_appointment_query = f"""
             ON CONFLICT ON CONSTRAINT unique_appointment DO UPDATE
-            SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, appointment.{x})' for x in appointment_columns])}
-            WHERE appointment.appointment_create_ts < EXCLUDED.appointment_create_ts"""
+            SET {', '.join([
+                f'{x} = CASE WHEN appointment.appointment_create_ts < EXCLUDED.appointment_create_ts THEN EXCLUDED.{x} ELSE appointment.{x} END' for x in appointment_columns
+            ])}
+        """
         inserted_appointment_ids = rds.insert_table_from_df(
             df,
             "appointment",
             additional_query=additional_appointment_query,
         )
-        
+
         service_contracts_columns = [
             x.split("|")[1] for x in df.columns if x.startswith("service_contracts|")
         ]
-        
+
         if service_contracts_columns:
             df["service_contracts|appointment_id"] = inserted_appointment_ids
-            
+
             df[
                 "service_contracts|dealer_integration_partner_id"
             ] = db_dealer_integration_partner_id
@@ -83,29 +85,27 @@ def insert_appointment_parquet(key, df):
             service_contracts_df = df.explode(
                 "service_contracts|service_contracts"
             ).reset_index(drop=True)
-            
+
             service_contracts_df = service_contracts_df.dropna(
                 subset=["service_contracts|service_contracts"]
             ).reset_index(drop=True)
-            
+
             service_contracts_split_df = pd.DataFrame(
                 service_contracts_df["service_contracts|service_contracts"].tolist()
             )
-            
+
             service_contracts_df = pd.concat(
                 [service_contracts_df, service_contracts_split_df], axis=1
             )
-            
+
             service_contracts_df.drop(
                 columns=["service_contracts|service_contracts"], inplace=True
             )
-            
+
             if len(service_contracts_df) == 0:
                 return
 
-            rds.insert_table_from_df(
-                service_contracts_df, "service_contracts"
-            )
+            rds.insert_table_from_df(service_contracts_df, "service_contracts")
 
         notification_message = {
             "impel_integration_partner_id": integration,
@@ -125,28 +125,31 @@ def lambda_handler(event: dict, context: dict):
         for record in event["Records"]:
             message = loads(record["body"])
             logger.info(f"Message of {message}")
-            
+
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
-                
-                decoded_key = urllib.parse.unquote(key)                
+
+                decoded_key = urllib.parse.unquote(key)
                 logger.info(f"Parsing {decoded_key}")
-                
+
                 # Pyspark auto generates temp files when writing to s3, ignore these files.
-                if decoded_key.split("/")[3] != "_temporary":
+                if (
+                    decoded_key.endswith(".parquet")
+                    and decoded_key.split("/")[3] != "_temporary"
+                ):
                     continue
-                
+
                 s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                
+
                 if decoded_key.endswith(".parquet"):
                     df = pd.read_parquet(BytesIO(s3_obj["Body"].read()))
                 elif decoded_key.endswith(".json"):
                     df = pd.read_json(BytesIO(s3_obj["Body"].read()), dtype=False)
-                else:    
+                else:
                     logger.info(f"Ignore temp pyspark file {decoded_key}")
                     continue
-                
+
                 insert_appointment_parquet(decoded_key, df)
     except Exception as e:
         logger.exception("Error inserting appointment DMS records")
