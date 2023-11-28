@@ -909,12 +909,12 @@ components:
         rescheduled_flag:
           type: boolean
         appointment_no:
-          type: number
+          type: string
         last_ro_date:
           type: string
           format: date-time
         last_ro_num:
-          type: number
+          type: string
         db_creation_date:
           type: string
           format: date-time

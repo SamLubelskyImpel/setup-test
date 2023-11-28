@@ -24,9 +24,9 @@ class Appointment(BaseForModels):
     appointment_create_ts = Column(DateTime)
     appointment_update_ts = Column(DateTime)
     rescheduled_flag = Column(Boolean)
-    appointment_no = Column(Integer)
+    appointment_no = Column(String)
     last_ro_date = Column(Date)
-    last_ro_num = Column(Integer)
+    last_ro_num = Column(String)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
 
