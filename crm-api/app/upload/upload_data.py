@@ -21,7 +21,7 @@ consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
                   'city', 'email_optin_flag', 'sms_optin_flag',
                   'request_product']
 salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
-                     'phone', 'position_name']
+                     'phone', 'position_name', 'is_primary']
 
 
 def update_attrs(db_object: Any, data: Any, dealer_id: str,
@@ -116,11 +116,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 lead_db = Lead(
                     consumer_id=consumer_db.id,
                     crm_lead_id=lead.get("crm_lead_id"),
-                    status=lead.get("status"),
-                    substatus=lead.get("substatus"),
-                    comment=lead.get("comment"),
-                    origin_channel=lead.get("origin_channel"),
-                    source_channel=lead.get("source_channel"),
+                    status=lead.get("lead_status"),
+                    substatus=lead.get("lead_substatus"),
+                    comment=lead.get("lead_comment"),
+                    origin_channel=lead.get("lead_origin"),
+                    source_channel=lead.get("lead_source"),
                     request_product=request_product,
                     lead_ts=format_ts(lead.get("lead_ts"))
                 )
@@ -133,11 +133,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         crm_vehicle_id=vehicle.get("crm_vehicle_id"),
                         vin=vehicle.get("vin"),
                         type=vehicle.get("type"),
-                        vehicle_class=vehicle.get("vehicle_class"),
+                        vehicle_class=vehicle.get("class"),
                         mileage=vehicle.get("mileage"),
                         make=vehicle.get("make"),
                         model=vehicle.get("model"),
-                        manufactured_year=vehicle.get("manufactured_year"),
+                        manufactured_year=vehicle.get("year"),
                         body_style=vehicle.get("body_style"),
                         transmission=vehicle.get("transmission"),
                         interior_color=vehicle.get("interior_color"),
