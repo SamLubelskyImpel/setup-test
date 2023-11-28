@@ -3,7 +3,7 @@ import logging
 from os import environ
 from datetime import datetime
 from json import dumps, loads
-from typing import Any
+from typing import Any, Dict, List
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -16,47 +16,42 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-# consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name', 'email', 'phone', 'postal_code', 'address', 'country', 'city', 'email_optin_flag', 'sms_optin_flag', 'request_product']
-# salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email', 'phone', 'position_name']
+consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
+                  'email', 'phone', 'postal_code', 'address', 'country',
+                  'city', 'email_optin_flag', 'sms_optin_flag',
+                  'request_product']
+salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
+                     'phone', 'position_name']
 
-def update_consumer_attrs(consumer_db, consumer_data, dealer_id, request_product):
-    consumer_attrs = {
-        "dealer_id": dealer_id,
-        "crm_consumer_id": consumer_data.get("crm_consumer_id"),
-        "first_name": consumer_data.get("first_name"),
-        "last_name": consumer_data.get("last_name"),
-        "middle_name": consumer_data.get("middle_name"),
-        "email": consumer_data.get("email"),
-        "phone": consumer_data.get("phone"),
-        "postal_code": consumer_data.get("postal_code"),
-        "address": consumer_data.get("address"),
-        "country": consumer_data.get("country"),
-        "city": consumer_data.get("city"),
+
+def update_attrs(db_object: Any, data: Any, dealer_id: str,
+                 allowed_attrs: List[str],
+                 additional_attrs: Any = None) -> None:
+    """Update attributes of a database object."""
+    if additional_attrs is None:
+        additional_attrs = {}
+
+    combined_data = {"dealer_id": dealer_id, **data, **additional_attrs}
+
+    for attr in allowed_attrs:
+        if attr in combined_data:
+            setattr(db_object, attr, combined_data[attr])
+
+
+def update_consumer_attrs(consumer_db: Any, consumer_data: Dict[str, Any],
+                          dealer_id: str, request_product: Any) -> None:
+    """Update consumer attributes in a database object."""
+    additional_attrs = {
         "email_optin_flag": consumer_data.get("email_optin_flag", True),
         "sms_optin_flag": consumer_data.get("sms_optin_flag", True),
         "request_product": request_product
     }
-
-    for attr, value in consumer_attrs.items():
-        setattr(consumer_db, attr, value)
-
-
-def update_salesperson_attrs(salesperson_db, salesperson_data, dealer_id):
-    salesperson_attrs = {
-        "dealer_id": dealer_id,
-        "crm_salesperson_id": salesperson_data.get("crm_salesperson_id"),
-        "first_name": salesperson_data.get("first_name"),
-        "last_name": salesperson_data.get("last_name"),
-        "email": salesperson_data.get("email"),
-        "phone": salesperson_data.get("phone"),
-        "position_name": salesperson_data.get("position_name")
-    }
-
-    for attr, value in salesperson_attrs.items():
-        setattr(salesperson_db, attr, value)
+    update_attrs(consumer_db, consumer_data, dealer_id,
+                 consumer_attrs, additional_attrs)
 
 
-def format_ts(input_ts):
+def format_ts(input_ts: str) -> str:
+    """Format a timestamp string into a specific format."""
     if 'T' in input_ts:
         input_format = "%Y-%m-%dT%H:%M:%S"
     else:
@@ -68,7 +63,6 @@ def format_ts(input_ts):
     return dt.strftime(output_format)
 
 
-
 def lambda_handler(event: Any, context: Any) -> Any:
     """Upload unified data to the CRM API database."""
     try:
@@ -76,7 +70,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         request_product = 'CRM'  # ???
         body = loads(event["body"])
-        
+
         for item in body:
             dealer_product_id = item["dealer_product_id"]
             consumer = item["consumer"]
@@ -94,7 +88,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     }
 
                 dealer_id = dealer.id
-                
+
                 crm_consumer_id = consumer.get("crm_consumer_id")
 
                 # Query for existing consumer
@@ -108,7 +102,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     consumer_db = Consumer()
 
                 # Update consumer attributes
-                update_consumer_attrs(consumer_db, consumer, dealer_id, request_product)
+                update_consumer_attrs(
+                    consumer_db,
+                    consumer,
+                    dealer_id,
+                    request_product)
 
                 # Add and flush the session if the consumer is new
                 if not consumer_db.id:
@@ -117,7 +115,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 lead_db = Lead(
                     consumer_id=consumer_db.id,
-                    crm_lead_id=lead.get("lead_id"),
+                    crm_lead_id=lead.get("crm_lead_id"),
                     status=lead.get("status"),
                     substatus=lead.get("substatus"),
                     comment=lead.get("comment"),
@@ -162,9 +160,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if not salesperson_db:
                     salesperson_db = Salesperson()
 
-                update_salesperson_attrs(salesperson_db, salesperson, dealer_id)
+                update_attrs(
+                    salesperson_db,
+                    salesperson,
+                    dealer_id,
+                    salesperson_attrs)
 
-                # Add and flush the session if the consumer is new
                 if not salesperson_db.id:
                     session.add(salesperson_db)
                     session.flush()
@@ -183,5 +184,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.exception(f"Error uploading data to db: {e}.")
         return {
             "statusCode": 500,
-            "body": dumps({"error": "An error occurred while processing the request."})
+            "body": dumps(
+                {
+                    "error": "An error occurred while processing the request."
+                }
+            )
         }
