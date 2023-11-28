@@ -11,7 +11,7 @@ info:
     Activity: Actions, interactions, or events associated with a lead. Activities provide insights into the progress and status of a lead and can include notes, appointments, outbound calls, etc."
 servers:
   - description: Impel test environment
-    url: https://crm-api-stage.testenv.impel.io/
+    url: https://crm-api-test.testenv.impel.io/
 paths:
   /leads:
     post:
@@ -40,7 +40,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Lead'
+              allOf:
+                - $ref: '#/components/schemas/Lead'
+                - required:
+                    - consumer_id
+                    - lead_status
+                    - lead_substatus
+                    - lead_comment
+                    - lead_origin
+                    - lead_source
+                    - vehicles_of_interest
     get:
       operationId: get-leads
       summary: Retrieve a list of all leads for a given dealer id.
@@ -224,7 +233,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Lead' 
+              allOf:
+                - $ref: '#/components/schemas/Lead'
+                - type: object
+                  properties:
+                    salespersons:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Salesperson'
               
   /leads/{lead_id}/status:
     get:
@@ -458,6 +474,33 @@ paths:
           "$ref": "#/components/responses/400"
         '404':
           "$ref": "#/components/responses/404"
+  /dealers:
+    get:
+      summary: This endpoint returns all active dealers for a given integration partner.
+      #{{RETRIEVE_DEALERS_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/integrationPartnerName"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dealer"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_parter_id of the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
   # /upload:
   #   post:
   #     summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
@@ -480,11 +523,53 @@ paths:
   #                   description: Dealer ID assigned during onboarding
   #                   example: test_dealer
   #                 lead:
-  #                   $ref: '#/components/schemas/Lead'
+  #                   allOf:
+  #                     - type: object
+  #                       properties:
+  #                         crm_lead_id:
+  #                           type: string
+  #                           description: Lead id in the CRM
+  #                           minLength: 1
+  #                           maxLength: 40
+  #                           example: 'D973DAF4-D0F2'
+  #                         lead_ts:
+  #                           type: string
+  #                           description: Lead timestamp in UTC format
+  #                           format: date-time
+  #                           example: 2023-05-25T06:35:34
+  #                     - $ref: "#/components/schemas/Lead"
+  #                     - type: object
+  #                       properties:
+  #                         vehicles_of_interest:
+  #                           allOf:
+  #                             - type: array
+  #                               items:
+  #                                 description: Object containing description of the vehicle
+  #                                 type: object
+  #                                 properties:
+  #                                   crm_vehicle_id:
+  #                                     type: string
+  #                                     description: Vehicle ID assigned by CRM (Car ID, Stock, License plate, etc.)
+  #                                     example: '8EEAD89E-E87'
+  #                             - $ref: "#/components/schemas/VehiclesOfInterest"
   #                 consumer:
-  #                   $ref: '#/components/schemas/Consumer'
+  #                   allOf:
+  #                     - type: object
+  #                       properties:
+  #                         crm_consumer_id:
+  #                           type: string
+  #                           description: The ID of the consumer in the CRM
+  #                           example: "123abc-1234ab-123abc"
+  #                     - $ref: "#/components/schemas/Consumer"
   #                 salesperson:
-  #                   $ref: '#/components/schemas/Salesperson'
+  #                   allOf:
+  #                     - $ref: '#/components/schemas/Salesperson'
+  #                     - required:
+  #                       - crm_salesperson_id
+  #                       - first_name
+  #                       - last_name
+  #                       - email
+  #                       - phone
   #     responses:
   #       '200':
   #         description: Data successfully uploaded
@@ -494,6 +579,26 @@ paths:
   #         "$ref": "#/components/responses/404"
 components:
   schemas:
+    Dealer:
+      description: A dealership or rooftop in the CRM layer.
+      type: object
+      properties:
+        dealer_id:
+          type: number
+          description: The ID of the dealer in the CRM layer.
+          example: 24
+        product_dealer_id:
+          type: string
+          description: The ID assigned to the dealership by Impel during onboarding.
+          example: "test_dealer_id"
+        crm_dealer_id:
+          type: string
+          description: The ID of the dealer in the CRM.
+          example: "12345"
+        dealer_name:
+          type: string
+          description: The name of the dealer.
+          example: "Test Dealership"
     VehiclesOfInterest:
       description: An array of vehicles the lead was interested in
       type: array
@@ -670,14 +775,6 @@ components:
     Lead:
       description: An object containing all information about a lead
       type: object
-      required:
-        - consumer_id
-        - lead_status
-        - lead_substatus
-        - lead_comment
-        - lead_origin
-        - lead_source
-        - vehicles_of_interest
       properties:
         consumer_id:
           type: integer
@@ -726,7 +823,7 @@ components:
       properties:
         crm_salesperson_id:
           type: string
-          description: The ID of th salesperson in the CRM
+          description: The ID of the salesperson in the CRM
           example: "123abc-1234ab-123abc"
         first_name:
           type: string
@@ -813,14 +910,15 @@ components:
         type: string
         minLength: 1
         maxLength: 50
-        example: 8806
-    integrationPartnerId:
-      name: integration_partner_id
+        example: "test_dealer_id"
+    integrationPartnerName:
+      name: integration_partner_name
       in: query
-      description: An Integration Partner ID.
+      description: The name of the integration partner assigned by Impel
       required: true
       schema:
-        type: integer
+        type: string
+        example: "TESTCRM"
     leadId:
       name: lead_id
       in: path
