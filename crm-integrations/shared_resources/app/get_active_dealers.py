@@ -21,7 +21,7 @@ secret_client = boto3.client("secretsmanager")
 
 
 def get_secrets():
-    """Get DealerPeak API secrets."""
+    """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
     )
