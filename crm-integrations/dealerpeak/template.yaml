@@ -108,7 +108,7 @@ Resources:
   InvokeDataPull:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_invoke-${Environment}
+      FunctionName: !Sub dealerpeak-${Environment}-Invoke
       CodeUri: app/
       Handler: invoke_data_pull.lambda_handler
       Timeout: 30
@@ -117,11 +117,11 @@ Resources:
   InvokeDataPullErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub dealerpeak_invoke-${Environment}
+      AlarmName: !Sub dealerpeak-${Environment}-Invoke
       AlarmDescription: Lambda invocation errors detected from the DealerPeak Invoke
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
@@ -145,7 +145,7 @@ Resources:
   InvokeDataPullQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_invoke_queue-${Environment}"
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
@@ -154,7 +154,7 @@ Resources:
   InvokeDataPullDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_invoke_dlq-${Environment}"
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -162,11 +162,11 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub "dealerpeak_invoke_dlq-${Environment}"
+      AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
       AlarmDescription: There are messages in the DealerPeak Invoke DLQ
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       Dimensions:
         - Name: QueueName
           Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
@@ -182,7 +182,7 @@ Resources:
   TransformDealerpeakData:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_transform_data-${Environment}
+      FunctionName: !Sub dealerpeak-${Environment}-TransformData
       CodeUri: app/
       Handler: transform_data.lambda_handler
       Timeout: 30
@@ -199,7 +199,7 @@ Resources:
   TransformDealerpeakDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_transform_queue-${Environment}"
+      QueueName: !Sub "dealerpeak-${Environment}-TransformQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
@@ -208,7 +208,7 @@ Resources:
   TransformDealerpeakDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_transform_dlq-${Environment}"
+      QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -251,7 +251,7 @@ Resources:
   GetLeadUpdates:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_lead_updates-${Environment}
+      FunctionName: !Sub dealerpeak-${Environment}-LeadUpdates
       CodeUri: app/
       Handler: lead_updates.lambda_handler
       Timeout: 30
@@ -260,11 +260,11 @@ Resources:
   GetLeadUpdatesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub dealerpeak_lead_updates-${Environment}
+      AlarmName: !Sub dealerpeak-${Environment}-LeadUpdates
       AlarmDescription: Lambda invocation errors detected from the DealerPeak Lead Updates
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
