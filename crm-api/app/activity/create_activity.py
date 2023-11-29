@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
+import boto3
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -12,6 +13,32 @@ from crm_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+ENVIRONMENT = environ.get("ENVIRONMENT")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
+s3_client = boto3.client("s3")
+sqs_client = boto3.client("sqs")
+
+
+def create_on_crm(partner_name: str, activity: Activity):
+    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    fifo_queue = loads(
+        s3_client.get_object(
+            Bucket=INTEGRATIONS_BUCKET, 
+            Key=s3_key
+        )["Body"].read().decode("utf-8")
+    )["create_activity_queue_url"]
+    sqs_client.send_message(
+        QueueUrl=fifo_queue,
+        MessageBody=dumps({
+            "activity_id": activity.id,
+            "lead_id": activity.lead_id,
+            "notes": activity.notes,
+            "activity_due_ts": activity.activity_due_ts
+        }),
+        MessageGroupId=partner_name
+    )
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -58,13 +85,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 activity.activity_due_ts = activity_due_ts
 
             session.add(activity)
+            
+            create_on_crm(
+                partner_name=lead.consumer.dealer.integration_partner.impel_integration_partner_name, 
+                activity=activity)
+            
             session.commit()
-
             activity_id = activity.id
 
         logger.info(f"Created activity {activity_id}")
-
-        # Start ETL?
 
         return {
             "statusCode": "201",
@@ -72,7 +101,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     except Exception as e:
-        logger.error(f"Error creating activity: {str(e)}")
+        # TODO is any alarm set here?
+        logger.exception(f"Error creating activity")
         return {
             "statusCode": "500",
             "body": dumps({"error": "An error occurred while processing the request."})

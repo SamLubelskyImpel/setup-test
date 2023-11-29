@@ -43,7 +43,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "city": consumer.city,
                 "country": consumer.country,
                 "address": consumer.address,
-                "postal_code": consumer.postal_code
+                "postal_code": consumer.postal_code,
+                "crm_consumer_id": consumer.crm_consumer_id
             }
 
         return {

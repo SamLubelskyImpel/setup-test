@@ -100,6 +100,7 @@ Resources:
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
                   - !GetAtt TransformDealerpeakDataQueue.Arn
+                  - !GetAtt CreateActivityQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -276,3 +277,36 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
+      
+  CreateActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_create_activity_queue-${Environment}.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CreateActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+        
+  CreateActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealerpeak_create_activity_dlq-${Environment}.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+      
+  CreateActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealerpeak_create_activity-${Environment}
+      CodeUri: app/
+      Handler: create_activity.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        CreateActivityQueueTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt CreateActivityQueue.Arn

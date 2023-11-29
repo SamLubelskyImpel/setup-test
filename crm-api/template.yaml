@@ -153,6 +153,14 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak_create_activity_queue-${Environment}.fifo
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
