@@ -10,6 +10,7 @@ from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
+from crm_orm.models.lead_salesperson import Lead_Salesperson
 
 from crm_orm.session_config import DBSession
 
@@ -21,7 +22,7 @@ consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
                   'city', 'email_optin_flag', 'sms_optin_flag',
                   'request_product']
 salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
-                     'phone', 'position_name', 'is_primary']
+                     'phone', 'position_name']
 
 
 def update_attrs(db_object: Any, data: Any, dealer_id: str,
@@ -116,11 +117,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
             lead_db = Lead(
                 consumer_id=consumer_db.id,
                 crm_lead_id=lead.get("crm_lead_id"),
-                status=lead.get("lead_status"),
-                substatus=lead.get("lead_substatus"),
-                comment=lead.get("lead_comment"),
-                origin_channel=lead.get("lead_origin"),
-                source_channel=lead.get("lead_source"),
+                status=lead.get("status"),
+                substatus=lead.get("substatus"),
+                comment=lead.get("comment"),
+                origin_channel=lead.get("origin_channel"),
+                source_channel=lead.get("source_channel"),
                 request_product=request_product,
                 lead_ts=format_ts(lead.get("lead_ts"))
             )
@@ -170,6 +171,22 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.add(salesperson_db)
                 session.flush()
 
+            lead_salesperson = session.query(Lead_Salesperson).filter(
+                Lead_Salesperson.lead_id == lead_db.id,
+                Lead_Salesperson.salesperson_id == salesperson_db.id
+            ).first()
+
+            if not lead_salesperson:
+                lead_salesperson = Lead_Salesperson(
+                    lead_id=lead_db.id,
+                    salesperson_id=salesperson_db.id,
+                    is_primary=salesperson.get("is_primary", False)
+                )
+                session.add(lead_salesperson)
+            else:
+                lead_salesperson.is_primary = salesperson.get("is_primary", False)
+
+            session.flush()
             session.commit()
             lead_id = lead_db.id
 
