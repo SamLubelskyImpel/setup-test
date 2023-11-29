@@ -106,7 +106,7 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle["model"] = default_get(vehicle, "model")
         db_vehicle["year"] = default_get(vehicle, "year")
         mileage_in = default_get(vehicle, "mileageIn")
-        if default_get(mileage_in, "value", "").upper() == "MI":
+        if default_get(mileage_in, "unit", "").upper() == "MI":
             db_vehicle["mileage"] = default_get(mileage_in, "value")
 
         customer = default_get(repair_order, "customer", {})
