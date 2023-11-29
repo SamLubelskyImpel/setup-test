@@ -61,6 +61,33 @@ Globals:
       SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
+  TekionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: Permit traffic from the Tekion lambdas
+      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      SecurityGroupEgress:
+        - Description: AllowAll
+          CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  RDSInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "tekion integration rds access"
+      GroupId: !If [ IsProd,
+                      'sg-00e12bc4c116eb820',
+                      'sg-00b911ee260ce5153'
+                    ]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt TekionSecurityGroup.GroupId
+
   RepairOrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -308,3 +335,217 @@ Resources:
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
+
+  TekionFormatRODLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionFormatRODLQ
+
+  TekionFormatROQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: TekionFormatRODLQ
+    Properties:
+      QueueName: TekionFormatROQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionFormatRODLQ.Arn
+        maxReceiveCount: 5
+
+  TekionFormatROQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt TekionFormatROQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  TekionFormatROQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionFormatROQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: TekionFormatROQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt TekionFormatROQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  TekionFormatROInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Format Tekion RO data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: repair_order_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TekionFormatROQueue.Arn
+
+  TekionFormatRODLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub TekionFormatRODLQ-${Environment}
+      AlarmDescription: Messages are in the Tekion format RO lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TekionFormatRODLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  TekionFormatFIDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionFormatFIDLQ
+
+  TekionFormatFIQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: TekionFormatFIDLQ
+    Properties:
+      QueueName: TekionFormatFIQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionFormatFIDLQ.Arn
+        maxReceiveCount: 5
+
+  TekionFormatFIQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt TekionFormatFIQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  TekionFormatFIQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionFormatFIQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: TekionFormatFIQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt TekionFormatFIQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  TekionFormatFIInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Format Tekion FI data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: vehicle_sale_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TekionFormatFIQueue.Arn
+
+  TekionFormatFIDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub TekionFormatFIDLQ-${Environment}
+      AlarmDescription: Messages are in the Tekion format FI lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TekionFormatFIDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching

@@ -1,11 +1,12 @@
 """Format raw tekion data to unified format."""
 import logging
 import urllib.parse
-from json import dumps, loads
 from datetime import datetime
+from json import dumps, loads
 from os import environ
 
 import boto3
+
 from unified_df import upload_unified_json
 
 logger = logging.getLogger()
@@ -23,7 +24,14 @@ def default_get(json_dict, key, default_value=None):
     return json_value if json_value is not None else default_value
 
 
-def parse_json_to_entries(json_data):
+def convert_unix_to_timestamp(unix_time):
+    """Convert unix time to datetime object"""
+    if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
+        return None
+    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
     entries = []
     dms_id = None
@@ -34,14 +42,22 @@ def parse_json_to_entries(json_data):
         db_consumer = {}
         db_service_contracts = []
 
+        db_metadata = {
+            "Region": REGION,
+            "PartitionYear": s3_uri.split("/")[2],
+            "PartitionMonth": s3_uri.split("/")[3],
+            "PartitionDate": s3_uri.split("/")[4],
+            "s3_url": s3_uri,
+        }
+
         dms_id = default_get(entry, "dms_id")
         db_dealer_integration_partner["dms_id"] = dms_id
 
-        db_vehicle_sale["delivery_date"] = default_get(entry, "deliveryDate") if default_get(entry, "deliveryDate") != 0 else None
+        delivery_date = default_get(entry, "deliveryDate")
+        db_vehicle_sale["delivery_date"] = convert_unix_to_timestamp(delivery_date)
 
         contract_date = default_get(entry, "contractDate")
-        if contract_date and contract_date != 0 and isinstance(contract_date, int):
-            db_vehicle_sale["sale_date"] = datetime.utcfromtimestamp(contract_date / 1000).strftime('%Y-%m-%d %H:%M:%S')
+        db_vehicle_sale["sale_date"] = convert_unix_to_timestamp(contract_date)
 
         gross_details = default_get(entry, "grossDetails", {})
         vehicle_gross = default_get(gross_details, "vehicleGross", {})
@@ -51,7 +67,9 @@ def parse_json_to_entries(json_data):
         if trade_ins:
             for trade_in in trade_ins:
                 trade_allowance = default_get(trade_in, "tradeAllowance", {})
-                db_vehicle_sale["trade_in_value"] = default_get(trade_allowance, "amount")
+                db_vehicle_sale["trade_in_value"] = default_get(
+                    trade_allowance, "amount"
+                )
 
                 trade_payoff = default_get(trade_in, "tradePayOff", {})
                 db_vehicle_sale["payoff_on_trade"] = default_get(trade_payoff, "amount")
@@ -65,30 +83,46 @@ def parse_json_to_entries(json_data):
                 disclosure_type = default_get(fni, "disclosureType")
                 if disclosure_type and disclosure_type.upper() == "SERVICE_CONTRACT":
                     db_service_contract = {}
-                    db_service_contract["service_contracts|contract_name"] = default_get(fni, "name")
-                    db_service_contract["service_contracts|start_date"] = default_get(fni, "createdTime")
+                    db_service_contract[
+                        "service_contracts|contract_name"
+                    ] = default_get(fni, "name")
+                    db_service_contract["service_contracts|start_date"] = default_get(
+                        fni, "createdTime"
+                    )
 
                     mileage = default_get(fni, "mileage", {})
-                    db_service_contract["service_contracts|expiration_miles"] = default_get(mileage, "value")
+                    db_service_contract[
+                        "service_contracts|expiration_miles"
+                    ] = default_get(mileage, "value")
 
                     term = default_get(fni, "term", {})
                     term_type = default_get(term, "type")
                     term_value = default_get(term, "value")
                     if term_type and term_type.upper() == "MONTH":
-                        db_service_contract["service_contracts|expiration_months"] = term_value
+                        db_service_contract[
+                            "service_contracts|expiration_months"
+                        ] = term_value
 
                     plan = default_get(fni, "plan", {})
 
                     price = default_get(plan, "price")
-                    db_service_contract["service_contracts|amount"] = default_get(price, "amount")
+                    db_service_contract["service_contracts|amount"] = default_get(
+                        price, "amount"
+                    )
 
                     cost = default_get(plan, "cost")
-                    db_service_contract["service_contracts|cost"] = default_get(cost, "amount")
+                    db_service_contract["service_contracts|cost"] = default_get(
+                        cost, "amount"
+                    )
 
                     deductible_amount = default_get(plan, "deductibleAmount", {})
-                    db_service_contract["service_contracts|deductible"] = default_get(deductible_amount, "amount")
+                    db_service_contract["service_contracts|deductible"] = default_get(
+                        deductible_amount, "amount"
+                    )
 
-                    db_service_contract["service_contracts|extended_warranty"] = dumps(fni)
+                    db_service_contract["service_contracts|extended_warranty"] = dumps(
+                        fni
+                    )
                     db_service_contract["service_contracts|service_package_flag"] = True
 
                     db_service_contracts.append(db_service_contract)
@@ -127,8 +161,9 @@ def parse_json_to_entries(json_data):
 
                 mileage = default_get(vehicle, "mileage", {})
                 db_vehicle["mileage"] = default_get(mileage, "value")
-                
-                stock_type = default_get(vehicle, "stockType")
+
+                db_vehicle["stock_num"] = default_get(vehicle, "stockId")
+                stock_type = default_get(vehicle, "stockType", "")
                 if stock_type and stock_type.upper() == "NEW":
                     db_vehicle["new_or_used"] = "N"
                 elif stock_type and stock_type.upper() == "USED":
@@ -165,11 +200,13 @@ def parse_json_to_entries(json_data):
                                 db_adjustment_on_price = price_amount
                             if price_type.upper() == "PROFIT":
                                 db_profit_on_sale = price_amount
-                db_vehicle_sale["listed_price"] = db_retail_price if db_retail_price else db_selling_price
+                db_vehicle_sale["listed_price"] = (
+                    db_retail_price if db_retail_price else db_selling_price
+                )
                 db_vehicle_sale["oem_msrp"] = db_oem_msrp
                 db_vehicle_sale["adjustment_on_price"] = db_adjustment_on_price
                 db_vehicle_sale["profit_on_sale"] = db_profit_on_sale
-        
+
         customers = default_get(entry, "customers", [])
         if customers:
             for customer in customers:
@@ -177,21 +214,32 @@ def parse_json_to_entries(json_data):
                 db_consumer["last_name"] = default_get(customer, "lastName")
                 db_consumer["email"] = default_get(customer, "email")
 
-                communication_preferences = default_get(customer, "communicationPreferences", {})
+                communication_preferences = default_get(
+                    customer, "communicationPreferences", {}
+                )
 
                 email_preference = default_get(communication_preferences, "email", {})
-                db_consumer["email_optin_flag"] = default_get(email_preference, "isOptInService")
+                db_consumer["email_optin_flag"] = default_get(
+                    email_preference, "isOptInService"
+                )
 
                 call_preference = default_get(communication_preferences, "call", {})
-                db_consumer["phone_optin_flag"] = default_get(call_preference, "isOptInService")
+                db_consumer["phone_optin_flag"] = default_get(
+                    call_preference, "isOptInService"
+                )
 
                 addresses = default_get(customer, "addresses", [])
-                if addresses:
-                    db_consumer["address"] = dumps(addresses)
-                    for address in addresses:
-                        db_consumer["city"] = default_get(address, "city")
-                        db_consumer["state"] = default_get(address, "state")
-                
+                for address in addresses:
+                    db_consumer["city"] = default_get(address, "city")
+                    db_consumer["state"] = default_get(address, "state")
+                    db_consumer["postal_code"] = default_get(address, "zip")
+                    address_line1 = default_get(address, "line1")
+                    address_line2 = default_get(address, "line2")
+                    if address_line1 and address_line2:
+                        db_consumer["address"] = f"{address_line1} {address_line2}"
+                    elif address_line1:
+                        db_consumer["address"] = address_line1
+
                 db_cell_phone = None
                 db_home_phone = None
                 phones = default_get(customer, "phones", [])
@@ -206,6 +254,11 @@ def parse_json_to_entries(json_data):
                                 db_cell_phone = phone_number
                 db_consumer["cell_phone"] = db_cell_phone
                 db_consumer["home_phone"] = db_home_phone
+
+        metadata = dumps(db_metadata)
+        db_vehicle["metadata"] = metadata
+        db_consumer["metadata"] = metadata
+        db_vehicle_sale["metadata"] = metadata
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
@@ -229,8 +282,8 @@ def lambda_handler(event, context):
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                json_data= loads(response["Body"].read())
-                entries, dms_id = parse_json_to_entries(json_data)
+                json_data = loads(response["Body"].read())
+                entries, dms_id = parse_json_to_entries(json_data, decoded_key)
                 if not dms_id:
                     raise RuntimeError("No dms_id found")
                 upload_unified_json(entries, "fi_closed_deal", decoded_key, dms_id)
