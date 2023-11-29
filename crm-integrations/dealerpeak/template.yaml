@@ -8,6 +8,11 @@ Parameters:
     Type: String
     AllowedPattern: "^[a-zA-z0-9-]+$"
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+  CEAlertTopicArn:
+    Description: The ARN of the SNS topic serving as the Alert Topic for CE
+    Type: String
+    AllowedPattern: '^arn:aws:sns:[a-z]{2}-[a-z]+-\d{1}:\d{12}:.*$'
+    ConstraintDescription: Must be an SNS ARN
 
 Conditions:
   IsProd:
@@ -27,6 +32,10 @@ Globals:
         INTEGRATIONS_BUCKET:
           !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
         SECRET_KEY: "DEALERPEAK"
+        UPLOAD_SECRET_KEY: "impel"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        SALES_AI_WEBHOOK: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
+        CEAlertTopicArn: !Ref CEAlertTopicArn
 
 Resources:
   LambdaRole:
@@ -54,6 +63,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
@@ -211,6 +225,27 @@ Resources:
       QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
+  
+  TransformDealerpeakDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub "dealerpeak_transform_dlq-${Environment}"
+      AlarmDescription: There are messages in the DealerPeak Transform DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformDealerpeakDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
 
   TransformDealerpeakDataQueuePolicy:
     Type: "AWS::SQS::QueuePolicy"
