@@ -10,6 +10,7 @@ from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
+from crm_orm.models.lead_salesperson import Lead_Salesperson
 
 from crm_orm.session_config import DBSession
 
@@ -21,7 +22,7 @@ consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
                   'city', 'email_optin_flag', 'sms_optin_flag',
                   'request_product']
 salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
-                     'phone', 'position_name', 'is_primary']
+                     'phone', 'position_name']
 
 
 def update_attrs(db_object: Any, data: Any, dealer_id: str,
@@ -70,110 +71,126 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         request_product = 'CRM'  # ???
         body = loads(event["body"])
+        logger.info(f"Body: {body}")
 
-        for item in body:
-            dealer_product_id = item["dealer_product_id"]
-            consumer = item["consumer"]
-            lead = item["lead"]
-            vehicles_of_interest = lead["vehicles_of_interest"]
-            salesperson = item["salesperson"]
+        dealer_product_id = body["dealer_product_id"]
+        consumer = body["consumer"]
+        lead = body["lead"]
+        vehicles_of_interest = lead["vehicles_of_interest"]
+        salesperson = body["salesperson"]
 
-            with DBSession() as session:
-                dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_product_id).first()
-                if not dealer:
-                    logger.error(f"Dealer {dealer_product_id} not found")
-                    return {
-                        "statusCode": 404,
-                        "body": dumps({"error": f"Dealer {dealer_product_id} not found."})
-                    }
+        with DBSession() as session:
+            dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_product_id).first()
+            if not dealer:
+                logger.error(f"Dealer {dealer_product_id} not found")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Dealer {dealer_product_id} not found."})
+                }
 
-                dealer_id = dealer.id
+            dealer_id = dealer.id
 
-                crm_consumer_id = consumer.get("crm_consumer_id")
+            crm_consumer_id = consumer.get("crm_consumer_id")
 
-                # Query for existing consumer
-                consumer_db = session.query(Consumer).filter(
-                    Consumer.crm_consumer_id == crm_consumer_id,
-                    Consumer.dealer_id == dealer.id
-                ).first()
+            # Query for existing consumer
+            consumer_db = session.query(Consumer).filter(
+                Consumer.crm_consumer_id == crm_consumer_id,
+                Consumer.dealer_id == dealer.id
+            ).first()
 
-                # Create a new consumer if not found
-                if not consumer_db:
-                    consumer_db = Consumer()
+            # Create a new consumer if not found
+            if not consumer_db:
+                consumer_db = Consumer()
 
-                # Update consumer attributes
-                update_consumer_attrs(
-                    consumer_db,
-                    consumer,
-                    dealer_id,
-                    request_product)
+            # Update consumer attributes
+            update_consumer_attrs(
+                consumer_db,
+                consumer,
+                dealer_id,
+                request_product)
 
-                # Add and flush the session if the consumer is new
-                if not consumer_db.id:
-                    session.add(consumer_db)
-                    session.flush()
+            # Add and flush the session if the consumer is new
+            if not consumer_db.id:
+                session.add(consumer_db)
+                session.flush()
 
-                lead_db = Lead(
-                    consumer_id=consumer_db.id,
-                    crm_lead_id=lead.get("crm_lead_id"),
-                    status=lead.get("lead_status"),
-                    substatus=lead.get("lead_substatus"),
-                    comment=lead.get("lead_comment"),
-                    origin_channel=lead.get("lead_origin"),
-                    source_channel=lead.get("lead_source"),
-                    request_product=request_product,
-                    lead_ts=format_ts(lead.get("lead_ts"))
+            lead_db = Lead(
+                consumer_id=consumer_db.id,
+                crm_lead_id=lead.get("crm_lead_id"),
+                status=lead.get("status"),
+                substatus=lead.get("substatus"),
+                comment=lead.get("comment"),
+                origin_channel=lead.get("origin_channel"),
+                source_channel=lead.get("source_channel"),
+                request_product=request_product,
+                lead_ts=format_ts(lead.get("lead_ts"))
+            )
+
+            session.add(lead_db)
+
+            for vehicle in vehicles_of_interest:
+                vehicle_db = Vehicle(
+                    lead_id=lead_db.id,
+                    crm_vehicle_id=vehicle.get("crm_vehicle_id"),
+                    vin=vehicle.get("vin"),
+                    type=vehicle.get("type"),
+                    vehicle_class=vehicle.get("class"),
+                    mileage=vehicle.get("mileage"),
+                    make=vehicle.get("make"),
+                    model=vehicle.get("model"),
+                    manufactured_year=vehicle.get("year"),
+                    body_style=vehicle.get("body_style"),
+                    transmission=vehicle.get("transmission"),
+                    interior_color=vehicle.get("interior_color"),
+                    exterior_color=vehicle.get("exterior_color"),
+                    trim=vehicle.get("trim"),
+                    price=vehicle.get("price"),
+                    status=vehicle.get("status"),
+                    condition=vehicle.get("condition"),
+                    odometer_units=vehicle.get("odometer_units"),
+                    vehicle_comments=vehicle.get("vehicle_comments")
                 )
+                lead_db.vehicles.append(vehicle_db)
 
-                session.add(lead_db)
+            crm_salesperson_id = salesperson.get("crm_salesperson_id")
+            salesperson_db = session.query(Salesperson).filter(
+                Salesperson.crm_salesperson_id == crm_salesperson_id,
+                Salesperson.dealer_id == dealer_id
+            ).first()
 
-                for vehicle in vehicles_of_interest:
-                    vehicle_db = Vehicle(
-                        lead_id=lead_db.id,
-                        crm_vehicle_id=vehicle.get("crm_vehicle_id"),
-                        vin=vehicle.get("vin"),
-                        type=vehicle.get("type"),
-                        vehicle_class=vehicle.get("class"),
-                        mileage=vehicle.get("mileage"),
-                        make=vehicle.get("make"),
-                        model=vehicle.get("model"),
-                        manufactured_year=vehicle.get("year"),
-                        body_style=vehicle.get("body_style"),
-                        transmission=vehicle.get("transmission"),
-                        interior_color=vehicle.get("interior_color"),
-                        exterior_color=vehicle.get("exterior_color"),
-                        trim=vehicle.get("trim"),
-                        price=vehicle.get("price"),
-                        status=vehicle.get("status"),
-                        condition=vehicle.get("condition"),
-                        odometer_units=vehicle.get("odometer_units"),
-                        vehicle_comments=vehicle.get("vehicle_comments")
-                    )
-                    lead_db.vehicles.append(vehicle_db)
+            if not salesperson_db:
+                salesperson_db = Salesperson()
 
-                crm_salesperson_id = salesperson.get("crm_salesperson_id")
-                salesperson_db = session.query(Salesperson).filter(
-                    Salesperson.crm_salesperson_id == crm_salesperson_id,
-                    Salesperson.dealer_id == dealer_id
-                ).first()
+            update_attrs(
+                salesperson_db,
+                salesperson,
+                dealer_id,
+                salesperson_attrs)
 
-                if not salesperson_db:
-                    salesperson_db = Salesperson()
+            if not salesperson_db.id:
+                session.add(salesperson_db)
+                session.flush()
 
-                update_attrs(
-                    salesperson_db,
-                    salesperson,
-                    dealer_id,
-                    salesperson_attrs)
+            lead_salesperson = session.query(Lead_Salesperson).filter(
+                Lead_Salesperson.lead_id == lead_db.id,
+                Lead_Salesperson.salesperson_id == salesperson_db.id
+            ).first()
 
-                if not salesperson_db.id:
-                    session.add(salesperson_db)
-                    session.flush()
+            if not lead_salesperson:
+                lead_salesperson = Lead_Salesperson(
+                    lead_id=lead_db.id,
+                    salesperson_id=salesperson_db.id,
+                    is_primary=salesperson.get("is_primary", False)
+                )
+                session.add(lead_salesperson)
+            else:
+                lead_salesperson.is_primary = salesperson.get("is_primary", False)
 
-                session.commit()
-                lead_id = lead_db.id
+            session.flush()
+            session.commit()
+            lead_id = lead_db.id
 
-            logger.info(f"Created lead {lead_id}")
+        logger.info(f"Created lead {lead_id}")
 
         return {
             "statusCode": "201",
