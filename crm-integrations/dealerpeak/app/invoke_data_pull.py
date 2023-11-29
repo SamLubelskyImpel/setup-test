@@ -47,15 +47,14 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     """Fetch new leads from DealerPeak CRM."""
     api_url, username, password = get_secrets()
     token = basic_auth(username, password)
-
     dealer_group_id, location_id = crm_dealer_id.split("__")
 
+    # Get inital list of leads
     try:
         response = requests.get(
             url=f"{api_url}/dealergroup/{dealer_group_id}/location/{location_id}/leads",
             params={
-                "deltaDate": start_time,
-                "includeCustomerComment": True,
+                "deltaDate": start_time
             },
             headers={
                 "Authorization": f"Basic {token}",
@@ -64,11 +63,57 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
             timeout=3,
         )
         response.raise_for_status()
-        return response.json()
+        inital_leads = response.json()
 
     except Exception as e:
         logger.error(f"Error occured calling DealerPeak APIs: {e}")
         raise
+
+    logger.info(f"Total initial leads found {len(inital_leads)}")
+
+    # Filter leads
+    filtered_leads = filter_leads(inital_leads, start_time)
+    logger.info(f"Total leads after filtering {len(filtered_leads)}")
+
+    # Get new lead records
+    new_leads = []
+    for lead in filtered_leads:
+        lead_id = lead.get("leadID")
+        try:
+            response = requests.get(
+                url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{lead_id}",
+                headers={
+                    "Authorization": f"Basic {token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=3,
+            )
+            response.raise_for_status()
+            lead_record = response.json()
+
+            new_leads.append(lead_record)
+        except Exception as e:
+            logger.error(f"Error fetching lead {lead_id}. Skipping lead: {e}")
+            continue
+
+    logger.info(f"Total leads saved {len(new_leads)}")
+    return new_leads
+
+
+def filter_leads(leads: list, start_time: str):
+    """Filter leads by dateCreated."""
+    filtered_leads = []
+    start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
+    for lead in leads:
+        try:
+            created_date = datetime.strptime(lead["dateCreated"], "%B, %d %Y %H:%M:%S")
+            if created_date >= start_date:
+                filtered_leads.append(lead)
+        except Exception as e:
+            logger.error(f"Error parsing dateCreated for lead {lead.get('leadID')}. Skipping lead: {e}")
+            continue
+
+    return filtered_leads
 
 
 def save_raw_leads(leads: list, product_dealer_id: str):
@@ -85,21 +130,6 @@ def save_raw_leads(leads: list, product_dealer_id: str):
     )
 
 
-def filter_leads(leads: list, start_time: str):
-    """Filter leads by dateCreated."""
-    logger.info(f"Total leads found {len(leads)}")
-
-    filtered_leads = []
-    start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
-    for lead in leads:
-        created_date = datetime.strptime(lead["dateCreated"], "%B, %d %Y %H:%M:%S")
-        if created_date >= start_date:
-            filtered_leads.append(lead)
-
-    logger.info(f"Total leads after filtering {len(filtered_leads)}")
-    return filtered_leads
-
-
 def record_handler(record: SQSRecord):
     """Invoke DealerPeak data pull."""
     logger.info(f"Record: {record}")
@@ -112,12 +142,11 @@ def record_handler(record: SQSRecord):
         product_dealer_id = body['product_dealer_id']
 
         leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
-        filtered_leads = filter_leads(leads, start_time)
-        if not filtered_leads:
+        if not leads:
             logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
             return
 
-        save_raw_leads(filtered_leads, product_dealer_id)
+        save_raw_leads(leads, product_dealer_id)
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
