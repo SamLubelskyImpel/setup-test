@@ -97,7 +97,7 @@ def send_sqs_message(message_body: dict):
                 Bucket=BUCKET,
                 Key=s3_key
             )['Body'].read().decode('utf-8')
-        )["process_lead_updates_queue_url"]
+        )["lead_updates_queue_url"]
 
         sqs_client.send_message(
             QueueUrl=queue_url,

@@ -239,6 +239,7 @@ Resources:
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-Authorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 120
@@ -260,6 +261,7 @@ Resources:
   CreateLead:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-CreateLead"
       CodeUri: app/lead/
       Handler: create_lead.lambda_handler
       Timeout: 30
@@ -272,11 +274,12 @@ Resources:
             Path: /leads
             Method: POST
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   RetrieveLeads:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeads"
       CodeUri: app/lead/
       Handler: retrieve_leads.lambda_handler
       Timeout: 30
@@ -289,11 +292,12 @@ Resources:
             Path: /leads
             Method: GET
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   RetrieveLead:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLead"
       CodeUri: app/lead/
       Handler: retrieve_lead.lambda_handler
       Timeout: 30
@@ -306,11 +310,12 @@ Resources:
             Path: /leads/{lead_id}
             Method: GET
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   UpdateLead:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UpdateLead"
       CodeUri: app/lead/
       Handler: update_lead.lambda_handler
       Timeout: 30
@@ -323,11 +328,12 @@ Resources:
             Path: /leads/{lead_id}
             Method: PUT
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   RetrieveLeadStatus:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadStatus"
       CodeUri: app/lead/
       Handler: retrieve_lead_status.lambda_handler
       Timeout: 30
@@ -340,11 +346,12 @@ Resources:
             Path: /leads/{lead_id}/status
             Method: GET
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   RetrieveSalespersonsData:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveSalespersonsData"
       CodeUri: app/lead/
       Handler: retrieve_lead_salespersons.lambda_handler
       Timeout: 30
@@ -357,11 +364,12 @@ Resources:
             Path: /leads/{lead_id}/salespersons
             Method: GET
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   CreateConsumer:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-CreateConsumer"
       CodeUri: app/consumer/
       Handler: create_consumer.lambda_handler
       Timeout: 30
@@ -374,11 +382,12 @@ Resources:
             Path: /consumers
             Method: POST
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   RetrieveConsumer:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveConsumer"
       CodeUri: app/consumer/
       Handler: retrieve_consumer.lambda_handler
       Timeout: 30
@@ -391,11 +400,12 @@ Resources:
             Path: /consumers/{consumer_id}
             Method: GET
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   UpdateConsumer:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UpdateConsumer"
       CodeUri: app/consumer/
       Handler: update_consumer.lambda_handler
       Timeout: 30
@@ -408,11 +418,12 @@ Resources:
             Path: /consumers/{consumer_id}
             Method: PUT
       Layers:
-        - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
 
   CreateActivity:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "crm-api-${Environment}-CreateActivity"
       CodeUri: app/activity/
       Handler: create_activity.lambda_handler
       Timeout: 30
@@ -422,10 +433,11 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref CrmApiGateway
-            Path: /activities/{lead_id}
+            Path: /activities
             Method: POST
       Layers:
         - !Ref CrmApiDataLayer
+        - !Ref CrmOrmLayer
         
   CreateActivityAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -446,13 +458,67 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+  
+  UpdateActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UpdateActivity"
+      CodeUri: app/activity/
+      Handler: update_activity.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Put:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /activities/{activity_id}
+            Method: PUT
+      Layers:
+        - !Ref CrmOrmLayer
+  
+  RetrieveDealers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveDealers"
+      CodeUri: app/dealer/
+      Handler: retrieve_dealers.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
 
-  CrmApiDataLayer:
+  UploadData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UploadData"
+      CodeUri: app/upload/
+      Handler: upload_data.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /upload
+            Method: POST
+      Layers:
+        - !Ref CrmOrmLayer
+
+  CrmOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub "crm-api-data-layer-${Environment}"
-      Description: Data layer
-      ContentUri: ./data_layer
+      LayerName: !Sub "crm_orm_layer-${Environment}"
+      Description: Crm Orm Layer
+      ContentUri: ./layers/crm_orm
       CompatibleRuntimes:
         - python3.9
       LicenseInfo: MIT

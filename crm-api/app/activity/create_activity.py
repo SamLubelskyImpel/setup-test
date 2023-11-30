@@ -49,7 +49,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
-        lead_id = event["pathParameters"]["lead_id"]
+        lead_id = event["queryStringParameters"]["lead_id"]
 
         activity_type = body["activity_type"].lower()
         activity_due_ts = body.get("activity_due_ts")

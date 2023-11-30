@@ -20,7 +20,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
-        dealer_id = event["headers"]["dealer_id"]
+        dealer_id = event["queryStringParameters"]["dealer_id"]
 
         with DBSession() as session:
             dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_id).first()

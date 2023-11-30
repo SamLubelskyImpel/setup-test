@@ -94,10 +94,37 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+RETRIEVE_DEALERS_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveDealers.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 CREATE_ACTIVITY_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
     Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateActivity.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+UPDATE_ACTIVITY_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateActivity.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+UPLOAD_DATA_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UploadData.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
@@ -115,4 +142,7 @@ CRM_API_INTERPOLATION_DATA = {
     "RETRIEVE_CONSUMER_LAMBDA_INFO": RETRIEVE_CONSUMER_LAMBDA_INFO,
     "UPDATE_CONSUMER_LAMBDA_INFO": UPDATE_CONSUMER_LAMBDA_INFO,
     "CREATE_ACTIVITY_LAMBDA_INFO": CREATE_ACTIVITY_LAMBDA_INFO,
+    "UPLOAD_DATA_LAMBDA_INFO": UPLOAD_DATA_LAMBDA_INFO,
+    "RETRIEVE_DEALERS_LAMBDA_INFO": RETRIEVE_DEALERS_LAMBDA_INFO,
+    "UPDATE_ACTIVITY_LAMBDA_INFO": UPDATE_ACTIVITY_LAMBDA_INFO,
 }
