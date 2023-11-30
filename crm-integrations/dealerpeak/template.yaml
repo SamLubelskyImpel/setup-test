@@ -32,7 +32,7 @@ Globals:
         INTEGRATIONS_BUCKET:
           !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
         CRM_API_URL: 
-          !If [IsProd, "https://crm-api.impel.io", !Sub "https://vf9p5z68u4.execute-api.us-east-1.amazonaws.com/ce-1190"] # TODO fix the test url
+          !If [IsProd, "https://crm-api.impel.io", !Sub "https://crm-api-test.testenv.impel.io"]
         SECRET_KEY: "DEALERPEAK"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
