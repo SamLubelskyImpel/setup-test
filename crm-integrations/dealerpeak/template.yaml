@@ -317,3 +317,24 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt TransformUnifiedDataQueue.Arn
+            
+  TransformUnifiedDataAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub DealerpeakTransformUnifiedDataAlarm-${Environment}
+      AlarmDescription: There are over 10 unprocessed messages in the Dead Letter Queue
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformUnifiedDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 10
+      TreatMissingData: notBreaching

@@ -426,6 +426,26 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmApiDataLayer
+        
+  CreateActivityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub CreateActivityAlarm-${Environment}
+      AlarmDescription: CreateActivity failed 3 times within 15 minutes
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CreateActivity
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
 
   CrmApiDataLayer:
     Type: AWS::Serverless::LayerVersion
