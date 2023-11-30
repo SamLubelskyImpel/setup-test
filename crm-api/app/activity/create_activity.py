@@ -21,21 +21,22 @@ s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 
 
-def create_on_crm(partner_name: str, activity: Activity):
+def create_on_crm(partner_name: str, activity: Activity, crm_dealer_id: str):
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     fifo_queue = loads(
         s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET, 
             Key=s3_key
         )["Body"].read().decode("utf-8")
-    )["create_activity_queue_url"]
+    )["transform_unified_data_queue_url"]
     sqs_client.send_message(
         QueueUrl=fifo_queue,
         MessageBody=dumps({
             "activity_id": activity.id,
             "lead_id": activity.lead_id,
             "notes": activity.notes,
-            "activity_due_ts": activity.activity_due_ts
+            "activity_due_ts": activity.activity_due_ts,
+            "crm_dealer_id": crm_dealer_id
         }),
         MessageGroupId=partner_name
     )
@@ -88,7 +89,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             
             create_on_crm(
                 partner_name=lead.consumer.dealer.integration_partner.impel_integration_partner_name, 
-                activity=activity)
+                activity=activity,
+                crm_dealer_id=lead.consumer.dealer.crm_dealer_id)
             
             session.commit()
             activity_id = activity.id
@@ -101,7 +103,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     except Exception as e:
-        # TODO is any alarm set here?
         logger.exception(f"Error creating activity")
         return {
             "statusCode": "500",

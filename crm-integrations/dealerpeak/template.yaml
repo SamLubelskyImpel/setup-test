@@ -26,6 +26,8 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET:
           !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        CRM_API_URL: 
+          !If [IsProd, "https://crm-api.impel.io", !Sub "https://vf9p5z68u4.execute-api.us-east-1.amazonaws.com/ce-1190"] # TODO fix the test url
         SECRET_KEY: "DEALERPEAK"
 
 Resources:
@@ -54,6 +56,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
@@ -100,7 +107,7 @@ Resources:
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
                   - !GetAtt TransformDealerpeakDataQueue.Arn
-                  - !GetAtt CreateActivityQueue.Arn
+                  - !GetAtt TransformUnifiedDataQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -278,35 +285,35 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
       
-  CreateActivityQueue:
+  TransformUnifiedDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_create_activity_queue-${Environment}.fifo"
+      QueueName: !Sub "dealerpeak_transform_unified_data_queue-${Environment}.fifo"
       FifoQueue: true
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt CreateActivityDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt TransformUnifiedDataDeadLetterQueue.Arn
         maxReceiveCount: 3
         
-  CreateActivityDeadLetterQueue:
+  TransformUnifiedDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_create_activity_dlq-${Environment}.fifo"
+      QueueName: !Sub "dealerpeak_transform_unified_data_dlq-${Environment}.fifo"
       FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
       
-  CreateActivity:
+  TransformUnifiedData:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_create_activity-${Environment}
+      FunctionName: !Sub dealerpeak_transform_unified_data-${Environment}
       CodeUri: app/
-      Handler: create_activity.lambda_handler
+      Handler: transform_unified_data.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Events:
-        CreateActivityQueueTrigger:
+        TransformUnifiedDataQueueTrigger:
           Type: SQS
           Properties:
-            Queue: !GetAtt CreateActivityQueue.Arn
+            Queue: !GetAtt TransformUnifiedDataQueue.Arn
