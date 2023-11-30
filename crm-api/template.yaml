@@ -425,8 +425,26 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref CrmApiGateway
-            Path: /activities/{lead_id}
+            Path: /activities
             Method: POST
+      Layers:
+        - !Ref CrmOrmLayer
+  
+  UpdateActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UpdateActivity"
+      CodeUri: app/activity/
+      Handler: update_activity.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Put:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /activities/{activity_id}
+            Method: PUT
       Layers:
         - !Ref CrmOrmLayer
   
