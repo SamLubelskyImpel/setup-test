@@ -355,7 +355,7 @@ Resources:
       AlarmDescription: There are over 10 unprocessed messages in the Dead Letter Queue
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - !Ref CEAlertTopicArn
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: QueueName

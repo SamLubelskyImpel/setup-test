@@ -31,6 +31,16 @@ class CrmApiWrapper:
     def get_consumer(self, consumer_id: int):
         return self.__run_get(f"consumers/{consumer_id}")
         
+    def update_activity(self, activity_id, crm_activity_id):
+        res = requests.put(f"{self.url}/activities/{activity_id}", json={
+            "crm_activity_id": crm_activity_id
+        }, headers={
+            "x_api_key": self.api_key,
+            "partner_id": self.partner_id,
+        })
+        res.raise_for_status()
+        return res.json()
+        
         
 class DealerpeakApiWrapper:
     def __init__(self):
@@ -72,10 +82,7 @@ def lambda_handler(event: dict, context):
             }
             
             dealerpeak_task_id = dealer_peak_api.create_activity(crm_payload, dealer_id=activity["crm_dealer_id"])
-            
-            logger.info(dealerpeak_task_id)
-            
-            # TODO update activity with dealerpeak_task_id
+            crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
         except:
             logger.exception(f"Failed to post activity {activity['activity_id']} to Dealerpeak")
             batch_failures.append(event['messageId'])
