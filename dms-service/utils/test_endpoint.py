@@ -20,7 +20,7 @@ secret = boto3.client("secretsmanager").get_secret_value(
 secret = loads(secret["SecretString"])[client_id]
 x_api_key = loads(secret)["api_key"]
 
-endpoint = "appointment"
+endpoint = "dealer"
 
 headers = {
     "accept": "application/json",
