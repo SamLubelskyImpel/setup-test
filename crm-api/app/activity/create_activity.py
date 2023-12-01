@@ -36,7 +36,9 @@ def create_on_crm(partner_name: str, activity: Activity, crm_dealer_id: str):
             "lead_id": activity.lead_id,
             "notes": activity.notes,
             "activity_due_ts": activity.activity_due_ts,
-            "crm_dealer_id": crm_dealer_id
+            "activity_requested_ts": activity.activity_requested_ts,
+            "crm_dealer_id": crm_dealer_id,
+            "activity_type": activity.activity_type.type,
         }),
         MessageGroupId=partner_name
     )
