@@ -145,7 +145,7 @@ Resources:
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
-      Threshold: 1
+      Threshold: 3
       TreatMissingData: notBreaching
 
   InvokeDataPullEventMapping:
@@ -190,7 +190,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 0
+      Threshold: 10
       TreatMissingData: notBreaching
 
   TransformDealerpeakData:
@@ -230,7 +230,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub "dealerpeak_transform_dlq-${Environment}"
+      AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
       AlarmDescription: There are messages in the DealerPeak Transform DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -244,7 +244,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 0
+      Threshold: 10
       TreatMissingData: notBreaching
 
   TransformDealerpeakDataQueuePolicy:
@@ -309,5 +309,5 @@ Resources:
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
-      Threshold: 1
+      Threshold: 3
       TreatMissingData: notBreaching

@@ -595,7 +595,7 @@ paths:
         '400':
           "$ref": "#/components/responses/400"
         '404':
-          "$ref": "#/components/responses/404"
+          description: Not Found. The dealer_id of the request didn't match any existing records on Impel.
 components:
   schemas:
     Activity:
