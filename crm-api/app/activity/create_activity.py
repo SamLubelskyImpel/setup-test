@@ -22,13 +22,14 @@ sqs_client = boto3.client("sqs")
 
 
 def create_on_crm(partner_name: str, activity: Activity, crm_dealer_id: str):
+    """Create activity on CRM."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     fifo_queue = loads(
         s3_client.get_object(
-            Bucket=INTEGRATIONS_BUCKET, 
+            Bucket=INTEGRATIONS_BUCKET,
             Key=s3_key
         )["Body"].read().decode("utf-8")
-    )["transform_unified_data_queue_url"]
+    )["send_activity_queue_url"]
     sqs_client.send_message(
         QueueUrl=fifo_queue,
         MessageBody=dumps({
@@ -88,12 +89,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 activity.activity_due_ts = activity_due_ts
 
             session.add(activity)
-            
+
             create_on_crm(
-                partner_name=lead.consumer.dealer.integration_partner.impel_integration_partner_name, 
+                partner_name=lead.consumer.dealer.integration_partner.impel_integration_partner_name,
                 activity=activity,
-                crm_dealer_id=lead.consumer.dealer.crm_dealer_id)
-            
+                crm_dealer_id=lead.consumer.dealer.crm_dealer_id
+            )
+
             session.commit()
             activity_id = activity.id
 
@@ -104,6 +106,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps({"activity_id": activity_id})
         }
 
-    except Exception:
-        logger.exception(f"Error creating activity")
+    except Exception as e:
+        logger.exception(f"Error creating activity: {e}")
         raise

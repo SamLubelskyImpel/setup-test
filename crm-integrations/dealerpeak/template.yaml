@@ -315,43 +315,51 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
       
-  TransformUnifiedDataQueue:
+  SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_transform_unified_data_queue-${Environment}.fifo"
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue"
       FifoQueue: true
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt TransformUnifiedDataDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
         maxReceiveCount: 3
         
-  TransformUnifiedDataDeadLetterQueue:
+  SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak_transform_unified_data_dlq-${Environment}.fifo"
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
       FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
+  
+  # TransformDealerpeakDataEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 10
+  #     EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt TransformDealerpeakData.Arn
       
-  TransformUnifiedData:
+  SendActivity:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealerpeak_transform_unified_data-${Environment}
+      FunctionName: !Sub dealerpeak-${Environment}-SendActivity
       CodeUri: app/
-      Handler: transform_unified_data.lambda_handler
+      Handler: send_activity.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Events:
-        TransformUnifiedDataQueueTrigger:
+        SendActivityQueueTrigger:
           Type: SQS
           Properties:
-            Queue: !GetAtt TransformUnifiedDataQueue.Arn
+            Queue: !GetAtt SendActivityQueue.Arn
             
-  TransformUnifiedDataAlarm:
+  SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub DealerpeakTransformUnifiedDataAlarm-${Environment}
+      AlarmName: !Sub dealerpeak-${Environment}-SendActivityDLQ
       AlarmDescription: There are over 10 unprocessed messages in the Dead Letter Queue
       ActionsEnabled: true
       AlarmActions:
@@ -359,7 +367,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt TransformUnifiedDataDeadLetterQueue.QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
