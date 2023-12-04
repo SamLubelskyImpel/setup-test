@@ -116,5 +116,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     except Exception as e:
-        logger.exception(f"Error creating activity: {e}")
-        raise
+        logger.error(f"Error creating activity: {str(e)}")
+        return {
+            "statusCode": "500",
+            "body": dumps({"error": "An error occurred while processing the request."})
+        }
