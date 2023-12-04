@@ -31,8 +31,6 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET:
           !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
-        CRM_API_URL: 
-          !If [IsProd, "https://crm-api.impel.io", !Sub "https://crm-api-test.testenv.impel.io"]
         SECRET_KEY: "DEALERPEAK"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
@@ -116,7 +114,7 @@ Resources:
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
                   - !GetAtt TransformDealerpeakDataQueue.Arn
-                  - !GetAtt TransformUnifiedDataQueue.Arn
+                  - !GetAtt SendActivityQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -135,7 +133,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub dealerpeak-${Environment}-Invoke
-      AlarmDescription: Lambda invocation errors detected from the DealerPeak Invoke
+      AlarmDescription: DealerPeak Invoke failed 3 times within 15 minutes
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -180,7 +178,7 @@ Resources:
     Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-      AlarmDescription: There are messages in the DealerPeak Invoke DLQ
+      AlarmDescription: There are over 10 unprocessed messages in the DealerPeak Invoke DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -234,7 +232,7 @@ Resources:
     Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-      AlarmDescription: There are messages in the DealerPeak Transform DLQ
+      AlarmDescription: There are over 10 unprocessed messages in the DealerPeak Transform DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -299,7 +297,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub dealerpeak-${Environment}-LeadUpdates
-      AlarmDescription: Lambda invocation errors detected from the DealerPeak Lead Updates
+      AlarmDescription: DealerPeak Lead Updates failed 3 times within 15 minutes
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -318,7 +316,7 @@ Resources:
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue"
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue.fifo"
       FifoQueue: true
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
@@ -329,18 +327,18 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ.fifo"
       FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
-  # TransformDealerpeakDataEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt TransformDealerpeakData.Arn
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
       
   SendActivity:
     Type: AWS::Serverless::Function
@@ -350,17 +348,12 @@ Resources:
       Handler: send_activity.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
-      Events:
-        SendActivityQueueTrigger:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt SendActivityQueue.Arn
             
   SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub dealerpeak-${Environment}-SendActivityDLQ
-      AlarmDescription: There are over 10 unprocessed messages in the Dead Letter Queue
+      AlarmDescription: There are over 10 unprocessed messages in the DealerPeak SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Ref CEAlertTopicArn

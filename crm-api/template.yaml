@@ -15,12 +15,6 @@ Parameters:
     AllowedPattern: "^[a-zA-z0-9-]+$|"
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
     Default: ""
-    
-  CEAlertTopicArn:
-    Description: The ARN of the SNS topic serving as the Alert Topic for CE
-    Type: String
-    AllowedPattern: '^arn:aws:sns:[a-z]{2}-[a-z]+-\d{1}:\d{12}:.*$'
-    ConstraintDescription: Must be an SNS ARN
 
 Conditions:
   IsProd:
@@ -166,7 +160,7 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
-                Resource: !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak_transform_unified_data_queue-${Environment}.fifo
+                Resource: "*"
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
@@ -447,8 +441,8 @@ Resources:
   CreateActivityAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub CreateActivityAlarm-${Environment}
-      AlarmDescription: CreateActivity failed 3 times within 15 minutes
+      AlarmName: !Sub "crm-api-${Environment}-CreateActivity"
+      AlarmDescription: Create Activity failed 3 times within 15 minutes
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -462,7 +456,7 @@ Resources:
       TreatMissingData: notBreaching
       ActionsEnabled: true
       AlarmActions:
-        - !Ref CEAlertTopicArn
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
   
   UpdateActivity:
     Type: AWS::Serverless::Function

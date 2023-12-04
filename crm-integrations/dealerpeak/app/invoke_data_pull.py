@@ -6,8 +6,8 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 import requests
+from requests.auth import HTTPBasicAuth
 from uuid import uuid4
-from base64 import b64encode
 from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -26,12 +26,6 @@ s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 
-def basic_auth(username: str, password: str) -> str:
-    """Convert api crendentials to base64 encoded string."""
-    token = b64encode(f"{username}:{password}".encode('ascii')).decode('ascii')
-    return token
-
-
 def get_secrets():
     """Get DealerPeak API secrets."""
     secret = secret_client.get_secret_value(
@@ -46,7 +40,7 @@ def get_secrets():
 def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     """Fetch new leads from DealerPeak CRM."""
     api_url, username, password = get_secrets()
-    token = basic_auth(username, password)
+    auth = HTTPBasicAuth(username, password)
     dealer_group_id, location_id = crm_dealer_id.split("__")
 
     # Get inital list of leads
@@ -56,10 +50,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
             params={
                 "deltaDate": start_time
             },
-            headers={
-                "Authorization": f"Basic {token}",
-                "Content-Type": "application/json",
-            },
+            auth=auth,
             timeout=3,
         )
         response.raise_for_status()
@@ -82,10 +73,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
         try:
             response = requests.get(
                 url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{lead_id}",
-                headers={
-                    "Authorization": f"Basic {token}",
-                    "Content-Type": "application/json",
-                },
+                auth=auth,
                 timeout=3,
             )
             response.raise_for_status()

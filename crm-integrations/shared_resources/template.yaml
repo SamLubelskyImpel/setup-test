@@ -115,7 +115,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub crm-shared-${Environment}-GetActiveDealers
-      AlarmDescription: Lambda invocation errors detected from the GetActiveDealers lambda
+      AlarmDescription: Get Active Dealers failed 3 times within 15 minutes
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'

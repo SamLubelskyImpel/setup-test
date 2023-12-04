@@ -21,7 +21,7 @@ s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 
 
-def create_on_crm(partner_name: str, activity: Activity, crm_dealer_id: str):
+def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     fifo_queue = loads(
@@ -30,19 +30,13 @@ def create_on_crm(partner_name: str, activity: Activity, crm_dealer_id: str):
             Key=s3_key
         )["Body"].read().decode("utf-8")
     )["send_activity_queue_url"]
+
     sqs_client.send_message(
         QueueUrl=fifo_queue,
-        MessageBody=dumps({
-            "activity_id": activity.id,
-            "lead_id": activity.lead_id,
-            "notes": activity.notes,
-            "activity_due_ts": activity.activity_due_ts,
-            "activity_requested_ts": activity.activity_requested_ts,
-            "crm_dealer_id": crm_dealer_id,
-            "activity_type": activity.activity_type.type,
-        }),
+        MessageBody=dumps(payload),
         MessageGroupId=partner_name
     )
+    logger.info(f"Sent activity {payload['activity_id']} to CRM")
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -89,12 +83,27 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 activity.activity_due_ts = activity_due_ts
 
             session.add(activity)
+            session.flush()
 
-            create_on_crm(
-                partner_name=lead.consumer.dealer.integration_partner.impel_integration_partner_name,
-                activity=activity,
-                crm_dealer_id=lead.consumer.dealer.crm_dealer_id
-            )
+            partner_name = lead.consumer.dealer.integration_partner.impel_integration_partner_name
+
+            payload = {
+                # Lead info
+                "lead_id": lead.id,
+                "crm_lead_id": lead.crm_lead_id,
+                "dealer_id": lead.consumer.dealer.id,
+                "crm_dealer_id": lead.consumer.dealer.crm_dealer_id,
+                "consumer_id": lead.consumer.id,
+                "crm_consumer_id": lead.consumer.crm_consumer_id,
+                # Activity info
+                "activity_id": activity.id,
+                "notes": activity.notes,
+                "activity_due_ts": activity.activity_due_ts,
+                "activity_requested_ts": activity.activity_requested_ts,
+                "activity_type": activity.activity_type.type,
+            }
+
+            create_on_crm(partner_name=partner_name, payload=payload)
 
             session.commit()
             activity_id = activity.id
