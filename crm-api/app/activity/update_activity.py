@@ -37,7 +37,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             activity.crm_activity_id = crm_activity_id
             session.commit()
 
-            logger.info(f"Request project: {request_product} has updated activity {activity_id}")
+            logger.info(f"Request product: {request_product} has updated activity {activity_id}")
 
         return {
             "statusCode": "200",
