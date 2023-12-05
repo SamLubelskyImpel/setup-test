@@ -133,7 +133,7 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
                   ]
@@ -167,7 +167,7 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
                   ]
@@ -179,7 +179,7 @@ Resources:
                 - s3:ListBucket
                 - s3:*Object
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
@@ -221,7 +221,7 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
                   ]
@@ -233,7 +233,7 @@ Resources:
                 - s3:ListBucket
                 - s3:*Object
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
@@ -319,7 +319,7 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
                   ]
@@ -331,7 +331,7 @@ Resources:
                 - s3:ListBucket
                 - s3:*Object
               Resource:
-                - !If [ IsProd, 
+                - !If [ IsProd,
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
@@ -430,7 +430,7 @@ Resources:
       AlarmDescription: Messages are in the Tekion format RO lambda
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
           Value: !GetAtt TekionFormatRODLQ.QueueName
@@ -537,7 +537,7 @@ Resources:
       AlarmDescription: Messages are in the Tekion format FI lambda
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
           Value: !GetAtt TekionFormatFIDLQ.QueueName
