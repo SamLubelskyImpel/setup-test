@@ -6,6 +6,7 @@ from api.cloudwatch import get_logger
 from api.flask_common import log_and_return_response
 from api.s3_manager import upload_dms_data
 from api.secrets_manager import check_basic_auth, decode_basic_auth
+from api.sns_manager import send_email_notification
 from flask import Blueprint, jsonify, request
 
 _logger = get_logger()
@@ -92,6 +93,7 @@ def post_dms_upload():
         return log_and_return_response(jsonify(response), 200)
     except Exception:
         _logger.exception("Error running dms_upload endpoint")
+        send_email_notification(f"Error running dms_upload endpoint. Request ID: {request_id}")
         response = {
             "message": "Internal Server Error. Please contact Impel support",
             "request_id": request_id,

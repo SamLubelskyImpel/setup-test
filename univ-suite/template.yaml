@@ -49,7 +49,7 @@ Mappings:
     us-east-1:
       '196800776222': vpc-03417e688cee5bc07
       '143813444726': vpc-0b28df8980a1905d5
-      
+
 
   InstanceType:
     us-east-1:
@@ -245,6 +245,12 @@ Resources:
             Resource:
               - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:universal-integrations/*"
               - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/DMSUploadAPI*"
+          - Sid: SNSPermission
+            Effect: Allow
+            Action:
+              - sns:Publish
+            Resource:
+              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   LifecycleHookTerminate:
     Type: AWS::AutoScaling::LifecycleHook
@@ -456,7 +462,7 @@ Resources:
           Value: !Sub 'spincar-logs-${AWS::Region}'
         - Key: access_logs.s3.prefix
           Value: !Sub 'new/alb/${AppName}'
-      SecurityGroups: 
+      SecurityGroups:
         - !GetAtt UniversalIntegrationsELBSecurityGroup.GroupId
       Subnets: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
       Tags:
@@ -543,7 +549,7 @@ Resources:
     Properties:
       LogGroupName: 'dms_upload_api'
 
-  DeploymentInfo: 
+  DeploymentInfo:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -587,7 +593,7 @@ Resources:
 
   IntegrationsS3ToSNSPolicy:
     Type: AWS::SNS::TopicPolicy
-    Properties: 
+    Properties:
       PolicyDocument:
         Version: '2012-10-17'
         Id: !Sub 'integrations-sns-s3-policy-${AWS::Region}-${Environment}'
@@ -602,7 +608,7 @@ Resources:
           Condition:
             ArnLike:
               aws:SourceArn: !Sub 'arn:aws:s3:::integrations-${AWS::Region}-${Environment}'
-      Topics: 
+      Topics:
         - Ref: IntegrationsS3ToSNSTopic
 
   UniversalIntegrationGlueBucket:
