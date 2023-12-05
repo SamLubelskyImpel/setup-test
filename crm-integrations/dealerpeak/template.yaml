@@ -8,11 +8,6 @@ Parameters:
     Type: String
     AllowedPattern: "^[a-zA-z0-9-]+$"
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
-  CEAlertTopicArn:
-    Description: The ARN of the SNS topic serving as the Alert Topic for CE
-    Type: String
-    AllowedPattern: '^arn:aws:sns:[a-z]{2}-[a-z]+-\d{1}:\d{12}:.*$'
-    ConstraintDescription: Must be an SNS ARN
 
 Conditions:
   IsProd:
@@ -35,7 +30,6 @@ Globals:
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SALES_AI_WEBHOOK: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
-        CEAlertTopicArn: !Ref CEAlertTopicArn
 
 Resources:
   LambdaRole:
@@ -160,7 +154,8 @@ Resources:
   InvokeDataPullQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue"
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue.fifo"
+      FifoQueue: true
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
@@ -169,7 +164,8 @@ Resources:
   InvokeDataPullDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ.fifo"
+      FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -356,7 +352,7 @@ Resources:
       AlarmDescription: There are over 10 unprocessed messages in the DealerPeak SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
-        - !Ref CEAlertTopicArn
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: QueueName

@@ -46,19 +46,19 @@ if [[ $config_env == "prod" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"prod\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"prod\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:196800776222:alert_client_engineering\""
+    --parameter-overrides "Environment=\"prod\""
 elif [[ $config_env == "stage" ]]; then
   sam deploy --config-env "stage" \
     --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"stage\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\""
+    --parameter-overrides "Environment=\"stage\""
 elif [[ $config_env == "test" ]]; then
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"test\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\""
+    --parameter-overrides "Environment=\"test\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \

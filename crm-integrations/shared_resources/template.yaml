@@ -24,16 +24,10 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET:
-          !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
         CRM_API_URL:
-          !If [
-            IsProd,
-            "https://crm-api.impel.io/",
-            !Sub "https://crm-api-${Environment}.testenv.impel.io/"
-          ]
+          !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
         PARTNER_ID:
-          !If [IsProd, "", "test"]
+          !If [IsProd, "", "impel"]
 
 Resources:
 
@@ -110,6 +104,9 @@ Resources:
       Handler: get_active_dealers.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          INTEGRATION_BUCKET: !Ref IntegrationsBucket
   
   GetActiveDealersErrorAlarm:
     Type: AWS::CloudWatch::Alarm

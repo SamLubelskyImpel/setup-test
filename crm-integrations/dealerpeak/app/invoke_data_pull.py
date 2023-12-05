@@ -11,8 +11,7 @@ from uuid import uuid4
 from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
-    BatchProcessor,
-    EventType,
+    SqsFifoPartialProcessor,
     process_partial_response,
 )
 
@@ -146,7 +145,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = BatchProcessor(event_type=EventType.SQS)
+        processor = SqsFifoPartialProcessor()
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
