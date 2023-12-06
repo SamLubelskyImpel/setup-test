@@ -13,6 +13,7 @@ from typing import Any, Optional, List, Dict
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import DBSession
 
@@ -32,16 +33,20 @@ class CustomEncoder(json.JSONEncoder):
         return super(CustomEncoder, self).default(obj)
 
 
-def get_dealer_id(dealer_id: str) -> Any:
-    """Get the impel dealer id based on the product dealer id."""
+def get_dealer_partner_id(product_dealer_id: str) -> Any:
+    """Get the dealer integration partner id based on the product dealer id."""
     with DBSession() as session:
-        dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_id).first()
-
-        if not dealer:
-            logger.error(f"Dealer not found {dealer_id}")
+        dealer_integration_partner = session.query(DealerIntegrationPartner).\
+            join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
+            filter(
+                Dealer.product_dealer_id == product_dealer_id,
+                DealerIntegrationPartner.is_active == True
+            ).first()
+        if not dealer_integration_partner:
+            logger.error(f"No active dealer found with id {product_dealer_id}.")
             return None
 
-        return dealer.id
+        return dealer_integration_partner.id
 
 
 def retrieve_leads_from_db(
@@ -49,7 +54,7 @@ def retrieve_leads_from_db(
     end_date: str,
     page: int,
     max_results: int,
-    dealer_id: Optional[int] = None
+    dealer_partner_id: Optional[int] = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
@@ -65,8 +70,8 @@ def retrieve_leads_from_db(
             )
         )
 
-        if dealer_id:
-            leads_query = leads_query.filter(Consumer.dealer_id == dealer_id)
+        if dealer_partner_id:
+            leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
 
         leads_page = (
             leads_query.order_by(Lead.db_creation_date)
@@ -158,7 +163,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         filters = event.get("queryStringParameters", {})
         page = int(filters.get("page", 1))
         max_results = min(1000, int(filters.get("result_count", 1000)))
-        dealer_id = filters.get("dealer_id", None)
+        product_dealer_id = filters.get("dealer_id", None)
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
 
@@ -170,13 +175,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": json.dumps({"error": "End date must be after start date"})
             }
 
-        impel_dealer_id = None
-        if dealer_id:
-            impel_dealer_id = get_dealer_id(dealer_id)
-            if not impel_dealer_id:
+        dealer_partner_id = None
+        if product_dealer_id:
+            dealer_partner_id = get_dealer_partner_id(product_dealer_id)
+            if not dealer_partner_id:
                 return {
                     "statusCode": 404,
-                    "body": json.dumps({"error": f"Dealer not found {dealer_id}"})
+                    "body": json.dumps({"error": f"No active dealer found with id {product_dealer_id}"})
                 }
 
         leads = retrieve_leads_from_db(
@@ -184,7 +189,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 db_creation_date_end,
                 page,
                 max_results,
-                impel_dealer_id
+                dealer_partner_id
         )
 
         return {

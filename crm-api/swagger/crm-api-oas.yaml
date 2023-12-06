@@ -12,6 +12,7 @@ info:
 servers:
   - description: Impel test environment
     url: https://crm-api-test.testenv.impel.io/
+#{{CRM_API_AWS_VALIDATION}}
 paths:
   /leads:
     post:
@@ -439,6 +440,7 @@ paths:
           schema:
             type: integer
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -601,6 +603,9 @@ components:
     Activity:
       description: A action that is performed in the CRM for a lead.
       type: object
+      required:
+        - activity_type
+        - activity_requested_ts
       properties:
         activity_type:
           type: string
@@ -614,7 +619,7 @@ components:
         activity_due_ts:
           type: string
           format: date-time
-          description: Timestamp in UTC format indicating when the activity is to take place. This should be provided when an activity needs to be scheduled or completed by a specific date and time, such as an appointment or phone_call_task.
+          description: Timestamp in UTC format indicating when the activity is to take place. This is required when an activity needs to be scheduled or completed by a specific date and time, such as an appointment or phone_call_task.
           example: "2023-09-22T14:00:00Z"
         activity_requested_ts:
           type: string
@@ -658,6 +663,12 @@ components:
             minLength: 1
             maxLength: 17
             example: "1HGBH41JXMN109186"
+          stock_number:
+            type: string
+            description: Vehicle stock number
+            minLength: 1
+            maxLength: 50
+            example: SN12345
           type:
             type: string
             description: Type of the vehicle (e.g., Sedan, SUV, Truck)
@@ -692,6 +703,12 @@ components:
             minLength: 1
             maxLength: 50
             example: F-150
+          oem_name:
+            type: string
+            description: OEM name of the vehicle
+            minLength: 1
+            maxLength: 50
+            example: Ford
           trim:
             type: string
             description: Trim of the vehicle

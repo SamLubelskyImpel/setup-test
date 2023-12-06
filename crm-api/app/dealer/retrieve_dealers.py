@@ -6,6 +6,7 @@ from json import dumps
 from typing import Any
 
 from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import DBSession
 
@@ -35,21 +36,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Integration Partner not found {integration_partner_name}"})
                 }
 
-            dealers = session.query(
-                    Dealer
+            dealer_partners = session.query(
+                    DealerIntegrationPartner
                 ).filter(
                     Dealer.integration_partner_id == crm_partner.id,
                     Dealer.is_active == True
                 ).all()
 
-            logger.info(f"Found {len(dealers)} active dealers for {integration_partner_name}")
+            logger.info(f"Found {len(dealer_partners)} active dealers for {integration_partner_name}")
 
-            for dealer in dealers:
+            for dealer_partner in dealer_partners:
                 dealer_record = {
-                    "dealer_id": dealer.id,
-                    "product_dealer_id": dealer.product_dealer_id,
-                    "crm_dealer_id": dealer.crm_dealer_id,
-                    "dealer_name": dealer.dealer_name
+                    "dealer_integration_partner_id": dealer_partner.id,
+                    "crm_dealer_id": dealer_partner.crm_dealer_id,
+                    "product_dealer_id": dealer_partner.dealer.product_dealer_id,
+                    "dealer_name": dealer_partner.dealer.dealer_name
                 }
                 dealer_records.append(dealer_record)
 

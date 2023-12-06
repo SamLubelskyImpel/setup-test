@@ -63,14 +63,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"lead: {lead.as_dict()}")
 
             crm_lead_id = lead.crm_lead_id
-            dealer_id = lead.consumer.dealer.id
-            crm_dealer_id = lead.consumer.dealer.crm_dealer_id
-            partner_name = lead.consumer.dealer.integration_partner.impel_integration_partner_name
+            dealer_integration_partner_id = lead.consumer.dealer_integration_partner.id
+            crm_dealer_id = lead.consumer.dealer_integration_partner.crm_dealer_id
+            partner_name = lead.consumer.dealer_integration_partner.integration_partner.impel_integration_partner_name
 
         payload = {
             "lead_id": lead_id,
+            "dealer_integration_partner_id": dealer_integration_partner_id,
             "crm_lead_id": crm_lead_id,
-            "dealer_id": dealer_id,
             "crm_dealer_id": crm_dealer_id
         }
         try:

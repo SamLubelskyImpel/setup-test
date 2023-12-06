@@ -9,6 +9,7 @@ from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 
@@ -25,14 +26,14 @@ salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name']
 
 
-def update_attrs(db_object: Any, data: Any, dealer_id: str,
+def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
                  allowed_attrs: List[str],
                  additional_attrs: Any = None) -> None:
     """Update attributes of a database object."""
     if additional_attrs is None:
         additional_attrs = {}
 
-    combined_data = {"dealer_id": dealer_id, **data, **additional_attrs}
+    combined_data = {"dealer_integration_partner_id": dealer_partner_id, **data, **additional_attrs}
 
     for attr in allowed_attrs:
         if attr in combined_data:
@@ -40,14 +41,14 @@ def update_attrs(db_object: Any, data: Any, dealer_id: str,
 
 
 def update_consumer_attrs(consumer_db: Any, consumer_data: Dict[str, Any],
-                          dealer_id: str, request_product: Any) -> None:
+                          dealer_partner_id: str, request_product: Any) -> None:
     """Update consumer attributes in a database object."""
     additional_attrs = {
         "email_optin_flag": consumer_data.get("email_optin_flag", True),
         "sms_optin_flag": consumer_data.get("sms_optin_flag", True),
         "request_product": request_product
     }
-    update_attrs(consumer_db, consumer_data, dealer_id,
+    update_attrs(consumer_db, consumer_data, dealer_partner_id,
                  consumer_attrs, additional_attrs)
 
 
@@ -80,22 +81,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
         salesperson = body["salesperson"]
 
         with DBSession() as session:
-            dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_product_id).first()
-            if not dealer:
-                logger.error(f"Dealer {dealer_product_id} not found")
+            dealer_partner = session.query(DealerIntegrationPartner).\
+                join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
+                filter(
+                    Dealer.product_dealer_id == dealer_product_id,
+                    DealerIntegrationPartner.is_active == True
+                ).first()
+            if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_product_id}.")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Dealer {dealer_product_id} not found."})
+                    "body": dumps({"error": f"No active dealer found with id {dealer_product_id}."})
                 }
 
-            dealer_id = dealer.id
-
+            dealer_partner_id = dealer_partner.id
             crm_consumer_id = consumer.get("crm_consumer_id")
 
             # Query for existing consumer
             consumer_db = session.query(Consumer).filter(
                 Consumer.crm_consumer_id == crm_consumer_id,
-                Consumer.dealer_id == dealer.id
+                Consumer.dealer_integration_partner_id == dealer_partner_id
             ).first()
 
             # Create a new consumer if not found
@@ -106,7 +111,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             update_consumer_attrs(
                 consumer_db,
                 consumer,
-                dealer_id,
+                dealer_partner_id,
                 request_product)
 
             # Add and flush the session if the consumer is new
@@ -155,7 +160,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             crm_salesperson_id = salesperson.get("crm_salesperson_id")
             salesperson_db = session.query(Salesperson).filter(
                 Salesperson.crm_salesperson_id == crm_salesperson_id,
-                Salesperson.dealer_id == dealer_id
+                Salesperson.dealer_integration_partner_id == dealer_partner_id
             ).first()
 
             if not salesperson_db:
@@ -164,7 +169,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             update_attrs(
                 salesperson_db,
                 salesperson,
-                dealer_id,
+                dealer_partner_id,
                 salesperson_attrs)
 
             if not salesperson_db.id:

@@ -75,28 +75,31 @@ def lambda_handler(event: Any, context: Any) -> Any:
             activity = Activity(
                 lead_id=lead.id,
                 activity_type_id=activity_type_db.id,
+                activity_due_ts=activity_due_ts,
                 activity_requested_ts=activity_requested_ts,
                 request_product=request_product,
                 notes=notes
             )
-            if activity_due_ts:
-                activity.activity_due_ts = activity_due_ts
 
             session.add(activity)
-            session.flush()
 
-            partner_name = lead.consumer.dealer.integration_partner.impel_integration_partner_name
+            session.commit()
+            activity_id = activity.id
+            logger.info(f"Created activity {activity_id}")
+
+            dealer_partner = lead.consumer.dealer_integration_partner
+            partner_name = dealer_partner.integration_partner.impel_integration_partner_name
 
             payload = {
                 # Lead info
                 "lead_id": lead.id,
                 "crm_lead_id": lead.crm_lead_id,
-                "dealer_id": lead.consumer.dealer.id,
-                "crm_dealer_id": lead.consumer.dealer.crm_dealer_id,
+                "dealer_integration_partner_id": dealer_partner.id,
+                "crm_dealer_id": dealer_partner.crm_dealer_id,
                 "consumer_id": lead.consumer.id,
                 "crm_consumer_id": lead.consumer.crm_consumer_id,
                 # Activity info
-                "activity_id": activity.id,
+                "activity_id": activity_id,
                 "notes": activity.notes,
                 "activity_due_ts": activity.activity_due_ts,
                 "activity_requested_ts": activity.activity_requested_ts,
@@ -104,11 +107,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
             create_on_crm(partner_name=partner_name, payload=payload)
-
-            session.commit()
-            activity_id = activity.id
-
-        logger.info(f"Created activity {activity_id}")
 
         return {
             "statusCode": "201",

@@ -112,9 +112,9 @@ def lambda_handler(event, context):
     logger.info(f"Event: {event}")
     try:
         lead_id = event["lead_id"]
-        dealer_id = event["dealer_id"]
-        crm_dealer_id = event["crm_dealer_id"]
+        dealer_partner_id = event["dealer_integration_partner_id"]
         crm_lead_id = event["crm_lead_id"]
+        crm_dealer_id = event["crm_dealer_id"]
 
         lead = get_lead(crm_dealer_id, crm_lead_id)
         if not lead:
@@ -129,12 +129,12 @@ def lambda_handler(event, context):
         salesperson = parse_salesperson(lead)
         status = lead["status"].get("status", "")
 
-        logger.info("Found lead {}, dealer {}, with status {} and salesperson {}".format(
-            lead_id, dealer_id, status, salesperson
+        logger.info("Found lead {}, dealer_integration_partner {}, with status {} and salesperson {}".format(
+            lead_id, dealer_partner_id, status, salesperson
         ))
         send_sqs_message({
             "lead_id": lead_id,
-            "dealer_id": dealer_id,
+            "dealer_integration_partner_id": dealer_partner_id,
             "status": status,
             "salespersons": [salesperson]
         })

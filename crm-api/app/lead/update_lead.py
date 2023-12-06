@@ -24,13 +24,13 @@ def get_salespersons_for_lead(lead_id: str) -> Any:
         return results
 
 
-def update_salespersons(lead_id, dealer_id, new_salespersons):
+def update_salespersons(lead_id, dealer_partner_id, new_salespersons):
     """Update salesperson tables for a given lead ID."""
     # Update Salesperson's that are still assigned to the lead, or create if needed.
     for new_person in new_salespersons:
         with DBSession() as session:
             salesperson = session.query(Salesperson).filter(
-                    Salesperson.dealer_id == dealer_id,
+                    Salesperson.dealer_integration_partner_id == dealer_partner_id,
                     Salesperson.crm_salesperson_id == new_person["crm_salesperson_id"]
                 ).first()
             # Update salesperson if it exists, otherwise create it
@@ -49,7 +49,7 @@ def update_salespersons(lead_id, dealer_id, new_salespersons):
                     phone=new_person.get("phone", ""),
                     email=new_person.get("email", ""),
                     position_name=new_person.get("position_name", ""),
-                    dealer_id=dealer_id
+                    dealer_integration_partner=dealer_partner_id
                 )
                 session.add(salesperson)
                 logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")
@@ -140,8 +140,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 lead.consumer_id = consumer_id
 
-            # Get dealer_id
-            dealer_id = lead.consumer.dealer_id
+            # Get dealer_partner_id
+            dealer_partner_id = lead.consumer.dealer_integration_partner_id
 
             # Update lead fields if provided
             for received_field, db_field in lead_field_mapping.items():
@@ -176,7 +176,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             session.commit()
             logger.info(f"Lead is updated {lead_id}")
 
-        update_salespersons(lead_id, dealer_id, body.get("salespersons", []))
+        update_salespersons(lead_id, dealer_partner_id, body.get("salespersons", []))
 
         return {
             "statusCode": 200,

@@ -1,3 +1,9 @@
+"""
+These classes are designed to manage calls to the Dealerpeak/CRM API for activities.
+This wrapper classes defined this file should NOT be modified or used by any other resources aside from the SendActivity lambda.
+A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
+"""
+
 import boto3
 import logging
 from os import environ
