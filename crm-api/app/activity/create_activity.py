@@ -16,27 +16,60 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 
 
+class ValidationError(Exception):
+    pass
+
+
+def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
+    """Validate activity body."""
+    if activity_type == "note":
+        if not notes:
+            raise ValidationError("Notes are required for a note activity")
+    elif activity_type == "appointment" or activity_type == "phone_call_task":
+        if not due_ts:
+            raise ValidationError("Activity due timestamp is required for an appointment or phone_call_task activity")
+
+
 def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-    fifo_queue = loads(
-        s3_client.get_object(
-            Bucket=INTEGRATIONS_BUCKET,
-            Key=s3_key
-        )["Body"].read().decode("utf-8")
-    )["send_activity_queue_url"]
+    try:
+        s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+        fifo_queue = loads(
+            s3_client.get_object(
+                Bucket=INTEGRATIONS_BUCKET,
+                Key=s3_key
+            )["Body"].read().decode("utf-8")
+        )["send_activity_queue_url"]
 
-    sqs_client.send_message(
-        QueueUrl=fifo_queue,
-        MessageBody=dumps(payload),
-        MessageGroupId=partner_name
+        sqs_client.send_message(
+            QueueUrl=fifo_queue,
+            MessageBody=dumps(payload),
+            MessageGroupId=partner_name
+        )
+        logger.info(f"Sent activity {payload['activity_id']} to CRM")
+    except Exception as e:
+        logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
+        send_alert_notification(payload['activity_id'], e)
+
+
+def send_alert_notification(activity_id: int, e: Exception) -> None:
+    """Send alert notification to CE team."""
+    data = {
+        "message": f"Error occurred while sending activity {activity_id} to CRM: {e}",
+    }
+    sns_client = boto3.client('sns')
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=dumps({'default': dumps(data)}),
+        Subject='CRM API: Activity Syndication Failure Alert',
+        MessageStructure='json'
     )
-    logger.info(f"Sent activity {payload['activity_id']} to CRM")
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -53,6 +86,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         activity_requested_ts = body["activity_requested_ts"]
         notes = body.get("notes", "")
 
+        validate_activity_body(activity_type, activity_due_ts, activity_requested_ts, notes)
+
         with DBSession() as session:
             # Check lead existence
             lead = session.query(Lead).filter(Lead.id == lead_id).first()
@@ -62,7 +97,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Lead {lead_id} not found. Activity failed to be created."})
                 }
-
+            # OAS should validate activity type, this is a backup
             activity_type_db = session.query(ActivityType).filter(ActivityType.type == activity_type).first()
             if not activity_type_db:
                 logger.error(f"Failed to find activity type {activity_type} for lead {lead_id}")
@@ -113,6 +148,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps({"activity_id": activity_id})
         }
 
+    except ValidationError as e:
+        logger.error(f"Error creating activity: {str(e)}")
+        return {
+            "statusCode": "400",
+            "body": dumps({"error": str(e)})
+        }
     except Exception as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {

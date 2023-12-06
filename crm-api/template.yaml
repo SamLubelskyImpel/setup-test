@@ -442,6 +442,9 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         
   CreateActivityAlarm:
     Type: AWS::CloudWatch::Alarm
