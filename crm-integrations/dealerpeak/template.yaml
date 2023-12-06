@@ -174,7 +174,7 @@ Resources:
     Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-      AlarmDescription: There are over 10 unprocessed messages in the DealerPeak Invoke DLQ
+      AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Invoke DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -187,7 +187,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 10
+      Threshold: 1
       TreatMissingData: notBreaching
 
   TransformDealerpeakData:
@@ -210,7 +210,9 @@ Resources:
   TransformDealerpeakDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-TransformQueue"
+      QueueName: !Sub "dealerpeak-${Environment}-TransformQueue.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
@@ -219,7 +221,8 @@ Resources:
   TransformDealerpeakDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
+      QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ.fifo"
+      FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
@@ -228,7 +231,7 @@ Resources:
     Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-      AlarmDescription: There are over 10 unprocessed messages in the DealerPeak Transform DLQ
+      AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Transform DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -241,7 +244,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 10
+      Threshold: 1
       TreatMissingData: notBreaching
 
   TransformDealerpeakDataQueuePolicy:

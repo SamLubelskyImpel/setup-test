@@ -592,10 +592,20 @@ paths:
       responses:
         '200':
           description: Data successfully uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lead_id:
+                    type: integer
+                    description: ID of the lead that was created.
         '400':
           "$ref": "#/components/responses/400"
         '404':
           description: Not Found. The dealer_id of the request didn't match any existing records on Impel.
+        '409':
+          description: Conflict. Lead record couldn't be created due to a conflict with an existing record with the same crm_lead_id and customer_id on Impel.
 components:
   schemas:
     Activity:
@@ -658,6 +668,12 @@ components:
             minLength: 1
             maxLength: 17
             example: "1HGBH41JXMN109186"
+          stock_number:
+            type: string
+            description: Vehicle stock number
+            minLength: 1
+            maxLength: 50
+            example: SN12345
           type:
             type: string
             description: Type of the vehicle (e.g., Sedan, SUV, Truck)
@@ -692,6 +708,12 @@ components:
             minLength: 1
             maxLength: 50
             example: F-150
+          oem_name:
+            type: string
+            description: The OEM name of the vehicle
+            minLength: 1
+            maxLength: 50
+            example: Ford
           trim:
             type: string
             description: Trim of the vehicle
