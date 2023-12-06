@@ -101,7 +101,8 @@ def send_sqs_message(message_body: dict):
 
         sqs_client.send_message(
             QueueUrl=queue_url,
-            MessageBody=dumps(message_body)
+            MessageBody=dumps(message_body),
+            MessageGroupId="DEALERPEAK"
         )
     except Exception as e:
         logger.error(f"Error sending SQS message: {e}")

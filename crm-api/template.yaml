@@ -53,7 +53,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -140,11 +140,7 @@ Resources:
                 Action:
                   - "s3:GetObject"
                 Resource:
-                - !If [
-                    IsProd,
-                    "arn:aws:s3:::crm-integrations-prod/configurations*",
-                    "arn:aws:s3:::crm-integrations-test/configurations*"
-                  ]
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/configurations*"
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"

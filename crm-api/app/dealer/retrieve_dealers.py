@@ -39,8 +39,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             dealer_partners = session.query(
                     DealerIntegrationPartner
                 ).filter(
-                    Dealer.integration_partner_id == crm_partner.id,
-                    Dealer.is_active == True
+                    DealerIntegrationPartner.integration_partner_id == crm_partner.id,
+                    DealerIntegrationPartner.is_active == True
                 ).all()
 
             logger.info(f"Found {len(dealer_partners)} active dealers for {integration_partner_name}")

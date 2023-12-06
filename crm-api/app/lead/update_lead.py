@@ -49,7 +49,7 @@ def update_salespersons(lead_id, dealer_partner_id, new_salespersons):
                     phone=new_person.get("phone", ""),
                     email=new_person.get("email", ""),
                     position_name=new_person.get("position_name", ""),
-                    dealer_integration_partner=dealer_partner_id
+                    dealer_integration_partner_id=dealer_partner_id
                 )
                 session.add(salesperson)
                 logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")

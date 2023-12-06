@@ -74,7 +74,8 @@ def send_dealer_event(integration_partner_name: str, dealers: list, start_time: 
         logger.info(f"Sending message to queue: {dealer}")
         sqs_client.send_message(
             QueueUrl=queue_url,
-            MessageBody=dumps(dealer)
+            MessageBody=dumps(dealer),
+            MessageGroupId=integration_partner_name
         )
 
 

@@ -59,7 +59,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "vin": vehicle.vin,
                 "type": vehicle.type,
                 "vehicle_class": vehicle.vehicle_class,
-                "mileage": vehicle.type,
+                "mileage": vehicle.mileage,
                 "manufactured_year": vehicle.manufactured_year,
                 "make": vehicle.make,
                 "model": vehicle.model,

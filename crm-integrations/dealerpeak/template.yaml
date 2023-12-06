@@ -24,8 +24,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET:
-          !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "DEALERPEAK"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
@@ -82,20 +81,12 @@ Resources:
                   - "s3:PutObject"
                   - "s3:DeleteObject"
                 Resource:
-                  - !If [
-                      IsProd,
-                      "arn:aws:s3:::crm-integrations-prod/raw*",
-                      "arn:aws:s3:::crm-integrations-test/raw*",
-                    ]
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
               - Effect: "Allow"
                 Action:
                   - "s3:GetObject"
                 Resource:
-                  - !If [
-                      IsProd,
-                      "arn:aws:s3:::crm-integrations-prod*",
-                      "arn:aws:s3:::crm-integrations-test*"
-                    ]
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -275,13 +266,15 @@ Resources:
         detail:
           bucket:
             name:
-              - !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+              - !Sub "crm-integrations-${Environment}"
           object:
             key:
               - { "prefix": "raw/dealerpeak/" }
       Targets:
         - Id: "TransformDealerpeakDataTarget"
           Arn: !GetAtt TransformDealerpeakDataQueue.Arn
+          SqsParameters:
+            MessageGroupId: "TransformDealerpeakData"
 
   GetLeadUpdates:
     Type: AWS::Serverless::Function
