@@ -3,7 +3,7 @@ import logging
 from os import environ
 from datetime import datetime
 from json import dumps, loads
-from typing import Any, Dict, List
+from typing import Any, List
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -40,18 +40,6 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
             setattr(db_object, attr, combined_data[attr])
 
 
-def update_consumer_attrs(consumer_db: Any, consumer_data: Dict[str, Any],
-                          dealer_partner_id: str, request_product: Any) -> None:
-    """Update consumer attributes in a database object."""
-    additional_attrs = {
-        "email_optin_flag": consumer_data.get("email_optin_flag", True),
-        "sms_optin_flag": consumer_data.get("sms_optin_flag", True),
-        "request_product": request_product
-    }
-    update_attrs(consumer_db, consumer_data, dealer_partner_id,
-                 consumer_attrs, additional_attrs)
-
-
 def format_ts(input_ts: str) -> str:
     """Format a timestamp string into a specific format."""
     if 'T' in input_ts:
@@ -70,7 +58,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
 
-        request_product = 'CRM'  # ???
+        request_product = event["headers"]["partner_id"]
         body = loads(event["body"])
         logger.info(f"Body: {body}")
 
@@ -108,16 +96,32 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 consumer_db = Consumer()
 
             # Update consumer attributes
-            update_consumer_attrs(
+            update_attrs(
                 consumer_db,
                 consumer,
                 dealer_partner_id,
-                request_product)
+                consumer_attrs
+            )
 
             # Add and flush the session if the consumer is new
             if not consumer_db.id:
                 session.add(consumer_db)
                 session.flush()
+
+            existing_lead = session.query(
+                Lead
+            ).filter(
+                Lead.crm_lead_id == lead.get("crm_lead_id"),
+                Lead.consumer_id == consumer_db.id
+            ).first()
+
+            if existing_lead:
+                msg = f"Lead with this crm_lead_id and customer_id already exists. Lead id {existing_lead.id}"
+                logger.info(msg)
+                return {
+                    "statusCode": "409",
+                    "body": dumps(msg)
+                }
 
             lead_db = Lead(
                 consumer_id=consumer_db.id,
@@ -138,12 +142,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     lead_id=lead_db.id,
                     crm_vehicle_id=vehicle.get("crm_vehicle_id"),
                     vin=vehicle.get("vin"),
+                    stock_num=vehicle.get("stock_number"),
                     type=vehicle.get("type"),
                     vehicle_class=vehicle.get("class"),
                     mileage=vehicle.get("mileage"),
                     make=vehicle.get("make"),
                     model=vehicle.get("model"),
                     manufactured_year=vehicle.get("year"),
+                    oem_name=vehicle.get("oem_name"),
                     body_style=vehicle.get("body_style"),
                     transmission=vehicle.get("transmission"),
                     interior_color=vehicle.get("interior_color"),
@@ -176,20 +182,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.add(salesperson_db)
                 session.flush()
 
-            lead_salesperson = session.query(Lead_Salesperson).filter(
-                Lead_Salesperson.lead_id == lead_db.id,
-                Lead_Salesperson.salesperson_id == salesperson_db.id
-            ).first()
-
-            if not lead_salesperson:
-                lead_salesperson = Lead_Salesperson(
-                    lead_id=lead_db.id,
-                    salesperson_id=salesperson_db.id,
-                    is_primary=salesperson.get("is_primary", False)
-                )
-                session.add(lead_salesperson)
-            else:
-                lead_salesperson.is_primary = salesperson.get("is_primary", False)
+            lead_salesperson = Lead_Salesperson(
+                lead_id=lead_db.id,
+                salesperson_id=salesperson_db.id,
+                is_primary=salesperson.get("is_primary", False)
+            )
+            session.add(lead_salesperson)
 
             session.flush()
             session.commit()
