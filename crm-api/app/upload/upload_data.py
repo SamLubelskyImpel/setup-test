@@ -23,7 +23,7 @@ consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
                   'city', 'email_optin_flag', 'sms_optin_flag',
                   'request_product']
 salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
-                     'phone', 'position_name']
+                     'phone', 'position_name', 'is_primary']
 
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
@@ -42,12 +42,7 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
 
 def format_ts(input_ts: str) -> str:
     """Format a timestamp string into a specific format."""
-    if 'T' in input_ts:
-        input_format = "%Y-%m-%dT%H:%M:%S"
-    else:
-        input_format = "%B, %d %Y %H:%M:%S"
-
-    dt = datetime.strptime(input_ts, input_format)
+    dt = datetime.strptime(input_ts, "%Y-%m-%dT%H:%M:%SZ")
 
     output_format = "%Y-%m-%d %H:%M:%S.000"
     return dt.strftime(output_format)
@@ -126,11 +121,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
             lead_db = Lead(
                 consumer_id=consumer_db.id,
                 crm_lead_id=lead.get("crm_lead_id"),
-                status=lead.get("status"),
-                substatus=lead.get("substatus"),
-                comment=lead.get("comment"),
-                origin_channel=lead.get("origin_channel"),
-                source_channel=lead.get("source_channel"),
+                status=lead.get("lead_status"),
+                substatus=lead.get("lead_substatus"),
+                comment=lead.get("lead_comment"),
+                origin_channel=lead.get("lead_origin"),
+                source_channel=lead.get("lead_source"),
                 request_product=request_product,
                 lead_ts=format_ts(lead.get("lead_ts"))
             )
@@ -196,7 +191,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
 
         return {
-            "statusCode": "201",
+            "statusCode": "200",
             "body": dumps({"lead_id": lead_id})
         }
 
