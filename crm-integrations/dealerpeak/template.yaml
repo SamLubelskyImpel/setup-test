@@ -157,6 +157,7 @@ Resources:
     Properties:
       QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue.fifo"
       FifoQueue: true
+      ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn

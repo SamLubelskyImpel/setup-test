@@ -102,7 +102,7 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Environment:
         Variables:
-          INTEGRATION_BUCKET: !Ref IntegrationsBucket
+          INTEGRATIONS_BUCKET: !Ref IntegrationsBucket
   
   GetActiveDealersErrorAlarm:
     Type: AWS::CloudWatch::Alarm
