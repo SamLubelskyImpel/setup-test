@@ -61,19 +61,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         logger.info(f"Body: {body}")
 
-        dealer_product_id = body["dealer_product_id"]
+        product_dealer_id = body["product_dealer_id"]
         consumer = body["consumer"]
         lead = body["lead"]
         vehicles_of_interest = lead["vehicles_of_interest"]
         salesperson = body["salesperson"]
 
         with DBSession() as session:
-            dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_product_id).first()
+            dealer = session.query(Dealer).filter(Dealer.product_dealer_id == product_dealer_id).first()
             if not dealer:
-                logger.error(f"Dealer {dealer_product_id} not found")
+                logger.error(f"Dealer {product_dealer_id} not found")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Dealer {dealer_product_id} not found."})
+                    "body": dumps({"error": f"Dealer {product_dealer_id} not found."})
                 }
 
             dealer_id = dealer.id

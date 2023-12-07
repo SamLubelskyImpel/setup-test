@@ -537,7 +537,7 @@ paths:
             schema:
               type: object
               properties:
-                dealer_product_id:
+                product_dealer_id:
                   type: string
                   description: Dealer ID assigned during onboarding
                   example: test_dealer

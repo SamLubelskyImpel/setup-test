@@ -14,7 +14,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-SALES_AI_WEBHOOK = environ.get("SALES_AI_WEBHOOK")
+DA_EVENT_LISTENER = environ.get("DA_EVENT_LISTENER")
 SNS_TOPIC_ARN = environ.get("CEAlertTopicArn")
 
 sm_client = boto3.client('secretsmanager')
@@ -99,7 +99,7 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
                 db_entity["email_optin_flag"] = True
 
 
-def parse_json_to_entries(dealer_product_id: str, json_data: Any) -> Any:
+def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format dealerpeak json data to unified format."""
     entries = []
     try:
@@ -138,7 +138,7 @@ def parse_json_to_entries(dealer_product_id: str, json_data: Any) -> Any:
             extract_contact_information('salesperson', salesperson, db_salesperson)
 
             entry = {
-                "dealer_product_id": dealer_product_id,
+                "product_dealer_id": product_dealer_id,
                 "lead": db_lead,
                 "consumer": db_consumer,
                 "salesperson": db_salesperson,
@@ -153,7 +153,7 @@ def parse_json_to_entries(dealer_product_id: str, json_data: Any) -> Any:
 def send_notification_to_webhook(data: Dict[str, Any]) -> None:
     """Send notification to Sales AI Webhook."""
     try:
-        response = requests.post(SALES_AI_WEBHOOK, json=data)
+        response = requests.post(DA_EVENT_LISTENER, json=data)
         logger.info(f"Sales AI Webhook responded with status: {response.status_code}")
         response.raise_for_status()
     except Exception as e:
@@ -161,16 +161,17 @@ def send_notification_to_webhook(data: Dict[str, Any]) -> None:
         raise WebhookError
 
 
-def send_alert_notification(e: Exception) -> None:
+def send_alert_notification(e: Exception, lead_id: int) -> None:
     """Send alert notification to CE team."""
     data = {
         "message": f"Error occurred while sending data to Sales AI webhook: {e}",
+        "lead_id": lead_id
     }
     sns_client = boto3.client('sns')
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
         Message=dumps({'default': dumps(data)}),
-        Subject='Sales AI Webhook Failure Alert',
+        Subject='Dealerpeak - Sales AI Webhook Failure Alert',
         MessageStructure='json'
     )
 
@@ -183,7 +184,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             message = loads(record["body"])
             bucket = message["detail"]["bucket"]["name"]
             key = message["detail"]["object"]["key"]
-            dealer_product_id = key.split('/')[2]
+            product_dealer_id = key.split('/')[2]
 
             response = s3_client.get_object(Bucket=bucket, Key=key)
             content = response['Body'].read()
@@ -191,19 +192,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Raw data: {json_data}")
 
-            entries = parse_json_to_entries(dealer_product_id, json_data)
+            entries = parse_json_to_entries(product_dealer_id, json_data)
 
             logger.info(f"Processed entries: {entries}")
 
             for entry in entries:
-                lead_id = upload_entry_to_db(entry)
-                data = {
-                    "message": "New Lead available from CRM API",
-                    "lead_id": lead_id,
-                }
-                send_notification_to_webhook(data)
-    except WebhookError as e:
-        send_alert_notification(e)
+                try:
+                    lead_id = upload_entry_to_db(entry)
+                    data = {
+                        "message": "New Lead available from CRM API",
+                        "lead_id": lead_id,
+                    }
+                    send_notification_to_webhook(data)
+                except WebhookError as e:
+                    send_alert_notification(e, lead_id)
     except Exception:
         logger.exception(f"Error transforming dealerpeak file {event}")
         raise
