@@ -25,15 +25,14 @@ def get_salespersons_for_lead(lead_id: str) -> Any:
 
 
 def update_salespersons(lead_id, dealer_partner_id, new_salespersons):
-    """Update salesperson tables for a given lead ID."""
-    # Update Salesperson's that are still assigned to the lead, or create if needed.
-    for new_person in new_salespersons:
-        with DBSession() as session:
+    """Update assigned salespersons for a given lead ID."""
+    with DBSession() as session:
+        for new_person in new_salespersons:
             salesperson = session.query(Salesperson).filter(
                     Salesperson.dealer_integration_partner_id == dealer_partner_id,
                     Salesperson.crm_salesperson_id == new_person["crm_salesperson_id"]
                 ).first()
-            # Update salesperson if it exists, otherwise create it
+            # Update salesperson if exists, otherwise create
             if salesperson:
                 salesperson.first_name = new_person.get("first_name", "")
                 salesperson.last_name = new_person.get("last_name", "")
@@ -53,16 +52,20 @@ def update_salespersons(lead_id, dealer_partner_id, new_salespersons):
                 )
                 session.add(salesperson)
                 logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")
-            session.commit()
+            session.flush()
             new_person.update({"salesperson_id": salesperson.id})
+        session.commit()
 
-    # Update Lead_Salesperson records that are still assigned to the lead, or create if needed.
-    for new_person in new_salespersons:
-        with DBSession() as session:
+
+def update_lead_salespersons(lead_id, dealer_partner_id, new_salespersons):
+    """Update assigned lead salespersons for a given lead ID."""
+    with DBSession() as session:
+        for new_person in new_salespersons:
             lead_salesperson = session.query(Lead_Salesperson).filter(
                 Lead_Salesperson.lead_id == lead_id,
                 Lead_Salesperson.salesperson_id == new_person["salesperson_id"]
             ).first()
+            # Update lead_salesperson if exists, otherwise create
             if lead_salesperson:
                 lead_salesperson.is_primary = new_person.get("is_primary", False)
                 logger.info(f"Updated Lead_Salesperson for lead_id {lead_id}, {new_person}")
@@ -74,15 +77,22 @@ def update_salespersons(lead_id, dealer_partner_id, new_salespersons):
                 )
                 session.add(lead_salesperson)
                 logger.info(f"Created Lead_Salesperson for lead_id {lead_id}, {new_person}")
-            session.commit()
+        session.commit()
 
+
+def modify_salespersons(lead_id, dealer_partner_id, new_salespersons):
+    """Modify salesperson tables for a given lead ID."""
+    update_salespersons(lead_id, dealer_partner_id, new_salespersons)
+    update_lead_salespersons(lead_id, dealer_partner_id, new_salespersons)
+
+    # Find lead_salespersons that are no longer assigned to the lead.
     removed_salespeople = []
     existing_salespersons = get_salespersons_for_lead(lead_id)
     for existing_person in existing_salespersons:
         if existing_person.salesperson_id not in [new_person["salesperson_id"] for new_person in new_salespersons]:
             removed_salespeople.append(existing_person.salesperson_id)
 
-    # Delete Lead_Salesperson records that are no longer assigned to the lead.
+    # Delete lead_salesperson records that are no longer assigned to the lead.
     with DBSession() as session:
         session.query(Lead_Salesperson).filter(
                 Lead_Salesperson.lead_id == lead_id,
@@ -176,7 +186,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             session.commit()
             logger.info(f"Lead is updated {lead_id}")
 
-        update_salespersons(lead_id, dealer_partner_id, body.get("salespersons", []))
+        modify_salespersons(lead_id, dealer_partner_id, body.get("salespersons", []))
 
         return {
             "statusCode": 200,
