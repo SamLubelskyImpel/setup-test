@@ -6,6 +6,7 @@ import requests
 from os import environ
 from json import loads, dumps
 from typing import Any, Dict
+from datetime import datetime
 
 
 logger = logging.getLogger()
@@ -59,21 +60,37 @@ def upload_entry_to_db(entry: Dict[str, Any]) -> Any:
         raise
 
 
+def format_ts(input_ts: str) -> str:
+    """
+    Format a timestamp string into a db format.
+
+    Assumes the input timestamp is in the format "November, 17 2023 18:57:17".
+    """
+    dt = datetime.strptime(input_ts, "%B, %d %Y %H:%M:%S")
+
+    # Format the datetime object to ISO 8601 UTC format
+    output_format = "%Y-%m-%dT%H:%M:%SZ"
+    return dt.strftime(output_format)
+
+
 def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> None:
     """Extract contact information from the dealerpeak json data."""
     db_entity[f'crm_{item_name}_id'] = item.get('userID')
     db_entity["first_name"] = item.get('givenName')
     db_entity["last_name"] = item.get('familyName')
     emails = item.get('contactInformation', {}).get('emails', [])
-    db_entity["email"] = emails[0].get('address', None) if emails else None
+    db_entity["email"] = emails[0].get('address', '') if emails else ''
     phone_numbers = item.get('contactInformation', {}).get('phoneNumbers', [])
-    db_entity["phone"] = phone_numbers[0].get("number") if phone_numbers else None
+    phone_number = phone_numbers[0].get("number") if phone_numbers and "number" in phone_numbers[0] else ''
 
     # Iterate to find a mobile, cell or main phone number
     for phone in phone_numbers:
         if phone.get("type", "").lower() in ["mobile", "cell", "main"] and phone.get("number"):
-            db_entity["phone"] = phone.get('number')
+            phone_number = phone.get('number', '')
             break
+
+    if phone_number:
+        db_entity["phone"] = phone_number
 
     if item == 'consumer':
         addresses = item.get('contactInformation', {}).get('addresses', [])
@@ -99,6 +116,13 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
                 db_entity["email_optin_flag"] = True
 
 
+def remove_none_or_empty_entries(d, key=None):
+    """Recursively remove None entries and empty string entries from a dictionary, except for the 'salesperson' key."""
+    if isinstance(d, dict):
+        return {k: remove_none_or_empty_entries(v, k) for k, v in d.items() if (v is not None and v != '') or (key == 'salesperson')}
+    return d
+
+
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format dealerpeak json data to unified format."""
     entries = []
@@ -110,17 +134,17 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_salesperson = {}
 
             db_lead["crm_lead_id"] = item.get('leadID')
-            db_lead["lead_ts"] = item.get('dateCreated')
-            db_lead["status"] = item.get('status', {}).get('status')
-            db_lead["comment"] = item.get('firstNote', {}).get('note')
-            db_lead["source_channel"] = item.get('source', {}).get('source')
+            db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
+            db_lead["lead_status"] = item.get('status', {}).get('status')
+            db_lead["lead_comment"] = item.get('firstNote', {}).get('note')
+            db_lead["lead_source"] = item.get('source', {}).get('source')
 
             vehicles = item.get('vehiclesOfInterest', [])
             for vehicle in vehicles:
                 db_vehicle = {}
                 db_vehicle["crm_vehicle_id"] = vehicle.get('carID')
                 db_vehicle["vin"] = vehicle.get('vin')
-                db_vehicle["manufactured_year"] = vehicle.get('year')
+                db_vehicle["year"] = int(vehicle.get('year'))
                 db_vehicle["make"] = vehicle.get('make')
                 db_vehicle["model"] = vehicle.get('model')
 
@@ -143,7 +167,10 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "consumer": db_consumer,
                 "salesperson": db_salesperson,
             }
-            entries.append(entry)
+
+            cleaned_entry = remove_none_or_empty_entries(entry)
+            entries.append(cleaned_entry)
+
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
