@@ -29,6 +29,7 @@ Globals:
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SALES_AI_WEBHOOK: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
 Resources:
   LambdaRole:
@@ -104,6 +105,15 @@ Resources:
                 Action:
                   - "sqs:SendMessage"
                 Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   InvokeDataPull:
     Type: AWS::Serverless::Function

@@ -54,6 +54,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -157,6 +158,15 @@ Resources:
                 Action:
                   - "sqs:SendMessage"
                 Resource: "*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
@@ -438,9 +448,6 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
-      Environment:
-        Variables:
-          SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         
   CreateActivityAlarm:
     Type: AWS::CloudWatch::Alarm
