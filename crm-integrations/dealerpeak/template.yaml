@@ -28,7 +28,7 @@ Globals:
         SECRET_KEY: "DEALERPEAK"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
-        SALES_AI_WEBHOOK: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
+        DA_EVENT_LISTENER: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
 Resources:

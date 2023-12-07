@@ -62,7 +62,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         logger.info(f"Body: {body}")
 
-        dealer_product_id = body["dealer_product_id"]
+        product_dealer_id = body["product_dealer_id"]
         consumer = body["consumer"]
         lead = body["lead"]
         vehicles_of_interest = lead["vehicles_of_interest"]
@@ -72,14 +72,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             dealer_partner = session.query(DealerIntegrationPartner).\
                 join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
                 filter(
-                    Dealer.product_dealer_id == dealer_product_id,
+                    Dealer.product_dealer_id == product_dealer_id,
                     DealerIntegrationPartner.is_active == True
                 ).first()
             if not dealer_partner:
-                logger.error(f"No active dealer found with id {dealer_product_id}.")
+                logger.error(f"No active dealer found with id {product_dealer_id}.")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"No active dealer found with id {dealer_product_id}."})
+                    "body": dumps({"error": f"No active dealer found with id {product_dealer_id}."})
                 }
 
             dealer_partner_id = dealer_partner.id
