@@ -136,8 +136,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 # Activity info
                 "activity_id": activity_id,
                 "notes": activity.notes,
-                "activity_due_ts": activity.activity_due_ts,
-                "activity_requested_ts": activity.activity_requested_ts,
+                "activity_due_ts": activity_due_ts,
+                "activity_requested_ts": activity_requested_ts,
                 "activity_type": activity.activity_type.type,
             }
 

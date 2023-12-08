@@ -26,8 +26,7 @@ Globals:
         LOGLEVEL: INFO
         CRM_API_URL:
           !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
-        PARTNER_ID:
-          !If [IsProd, "", "impel"]
+        PARTNER_ID: "impel"
 
 Resources:
 

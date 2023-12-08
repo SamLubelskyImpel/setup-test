@@ -56,7 +56,7 @@ def send_dealer_event(integration_partner_name: str, dealers: list, start_time: 
     """Send dealer event to invoke data pull."""
     s3_key = f"configurations/{ENVIRONMENT}_{integration_partner_name}.json"
     try:
-        queue_url = loads(
+        fifo_queue_url = loads(
             s3_client.get_object(
                 Bucket=BUCKET,
                 Key=s3_key
@@ -73,7 +73,7 @@ def send_dealer_event(integration_partner_name: str, dealers: list, start_time: 
         })
         logger.info(f"Sending message to queue: {dealer}")
         sqs_client.send_message(
-            QueueUrl=queue_url,
+            QueueUrl=fifo_queue_url,
             MessageBody=dumps(dealer),
             MessageGroupId=integration_partner_name
         )
