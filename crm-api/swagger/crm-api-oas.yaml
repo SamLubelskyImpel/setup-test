@@ -662,18 +662,18 @@ components:
       description: A dealership or rooftop in the CRM layer.
       type: object
       properties:
-        dealer_id:
+        dealer_integration_partner_id:
           type: number
-          description: The ID of the dealer in the CRM layer.
+          description: The ID of the dealer integration partner in the CRM layer.
           example: 24
-        product_dealer_id:
-          type: string
-          description: The ID assigned to the dealership by Impel during onboarding.
-          example: "test_dealer_id"
         crm_dealer_id:
           type: string
           description: The ID of the dealer in the CRM.
           example: "12345"
+        product_dealer_id:
+          type: string
+          description: The ID assigned to the dealership by Impel during onboarding.
+          example: "test_dealer_id"
         dealer_name:
           type: string
           description: The name of the dealer.

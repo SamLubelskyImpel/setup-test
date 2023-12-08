@@ -57,12 +57,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         for vehicle in vehicles_db:
             vehicle_record = {
                 "vin": vehicle.vin,
+                "stock_number": vehicle.stock_num,
                 "type": vehicle.type,
-                "vehicle_class": vehicle.vehicle_class,
+                "class": vehicle.vehicle_class,
                 "mileage": vehicle.mileage,
-                "manufactured_year": vehicle.manufactured_year,
+                "year": vehicle.manufactured_year,
                 "make": vehicle.make,
                 "model": vehicle.model,
+                "oem_name": vehicle.oem_name,
                 "trim": vehicle.trim,
                 "body_style": vehicle.body_style,
                 "transmission": vehicle.transmission,
