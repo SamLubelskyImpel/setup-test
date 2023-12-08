@@ -234,6 +234,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     send_notification_to_webhook(data)
                 except WebhookError as e:
                     send_alert_notification(e, lead_id)
+                except Exception as e:
+                    logger.error(f"Error uploading entry to DB: {e}")
     except Exception:
         logger.exception(f"Error transforming dealerpeak file {event}")
         raise

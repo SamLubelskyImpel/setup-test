@@ -120,7 +120,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 msg = f"Lead with this crm_lead_id and customer_id already exists. Lead id {existing_lead.id}"
                 logger.info(msg)
                 return {
-                    "statusCode": "409",
+                    "statusCode": 409,
                     "body": dumps(msg)
                 }
 
