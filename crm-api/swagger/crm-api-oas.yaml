@@ -42,6 +42,12 @@ paths:
           application/json:
             schema:
               allOf:
+                - type: object
+                  properties:
+                    consumer_id:
+                      type: integer
+                      description: Unique identifier for the associated consumer
+                      example: 2
                 - $ref: '#/components/schemas/Lead'
                 - required:
                     - consumer_id
@@ -77,8 +83,8 @@ paths:
                           example: "123456"
                         consumer_id:
                           type: integer
-                          description: Consumer ID
-                          example: "123"
+                          description: Unique identifier for the associated consumer
+                          example: 2
                         lead_status:
                           type: string
                           description: A status that can be used to group leads that are in similar state
@@ -178,6 +184,12 @@ paths:
             application/json:
               schema:
                 allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
                   - $ref: '#/components/schemas/Lead'
                   - type: object
                     properties:
@@ -239,6 +251,12 @@ paths:
           application/json:
             schema:
               allOf:
+                - type: object
+                  properties:
+                    consumer_id:
+                      type: integer
+                      description: Unique identifier for the associated consumer
+                      example: 2
                 - $ref: '#/components/schemas/Lead'
                 - type: object
                   properties:
@@ -541,8 +559,8 @@ paths:
               properties:
                 product_dealer_id:
                   type: string
-                  description: Dealer ID assigned during onboarding
-                  example: test_dealer
+                  description: The ID assigned to the dealership by Impel during onboarding.
+                  example: "test_dealer_id"
                 lead:
                   allOf:
                     - type: object
@@ -715,7 +733,7 @@ components:
             example: F-150
           oem_name:
             type: string
-            description: The OEM name of the vehicle
+            description: OEM name of the vehicle
             minLength: 1
             maxLength: 50
             example: Ford
@@ -849,10 +867,6 @@ components:
       description: An object containing all information about a lead
       type: object
       properties:
-        consumer_id:
-          type: integer
-          description: Unique identifier for the associated consumer
-          example: 2
         lead_status:
           type: string
           description: A status that can be used to group leads that are in similar state
@@ -889,10 +903,6 @@ components:
       type: object
       required:
         - crm_salesperson_id
-        - first_name
-        - last_name
-        - email
-        - phone
       properties:
         crm_salesperson_id:
           type: string
