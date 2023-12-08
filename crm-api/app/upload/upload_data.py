@@ -26,12 +26,16 @@ salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'fir
                      'phone', 'position_name', 'is_primary']
 
 
-def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
-                 allowed_attrs: List[str],
-                 additional_attrs: Any = None) -> None:
+def update_attrs(object_name: str, db_object: Any, data: Any, dealer_partner_id: str,
+                 allowed_attrs: List[str], request_product) -> None:
     """Update attributes of a database object."""
-    if additional_attrs is None:
-        additional_attrs = {}
+    additional_attrs = {}
+    if object_name == "consumer":
+        additional_attrs = {
+            "email_optin_flag": data.get("email_optin_flag", True),
+            "sms_optin_flag": data.get("sms_optin_flag", True),
+            "request_product": request_product
+        }
 
     combined_data = {"dealer_integration_partner_id": dealer_partner_id, **data, **additional_attrs}
 
@@ -92,10 +96,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             # Update consumer attributes
             update_attrs(
+                'consumer',
                 consumer_db,
                 consumer,
                 dealer_partner_id,
-                consumer_attrs
+                consumer_attrs,
+                request_product
             )
 
             # Add and flush the session if the consumer is new
@@ -168,10 +174,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 salesperson_db = Salesperson()
 
             update_attrs(
+                'salesperson',
                 salesperson_db,
                 salesperson,
                 dealer_partner_id,
-                salesperson_attrs)
+                salesperson_attrs,
+                request_product)
 
             if not salesperson_db.id:
                 session.add(salesperson_db)

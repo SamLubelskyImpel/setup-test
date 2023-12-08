@@ -92,7 +92,7 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
     if phone_number:
         db_entity["phone"] = phone_number
 
-    if item == 'consumer':
+    if item_name == 'consumer':
         addresses = item.get('contactInformation', {}).get('addresses', [])
         address = addresses[0] if addresses else None
 
@@ -104,6 +104,8 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
 
         if address:
             line1 = address.get('line1', '')
+            if not line1:
+                line1 = address.get('lineOne', '')
             line2 = address.get('line2', '')
             db_entity["address"] = f"{line1} {line2}".strip() if line1 or line2 else None
             db_entity["city"] = address.get('city', None)
@@ -112,8 +114,7 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
         communication_preferences = item.get('contactInformation', {}).get('allowed', {})
 
         if communication_preferences:
-            if communication_preferences.get('email', False):
-                db_entity["email_optin_flag"] = True
+            db_entity["email_optin_flag"] = communication_preferences.get('email', True)
 
 
 def remove_none_or_empty_entries(d, key=None):
