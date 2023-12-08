@@ -18,11 +18,11 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-consumer_attrs = ['crm_consumer_id', 'first_name', 'last_name', 'middle_name',
+consumer_attrs = ['dealer_integration_partner_id', 'crm_consumer_id', 'first_name', 'last_name', 'middle_name',
                   'email', 'phone', 'postal_code', 'address', 'country',
                   'city', 'email_optin_flag', 'sms_optin_flag',
                   'request_product']
-salesperson_attrs = ['crm_salesperson_id', 'first_name', 'last_name', 'email',
+salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
 
 
