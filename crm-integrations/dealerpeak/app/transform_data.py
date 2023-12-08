@@ -7,6 +7,11 @@ from os import environ
 from json import loads, dumps
 from typing import Any, Dict
 from datetime import datetime
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    SqsFifoPartialProcessor,
+    process_partial_response,
+)
 
 
 logger = logging.getLogger()
@@ -54,9 +59,7 @@ def upload_entry_to_db(entry: Dict[str, Any]) -> Any:
         response_data = response.json()
         lead_id = response_data.get('lead_id')
         return lead_id
-
-    except Exception as e:
-        logger.error(f"Error occurred calling CRM API: {e}")
+    except Exception:
         raise
 
 
@@ -204,38 +207,61 @@ def send_alert_notification(e: Exception, lead_id: int) -> None:
     )
 
 
+def record_handler(record: SQSRecord) -> None:
+    """Transform each record."""
+    logger.info(f"Record: {record}")
+    try:
+        message = loads(record["body"])
+        bucket = message["detail"]["bucket"]["name"]
+        key = message["detail"]["object"]["key"]
+        product_dealer_id = key.split('/')[2]
+
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        content = response['Body'].read()
+        json_data = loads(content)
+
+        logger.info(f"Raw data: {json_data}")
+
+        entries = parse_json_to_entries(product_dealer_id, json_data)
+
+        logger.info(f"Processed entries: {entries}")
+
+        for entry in entries:
+            try:
+                lead_id = upload_entry_to_db(entry)
+                data = {
+                    "message": "New Lead available from CRM API",
+                    "lead_id": lead_id,
+                }
+                send_notification_to_webhook(data)
+            except WebhookError as e:
+                send_alert_notification(e, lead_id)
+            except Exception as e:
+                if '409' in str(e):
+                    # Log the 409 error and continue with the next entry
+                    logger.warning(e)
+                else:
+                    logger.error(f"Error uploading entry to DB: {e}")
+                    raise
+    except Exception as e:
+        logger.error(f"Error transforming dealerpeak record - {record}: {e}")
+        raise
+
+
 def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw dealerpeak data to the unified format."""
     logger.info(f"Event: {event}")
+
     try:
-        for record in event["Records"]:
-            message = loads(record["body"])
-            bucket = message["detail"]["bucket"]["name"]
-            key = message["detail"]["object"]["key"]
-            product_dealer_id = key.split('/')[2]
+        processor = SqsFifoPartialProcessor()
+        result = process_partial_response(
+            event=event,
+            record_handler=record_handler,
+            processor=processor,
+            context=context
+        )
+        return result
 
-            response = s3_client.get_object(Bucket=bucket, Key=key)
-            content = response['Body'].read()
-            json_data = loads(content)
-
-            logger.info(f"Raw data: {json_data}")
-
-            entries = parse_json_to_entries(product_dealer_id, json_data)
-
-            logger.info(f"Processed entries: {entries}")
-
-            for entry in entries:
-                try:
-                    lead_id = upload_entry_to_db(entry)
-                    data = {
-                        "message": "New Lead available from CRM API",
-                        "lead_id": lead_id,
-                    }
-                    send_notification_to_webhook(data)
-                except WebhookError as e:
-                    send_alert_notification(e, lead_id)
-                except Exception as e:
-                    logger.error(f"Error uploading entry to DB: {e}")
-    except Exception:
-        logger.exception(f"Error transforming dealerpeak file {event}")
+    except Exception as e:
+        logger.error(f"Error processing batch: {e}")
         raise
