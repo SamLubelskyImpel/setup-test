@@ -56,23 +56,25 @@ def lambda_handler(event: Any, context: Any) -> Any:
             for vehicle in vehicles_of_interest:
                 vehicle = Vehicle(
                     lead_id=lead.id,
-                    vin=vehicle.get("vin", None),
-                    type=vehicle.get("type", None),
-                    vehicle_class=vehicle.get("vehicle_class", None),
-                    mileage=vehicle.get("mileage", None),
-                    make=vehicle.get("make", None),
-                    model=vehicle.get("model", None),
-                    manufactured_year=vehicle.get("manufactured_year", None),
-                    body_style=vehicle.get("body_style", None),
-                    transmission=vehicle.get("transmission", None),
-                    interior_color=vehicle.get("interior_color", None),
-                    exterior_color=vehicle.get("exterior_color", None),
-                    trim=vehicle.get("trim", None),
-                    price=vehicle.get("price", None),
-                    status=vehicle.get("status", None),
-                    condition=vehicle.get("condition", None),
-                    odometer_units=vehicle.get("odometer_units", None),
-                    vehicle_comments=vehicle.get("vehicle_comments", None)
+                    vin=vehicle.get("vin"),
+                    stock_num=vehicle.get("stock_number"),
+                    type=vehicle.get("type"),
+                    vehicle_class=vehicle.get("class"),
+                    mileage=vehicle.get("mileage"),
+                    make=vehicle.get("make"),
+                    model=vehicle.get("model"),
+                    manufactured_year=vehicle.get("year"),
+                    oem_name=vehicle.get("oem_name"),
+                    body_style=vehicle.get("body_style"),
+                    transmission=vehicle.get("transmission"),
+                    interior_color=vehicle.get("interior_color"),
+                    exterior_color=vehicle.get("exterior_color"),
+                    trim=vehicle.get("trim"),
+                    price=vehicle.get("price"),
+                    status=vehicle.get("status"),
+                    condition=vehicle.get("condition"),
+                    odometer_units=vehicle.get("odometer_units"),
+                    vehicle_comments=vehicle.get("vehicle_comments")
                 )
                 lead.vehicles.append(vehicle)
 

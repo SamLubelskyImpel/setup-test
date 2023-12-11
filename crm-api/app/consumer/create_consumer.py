@@ -6,6 +6,7 @@ from json import dumps, loads
 from typing import Any
 
 from crm_orm.models.dealer import Dealer
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.consumer import Consumer
 from crm_orm.session_config import DBSession
 
@@ -20,30 +21,35 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
-        dealer_id = event["headers"]["dealer_id"]
+        product_dealer_id = event["queryStringParameters"]["dealer_id"]
 
         with DBSession() as session:
-            dealer = session.query(Dealer).filter(Dealer.product_dealer_id == dealer_id).first()
-            if not dealer:
-                logger.error(f"Dealer {dealer_id} not found")
+            dealer_partner = session.query(DealerIntegrationPartner).\
+                join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
+                filter(
+                    Dealer.product_dealer_id == product_dealer_id,
+                    DealerIntegrationPartner.is_active == True
+                ).first()
+            if not dealer_partner:
+                logger.error(f"No active dealer found with id {product_dealer_id}. Consumer failed to be created.")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Dealer {dealer_id} not found. Consumer failed to be created."})
+                    "body": dumps({"error": f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."})
                 }
 
             consumer = Consumer(
-                dealer_id=dealer.id,
+                dealer_integration_partner_id=dealer_partner.id,
                 first_name=body["first_name"],
                 last_name=body["last_name"],
-                middle_name=body.get("middle_name", None),
+                middle_name=body.get("middle_name"),
                 email=body["email"],
-                phone=body.get("phone", None),
-                postal_code=body.get("postal_code", None),
-                address=body.get("address", None),
-                country=body.get("country", None),
-                city=body.get("city", None),
-                email_optin_flag=body.get("email_optin_flag", True),
-                sms_optin_flag=body.get("sms_optin_flag", True),
+                phone=body.get("phone"),
+                postal_code=body.get("postal_code"),
+                address=body.get("address"),
+                country=body.get("country"),
+                city=body.get("city"),
+                email_optin_flag=body.get("email_optin_flag"),
+                sms_optin_flag=body.get("sms_optin_flag"),
                 request_product=request_product
             )
             session.add(consumer)

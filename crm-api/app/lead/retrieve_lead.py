@@ -57,12 +57,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         for vehicle in vehicles_db:
             vehicle_record = {
                 "vin": vehicle.vin,
+                "stock_number": vehicle.stock_num,
                 "type": vehicle.type,
-                "vehicle_class": vehicle.vehicle_class,
-                "mileage": vehicle.type,
-                "manufactured_year": vehicle.manufactured_year,
+                "class": vehicle.vehicle_class,
+                "mileage": vehicle.mileage,
+                "year": vehicle.manufactured_year,
                 "make": vehicle.make,
                 "model": vehicle.model,
+                "oem_name": vehicle.oem_name,
                 "trim": vehicle.trim,
                 "body_style": vehicle.body_style,
                 "transmission": vehicle.transmission,
@@ -85,7 +87,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_comment": lead.comment,
             "lead_origin": lead.origin_channel,
             "lead_source": lead.source_channel,
-            "vehicles_of_interest": vehicles
+            "vehicles_of_interest": vehicles,
+            "lead_ts": lead.lead_ts,
+            "db_creation_date": lead.db_creation_date
         }
 
         return {

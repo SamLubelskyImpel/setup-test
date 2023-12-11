@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: shared crm resources
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - 196800776222
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+        CRM_API_URL:
+          !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
+        PARTNER_ID: "impel"
+
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/configurations*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt ProcessLeadUpdatesQueue.Arn
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+
+  GetActiveDealers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub crm-shared-${Environment}-GetActiveDealers
+      CodeUri: app/
+      Handler: get_active_dealers.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          INTEGRATIONS_BUCKET: !Ref IntegrationsBucket
+  
+  GetActiveDealersErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-shared-${Environment}-GetActiveDealers
+      AlarmDescription: Get Active Dealers failed 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetActiveDealers
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+
+  ScheduledCRMDataPull:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Scheduled CRM Data Pull"
+      ScheduleExpression: "cron(*/5 * * * ? *)"
+      State: !If [IsProd, "ENABLED", "DISABLED"]
+      Targets:
+        - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_dealerpeak"
+          Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+  
+  ScheduledCRMDataPullLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt GetActiveDealers.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduledCRMDataPull.Arn
+
+  IntegrationsBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub "crm-integrations-${Environment}"
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+            EventBridgeEnabled: true
+
+  ProcessLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-shared-${Environment}-LeadUpdates"
+      CodeUri: app/
+      Handler: process_lead_updates.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  ProcessLeadUpdatesEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt ProcessLeadUpdatesQueue.Arn
+      MaximumBatchingWindowInSeconds: 30
+      FunctionName: !GetAtt ProcessLeadUpdates.Arn
+  
+  ProcessLeadUpdatesQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-LeadUpdatesQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
+        maxReceiveCount: 3
+      
+  ProcessLeadUpdatesDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-LeadUpdatesDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
