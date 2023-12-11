@@ -20,7 +20,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_EVENT_LISTENER = environ.get("DA_EVENT_LISTENER")
+DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 sm_client = boto3.client('secretsmanager')
@@ -31,21 +31,21 @@ class WebhookError(Exception):
     pass
 
 
-def get_secret() -> Any:
-    """Get CRM API secret."""
+def get_secret(secret_name, secret_key) -> Any:
+    """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
-    secret = loads(secret["SecretString"])[str(UPLOAD_SECRET_KEY)]
+    secret = loads(secret["SecretString"])[str(secret_key)]
     secret_data = loads(secret)
 
-    return secret_data["api_key"]
+    return secret_data
 
 
 def upload_entry_to_db(entry: Dict[str, Any]) -> Any:
     """Upload entries to the database through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/upload'
-    api_key = get_secret()
+    api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
     headers = {
         'partner_id': UPLOAD_SECRET_KEY,
@@ -184,7 +184,12 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 def send_notification_to_webhook(data: Dict[str, Any]) -> None:
     """Send notification to Sales AI Webhook."""
     try:
-        response = requests.post(DA_EVENT_LISTENER, json=data)
+        webhook_secrets = get_secret(secret_name="crm-integration-da", secret_key=DA_SECRET_KEY)
+        response = requests.post(
+            url=webhook_secrets["API_URL"],
+            headers={"Authorization": webhook_secrets["API_TOKEN"]},
+            json=data
+        )
         logger.info(f"Sales AI Webhook responded with status: {response.status_code}")
         response.raise_for_status()
     except Exception as e:
