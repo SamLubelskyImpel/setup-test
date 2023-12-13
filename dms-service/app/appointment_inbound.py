@@ -11,6 +11,8 @@ from dms_orm.models.dealer import Dealer
 from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from dms_orm.models.integration_partner import IntegrationPartner
 from dms_orm.models.service_contract import ServiceContract
+from dms_orm.models.op_code import OpCode
+from dms_orm.models.op_code_appointment import OpCodeAppointment
 from dms_orm.models.vehicle import Vehicle
 from dms_orm.session_config import DBSession
 
@@ -88,6 +90,7 @@ def lambda_handler(event, context):
                     func.jsonb_agg(text("service_contracts.*")).label(
                         "service_contracts"
                     ),
+                    func.jsonb_agg(text("op_code.*")).label("op_codes"),
                 )
                 .outerjoin(
                     DealerIntegrationPartner,
@@ -105,6 +108,14 @@ def lambda_handler(event, context):
                 .outerjoin(
                     ServiceContract,
                     ServiceContract.appointment_id == Appointment.id,
+                )
+                .outerjoin(
+                    OpCodeAppointment,
+                    OpCodeAppointment.appointment_id == Appointment.id,
+                )
+                .outerjoin(
+                    OpCode,
+                    OpCode.id == OpCodeAppointment.op_code_id,
                 )
                 .group_by(
                     Appointment.id,
@@ -147,6 +158,7 @@ def lambda_handler(event, context):
                 integration_partner,
                 vehicle,
                 service_contracts,
+                op_codes,
             ) in appointments[:max_results]:
                 result_dict = appointment.as_dict()
                 result_dict["consumer"] = consumer.as_dict()
@@ -157,6 +169,7 @@ def lambda_handler(event, context):
                 result_dict["integration_partner"] = integration_partner.as_dict()
                 result_dict["vehicle"] = vehicle.as_dict()
                 result_dict["service_contracts"] = [x for x in service_contracts if x]
+                result_dict["op_codes"] = [x for x in op_codes if x]
                 results.append(result_dict)
 
             return {

@@ -27,6 +27,7 @@ class Appointment(BaseForModels):
     appointment_no = Column(String)
     last_ro_date = Column(Date)
     last_ro_num = Column(String)
+    converted_ro_num = Column(String)
     db_creation_date = Column(DateTime)
     db_update_date = Column(DateTime)
 
