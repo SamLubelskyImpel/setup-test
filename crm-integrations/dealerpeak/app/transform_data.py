@@ -92,8 +92,7 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
             phone_number = phone.get('number', '')
             break
 
-    if phone_number:
-        db_entity["phone"] = phone_number
+    db_entity["phone"] = phone_number
 
     if item_name == 'consumer':
         addresses = item.get('contactInformation', {}).get('addresses', [])
