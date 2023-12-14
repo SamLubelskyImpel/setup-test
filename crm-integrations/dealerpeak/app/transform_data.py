@@ -221,6 +221,7 @@ def post_and_forward_entry(entry: dict, crm_api_key: str, listener_secrets: dict
             "message": "New Lead available from CRM API",
             "lead_id": lead_id,
         }
+        logger.info(f"[THREAD {index}] Sending data to DA Event Listener: {data}")
         send_to_event_listener(data=data, listener_secrets=listener_secrets, index=index)
     except EventListenerError as e:
         send_alert_notification(e, lead_id)
