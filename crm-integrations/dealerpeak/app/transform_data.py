@@ -7,6 +7,7 @@ from os import environ
 from json import loads, dumps
 from typing import Any, Dict
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
@@ -27,7 +28,7 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
-class WebhookError(Exception):
+class EventListenerError(Exception):
     pass
 
 
@@ -42,25 +43,21 @@ def get_secret(secret_name, secret_key) -> Any:
     return secret_data
 
 
-def upload_entry_to_db(entry: Dict[str, Any]) -> Any:
+def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
     """Upload entries to the database through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/upload'
-    api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
     headers = {
         'partner_id': UPLOAD_SECRET_KEY,
         'x_api_key': api_key
     }
 
-    try:
-        response = requests.post(url, headers=headers, json=entry)
-        logger.info(f"CRM API responded with status: {response.status_code}")
-        response.raise_for_status()
-        response_data = response.json()
-        lead_id = response_data.get('lead_id')
-        return lead_id
-    except Exception:
-        raise
+    response = requests.post(url, headers=headers, json=entry)
+    logger.info(f"[THREAD {index}] CRM API responded with status: {response.status_code}")
+    response.raise_for_status()
+    response_data = response.json()
+    lead_id = response_data.get('lead_id')
+    return lead_id
 
 
 def format_ts(input_ts: str) -> str:
@@ -180,39 +177,66 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         raise
 
 
-def send_notification_to_webhook(data: Dict[str, Any]) -> None:
-    """Send notification to Sales AI Webhook."""
+def send_to_event_listener(data: Dict[str, Any], listener_secrets: dict, index: int) -> None:
+    """Send notification to DA Event listener."""
     try:
-        webhook_secrets = get_secret(secret_name="crm-integration-da", secret_key=DA_SECRET_KEY)
         response = requests.post(
-            url=webhook_secrets["API_URL"],
-            headers={"Authorization": webhook_secrets["API_TOKEN"]},
-            json=data
+            url=listener_secrets["API_URL"],
+            headers={"Authorization": listener_secrets["API_TOKEN"]},
+            json=data,
+            timeout=3
         )
-        logger.info(f"Sales AI Webhook responded with status: {response.status_code}")
+        logger.info(f"[THREAD {index}] DA Event Listener responded with status: {response.status_code}")
         response.raise_for_status()
+
+    # Event Listener should respond right away, temporarily ignoring timeout errors until DA fix.
+    except requests.exceptions.Timeout:
+        logger.info(f"[THREAD {index}] Ignoring event listener response.")
     except Exception as e:
-        logger.error(f"Error occurred calling Sales AI Webhook: {e}")
-        raise WebhookError
+        logger.error(f"[THREAD {index}] Error occurred calling DA Event Listener: {e}")
+        raise EventListenerError
 
 
 def send_alert_notification(e: Exception, lead_id: int) -> None:
     """Send alert notification to CE team."""
     data = {
-        "message": f"Error occurred while sending data to Sales AI webhook: {e}",
+        "message": f"Error occurred while sending data to DA Event Listener: {e}",
         "lead_id": lead_id
     }
     sns_client = boto3.client('sns')
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
         Message=dumps({'default': dumps(data)}),
-        Subject='Dealerpeak - Sales AI Webhook Failure Alert',
+        Subject='Dealerpeak - DA Event Listener Failure Alert',
         MessageStructure='json'
     )
 
 
+def post_and_forward_entry(entry: dict, crm_api_key: str, listener_secrets: dict, index: int) -> bool:
+    """Process a single entry."""
+    logger.info(f"[THREAD {index}] Processing entry {entry}")
+    try:
+        lead_id = upload_entry_to_db(entry=entry, api_key=crm_api_key, index=index)
+        data = {
+            "message": "New Lead available from CRM API",
+            "lead_id": lead_id,
+        }
+        send_to_event_listener(data=data, listener_secrets=listener_secrets, index=index)
+    except EventListenerError as e:
+        send_alert_notification(e, lead_id)
+    except Exception as e:
+        if '409' in str(e):
+            # Log the 409 error and continue with the next entry
+            logger.warning(f"[THREAD {index}] {e}")
+        else:
+            logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
+            return False
+
+    return True
+
+
 def record_handler(record: SQSRecord) -> None:
-    """Transform each record."""
+    """Transform and process each record."""
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
@@ -223,30 +247,29 @@ def record_handler(record: SQSRecord) -> None:
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
         json_data = loads(content)
-
         logger.info(f"Raw data: {json_data}")
 
         entries = parse_json_to_entries(product_dealer_id, json_data)
+        logger.info(f"Transformed entries: {entries}")
 
-        logger.info(f"Processed entries: {entries}")
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
+        event_listener_secrets = get_secret(secret_name="crm-integration-da", secret_key=DA_SECRET_KEY)
 
-        for entry in entries:
-            try:
-                lead_id = upload_entry_to_db(entry)
-                data = {
-                    "message": "New Lead available from CRM API",
-                    "lead_id": lead_id,
-                }
-                send_notification_to_webhook(data)
-            except WebhookError as e:
-                send_alert_notification(e, lead_id)
-            except Exception as e:
-                if '409' in str(e):
-                    # Log the 409 error and continue with the next entry
-                    logger.warning(e)
-                else:
-                    logger.error(f"Error uploading entry to DB: {e}")
-                    raise
+        results = []
+        # Process each entry in parallel, each entry takes about 8 seconds to process.
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(post_and_forward_entry,
+                                entry, crm_api_key, event_listener_secrets, idx)
+                for idx, entry in enumerate(entries)
+            ]
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        for result in results:
+            if not result:
+                raise Exception("Error detected posting and forwarding an entry")
+
     except Exception as e:
         logger.error(f"Error transforming dealerpeak record - {record}: {e}")
         raise
