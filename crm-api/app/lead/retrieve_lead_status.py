@@ -17,8 +17,8 @@ s3_client = boto3.client("s3")
 lambda_client = boto3.client("lambda")
 
 
-def get_status_from_crm(body: dict, partner_name: str) -> Any:
-    """Get lead status from CRM."""
+def get_lambda_arn(partner_name: str) -> Any:
+    """Get lambda ARN from S3."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
         lambda_arn = loads(
@@ -30,7 +30,11 @@ def get_status_from_crm(body: dict, partner_name: str) -> Any:
     except Exception as e:
         logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
         raise
+    return lambda_arn
 
+
+def get_status_from_crm(body: dict, lambda_arn: str) -> Any:
+    """Get lead status from CRM."""
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
         InvocationType="RequestResponse",
@@ -41,7 +45,9 @@ def get_status_from_crm(body: dict, partner_name: str) -> Any:
     if response_json["statusCode"] != 200:
         logger.error(f"Error retrieving salespersons {response_json['statusCode']}: {response_json}")
         raise
-    return response_json
+
+    status = loads(response_json["body"]).get("status", "")
+    return status
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -65,6 +71,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
 
+            status_db = lead.status
             crm_lead_id = lead.crm_lead_id
             dealer_integration_partner_id = lead.consumer.dealer_integration_partner.id
             crm_dealer_id = lead.consumer.dealer_integration_partner.crm_dealer_id
@@ -76,16 +83,22 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "crm_lead_id": crm_lead_id,
             "crm_dealer_id": crm_dealer_id
         }
-        try:
-            response = get_status_from_crm(payload, partner_name)
-        except Exception as e:
-            logger.error(f"Failed to retrieve lead status from CRM. {e}")
-            return {
-                "statusCode": 202,
-                "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM"})
-            }
 
-        status = loads(response["body"]).get("status", "")
+        lambda_arn = get_lambda_arn(partner_name)
+        if lambda_arn:
+            logger.info(f"Lambda ARN detected for partner {partner_name}. Retrieving status from CRM.")
+            try:
+                status = get_status_from_crm(payload, lambda_arn)
+            except Exception as e:
+                logger.error(f"Failed to retrieve lead status from CRM. {e}")
+                return {
+                    "statusCode": 202,
+                    "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM"})
+                }
+        else:
+            logger.info(f"No lambda ARN detected for partner {partner_name}. Using status from DB.")
+            status = status_db
+
         if not status:
             logger.error(f"No lead status found for lead {lead_id}")
             return {

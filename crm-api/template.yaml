@@ -516,17 +516,3 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
-
-  # This function is used to get the lead updates from the shared DB, instead of the CRM.
-  # This function is only used in non-prod environments to test non-crm leads.
-  GetLeadUpdates:
-    Type: AWS::Serverless::Function
-    Condition: IsNotProd
-    Properties:
-      FunctionName: !Sub "crm-api-${Environment}-GetLeadUpdates"
-      CodeUri: app/lead/
-      Handler: get_lead_updates.lambda_handler
-      Timeout: 30
-      Role: !GetAtt LambdaRole.Arn
-      Layers:
-        - !Ref CrmOrmLayer
