@@ -21,9 +21,6 @@ Conditions:
     Fn::Equals:
       - Ref: AWS::AccountId
       - 196800776222
-  IsNotProd:
-    Fn::Not:
-      - Condition: IsProd
   IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
 Mappings:

@@ -21,12 +21,13 @@ def get_lambda_arn(partner_name: str) -> Any:
     """Get lambda ARN from S3."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
-        lambda_arn = loads(
+        s3_object = loads(
                 s3_client.get_object(
                     Bucket=BUCKET,
                     Key=s3_key
                 )['Body'].read().decode('utf-8')
-            )["get_lead_status_arn"]
+            )
+        lambda_arn = s3_object.get("get_lead_status_arn")
     except Exception as e:
         logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
         raise
