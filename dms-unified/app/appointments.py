@@ -40,6 +40,7 @@ def insert_appointment_parquet(key, df):
         df[
             "appointment|dealer_integration_partner_id"
         ] = db_dealer_integration_partner_id
+        df["op_code|dealer_integration_partner_id"] = db_dealer_integration_partner_id
 
         # Unique dealer_integration_partner_id, appointment_no SQL can't insert duplicates
         appointment_unique_constraint = [
@@ -70,6 +71,65 @@ def insert_appointment_parquet(key, df):
             "appointment",
             additional_query=additional_appointment_query,
         )
+
+        if "op_codes|op_codes" in list(df.columns):
+            df["op_code_appointment|appointment_id"] = inserted_appointment_ids
+            # Explode op_codes arrays of dict such that each row contains op_code data
+            op_code_df = df.explode("op_codes|op_codes").reset_index(drop=True)
+            op_code_df = op_code_df.dropna(subset=["op_codes|op_codes"]).reset_index(
+                drop=True
+            )
+            op_code_split_df = pd.DataFrame(op_code_df["op_codes|op_codes"].tolist())
+            op_code_df = pd.concat([op_code_df, op_code_split_df], axis=1)
+            op_code_df.drop(columns=["op_codes|op_codes"], inplace=True)
+            if len(op_code_df) == 0:
+                return
+
+            # Insert only unique op codes to avoid insertion error
+            op_code_df_columns = [
+                x.split("|")[1] for x in op_code_df.columns if x.startswith("op_code|")
+            ]
+            additional_op_code_query = f"""ON CONFLICT ON CONSTRAINT unique_op_code DO UPDATE
+                    SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, op_code.{x})' for x in op_code_df_columns])}"""
+            op_code_df_dedupped = op_code_df.copy()
+            op_code_unique_constraint = [
+                "op_code|op_code",
+                "op_code|op_code_desc",
+                "op_code|dealer_integration_partner_id",
+            ]
+            op_code_df_dedupped = op_code_df_dedupped.drop_duplicates(
+                subset=op_code_unique_constraint, keep="first"
+            ).reset_index(drop=True)
+            inserted_op_code_ids = rds.insert_table_from_df(
+                op_code_df_dedupped,
+                "op_code",
+                additional_query=additional_op_code_query,
+            )
+            op_code_df_dedupped[
+                "op_code_appointment|op_code_id"
+            ] = inserted_op_code_ids
+
+            # Add op_code_appointment|op_code_id to all of the op codes where they match
+            op_code_df_columns_full_name = [
+                x for x in op_code_df.columns if x.startswith("op_code|")
+            ]
+            op_code_df = op_code_df.merge(
+                op_code_df_dedupped[
+                    op_code_df_columns_full_name + ["op_code_appointment|op_code_id"]
+                ],
+                on=op_code_df_columns_full_name,
+                how="left",
+            )
+
+            missing_op_code_id = (
+                op_code_df["op_code_appointment|op_code_id"].isna().any()
+            )
+            if missing_op_code_id:
+                raise RuntimeError(
+                    "Some op codes missing op_code_appointment|op_code_id after inserting and merging"
+                )
+
+            rds.insert_table_from_df(op_code_df, "op_code_appointment")
 
         service_contracts_columns = [
             x.split("|")[1] for x in df.columns if x.startswith("service_contracts|")

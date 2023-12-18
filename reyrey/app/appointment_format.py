@@ -61,8 +61,24 @@ def parse_xml_to_entries(xml_string, s3_uri):
         db_vehicle = {}
         db_consumer = {}
         db_service_contracts = []
+        db_op_codes = []
 
         db_service_appointment["appointment_no"] = service_appointment.get("ApptNo")
+
+        ro_detail = service_appointment.find(".//ns:RODetail", namespaces=ns)
+        if ro_detail is not None:
+            db_service_appointment["converted_ro_num"] = ro_detail.get("RONo")
+
+            operations = ro_detail.findall(
+                ".//ns:Operation", namespaces=ns
+            )
+            for operation in operations:
+                db_op_code = {}
+                db_op_code["op_code|op_code"] = operation.get("OpCode")
+                db_op_code["op_code|op_code_desc"] = operation.get(
+                    "OpCodeDesc"
+                )
+                db_op_codes.append(db_op_code)
 
         if service_appointment.get("TransType", ""):
             if service_appointment.get("TransType", "").upper() == "UPDATE" or service_appointment.get("TransType", "").upper() == "DELETE":
@@ -174,6 +190,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "vehicle": db_vehicle,
             "consumer": db_consumer,
             "service_contracts.service_contracts": db_service_contracts,
+            "op_codes.op_codes": db_op_codes,
         }
         entries.append(entry)
     return entries, dms_id
