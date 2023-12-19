@@ -128,7 +128,7 @@ def insert_repair_order_parquet(key, df):
                     "Some op codes missing op_code_repair_order|op_code_id after inserting and merging"
                 )
 
-            rds.insert_table_from_df(op_code_df, "op_code_repair_order")
+            rds.insert_table_from_df(op_code_df, "op_code_repair_order", additional_query="ON CONFLICT ON CONSTRAINT unique_op_code_repair_order DO NOTHING", expect_all_inserted=False)
 
         notification_message = {
             "impel_integration_partner_id": integration,

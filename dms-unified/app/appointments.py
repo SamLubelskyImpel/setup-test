@@ -129,7 +129,7 @@ def insert_appointment_parquet(key, df):
                     "Some op codes missing op_code_appointment|op_code_id after inserting and merging"
                 )
 
-            rds.insert_table_from_df(op_code_df, "op_code_appointment")
+            rds.insert_table_from_df(op_code_df, "op_code_appointment", additional_query="ON CONFLICT ON CONSTRAINT unique_op_code_appointment DO NOTHING", expect_all_inserted=False)
 
         service_contracts_columns = [
             x.split("|")[1] for x in df.columns if x.startswith("service_contracts|")
