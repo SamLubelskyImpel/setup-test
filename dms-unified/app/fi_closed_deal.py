@@ -95,7 +95,7 @@ def insert_fi_deal_parquet(key, df):
                 return
 
             inserted_service_contract_ids = rds.insert_table_from_df(
-                service_contracts_df, "service_contracts"
+                service_contracts_df, "service_contracts", additional_query="ON CONFLICT ON CONSTRAINT unique_service_contracts DO NOTHING", expect_all_inserted=False
             )
 
         notification_message = {

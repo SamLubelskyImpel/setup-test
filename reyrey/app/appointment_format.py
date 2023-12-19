@@ -91,6 +91,7 @@ def parse_xml_to_entries(xml_string, s3_uri):
                 db_service_appointment["rescheduled_flag"] = False
                 if application_area is not None:
                     db_service_appointment["appointment_create_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
+                    db_service_appointment["appointment_update_ts"] = application_area.find(".//ns:CreationDateTime", namespaces=ns).text
 
         appointment_time = service_appointment.find(".//ns:AppointmentTime", namespaces=ns)
         if appointment_time is not None:

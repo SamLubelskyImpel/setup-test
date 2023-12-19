@@ -63,7 +63,9 @@ def insert_appointment_parquet(key, df):
         additional_appointment_query = f"""
             ON CONFLICT ON CONSTRAINT unique_appointment DO UPDATE
             SET {', '.join([
-                f'{x} = CASE WHEN appointment.appointment_create_ts < EXCLUDED.appointment_create_ts THEN EXCLUDED.{x} ELSE appointment.{x} END' for x in appointment_columns
+                f'{x} = CASE WHEN appointment.appointment_update_ts IS NULL OR appointment.appointment_update_ts < EXCLUDED.appointment_update_ts THEN EXCLUDED.{x} ELSE appointment.{x} END'
+                if x != 'appointment_create_ts' else f'{x} = appointment.{x}'
+                for x in appointment_columns
             ])}
         """
         inserted_appointment_ids = rds.insert_table_from_df(
@@ -165,7 +167,7 @@ def insert_appointment_parquet(key, df):
             if len(service_contracts_df) == 0:
                 return
 
-            rds.insert_table_from_df(service_contracts_df, "service_contracts")
+            rds.insert_table_from_df(service_contracts_df, "service_contracts", additional_query="ON CONFLICT ON CONSTRAINT unique_service_contracts DO NOTHING", expect_all_inserted=False)
 
         notification_message = {
             "impel_integration_partner_id": integration,
