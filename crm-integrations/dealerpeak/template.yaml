@@ -27,8 +27,8 @@ Globals:
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "DEALERPEAK"
         UPLOAD_SECRET_KEY: "impel"
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
-        DA_EVENT_LISTENER: !If [IsProd, "", "https://webhook.site/7f3b6c6a-431c-4ca3-ab7f-eb1a6362b4cc"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
 Resources:
@@ -57,6 +57,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-da*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-da*",
                     ]
                   - !If [
                       IsProd,
@@ -122,6 +127,7 @@ Resources:
       CodeUri: app/
       Handler: invoke_data_pull.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
   InvokeDataPullErrorAlarm:
@@ -173,7 +179,6 @@ Resources:
 
   InvokeDataPullDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
       AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Invoke DLQ
@@ -198,13 +203,14 @@ Resources:
       FunctionName: !Sub dealerpeak-${Environment}-TransformData
       CodeUri: app/
       Handler: transform_data.lambda_handler
-      Timeout: 30
+      Timeout: 60
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
   TransformDealerpeakDataEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 10
+      BatchSize: 1
       EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt TransformDealerpeakData.Arn
@@ -230,7 +236,6 @@ Resources:
   
   TransformDealerpeakDataDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
       AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Transform DLQ
@@ -360,7 +365,6 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: QueueName
           Value: !GetAtt SendActivityDeadLetterQueue.QueueName
@@ -370,5 +374,5 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 10
+      Threshold: 1
       TreatMissingData: notBreaching

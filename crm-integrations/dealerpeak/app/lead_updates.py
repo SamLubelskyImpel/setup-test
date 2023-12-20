@@ -4,8 +4,8 @@ import boto3
 from json import dumps, loads
 from os import environ
 import logging
-from base64 import b64encode
 import requests
+from requests.auth import HTTPBasicAuth
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -16,12 +16,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
-
-
-def basic_auth(username: str, password: str) -> str:
-    """Convert api crendentials to base64 encoded string."""
-    token = b64encode(f"{username}:{password}".encode('ascii')).decode('ascii')
-    return token
 
 
 def get_secrets():
@@ -38,17 +32,14 @@ def get_secrets():
 def get_lead(crm_dealer_id, crm_lead_id):
     """Get lead from DealerPeak."""
     api_url, username, password = get_secrets()
-    token = basic_auth(username, password)
+    auth = HTTPBasicAuth(username, password)
 
     dealer_group_id = crm_dealer_id.split("__")[0]
 
     try:
         response = requests.get(
             url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{crm_lead_id}",
-            headers={
-                "Authorization": f"Basic {token}",
-                "Content-Type": "application/json",
-            },
+            auth=auth,
             timeout=3,
         )
         logger.info(f"DealerPeak responded with: {response.status_code}")
@@ -110,46 +101,39 @@ def send_sqs_message(message_body: dict):
 def lambda_handler(event, context):
     """Get lead updates."""
     logger.info(f"Event: {event}")
-    try:
-        lead_id = event["lead_id"]
-        dealer_partner_id = event["dealer_integration_partner_id"]
-        crm_lead_id = event["crm_lead_id"]
-        crm_dealer_id = event["crm_dealer_id"]
 
-        lead = get_lead(crm_dealer_id, crm_lead_id)
-        if not lead:
-            logger.info(f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}")
-            return {
-                "statusCode": 404,
-                "body": dumps({
-                    "error": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
-                })
-            }
+    lead_id = event["lead_id"]
+    dealer_partner_id = event["dealer_integration_partner_id"]
+    crm_lead_id = event["crm_lead_id"]
+    crm_dealer_id = event["crm_dealer_id"]
 
-        salesperson = parse_salesperson(lead)
-        status = lead["status"].get("status", "")
-
-        logger.info("Found lead {}, dealer_integration_partner {}, with status {} and salesperson {}".format(
-            lead_id, dealer_partner_id, status, salesperson
-        ))
-        send_sqs_message({
-            "lead_id": lead_id,
-            "dealer_integration_partner_id": dealer_partner_id,
-            "status": status,
-            "salespersons": [salesperson]
-        })
-
+    lead = get_lead(crm_dealer_id, crm_lead_id)
+    if not lead:
+        logger.info(f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}")
         return {
-            "statusCode": 200,
+            "statusCode": 404,
             "body": dumps({
-                "status": status,
-                "salespersons": [salesperson]
+                "error": f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}"
             })
         }
 
-    except Exception as e:
-        logger.error(f"Error occured getting lead updates: {e}")
-        return {
-            "statusCode": 500,
-            "error": "An error occurred while processing the request."
-        }
+    salesperson = parse_salesperson(lead)
+    status = lead["status"].get("status", "")
+
+    logger.info("Found lead {}, dealer_integration_partner {}, with status {} and salesperson {}".format(
+        lead_id, dealer_partner_id, status, salesperson
+    ))
+    send_sqs_message({
+        "lead_id": lead_id,
+        "dealer_integration_partner_id": dealer_partner_id,
+        "status": status,
+        "salespersons": [salesperson]
+    })
+
+    return {
+        "statusCode": 200,
+        "body": dumps({
+            "status": status,
+            "salespersons": [salesperson]
+        })
+    }

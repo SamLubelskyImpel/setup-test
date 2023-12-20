@@ -6,6 +6,8 @@ from json import dumps, loads
 from typing import Any
 
 from crm_orm.models.lead import Lead
+from crm_orm.models.salesperson import Salesperson
+from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -17,27 +19,79 @@ s3_client = boto3.client("s3")
 lambda_client = boto3.client("lambda")
 
 
-def get_salespersons_from_crm(body: dict, partner_name: str) -> Any:
-    """Get lead salespersons from CRM."""
+def get_lambda_arn(partner_name: str) -> Any:
+    """Get lambda ARN from S3."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
-        lambda_arn = loads(
+        s3_object = loads(
                 s3_client.get_object(
                     Bucket=BUCKET,
                     Key=s3_key
                 )['Body'].read().decode('utf-8')
-            )["get_lead_salesperson_arn"]
+            )
+        lambda_arn = s3_object.get("get_lead_salesperson_arn")
     except Exception as e:
         logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
         raise
+    return lambda_arn
 
+
+def get_salespersons_from_crm(body: dict, lambda_arn: str) -> Any:
+    """Get lead salespersons from CRM."""
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
         InvocationType="RequestResponse",
         Payload=dumps(body),
     )
     logger.info(f"Response from lambda: {response}")
-    return loads(response["Payload"].read().decode('utf-8'))
+    response_json = loads(response["Payload"].read().decode('utf-8'))
+    if response_json["statusCode"] != 200:
+        logger.error(f"Error retrieving salespersons {response_json['statusCode']}: {response_json}")
+        raise
+
+    salespersons = []
+    for person in loads(response_json["body"]).get("salespersons", []):
+        salespersons.append(
+            {
+                "crm_salesperson_id": person.get("crm_salesperson_id", ""),
+                "first_name": person.get("first_name", ""),
+                "last_name": person.get("last_name", ""),
+                "email": person.get("email", ""),
+                "phone": person.get("phone", ""),
+                "position_name": person.get("position_name", ""),
+                "is_primary": person.get("is_primary", False)
+            }
+        )
+    return salespersons
+
+
+def get_salespersons_from_db(lead_id: str) -> Any:
+    salespersons = []
+    with DBSession() as session:
+        lead_db = session.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead_db:
+            logger.error(f"Lead {lead_id} not found.")
+            raise
+
+        salespersons_db = session.query(Salesperson, Lead_Salesperson.is_primary)\
+            .join(
+                Lead_Salesperson,
+                Salesperson.id == Lead_Salesperson.salesperson_id,
+            ).filter(Lead_Salesperson.lead_id == lead_id)\
+            .all()
+
+        for salesperson, is_primary in salespersons_db:
+            salesperson_record = {
+                "crm_salesperson_id": salesperson.crm_salesperson_id,
+                "first_name": salesperson.first_name,
+                "last_name": salesperson.last_name,
+                "email": salesperson.email,
+                "phone": salesperson.phone,
+                "position_name": salesperson.position_name,
+                "is_primary": is_primary
+            }
+            salespersons.append(salesperson_record)
+    return salespersons
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -73,32 +127,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "crm_lead_id": crm_lead_id,
             "crm_dealer_id": crm_dealer_id
         }
-        try:
-            response = get_salespersons_from_crm(payload, partner_name)
-        except Exception as e:
-            logger.error(f"Failed to retrieve lead salespersons from CRM. {e}")
-            raise
 
-        if response["statusCode"] != 200:
-            logger.error(f"Error retrieving salespersons {response['statusCode']}: {response}")
-            return {
-                "statusCode": 202,
-                "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM"})
-            }
-
-        salespersons = []
-        for person in loads(response["body"]).get("salespersons", []):
-            salespersons.append(
-                {
-                    "crm_salesperson_id": person.get("crm_salesperson_id", ""),
-                    "first_name": person.get("first_name", ""),
-                    "last_name": person.get("last_name", ""),
-                    "email": person.get("email", ""),
-                    "phone": person.get("phone", ""),
-                    "position_name": person.get("position_name", ""),
-                    "is_primary": person.get("is_primary", False)
+        lambda_arn = get_lambda_arn(partner_name)
+        if lambda_arn:
+            logger.info(f"Lambda ARN detected for partner {partner_name}. Retrieving salespersons from CRM.")
+            try:
+                salespersons = get_salespersons_from_crm(payload, lambda_arn)
+            except Exception as e:
+                logger.error(f"Failed to retrieve lead salespersons from CRM. {e}")
+                return {
+                    "statusCode": 202,
+                    "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM"})
                 }
-            )
+        else:
+            logger.info(f"No lambda ARN detected for partner {partner_name}. Using salespersons from DB.")
+            salespersons = get_salespersons_from_db(lead_id)
 
         if not salespersons:
             logger.error(f"No salespersons found for lead {lead_id}")

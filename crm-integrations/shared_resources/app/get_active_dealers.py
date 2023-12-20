@@ -52,9 +52,9 @@ def get_dealers(integration_partner_name: str) -> Any:
     return response.json()
 
 
-def send_dealer_event(integration_partner_name: str, dealers: list, start_time: str, end_time: str) -> Any:
+def send_dealer_event(partner_name: str, dealers: list, start_time: str, end_time: str) -> Any:
     """Send dealer event to invoke data pull."""
-    s3_key = f"configurations/{ENVIRONMENT}_{integration_partner_name}.json"
+    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
         fifo_queue_url = loads(
             s3_client.get_object(
@@ -63,7 +63,7 @@ def send_dealer_event(integration_partner_name: str, dealers: list, start_time: 
             )['Body'].read().decode('utf-8')
         )["invoke_dealer_queue_url"]
     except Exception as e:
-        logger.error(f"Failed to retrieve queue url from S3 config. Partner: {integration_partner_name}, {e}")
+        logger.error(f"Failed to retrieve queue url from S3 config. Partner: {partner_name}, {e}")
         raise
 
     for dealer in dealers:
@@ -75,7 +75,7 @@ def send_dealer_event(integration_partner_name: str, dealers: list, start_time: 
         sqs_client.send_message(
             QueueUrl=fifo_queue_url,
             MessageBody=dumps(dealer),
-            MessageGroupId=integration_partner_name
+            MessageGroupId=partner_name
         )
 
 
