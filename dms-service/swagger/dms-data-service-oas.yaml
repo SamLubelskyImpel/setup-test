@@ -541,6 +541,12 @@ components:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceContracts'
+              - type: object
+                properties:
+                  op_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpCode'
     RepairOrderResponse:
       type: object
       properties:
@@ -915,6 +921,8 @@ components:
           format: date-time
         last_ro_num:
           type: string
+        converted_ro_num:
+          type: string
         db_creation_date:
           type: string
           format: date-time
@@ -956,4 +964,3 @@ components:
             type: integer
         appointment_id:
             type: integer
-

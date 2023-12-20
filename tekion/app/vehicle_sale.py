@@ -29,7 +29,6 @@ def parse_data(data):
     tekion_wrapper.upload_data(
         api_data, key
     )
-    logger.info(f"Uploaded {key}")
 
 def lambda_handler(event, context):
     """Query Tekion deals API."""

@@ -141,12 +141,16 @@ class TekionWrapper:
 
     def upload_data(self, api_data, key):
         """Upload API data to S3."""
-        s3_client = boto3.client("s3")
-        response = s3_client.put_object(
-            Bucket=INTEGRATIONS_BUCKET,
-            Key=key,
-            Body=dumps(api_data),
-            ContentType="application/json",
-        )
-        if not response["ETag"]:
-            raise RuntimeError(f"Unexpected s3 response {response}")
+        if api_data:
+            s3_client = boto3.client("s3")
+            response = s3_client.put_object(
+                Bucket=INTEGRATIONS_BUCKET,
+                Key=key,
+                Body=dumps(api_data),
+                ContentType="application/json",
+            )
+            if not response["ETag"]:
+                raise RuntimeError(f"Unexpected s3 response {response}")
+            logger.info(f"Uploaded {key}")
+        else:
+            logger.warning(f"No data {api_data} to upload for {key}")
