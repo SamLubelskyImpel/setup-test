@@ -254,7 +254,7 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Transformed entries: {entries}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        event_listener_secrets = get_secret(secret_name="crm-integration-da", secret_key=DA_SECRET_KEY)
+        event_listener_secrets = get_secret(secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY)
 
         results = []
         # Process each entry in parallel, each entry takes about 8 seconds to process.

@@ -28,7 +28,7 @@ secret_client = boto3.client("secretsmanager")
 def get_secrets():
     """Get DealerPeak API secrets."""
     secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integration-partner"
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
     )
     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
     secret_data = loads(secret)

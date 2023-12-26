@@ -55,13 +55,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-partner*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-partner*",
-                    ]
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integration-da*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integration-da*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
                   - !If [
                       IsProd,
