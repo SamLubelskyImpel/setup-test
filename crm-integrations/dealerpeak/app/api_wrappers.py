@@ -83,7 +83,7 @@ class DealerpeakApiWrapper:
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integration-partner"
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
         )
         secret = loads(secret["SecretString"])[str(SECRET_KEY)]
         secret_data = loads(secret)
