@@ -12,6 +12,8 @@ info:
 servers:
   - description: Impel test environment
     url: https://crm-api-test.testenv.impel.io/
+  - description: Impel production environment
+    url: https://crm-api.impel.io/
 #{{CRM_API_AWS_VALIDATION}}
 paths:
   /leads:
@@ -539,7 +541,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not Found. The integration_parter_id of the request didn't match any existing records on Impel.
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
   /upload:
@@ -634,6 +636,7 @@ components:
       required:
         - activity_type
         - activity_requested_ts
+        - contact_method
       properties:
         activity_type:
           type: string
@@ -658,6 +661,14 @@ components:
           type: string
           description: Notes about the activity. Required when the activity type is "note".
           example: "Customer requested a follow-up call."
+        contact_method:
+          type: string
+          description: The method for which the consumer was contacted with.
+          enum:
+            - email
+            - phone
+            - text
+          example: "email"
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object

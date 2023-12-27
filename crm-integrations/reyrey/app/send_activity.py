@@ -28,14 +28,13 @@ def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
     try:
         activity = loads(record['body'])
-        # salesperson = crm_api.get_salesperson(activity["lead_id"])
-
         reyrey_api = ReyreyApiWrapper(activity=activity)
 
         reyrey_task_id = reyrey_api.create_activity()
         logger.info(f"Reyrey responded with task ID: {reyrey_task_id}")
 
-        crm_api.update_activity(activity["activity_id"], reyrey_task_id)
+        if reyrey_task_id:
+            crm_api.update_activity(activity["activity_id"], reyrey_task_id)
 
     except CRMApiError:
         return
