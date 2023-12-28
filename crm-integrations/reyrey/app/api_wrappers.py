@@ -22,8 +22,8 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 
-
-xml_template = """<?xml version="1.0" encoding="utf-8"?>
+# finalize sender_name
+REYREY_XML_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <rey_ImpelCRMUpdateSalesLead xmlns="http://www.starstandards.org/STAR" xsi:schemaLocation="http://www.starstandards.org/STAR schema.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ApplicationArea>
     <BODId>{bod_id}</BODId>
@@ -32,7 +32,7 @@ xml_template = """<?xml version="1.0" encoding="utf-8"?>
       <Component>"ImpelCRM"</Component>
       <Task>"USL"</Task>
       <TransType>"I"</TransType>
-      <SenderName>{sender_name}</SenderName>
+      <SenderName>"Impel AI"</SenderName>
     </Sender>
     <Destination>
       <DestinationNameCode>"RRCRM"</DestinationNameCode>
@@ -51,27 +51,27 @@ xml_template = """<?xml version="1.0" encoding="utf-8"?>
   </Record>
 </rey_ImpelCRMUpdateSalesLead>
 """
-
-activity_schema = """
+# finalize activity result
+ACTIVITY_SCHEMA = """
 <Activity>
     <ActivityCompletedOn>{completed_on}</ActivityCompletedOn>
     <ActivityName>{name}</ActivityName>
-    <ContactMethod>{contact_method}</ContactMethod>
+    <ContactMethod>"{contact_method}"</ContactMethod>
     <ActivityNote>{note}</ActivityNote>
-    <ActivityResult>{result}</ActivityResult>
+    <ActivityResult>"?"</ActivityResult>
     <ActivityResultType>"Success"</ActivityResultType>
 </Activity>
 """
 
-appointment_schema = """
+APPOINTMENT_SCHEMA = """
 <Appointment>
     <AppointmentScheduledDateTime>{scheduled_date_time}</AppointmentScheduledDateTime>
     <ActivityNote>{note}</ActivityNote>
-    <AppointmentDateTime>{date_time}</AppointmentDateTime>
+    <AppointmentDateTime>"{date_time}"</AppointmentDateTime>
 </Appointment>
 """
 
-note_schema = """
+NOTE_SCHEMA = """
 <Note>
     <NoteInsertedOn>{inserted_on}</NoteInsertedOn>
     <ProspectNote>{note}</ProspectNote>
@@ -124,7 +124,7 @@ class ReyreyApiWrapper:
         self.__url, self.__username, self.__password = self.get_secrets()
         self.__activity = kwargs.get("activity")
         self.__store_number, self.__area_number, self.__dealer_number = self.__activity["crm_dealer_id"].split("_")
-        self.__utc_offset = loads(self.__activity.get("dealer_metadata")).get("utc_offset")  # "+05:00"
+        self.__utc_offset = self.__activity.get("dealer_metadata").get("utc_offset")  # "+05:00"
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -142,16 +142,29 @@ class ReyreyApiWrapper:
         #     json=payload,
         #     auth=HTTPBasicAuth(self.__username, self.__password)
         # )
+        # response.raise_for_status()
         # logger.info(f"ReyRey response: {response}")
-        # return response
-        pass
+        # return response["task_id"]
+        crm_activity_id = str(uuid4())
+        return crm_activity_id
+
+    def __compute_offset(self):
+        # Extract the sign, hours, and minutes from the UTC offset string
+        sign, offset_str = self.__utc_offset[0], self.__utc_offset[1:]
+        hours, minutes = map(int, offset_str.split(':'))
+
+        # Determine the sign of the offset and create a timedelta object
+        offset_multiplier = 1 if sign == '+' else -1
+        offset = timedelta(hours=offset_multiplier * hours, minutes=offset_multiplier * minutes)
+        return offset
 
     def __insert_note(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        created_date = (requested_date_time + timedelta(hours=self.__utc_offset)).strftime("%Y-%m-%dT%H:%M:%S")
+        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        time_offset = self.__compute_offset()
+        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
         request_id = uuid4()
 
-        xml_template.format(
+        payload = REYREY_XML_TEMPLATE.format(
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
@@ -160,24 +173,24 @@ class ReyreyApiWrapper:
             prospect_id=self.__activity["crm_lead_id"],
             activity_schema="",
             appointment_schema="",
-            note_schema=note_schema.format(
+            note_schema=NOTE_SCHEMA.format(
                 inserted_on=created_date,
                 note=self.__activity["notes"],
                 updated_on=created_date,
             )
         )
-        logger.info(f"XML payload to ReyRey: {xml_template}")
-        self.__call_api(xml_template)
-        pass
+        logger.info(f"XML payload to ReyRey: {payload}")
+        return self.__call_api(payload)
 
     def __create_appointment(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        due_date_time = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        created_date = (requested_date_time + timedelta(hours=self.__utc_offset)).strftime("%Y-%m-%dT%H:%M:%S")
-        due_date = (due_date_time + timedelta(hours=self.__utc_offset)).strftime("%Y-%m-%dT%H:%M:%S")
+        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        due_date_time = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        time_offset = self.__compute_offset()
+        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
+        due_date = (due_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
         request_id = uuid4()
 
-        xml_template.format(
+        payload = REYREY_XML_TEMPLATE.format(
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
@@ -185,41 +198,45 @@ class ReyreyApiWrapper:
             area_number=self.__area_number,
             prospect_id=self.__activity["crm_lead_id"],
             activity_schema="",
-            appointment_schema=appointment_schema.format(
+            appointment_schema=APPOINTMENT_SCHEMA.format(
                 scheduled_date_time=due_date,
                 note=self.__activity["notes"],
                 date_time=created_date,
             ),
             note_schema=""
         )
-        logger.info(f"XML payload to ReyRey: {xml_template}")
-        self.__call_api(xml_template)
-        pass
+        logger.info(f"XML payload to ReyRey: {payload}")
+        return self.__call_api(payload)
 
     def __create_activity(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        created_date = (requested_date_time + timedelta(hours=self.__utc_offset)).strftime("%Y-%m-%dT%H:%M:%S")
+        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        time_offset = self.__compute_offset()
+        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
         request_id = uuid4()
 
-        xml_template.format(
+        contact_method = self.__activity["contact_method"].capitalize()
+        if contact_method not in ("Phone", "Email", "Text"):
+            logger.error(f"ReyRey CRM doesn't support contact method: {contact_method}")
+            raise
+
+        payload = REYREY_XML_TEMPLATE.format(
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
             store_number=self.__store_number,
             area_number=self.__area_number,
             prospect_id=self.__activity["crm_lead_id"],
-            activity_schema=activity_schema.format(
+            activity_schema=ACTIVITY_SCHEMA.format(
                 completed_on=created_date,
-                name=self.__activity["activity_type"],
-                contact_method=self.__activity["contact_method"],
+                name=f'Contacted-{contact_method}',
+                contact_method=contact_method,
                 note=self.__activity["notes"],
             ),
             appointment_schema="",
             note_schema=""
         )
-        logger.info(f"XML payload to ReyRey: {xml_template}")
-        self.__call_api(xml_template)
-        pass
+        logger.info(f"XML payload to ReyRey: {payload}")
+        return self.__call_api(payload)
 
     def create_activity(self):
         if self.__activity["activity_type"] == "note":
