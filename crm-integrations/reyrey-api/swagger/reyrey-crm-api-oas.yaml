@@ -1,9 +1,11 @@
 openapi: 3.0.0
 servers:
   - description: Impel Test Environment
-    url: https://crm.testenv.impel.io
+    url: https://0yc6vnaflc.execute-api.us-east-1.amazonaws.com/test
+  - description: Impel Stage Environment
+    url: https://crm.testenv.impel.io/reyrey/crm-upload/v1
   - description: Impel Prod Environment
-    url: https://crm.impel.io
+    url: https://crm.impel.io/reyrey/crm-upload/v1
 info:
   version: "1.0.0"
   title: ReyRey CRM Integration API

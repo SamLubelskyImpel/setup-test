@@ -4,12 +4,11 @@ As such this data is interpolated with the client copy as part of deployment scr
 
 REYREY_CRM_API_AWS_VALIDATION = """
 x-amazon-apigateway-request-validators:
-  full:
-    validateRequestBody: true
+  basic:
     validateRequestParameters: true
     validateRequestHeaders: true
 
-x-amazon-apigateway-request-validator: full
+x-amazon-apigateway-request-validator: basic
 """
 
 # httpMethod should always be POST even for other endpoint types
