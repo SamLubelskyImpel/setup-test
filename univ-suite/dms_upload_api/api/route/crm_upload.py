@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, request
 
 _logger = get_logger()
 
-crm_upload_api = Blueprint("dms_upload_api", __name__)
+crm_upload_api = Blueprint("crm_upload_api", __name__)
 
 
 def get_reyrey_file_type(filename: str):
@@ -27,7 +27,7 @@ def get_reyrey_file_type(filename: str):
     return file_type
 
 
-@crm_upload_api.route("/crm-upload-batch/v1", methods=["POST"])
+@crm_upload_api.route("/v1", methods=["POST"])
 def post_crm_upload():
     """Upload Repair Order file."""
     request_id = str(uuid.uuid4())
