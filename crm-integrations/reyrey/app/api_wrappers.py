@@ -1,7 +1,9 @@
 """
-These classes are designed to manage calls to the Dealerpeak/CRM API for activities.
+These classes are designed to manage calls to the ReyRey/CRM API for activities.
 This wrapper classes defined this file should NOT be modified or used by any other resources aside from the SendActivity lambda.
 A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
+
+ReyRey API requires a SOAP XML payload to be sent to their API.
 """
 
 import boto3
@@ -11,7 +13,7 @@ import requests
 from uuid import uuid4
 from json import loads
 from datetime import datetime, timedelta
-# from requests.auth import HTTPBasicAuth
+import xmltodict
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -22,44 +24,57 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 
-# finalize sender_name
+
 REYREY_XML_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
-<rey_ImpelCRMUpdateSalesLead xmlns="http://www.starstandards.org/STAR" xsi:schemaLocation="http://www.starstandards.org/STAR schema.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <ApplicationArea>
-    <BODId>{bod_id}</BODId>
-    <CreationDateTime>{created_date_time}</CreationDateTime>
-    <Sender>
-      <Component>"ImpelCRM"</Component>
-      <Task>"USL"</Task>
-      <TransType>"I"</TransType>
-      <SenderName>"Impel AI"</SenderName>
-    </Sender>
-    <Destination>
-      <DestinationNameCode>"RRCRM"</DestinationNameCode>
-      <DealerNumber>{dealer_number}</DealerNumber>
-      <StoreNumber>{store_number}</StoreNumber>
-      <AreaNumber>{area_number}</AreaNumber>
-    </Destination>
-  </ApplicationArea>
-  <Record>
-    <Identifier>
-      <ProspectId>{prospect_id}</ProspectId>
-    </Identifier>
-    {activity_schema}
-    {appointment_schema}
-    {note_schema}
-  </Record>
-</rey_ImpelCRMUpdateSalesLead>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+               xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+    <soap:Header>
+        <wsse:Security>
+            <wsse:UsernameToken>
+                <wsse:Username>{auth_username}</wsse:Username>
+                <wsse:Password>{auth_password}</wsse:Password>
+            </wsse:UsernameToken>
+        </wsse:Security>
+    </soap:Header>
+    <soap:Body>
+        <rey_ImpelCRMUpdateSalesLead xmlns="http://www.starstandards.org/STAR">
+            <ApplicationArea>
+                <BODId>{bod_id}</BODId>
+                <CreationDateTime>{created_date_time}</CreationDateTime>
+                <Sender>
+                    <Component>ImpelCRM</Component>
+                    <Task>USL</Task>
+                    <TransType>I</TransType>
+                    <SenderName>Impel</SenderName>
+                </Sender>
+                <Destination>
+                    <DestinationNameCode>RRCRM</DestinationNameCode>
+                    <DealerNumber>{dealer_number}</DealerNumber>
+                    <StoreNumber>{store_number}</StoreNumber>
+                    <AreaNumber>{area_number}</AreaNumber>
+                </Destination>
+            </ApplicationArea>
+            <Record>
+                <Identifier>
+                    <ProspectId>{prospect_id}</ProspectId>
+                </Identifier>
+                {activity_schema}
+                {appointment_schema}
+                {note_schema}
+            </Record>
+        </rey_ImpelCRMUpdateSalesLead>
+    </soap:Body>
+</soap:Envelope>
 """
-# finalize activity result
+
 ACTIVITY_SCHEMA = """
 <Activity>
     <ActivityCompletedOn>{completed_on}</ActivityCompletedOn>
     <ActivityName>{name}</ActivityName>
-    <ContactMethod>"{contact_method}"</ContactMethod>
+    <ContactMethod>{contact_method}</ContactMethod>
     <ActivityNote>{note}</ActivityNote>
-    <ActivityResult>"?"</ActivityResult>
-    <ActivityResultType>"Success"</ActivityResultType>
+    <ActivityResult>Success</ActivityResult>
+    <ActivityResultType>Success</ActivityResultType>
 </Activity>
 """
 
@@ -67,7 +82,7 @@ APPOINTMENT_SCHEMA = """
 <Appointment>
     <AppointmentScheduledDateTime>{scheduled_date_time}</AppointmentScheduledDateTime>
     <ActivityNote>{note}</ActivityNote>
-    <AppointmentDateTime>"{date_time}"</AppointmentDateTime>
+    <AppointmentDateTime>{date_time}</AppointmentDateTime>
 </Appointment>
 """
 
@@ -135,17 +150,33 @@ class ReyreyApiWrapper:
 
         return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
+    def remove_credentials(self, payload: str):
+        payload = payload.replace(self.__username, "********")
+        payload = payload.replace(self.__password, "********")
+        return payload
+
     def __call_api(self, payload):
-        # response = requests.request(
-        #     method=method,
-        #     url=self.__url,
-        #     json=payload,
-        #     auth=HTTPBasicAuth(self.__username, self.__password)
-        # )
-        # response.raise_for_status()
-        # logger.info(f"ReyRey response: {response}")
-        # return response["task_id"]
-        crm_activity_id = str(uuid4())
+        headers = {
+            "Content-Type": "application/xml",
+        }
+        response = requests.post(
+            url=self.__url,
+            headers=headers,
+            data=payload.encode(encoding="UTF-8", errors="ignore"),
+        )
+        response.raise_for_status()
+        logger.info(f"ReyRey response: {response.text}")
+
+        response_dict = xmltodict.parse(response.text)
+        response_payload = response_dict["soapenv:Envelope"]["soapenv:Body"]["ProcessMessageResponse"]["payload"]
+        trans_status = response_payload["content"]["rey_ImpelCRMUpdateSalesLeadResp"]["TransStatus"]
+
+        status_code = str(trans_status["StatusCode"])
+        if status_code != "0":
+            logger.error(f"ReyRey responded with an error: {status_code} {trans_status['Status']}")
+            raise
+
+        crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
     def __compute_offset(self):
@@ -162,9 +193,11 @@ class ReyreyApiWrapper:
         requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
         time_offset = self.__compute_offset()
         created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
-        request_id = uuid4()
+        request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
+            auth_username=self.__username,
+            auth_password=self.__password,
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
@@ -179,7 +212,7 @@ class ReyreyApiWrapper:
                 updated_on=created_date,
             )
         )
-        logger.info(f"XML payload to ReyRey: {payload}")
+        logger.info(f"XML payload to ReyRey: {self.remove_credentials(payload)}")
         return self.__call_api(payload)
 
     def __create_appointment(self):
@@ -188,9 +221,11 @@ class ReyreyApiWrapper:
         time_offset = self.__compute_offset()
         created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
         due_date = (due_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
-        request_id = uuid4()
+        request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
+            auth_username=self.__username,
+            auth_password=self.__password,
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
@@ -205,14 +240,14 @@ class ReyreyApiWrapper:
             ),
             note_schema=""
         )
-        logger.info(f"XML payload to ReyRey: {payload}")
+        logger.info(f"XML payload to ReyRey: {self.remove_credentials(payload)}")
         return self.__call_api(payload)
 
     def __create_activity(self):
         requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
         time_offset = self.__compute_offset()
         created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
-        request_id = uuid4()
+        request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()
         if contact_method not in ("Phone", "Email", "Text"):
@@ -220,6 +255,8 @@ class ReyreyApiWrapper:
             raise
 
         payload = REYREY_XML_TEMPLATE.format(
+            auth_username=self.__username,
+            auth_password=self.__password,
             bod_id=request_id,
             created_date_time=created_date,
             dealer_number=self.__dealer_number,
@@ -235,7 +272,7 @@ class ReyreyApiWrapper:
             appointment_schema="",
             note_schema=""
         )
-        logger.info(f"XML payload to ReyRey: {payload}")
+        logger.info(f"XML payload to ReyRey: {self.remove_credentials(payload)}")
         return self.__call_api(payload)
 
     def create_activity(self):
