@@ -78,7 +78,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 comment=body["lead_comment"],
                 origin_channel=body["lead_origin"],
                 source_channel=body["lead_source"],
-                crm_lead_id=body.get("crm_lead_id"),
+                crm_lead_id=crm_lead_id,
                 request_product=request_product,
                 lead_ts=body.get("lead_ts", datetime.utcnow())
             )
