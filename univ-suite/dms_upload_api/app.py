@@ -20,7 +20,7 @@ def create_app():
     app.logger.setLevel(logging.INFO)
 
     app.register_blueprint(dms_upload_api, url_prefix="/dms-upload")
-    app.register_blueprint(crm_upload_api, url_prefix="/crm-upload")
+    app.register_blueprint(crm_upload_api, url_prefix="/reyrey/crm-upload")
     app.register_blueprint(health_check_api)
 
     app.config.from_pyfile("config.py")
