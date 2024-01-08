@@ -118,10 +118,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 for salesperson in salespersons:
                     # Create salesperson
                     crm_salesperson_id = salesperson.get("crm_salesperson_id")
-                    salesperson_db = session.query(Salesperson).filter(
-                        Salesperson.crm_salesperson_id == crm_salesperson_id,
-                        Salesperson.dealer_integration_partner_id == dealer_partner_id
-                    ).first()
+
+                    # Query for existing salesperson
+                    salesperson_db = None
+                    if crm_salesperson_id:
+                        salesperson_db = session.query(Salesperson).filter(
+                            Salesperson.crm_salesperson_id == crm_salesperson_id,
+                            Salesperson.dealer_integration_partner_id == dealer_partner_id
+                        ).first()
 
                     if not salesperson_db:
                         salesperson_db = Salesperson()
