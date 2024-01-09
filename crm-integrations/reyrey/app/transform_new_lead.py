@@ -55,6 +55,7 @@ s3_client = boto3.client("s3")
 
 #     return True
 
+
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
@@ -64,6 +65,7 @@ def get_secret(secret_name, secret_key) -> Any:
     secret_data = json.loads(secret)
 
     return secret_data
+
 
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
@@ -91,6 +93,18 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
 def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
+    def convert_time_format(original_time):
+        # Split the name and date/time parts
+        first_name, last_name, date_time_str = original_time.split(" ", 2)
+
+        # Parse the date and time into a datetime object
+        date_time_obj = datetime.strptime(date_time_str, "%m/%d/%Y %I:%M %p")
+
+        # Format the datetime object into the desired format
+        formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        return formatted_time
+
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = root.find(".//star:InsertedBy", namespace).text
@@ -100,7 +114,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     prospect_data = {
         "crm_lead_id": prospect_id,
-        "lead_ts": inserted_by,
+        "lead_ts": convert_time_format(inserted_by),
         "lead_status": prospect_status_type,
         "lead_substatus": None,
         "lead_comment": prospect_note,
@@ -160,7 +174,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     }
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
-    prospect_data["vehicle_of_interest"] = vehicle_of_interest_data
+    prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
     prospect_data["salesperson"] = salesperson_data
 
     return prospect_data
@@ -188,15 +202,19 @@ def record_handler(record: SQSRecord) -> None:
 
         # Extract consumer data and write it to the Unified Layer
         consumer = extract_consumer(root, namespace)
-        unified_crm_consumer_id = (
-            requests.post(
-                f"https://{CRM_API_DOMAIN}/consumers",
-                json=consumer,
-                headers={"x-api-key": crm_api_key},
-            )
-            .json()
-            .get("consumer_id")
+        response = requests.post(
+            f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
+            json=consumer,
+            headers={
+                "x_api_key": crm_api_key,
+                "partner_id": UPLOAD_SECRET_KEY,
+            },
         )
+        logger.info(
+            f"Response from Unified Layer Create Customer {response.status_code} {response.text}",
+        )
+
+        unified_crm_consumer_id = response.json().get("consumer_id")
 
         if not unified_crm_consumer_id:
             logger.error(f"Error creating consumer: {consumer}")
@@ -207,15 +225,16 @@ def record_handler(record: SQSRecord) -> None:
         lead = extract_lead(root, namespace)
         lead["consumer_id"] = unified_crm_consumer_id
 
-        unified_crm_lead_id = (
-            requests.post(
-                f"https://{CRM_API_DOMAIN}/leads",
-                json=lead,
-                headers={"x-api-key": crm_api_key},
-            )
-            .json()
-            .get("lead_id")
+        response = requests.post(
+            f"https://{CRM_API_DOMAIN}/leads",
+            json=lead,
+            headers={"x_api_key": crm_api_key, "partner_id": UPLOAD_SECRET_KEY},
         )
+        logger.info(
+            f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
+        )
+
+        unified_crm_lead_id = response.json().get("lead_id")
 
         if not unified_crm_lead_id:
             logger.error(f"Error creating lead: {lead}")

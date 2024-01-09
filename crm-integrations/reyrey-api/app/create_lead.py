@@ -41,7 +41,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info("New lead received for dealer: " + product_dealer_id)
 
-        save_raw_leads(lead_xml_body, product_dealer_id)
+        save_raw_lead(lead_xml_body, product_dealer_id)
 
         return {"statusCode": 200, "body": "Success."}
     except ValueError as e:
@@ -56,7 +56,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
 
-def save_raw_leads(lead: str, product_dealer_id: str):
+def save_raw_lead(lead: str, product_dealer_id: str):
     """Save raw leads to S3."""
     format_string = "%Y/%m/%d/%H/%M"
     date_key = datetime.utcnow().strftime(format_string)

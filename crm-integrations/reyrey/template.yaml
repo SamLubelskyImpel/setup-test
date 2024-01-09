@@ -28,7 +28,7 @@ Globals:
         SECRET_KEY: "REYREY"
         UPLOAD_SECRET_KEY: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "xxdpjsj8c5.execute-api.us-east-1.amazonaws.com/srwoods-ce-1274"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
 Resources:
@@ -88,23 +88,21 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-        # - PolicyName: SQSPolicy
-        #   PolicyDocument:
-        #     Version: "2012-10-17"
-        #     Statement:
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:ReceiveMessage"
-        #           - "sqs:DeleteMessage"
-        #           - "sqs:GetQueueAttributes"
-        #         Resource:
-        #           - !GetAtt InvokeDataPullQueue.Arn
-        #           - !GetAtt TransformDealerpeakDataQueue.Arn
-        #           - !GetAtt SendActivityQueue.Arn
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:SendMessage"
-        #         Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt TransformReyReyDataQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -114,3 +112,98 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
+  TransformReyReyData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub reyrey-${Environment}-TransformData
+      CodeUri: app/
+      Handler: transform_new_lead.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformReyReyDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformReyReyDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformReyReyData.Arn
+
+  TransformReyReyDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-TransformQueue.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformReyReyDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformReyReyDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-TransformDLQ.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+  
+  TransformReyReyDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "reyrey-${Environment}-TransformDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the ReyRey Transform DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformReyReyDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformReyReyDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformReyReyDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformReyReyDataQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/reyrey_crm/" }
+      Targets:
+        - Id: "TransformReyReyDataTarget"
+          Arn: !GetAtt TransformReyReyDataQueue.Arn
+          SqsParameters:
+            MessageGroupId: "TransformReyReyData"
