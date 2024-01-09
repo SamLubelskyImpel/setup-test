@@ -3,19 +3,19 @@ servers:
   - description: Impel Test Environment
     url: https://0yc6vnaflc.execute-api.us-east-1.amazonaws.com/test
   - description: Impel Stage Environment
-    url: https://crm.testenv.impel.io/reyrey/crm-upload/v1
+    url: https://crm.testenv.impel.io/
   - description: Impel Prod Environment
-    url: https://crm.impel.io/reyrey/crm-upload/v1
+    url: https://crm.impel.io/
 info:
   version: "1.0.0"
   title: ReyRey CRM Integration API
   description: This API allows ReyRey to post records for new leads and lead updates.
-#{{REYREY_CRM_API_AWS_VALIDATION}}
+#{{CRM_PARTNER_API_AWS_VALIDATION}}
 paths:
   /reyrey/crm-upload/v1/leads:
     post:
       summary: Post ReyRey CRM new leads.
-      #{{CREATE_LEAD_LAMBDA_INFO}}
+      #{{REYREY_CREATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
       operationId: post-lead
@@ -54,7 +54,7 @@ paths:
   /reyrey/crm-upload/v1/lead-updates:
     post:
       summary: Post ReyRey CRM lead updates.      
-      #{{UPDATE_LEAD_LAMBDA_INFO}}
+      #{{REYREY_UPDATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
       operationId: post-lead-update

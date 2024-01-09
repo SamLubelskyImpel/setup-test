@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: reyrey crm api
+Description: crm partner api
 
 Parameters:
   Environment:
@@ -54,6 +54,9 @@ Globals:
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        UPLOAD_SECRET_KEY: "impel"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -74,7 +77,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
         - Key: Product
-          Value: reyrey-crm-api
+          Value: crm-partner-api
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -127,10 +130,10 @@ Resources:
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
-  ReyReyCrmApiGateway:
+  CrmPartnerApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub "reyrey-crm-api-${Environment}"
+      Name: !Sub "crm-partner-api-${Environment}"
       StageName: !Ref Environment
       Domain:
         DomainName: !If [ IsProd, 'crm.impel.io', !Sub 'crm${DomainSuffix}.testenv.impel.io' ]
@@ -162,7 +165,7 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: "./swagger/reyrey-crm-api-oas-interpolated.yaml"
+            Location: "./swagger/crm-partner-api-oas-interpolated.yaml"
       GatewayResponses:
         BAD_REQUEST_PARAMETERS:
           ResponseTemplates:
@@ -209,7 +212,7 @@ Resources:
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-Authorizer"
+      FunctionName: !Sub "crm-partner-api-${Environment}-Authorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 120
@@ -228,11 +231,11 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/reyrey_crm*",
                 ]
 
-  CreateLead:
+  ReyReyCreateLead:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-CreateLead"
-      CodeUri: app/
+      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyCreateLead"
+      CodeUri: app/reyrey/
       Handler: create_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -240,15 +243,15 @@ Resources:
         Post:
           Type: Api
           Properties:
-            RestApiId: !Ref ReyReyCrmApiGateway
+            RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/leads
             Method: POST
 
-  UpdateLead:
+  ReyReyUpdateLead:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-UpdateLead"
-      CodeUri: app/
+      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyUpdateLead"
+      CodeUri: app/reyrey/
       Handler: update_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -256,6 +259,6 @@ Resources:
         Put:
           Type: Api
           Properties:
-            RestApiId: !Ref ReyReyCrmApiGateway
+            RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/lead-updates
             Method: POST
