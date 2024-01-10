@@ -113,6 +113,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Found vehicle {vehicle.as_dict()}")
 
         lead_record = {
+            "lead_id": lead.id,
             "consumer_id": lead.consumer_id,
             "lead_status": lead.status,
             "lead_substatus": lead.substatus,

@@ -292,6 +292,12 @@ paths:
                         type: integer
                         description: Unique identifier for the associated consumer
                         example: 2
+                  - type: object
+                    properties:
+                      lead_id:
+                        type: integer
+                        description: Unique lead_id in the Impel system
+                        example: 3
                   - $ref: '#/components/schemas/Lead'
                   - type: object
                     properties:
