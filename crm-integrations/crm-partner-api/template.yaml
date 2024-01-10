@@ -57,6 +57,7 @@ Globals:
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "1wjwo7lel3.execute-api.us-east-1.amazonaws.com/Stage"]
+        PARTNER_NAME: "reyrey_crm"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup

@@ -16,6 +16,7 @@ BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+PARTNER_NAME = environ.get("PARTNER_NAME")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -54,8 +55,6 @@ def get_secret(secret_name, secret_key) -> Any:
 def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     """Get lead by crm lead id through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?crm_dealer_id={crm_dealer_id}'
-    
-    logger.info(f"CRM API URL: {url}")
 
     headers = {
         'partner_id': UPLOAD_SECRET_KEY,
@@ -84,14 +83,46 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     return lead_id
 
 
+def update_lead_status(lead_id: str, lead_status: str, crm_api_key: str) -> Any:
+    """Update lead status through CRM API."""
+    url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    data = {
+        'lead_status': lead_status
+    }
+
+    try:
+        response = requests.put(url, headers=headers, json=data)
+        response.raise_for_status()
+    except HTTPError as http_err:
+        if response.status_code == 404:
+            logger.error(f"Lead not found: {http_err}")
+            raise ValueError(f"Lead not found: {lead_id}") from None
+        else:
+            # Handle other HTTP errors
+            logger.error(f"HTTP error occurred: {http_err}")
+            raise
+    except Exception as err:
+        # Handle other exceptions, such as a connection error
+        logger.error(f"Error occurred: {err}")
+        raise
+
+    response_data = response.json()
+    logger.info(f"CRM API Response: {response_data}")
+    return response_data
+
+
 
 def lambda_handler(event, context):
     logger.info(event)
     try:
-        # Extract the XML string from the event body
         xml_data = event['body']
 
-        # Register the namespace
         ns = {'ns': 'http://www.starstandards.org/STAR'}
         ET.register_namespace('', ns['ns'])
 
@@ -114,27 +145,23 @@ def lambda_handler(event, context):
                 area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
 
         if not dealer_number and not store_number and not area_number:
-            raise RuntimeError("Unknown dealer id")
+            raise ValueError("Unknown dealer id. DealerNumber, StoreNumber, and AreaNumber are missing.")
 
         crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-        logger.info(f"CRM Dealer ID: {crm_dealer_id}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
         identifier = record.find(".//ns:Identifier", namespaces=ns)
-
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
-
-        logger.info(f"Prospect ID: {crm_lead_id}")
         
-        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
-
-        logger.info(f"Lead ID: {lead_id}")
-
         event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
         event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
 
-        lead_status = get_lead_status(event_id=str(event_id), partner_name="reyrey_crm")
+        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
+
+        lead_status = get_lead_status(event_id=str(event_id), partner_name=PARTNER_NAME)
+        update_lead_status(lead_id, lead_status, crm_api_key)
+
 
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
