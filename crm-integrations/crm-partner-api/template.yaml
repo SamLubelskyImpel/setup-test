@@ -120,6 +120,21 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"

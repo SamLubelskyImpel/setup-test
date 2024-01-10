@@ -12,6 +12,8 @@ info:
 servers:
   - description: Impel test environment
     url: https://crm-api-test.testenv.impel.io/
+  - description: Impel production environment
+    url: https://crm-api.impel.io/
 #{{CRM_API_AWS_VALIDATION}}
 paths:
   /leads:
@@ -29,7 +31,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not Found. The lead_id or consumer_id of the request didn't match any existing records on Impel.
+          description: Not Found. The consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
@@ -264,7 +266,66 @@ paths:
                       type: array
                       items:
                         $ref: '#/components/schemas/Salesperson'
-              
+
+  /leads/crm/{crm_lead_id}:
+    get:
+      operationId: get-lead-by-crm-lead-id
+      summary: Retrieve a specific lead by CRM Lead ID
+      #{{RETRIEVE_LEAD_BY_CRM_LEAD_ID_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/crmLeadId"
+        - "$ref": "#/components/parameters/crmDealerId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
+
   /leads/{lead_id}/status:
     get:
       summary: Retrieve the current status of a specific lead.
@@ -539,7 +600,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not Found. The integration_parter_id of the request didn't match any existing records on Impel.
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
   /upload:
@@ -991,6 +1052,16 @@ components:
         minLength: 1
         maxLength: 50
         example: "test_dealer_id"
+    crmDealerId:
+      name: crm_dealer_id
+      in: query
+      description: Uniqely identifies a dealer in the CRM.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 50
+        example: "test_crm_dealer_id"
     integrationPartnerName:
       name: integration_partner_name
       in: query
@@ -1006,6 +1077,14 @@ components:
       description: Impel Lead ID for which details are to be retrieved or updated.
       schema:
         type: integer
+    crmLeadId:
+      name: crm_lead_id
+      in: path
+      required: true
+      description: CRM Lead ID for which details are to be retrieved or updated.
+      schema:
+        type: string
+        example: "test_crm_lead_id"
     consumerId:
       name: consumer_id
       in: path

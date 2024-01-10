@@ -20,7 +20,7 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
-def get_lead_status(event_id: int, partner_name: str) -> Any:
+def get_lead_status(event_id: str, partner_name: str) -> Any:
     """Get lead status from S3."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
@@ -32,38 +32,39 @@ def get_lead_status(event_id: int, partner_name: str) -> Any:
             )
         lead_updates = s3_object.get("lead_updates")
         lead_status = lead_updates.get(event_id)
+        logger.info(f"Lead status: {lead_status}")
     except Exception as e:
         logger.error(f"Failed to retrieve lead status from S3 config. Partner: {partner_name.upper()}, {e}")
         raise
     return lead_status
 
 
-def get_secret(secret_name, secret_key) -> Any:
-    """Get secret from Secrets Manager."""
-    secret = sm_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-    )
-    secret = json.loads(secret["SecretString"])[str(secret_key)]
-    secret_data = json.loads(secret)
+# def get_secret(secret_name, secret_key) -> Any:
+#     """Get secret from Secrets Manager."""
+#     secret = sm_client.get_secret_value(
+#         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+#     )
+#     secret = json.loads(secret["SecretString"])[str(secret_key)]
+#     secret_data = json.loads(secret)
 
-    return secret_data
+#     return secret_data
 
 
-def get_lead(lead_id: str, crm_api_key: str) -> Any:
-    """Upload entries to the database through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
+# def get_lead(lead_id: str, crm_api_key: str) -> Any:
+#     """Upload entries to the database through CRM API."""
+#     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
+#     headers = {
+#         'partner_id': UPLOAD_SECRET_KEY,
+#         'x_api_key': crm_api_key
+#     }
 
-    response = requests.get(url, headers=headers)
+#     response = requests.get(url, headers=headers)
     
-    response.raise_for_status()
-    response_data = response.json()
-    lead_id = response_data.get('lead_id')
-    return lead_id
+#     response.raise_for_status()
+#     response_data = response.json()
+#     lead_id = response_data.get('lead_id')
+#     return lead_id
 
 
 
@@ -119,17 +120,16 @@ def lambda_handler(event, context):
         event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
         event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
 
-        lead_status = get_lead_status(event_id=int(event_id), partner_name="reyrey_crm")
+        lead_status = get_lead_status(event_id=str(event_id), partner_name="reyrey_crm")
 
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
 
         #update salesperson data if new salesperson is assigned
         if event_id == "30" or event_id == "31":
-            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)
+            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
+            logger.info(f"New Salesperson: {new_salesperson}")
             #update_salesperson_data(new_salesperson, crm_lead_id, )
-
-        logger.info(f"Lead Status: {lead_status}")
 
         return {
             'statusCode': 200
