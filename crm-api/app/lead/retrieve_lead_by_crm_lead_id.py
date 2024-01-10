@@ -53,15 +53,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"No active dealer found with id {crm_dealer_id}."})
                 }
 
-            # Step 2: Search Lead table by crm_lead_id
             leads = session.query(Lead).filter(
                 Lead.crm_lead_id == crm_lead_id
             ).all()
 
-            # Step 3 and 4: Compare and ensure one lead
+
             leads = [lead for lead in leads if lead.consumer.dealer_integration_partner.id == dealer_partner.id]
 
-            # Check if no lead is found
             if not leads:
                 logger.error(f"Lead not found {crm_lead_id}")
                 return {

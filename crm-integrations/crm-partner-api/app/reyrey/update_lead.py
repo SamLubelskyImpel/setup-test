@@ -6,6 +6,7 @@ from os import environ
 from typing import Any, Dict
 import xml.etree.ElementTree as ET
 import requests
+from requests.exceptions import HTTPError
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -39,32 +40,48 @@ def get_lead_status(event_id: str, partner_name: str) -> Any:
     return lead_status
 
 
-# def get_secret(secret_name, secret_key) -> Any:
-#     """Get secret from Secrets Manager."""
-#     secret = sm_client.get_secret_value(
-#         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-#     )
-#     secret = json.loads(secret["SecretString"])[str(secret_key)]
-#     secret_data = json.loads(secret)
+def get_secret(secret_name, secret_key) -> Any:
+    """Get secret from Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret = json.loads(secret["SecretString"])[str(secret_key)]
+    secret_data = json.loads(secret)
 
-#     return secret_data
+    return secret_data
 
 
-# def get_lead(lead_id: str, crm_api_key: str) -> Any:
-#     """Upload entries to the database through CRM API."""
-#     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
-
-#     headers = {
-#         'partner_id': UPLOAD_SECRET_KEY,
-#         'x_api_key': crm_api_key
-#     }
-
-#     response = requests.get(url, headers=headers)
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+    """Get lead by crm lead id through CRM API."""
+    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?crm_dealer_id={crm_dealer_id}'
     
-#     response.raise_for_status()
-#     response_data = response.json()
-#     lead_id = response_data.get('lead_id')
-#     return lead_id
+    logger.info(f"CRM API URL: {url}")
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+    except HTTPError as http_err:
+        if response.status_code == 404:
+            logger.error(f"Lead not found: {http_err}")
+            raise ValueError(f"Lead not found: {crm_lead_id}") from None
+        else:
+            # Handle other HTTP errors
+            logger.error(f"HTTP error occurred: {http_err}")
+            raise
+    except Exception as err:
+        # Handle other exceptions, such as a connection error
+        logger.error(f"Error occurred: {err}")
+        raise
+
+    response_data = response.json()
+    logger.info(f"CRM API Response: {response_data}")
+    lead_id = response_data.get('lead_id')
+    return lead_id
 
 
 
@@ -99,10 +116,10 @@ def lambda_handler(event, context):
         if not dealer_number and not store_number and not area_number:
             raise RuntimeError("Unknown dealer id")
 
-        dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-        logger.info(f"Dealer ID: {dealer_id}")
+        crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+        logger.info(f"CRM Dealer ID: {crm_dealer_id}")
 
-        # crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
         identifier = record.find(".//ns:Identifier", namespaces=ns)
 
@@ -110,12 +127,9 @@ def lambda_handler(event, context):
 
         logger.info(f"Prospect ID: {crm_lead_id}")
         
-        # lead_id = get_lead(lead_id=crm_lead_id, crm_api_key=crm_api_key)
+        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
-        # if not lead_id:
-        #     raise RuntimeError("Unknown lead id")
-
-        #TODO: verify lead_id/dealerId against database
+        logger.info(f"Lead ID: {lead_id}")
 
         event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
         event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
@@ -143,6 +157,6 @@ def lambda_handler(event, context):
         }
     except ValueError as e:
         return {
-            'statusCode': 400,
-            'body': json.dumps({'error': str(e)})
+            "statusCode": 404,
+            "body": json.dumps({"error": str(e)})
         }
