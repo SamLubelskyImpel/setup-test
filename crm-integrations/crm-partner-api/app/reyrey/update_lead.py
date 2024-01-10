@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import boto3
+import uuid
 from os import environ
 from typing import Any, Dict
 import xml.etree.ElementTree as ET
@@ -83,17 +84,13 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     return lead_id
 
 
-def update_lead_status(lead_id: str, lead_status: str, crm_api_key: str) -> Any:
+def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
     headers = {
         'partner_id': UPLOAD_SECRET_KEY,
         'x_api_key': crm_api_key
-    }
-
-    data = {
-        'lead_status': lead_status
     }
 
     try:
@@ -116,6 +113,71 @@ def update_lead_status(lead_id: str, lead_status: str, crm_api_key: str) -> Any:
     logger.info(f"CRM API Response: {response_data}")
     return response_data
 
+
+def process_salespersons(response_data, new_salesperson):
+    """Process salespersons from CRM API response."""
+    new_first_name, new_last_name = new_salesperson.split()
+    logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
+
+    if not response_data:
+        logger.info("No salespersons found for this lead.")
+        return [create_or_update_salesperson(new_salesperson)]
+
+    return [
+        create_or_update_salesperson(new_salesperson)
+        if salesperson.get('is_primary') and (salesperson.get('first_name') != new_first_name or salesperson.get('last_name') != new_last_name)
+        else salesperson for salesperson in response_data
+    ]
+
+
+def create_or_update_salesperson(new_salesperson):
+    first_name, last_name = new_salesperson.split()
+    guid = str(uuid.uuid4())
+    return {
+        "crm_salesperson_id": f"Impel_generated_{guid}",
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": "",
+        "phone": "",
+        "position_name": "Primary Salesperson",
+        "is_primary": True
+    }
+
+
+def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: str) -> Any:
+    """Update lead salespersons through CRM API."""
+
+    # Step1: retrieve list of existing salespersons
+    url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+    except HTTPError as http_err:
+        if response.status_code == 404:
+            logger.error(f"Lead not found: {http_err}")
+            raise ValueError(f"Lead not found: {lead_id}") from None
+        else:
+            # Handle other HTTP errors
+            logger.error(f"HTTP error occurred: {http_err}")
+            raise
+    except Exception as err:
+        # Handle other exceptions, such as a connection error
+        logger.error(f"Error occurred: {err}")
+        raise
+
+    response_data = response.json()
+    logger.info(f"CRM API Get Salesperson Response: {response_data}")
+
+    salespersons = process_salespersons(response_data, new_salesperson)
+    logger.info(f"Processed Salespersons: {salespersons}")
+
+    return salespersons
 
 
 def lambda_handler(event, context):
@@ -160,17 +222,21 @@ def lambda_handler(event, context):
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
         lead_status = get_lead_status(event_id=str(event_id), partner_name=PARTNER_NAME)
-        update_lead_status(lead_id, lead_status, crm_api_key)
 
+        data = {
+            'lead_status': lead_status
+        }
 
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
 
-        #update salesperson data if new salesperson is assigned
+        # update salesperson data if new salesperson is assigned
         if event_id == "30" or event_id == "31":
             new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
-            logger.info(f"New Salesperson: {new_salesperson}")
-            #update_salesperson_data(new_salesperson, crm_lead_id, )
+            salespersons = update_lead_salespersons(new_salesperson, lead_id, crm_api_key)
+            data['salespersons'] = salespersons
+
+        update_lead_status(lead_id, data, crm_api_key)
 
         return {
             'statusCode': 200
