@@ -94,6 +94,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def convert_time_format(original_time):
+        """Convert the time format from 'Last, First 6/16/2021 1:44 PM' to '2021-06-16T13:44:00Z' """
         # Split the name and date/time parts
         first_name, last_name, date_time_str = original_time.split(" ", 2)
 
@@ -104,6 +105,10 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return formatted_time
+    
+    def map_status(status: str) -> str:
+        # TODO take the mapping config from the S3 bucket.
+        return None
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
@@ -115,7 +120,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     prospect_data = {
         "crm_lead_id": prospect_id,
         "lead_ts": convert_time_format(inserted_by),
-        "lead_status": prospect_status_type,
+        "lead_status": map_status(prospect_status_type),
         "lead_substatus": None,
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,
