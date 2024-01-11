@@ -3,15 +3,30 @@ import logging
 from os import environ
 from datetime import datetime
 from json import dumps, loads
-from typing import Any
+from typing import Any, List
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
+from crm_orm.models.salesperson import Salesperson
+from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
+                     'phone', 'position_name', 'is_primary']
+
+
+def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
+                 allowed_attrs: List[str], request_product) -> None:
+    """Update attributes of a database object."""
+    combined_data = {"dealer_integration_partner_id": dealer_partner_id, **data}
+
+    for attr in allowed_attrs:
+        if attr in combined_data:
+            setattr(db_object, attr, combined_data[attr])
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -22,6 +37,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
         consumer_id = body["consumer_id"]
+        salespersons = body.get("salespersons", [])
+        crm_lead_id = body.get("crm_lead_id")
 
         with DBSession() as session:
             consumer = session.query(
@@ -37,6 +54,22 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
                 }
 
+            # Query for existing lead
+            if crm_lead_id:
+                lead_db = session.query(
+                    Lead
+                ).filter(
+                    Lead.consumer_id == consumer_id,
+                    Lead.crm_lead_id == crm_lead_id
+                ).first()
+
+                if lead_db:
+                    logger.error(f"Lead {crm_lead_id} already exists")
+                    return {
+                        "statusCode": 409,
+                        "body": dumps({"error": f"Lead with CRM ID {crm_lead_id} already exists for consumer {consumer_id}. lead_id: {lead_db.id}"})
+                    }
+
             # Create lead
             lead = Lead(
                 consumer_id=consumer_id,
@@ -45,8 +78,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 comment=body["lead_comment"],
                 origin_channel=body["lead_origin"],
                 source_channel=body["lead_source"],
+                crm_lead_id=crm_lead_id,
                 request_product=request_product,
-                lead_ts=datetime.utcnow()
+                lead_ts=body.get("lead_ts", datetime.utcnow())
             )
 
             session.add(lead)
@@ -74,9 +108,41 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     status=vehicle.get("status"),
                     condition=vehicle.get("condition"),
                     odometer_units=vehicle.get("odometer_units"),
-                    vehicle_comments=vehicle.get("vehicle_comments")
+                    vehicle_comments=vehicle.get("vehicle_comments"),
+                    crm_vehicle_id=vehicle.get("crm_vehicle_id")
                 )
                 lead.vehicles.append(vehicle)
+
+            if salespersons:
+                dealer_partner_id = consumer.dealer_integration_partner_id
+                for salesperson in salespersons:
+                    # Create salesperson
+                    crm_salesperson_id = salesperson.get("crm_salesperson_id")
+
+                    # Query for existing salesperson
+                    salesperson_db = None
+                    if crm_salesperson_id:
+                        salesperson_db = session.query(Salesperson).filter(
+                            Salesperson.crm_salesperson_id == crm_salesperson_id,
+                            Salesperson.dealer_integration_partner_id == dealer_partner_id
+                        ).first()
+
+                    if not salesperson_db:
+                        salesperson_db = Salesperson()
+
+                    update_attrs(salesperson_db, salesperson, dealer_partner_id, salesperson_attrs, request_product)
+
+                    if not salesperson_db.id:
+                        session.add(salesperson_db)
+                        session.flush()
+
+                    # Create lead salesperson
+                    lead_salesperson = Lead_Salesperson(
+                        lead_id=lead.id,
+                        salesperson_id=salesperson_db.id,
+                        is_primary=salesperson.get("is_primary", False)
+                    )
+                    session.add(lead_salesperson)
 
             session.commit()
             lead_id = lead.id
