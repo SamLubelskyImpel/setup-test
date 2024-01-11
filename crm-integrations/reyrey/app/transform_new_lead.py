@@ -180,7 +180,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
-    prospect_data["salesperson"] = salesperson_data
+    prospect_data["salesperson"] = [salesperson_data]
 
     return prospect_data
 
