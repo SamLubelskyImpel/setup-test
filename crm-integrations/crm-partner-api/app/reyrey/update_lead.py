@@ -1,10 +1,11 @@
+"""Update lead in the Impel CRM persistence layer."""
 import json
 import logging
 import os
 import boto3
 import uuid
 from os import environ
-from typing import Any, Dict
+from typing import Any
 import xml.etree.ElementTree as ET
 import requests
 from requests.exceptions import HTTPError
@@ -35,14 +36,13 @@ def get_lead_status(event_id: str, partner_name: str) -> Any:
             )
         lead_updates = s3_object.get("lead_updates")
         lead_status = lead_updates.get(event_id)
-        logger.info(f"Lead status: {lead_status}")
     except Exception as e:
         logger.error(f"Failed to retrieve lead status from S3 config. Partner: {partner_name.upper()}, {e}")
         raise
     return lead_status
 
 
-def get_secret(secret_name, secret_key) -> Any:
+def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
@@ -146,8 +146,6 @@ def create_or_update_salesperson(new_salesperson):
 
 def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: str) -> Any:
     """Update lead salespersons through CRM API."""
-
-    # Step1: retrieve list of existing salespersons
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
     headers = {
@@ -175,7 +173,6 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     logger.info(f"CRM API Get Salesperson Response: {response_data}")
 
     salespersons = process_salespersons(response_data, new_salesperson)
-    logger.info(f"Processed Salespersons: {salespersons}")
 
     return salespersons
 
@@ -217,7 +214,6 @@ def lambda_handler(event, context):
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
         
         event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
-        event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
 
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
@@ -226,9 +222,6 @@ def lambda_handler(event, context):
         data = {
             'lead_status': lead_status
         }
-
-        logger.info(f"Event ID: {event_id}")
-        logger.info(f"Event Name: {event_name}")
 
         # update salesperson data if new salesperson is assigned
         if event_id == "30" or event_id == "31":
@@ -239,7 +232,8 @@ def lambda_handler(event, context):
         update_lead_status(lead_id, data, crm_api_key)
 
         return {
-            'statusCode': 200
+            'statusCode': 200,
+            'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
         }
 
     except ET.ParseError:

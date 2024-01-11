@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict
 
 import boto3
+from base64 import b64decode
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
@@ -13,13 +14,27 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
 
+def decode_basic_auth(basic_auth_str: str):
+    """Decode a given basic auth."""
+    try:
+        input_auth_encoded = basic_auth_str.split("Basic ")[1]
+        input_auth_str = b64decode(input_auth_encoded).decode("utf-8")
+        client_id, input_auth = input_auth_str.split(":")
+        return client_id, input_auth
+    except (ValueError, IndexError):
+        logger.exception(f"Malformed input basic auth {basic_auth_str}")
+        return None, None
+
+
 def _lambda_handler(event: Any, context: Any) -> Any:
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
 
     method_arn = event["methodArn"]
-    partner_id = event["headers"]["partner_id"]
-    api_key = event["headers"]["x_api_key"]
+
+    auth = event['authorizationToken']
+
+    partner_id, api_key = decode_basic_auth(auth)
 
     SM_CLIENT = boto3.client("secretsmanager")
 

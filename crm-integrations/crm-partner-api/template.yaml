@@ -177,15 +177,10 @@ Resources:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
           DefaultAuth:
-            FunctionPayloadType: REQUEST
+            Type: REQUEST
             FunctionArn: !GetAtt Authorizer.Arn
-            Identity:
-              Headers:
-                - partner_id
-                - x_api_key
-              Context:
-                - resourcePath
-              ReauthorizeEvery: 0
+            IdentitySource: method.request.header.Authorization
+            ReauthorizeEvery: 0
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-

@@ -1,11 +1,11 @@
 openapi: 3.0.0
 servers:
   - description: Impel Test Environment
-    url: https://0yc6vnaflc.execute-api.us-east-1.amazonaws.com/test
+    url: https://4eg8ki6y0a.execute-api.us-east-1.amazonaws.com/test
   - description: Impel Stage Environment
-    url: https://crm.testenv.impel.io/
-  - description: Impel Prod Environment
-    url: https://crm.impel.io/
+    url: https://crm.testenv.impel.io
+  - description: Impel Prod Environmenthttps://4eg8ki6y0a.execute-api.us-east-1.amazonaws.com
+    url: https://crm.impel.io
 info:
   version: "1.0.0"
   title: ReyRey CRM Integration API
@@ -21,19 +21,6 @@ paths:
       operationId: post-lead
       description: |-
         This API endpoint creates a CRM lead record in the Impel system.
-      parameters:
-      - schema:
-          type: string
-        in: header
-        name: partner_id
-        required: true
-        description: Partner ID provided by Impel
-      - schema:
-          type: string
-        in: header
-        name: x_api_key
-        required: true
-        description: API Key provided by Impel
       requestBody:
         description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of XML properties in the request body."
         required: true
@@ -47,7 +34,7 @@ paths:
         '400':
           description: This indicates Bad Request. For example this error can occur if a required property in the request XML is missing.
         '401':
-          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
         '500':
           description: Internal Server Error. Please contact Impel support.
           
@@ -60,19 +47,6 @@ paths:
       operationId: post-lead-update
       description: |-
         This API endpoint updates a CRM lead record in the Impel system.
-      parameters:
-      - schema:
-          type: string
-        in: header
-        name: partner_id
-        required: true
-        description: Partner ID provided by Impel
-      - schema:
-          type: string
-        in: header
-        name: x_api_key
-        required: true
-        description: API Key provided by Impel
       requestBody:
         description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of XML properties in the request body."
         required: true
@@ -104,7 +78,6 @@ components:
           $ref: '#/components/schemas/Record'
       xml:
         namespace: http://www.starstandards.org/STAR
-        name: rey_ImpelCRMSalesLead
     ApplicationArea:
       type: object
       required:
@@ -155,19 +128,19 @@ components:
           description: The Performance Path system id
           maxLength: 30
           minLength: 1
-          example: "1234567899889"
+          example: "8011602QAPCCURU"
         StoreNumber:
           type: string
           description: The DMS Store Number
           maxLength: 10
           minLength: 1
-          example: 789
+          example: "02"
         AreaNumber:
           type: string
           description: The branch of the Store
           maxLength: 10
           minLength: 1
-          example: "001"
+          example: "01"
         BusinessUnitName:
           type: string
           description: Business Unit Name
@@ -457,7 +430,6 @@ components:
           $ref: '#/components/schemas/RecordUpdate'
       xml:
         namespace: http://www.starstandards.org/STAR
-        name: rey_ImpelCRMPublishLeadDisposition
     ApplicationAreaUpdate:
       type: object
       required:
