@@ -1,249 +1,143 @@
-"""Update lead in the Impel CRM persistence layer."""
-import json
 import logging
-import os
 import boto3
-import uuid
+import json
+import requests
+import xml.etree.ElementTree as ET
+from datetime import datetime
 from os import environ
 from typing import Any
-import xml.etree.ElementTree as ET
-import requests
-from requests.exceptions import HTTPError
+from uuid import uuid4
+
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+CRM_API_URL = environ.get("CRM_API_URL")
+ENVIRONMENT = environ.get("ENVIRONMENT")
+PARTNER_ID = environ.get("PARTNER_ID")
 
 logger = logging.getLogger()
-logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
-
-ENVIRONMENT = environ.get("ENVIRONMENT")
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
-PARTNER_NAME = environ.get("PARTNER_NAME")
-
-sm_client = boto3.client('secretsmanager')
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
+secret_client = boto3.client("secretsmanager")
 
 
-def get_lead_status(event_id: str, partner_name: str) -> Any:
-    """Get lead status from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-    try:
-        s3_object = json.loads(
-                s3_client.get_object(
-                    Bucket=BUCKET,
-                    Key=s3_key
-                )['Body'].read().decode('utf-8')
-            )
-        lead_updates = s3_object.get("lead_updates")
-        lead_status = lead_updates.get(event_id)
-    except Exception as e:
-        logger.error(f"Failed to retrieve lead status from S3 config. Partner: {partner_name.upper()}, {e}")
-        raise
-    return lead_status
+def create_soap_response(error_message):
+    # Create SOAP response for error
+    envelope = ET.Element('soap:Envelope', xmlns="http://schemas.xmlsoap.org/soap/envelope/")
+    body = ET.SubElement(envelope, 'soap:Body')
+    fault = ET.SubElement(body, 'soap:Fault')
+    fault_string = ET.SubElement(fault, 'faultstring')
+    fault_string.text = error_message
+
+    return ET.tostring(envelope, encoding="unicode")
 
 
-def get_secret(secret_name: Any, secret_key: Any) -> Any:
-    """Get secret from Secrets Manager."""
-    secret = sm_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+def get_secrets():
+    """Get CRM API secrets."""
+    secret = secret_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
     )
-    secret = json.loads(secret["SecretString"])[str(secret_key)]
+    secret = json.loads(secret["SecretString"])[PARTNER_ID]
     secret_data = json.loads(secret)
 
-    return secret_data
+    return secret_data["api_key"]
 
 
-def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
-    """Get lead by crm lead id through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?crm_dealer_id={crm_dealer_id}'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
+def get_dealers(integration_partner_name: str) -> Any:
+    """Get dealers from CRM API."""
+    api_key = get_secrets()
+    url = f"{CRM_API_URL}dealers"
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except HTTPError as http_err:
-        if response.status_code == 404:
-            logger.error(f"Lead not found: {http_err}")
-            raise ValueError(f"Lead not found: {crm_lead_id}") from None
-        else:
-            # Handle other HTTP errors
-            logger.error(f"HTTP error occurred: {http_err}")
-            raise
-    except Exception as err:
-        # Handle other exceptions, such as a connection error
-        logger.error(f"Error occurred: {err}")
+    response = requests.get(
+        url=f"{CRM_API_URL}dealers",
+        headers={"partner_id": PARTNER_ID, "x_api_key": api_key},
+        params={"integration_partner_name": integration_partner_name},
+    )
+    logger.info(f"CRM API responded with: {response.status_code}")
+    if response.status_code != 200:
+        logger.error(
+            f"Error getting dealers {integration_partner_name}: {response.text}"
+        )
         raise
 
-    response_data = response.json()
-    logger.info(f"CRM API Response: {response_data}")
-    lead_id = response_data.get('lead_id')
-    return lead_id
+    return response.json()
 
 
-def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
-    """Update lead status through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
+def save_raw_lead(lead: str, product_dealer_id: str):
+    """Save raw leads to S3."""
+    format_string = "%Y/%m/%d/%H/%M"
+    date_key = datetime.utcnow().strftime(format_string)
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
+    s3_key = f"raw_updates/reyrey/{product_dealer_id}/{date_key}_{uuid4()}.xml"
+    logger.info(f"Saving reyrey lead to {s3_key}")
+    s3_client.put_object(
+        Body=lead,
+        Bucket=BUCKET,
+        Key=s3_key,
+    )
 
+
+def extract_crm_dealer_id(lead_xml_body: str) -> str:
+    """Extract CRM dealer ID from incoming xml."""
+    root = ET.fromstring(lead_xml_body)
+
+    namespace = {"star": "http://www.starstandards.org/STAR"}
+
+    dealer_number = root.find(".//star:DealerNumber", namespace).text
+    store_number = root.find(".//star:StoreNumber", namespace).text
+    area_number = root.find(".//star:AreaNumber", namespace).text
+
+    concatenated_dealer_id = f"{dealer_number}_{store_number}_{area_number}"
+    logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
+
+    return concatenated_dealer_id
+
+
+def lambda_handler(event: Any, context: Any) -> Any:
+    """This API handler takes the XML sent by ReyRey and puts the raw XML into the S3 bucket."""
     try:
-        response = requests.put(url, headers=headers, json=data)
-        response.raise_for_status()
-    except HTTPError as http_err:
-        if response.status_code == 404:
-            logger.error(f"Lead not found: {http_err}")
-            raise ValueError(f"Lead not found: {lead_id}") from None
-        else:
-            # Handle other HTTP errors
-            logger.error(f"HTTP error occurred: {http_err}")
-            raise
-    except Exception as err:
-        # Handle other exceptions, such as a connection error
-        logger.error(f"Error occurred: {err}")
-        raise
+        logger.info(f"Event: {event}")
 
-    response_data = response.json()
-    logger.info(f"CRM API Response: {response_data}")
-    return response_data
+        lead_xml_body = event["body"]
+        # reyrey_dealer_list = get_dealers("REYREY")
+        # crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
+        product_dealer_id = 'test'
 
+        # for dealer in reyrey_dealer_list:
+        #     if dealer["crm_dealer_id"] == crm_dealer_id:
+        #         product_dealer_id = dealer["product_dealer_id"]
+        #         break
 
-def process_salespersons(response_data, new_salesperson):
-    """Process salespersons from CRM API response."""
-    new_first_name, new_last_name = new_salesperson.split()
-    logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
+        # if not product_dealer_id:
+        #     logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+        #     error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
+        #     soap_response = create_soap_response(error_message)
+        #     return {
+        #         "statusCode": 401,
+        #         "headers": {"Content-Type": "text/xml"},
+        #         "body": soap_response
+        #     }
 
-    if not response_data:
-        logger.info("No salespersons found for this lead.")
-        return [create_or_update_salesperson(new_salesperson)]
-
-    return [
-        create_or_update_salesperson(new_salesperson)
-        if salesperson.get('is_primary') and (salesperson.get('first_name') != new_first_name or salesperson.get('last_name') != new_last_name)
-        else salesperson for salesperson in response_data
-    ]
-
-
-def create_or_update_salesperson(new_salesperson):
-    first_name, last_name = new_salesperson.split()
-    guid = str(uuid.uuid4())
-    return {
-        "crm_salesperson_id": f"Impel_generated_{guid}",
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": "",
-        "phone": "",
-        "position_name": "Primary Salesperson",
-        "is_primary": True
-    }
-
-
-def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: str) -> Any:
-    """Update lead salespersons through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
-
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except HTTPError as http_err:
-        if response.status_code == 404:
-            logger.error(f"Lead not found: {http_err}")
-            raise ValueError(f"Lead not found: {lead_id}") from None
-        else:
-            # Handle other HTTP errors
-            logger.error(f"HTTP error occurred: {http_err}")
-            raise
-    except Exception as err:
-        # Handle other exceptions, such as a connection error
-        logger.error(f"Error occurred: {err}")
-        raise
-
-    response_data = response.json()
-    logger.info(f"CRM API Get Salesperson Response: {response_data}")
-
-    salespersons = process_salespersons(response_data, new_salesperson)
-
-    return salespersons
-
-
-def lambda_handler(event, context):
-    logger.info(event)
-    try:
-        xml_data = event['body']
-
-        ns = {'ns': 'http://www.starstandards.org/STAR'}
-        ET.register_namespace('', ns['ns'])
-
-        root = ET.fromstring(xml_data)
-
-        if root.tag != '{http://www.starstandards.org/STAR}rey_ImpelCRMPublishLeadDisposition':
-            raise ValueError("Invalid XML format")
-
-        application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
-        record = root.find(".//ns:Record", namespaces=ns)
-
-        dealer_number = None
-        store_number = None
-        area_number = None
-        if application_area is not None:
-            sender = application_area.find(".//ns:Sender", namespaces=ns)
-            if sender is not None:
-                dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
-                store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
-                area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
-
-        if not dealer_number and not store_number and not area_number:
-            raise ValueError("Unknown dealer id. DealerNumber, StoreNumber, and AreaNumber are missing.")
-
-        crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-
-        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-
-        identifier = record.find(".//ns:Identifier", namespaces=ns)
-        crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
-        
-        event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
-
-        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
-
-        lead_status = get_lead_status(event_id=str(event_id), partner_name=PARTNER_NAME)
-
-        data = {
-            'lead_status': lead_status
-        }
-
-        # update salesperson data if new salesperson is assigned
-        if event_id == "30" or event_id == "31":
-            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
-            salespersons = update_lead_salespersons(new_salesperson, lead_id, crm_api_key)
-            data['salespersons'] = salespersons
-
-        update_lead_status(lead_id, data, crm_api_key)
+        logger.info("New lead received for dealer: " + product_dealer_id)
+        logger.info(f"Lead body: {lead_xml_body}")
+        save_raw_lead(str(lead_xml_body), product_dealer_id)
 
         return {
-            'statusCode': 200,
-            'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
+            "statusCode": 200
         }
 
-    except ET.ParseError:
-        # Handle XML parsing errors
-        return {
-            'statusCode': 400,
-            'body': json.dumps({'error': 'Invalid XML'})
-        }
     except ValueError as e:
+        soap_response = create_soap_response(str(e))
         return {
-            "statusCode": 404,
-            "body": json.dumps({"error": str(e)})
+            "statusCode": 400,
+            "headers": {"Content-Type": "text/xml"},
+            "body": soap_response
+        }
+    except Exception as e:
+        logger.error(f"Error getting ReyRey lead update: {str(e)}")
+        error_message = "Internal Server Error. Please contact Impel support."
+        soap_response = create_soap_response(error_message)
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "text/xml"},
+            "body": soap_response
         }
