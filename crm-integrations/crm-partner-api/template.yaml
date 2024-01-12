@@ -286,3 +286,23 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/lead-updates
             Method: POST
+
+  ReyReyUpdateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub reyrey-${Environment}-UpdateLead
+      AlarmDescription: ReyRey Update Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReyReyUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
