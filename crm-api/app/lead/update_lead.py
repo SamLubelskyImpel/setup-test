@@ -93,13 +93,14 @@ def modify_salespersons(lead_id, dealer_partner_id, new_salespersons):
             removed_salespeople.append(existing_person.salesperson_id)
 
     # Delete lead_salesperson records that are no longer assigned to the lead.
-    with DBSession() as session:
-        session.query(Lead_Salesperson).filter(
-                Lead_Salesperson.lead_id == lead_id,
-                Lead_Salesperson.salesperson_id.in_(removed_salespeople)
-            ).delete(synchronize_session=False)
-        session.commit()
-        logger.info(f"Deleted Lead_Salesperson for lead_id {lead_id}, {removed_salespeople}")
+    if removed_salespeople:
+        with DBSession() as session:
+            session.query(Lead_Salesperson).filter(
+                    Lead_Salesperson.lead_id == lead_id,
+                    Lead_Salesperson.salesperson_id.in_(removed_salespeople)
+                ).delete(synchronize_session=False)
+            session.commit()
+            logger.info(f"Deleted Lead_Salesperson for lead_id {lead_id}, {removed_salespeople}")
 
     logger.info(f"Salespersons are updated {lead_id}")
 
@@ -112,8 +113,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         body = loads(event["body"])
-        consumer_id = body.get("consumer_id")
         vehicles_of_interest = body.get('vehicles_of_interest', [])
+        metadata = body.get('metadata')
 
         lead_field_mapping = {
             "lead_status": "status",
@@ -133,23 +134,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
 
-            # Update consumer if provided
-            if consumer_id:
-                consumer = session.query(
-                    Consumer
-                ).filter(
-                    Consumer.id == consumer_id
-                ).first()
-
-                if not consumer:
-                    logger.error(f"Consumer not found {consumer_id}")
-                    return {
-                        "statusCode": 404,
-                        "body": dumps({"error": f"Consumer not found {consumer_id}"})
-                    }
-
-                lead.consumer_id = consumer_id
-
             # Get dealer_partner_id
             dealer_partner_id = lead.consumer.dealer_integration_partner_id
 
@@ -158,6 +142,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if received_field in body:
                     new_value = body[received_field]
                     setattr(lead, db_field, new_value)
+            # Update metadata if provided
+            if metadata:
+                if lead.metadata_:
+                    lead.metadata_.update(metadata)
+                else:
+                    lead.metadata_ = metadata
 
             # Add new vehicles if provided
             for vehicle in vehicles_of_interest:
