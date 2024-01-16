@@ -229,6 +229,7 @@ def record_handler(record: SQSRecord) -> None:
         # Extract lead data and write it to the Unified Layer, using the received consumer_id assigned by the layer
         lead = extract_lead(root, namespace)
         lead["consumer_id"] = unified_crm_consumer_id
+        logger.info(f"Lead data to send: {lead}")
 
         response = requests.post(
             f"https://{CRM_API_DOMAIN}/leads",
