@@ -323,6 +323,24 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveLeadByCrmLeadId:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadByCrmLeadId"
+      CodeUri: app/lead/
+      Handler: retrieve_lead_by_crm_lead_id.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /leads/crm/{crm_lead_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UpdateLead:
     Type: AWS::Serverless::Function
     Properties:

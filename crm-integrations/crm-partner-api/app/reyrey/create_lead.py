@@ -54,7 +54,7 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     format_string = "%Y/%m/%d/%H/%M"
     date_key = datetime.utcnow().strftime(format_string)
 
-    s3_key = f"raw/reyrey_crm/{product_dealer_id}/{date_key}_{uuid4()}.xml"
+    s3_key = f"raw/reyrey/{product_dealer_id}/{date_key}_{uuid4()}.xml"
     logger.info(f"Saving reyrey lead to {s3_key}")
     s3_client.put_object(
         Body=lead,

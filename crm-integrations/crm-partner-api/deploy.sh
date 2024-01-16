@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the reyrey crm integration.
+    Deploy the crm api.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -39,6 +39,7 @@ fi
 user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 
+python3 ./swagger/oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
@@ -49,22 +50,22 @@ if [[ $config_env == "prod" ]]; then
     --parameter-overrides "Environment=\"prod\""
 elif [[ $config_env == "stage" ]]; then
   sam deploy --config-env "stage" \
-    --tags "Commit=\"$commit_id\" Environment=\"stage\" UserLastModified=\"$user\"" \
+    --tags "Commit=\"$commit_id\" Environment=\"\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"stage\""
+    --parameter-overrides "Environment=\"\""
 elif [[ $config_env == "test" ]]; then
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"test\""
+    --parameter-overrides "Environment=\"test\" DomainSuffix=\"\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "reyrey-crm-integration-$env" \
+    --stack-name "crm-partner-api-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\""
+    --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
 fi

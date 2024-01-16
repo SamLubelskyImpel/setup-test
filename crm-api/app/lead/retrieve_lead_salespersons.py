@@ -144,10 +144,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             salespersons = get_salespersons_from_db(lead_id)
 
         if not salespersons:
-            logger.error(f"No salespersons found for lead {lead_id}")
+            logger.info(f"No salespersons found for lead {lead_id}")
             return {
-                "statusCode": 404,
-                "body": dumps({"error": "No salespersons found for the given lead."})
+                "statusCode": 200,
+                "body": dumps([])
             }
 
         return {

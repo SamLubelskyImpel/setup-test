@@ -22,27 +22,23 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "reyrey-crm-integration-test"
-parameter_overrides = """\
-    Environment=\"test\" \
-"""
+stack_name = "crm-partner-api-test"
+parameter_overrides = "Environment=\"test\""
 
 [stage.deploy.parameters]
 profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "reyrey-crm-integration-stage"
-parameter_overrides = """\
-    Environment=\"stage\" \
-"""
+stack_name = "crm-partner-api-stage"
+parameter_overrides = "Environment=\"stage\""
 
 [prod.deploy.parameters]
 profile = "unified-prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
-stack_name = "reyrey-crm-integration-prod"
+stack_name = "crm-partner-api-prod"
 parameter_overrides = """\
-    Environment=\"prod\" \
+    Environment=\"prod\"\
 """
