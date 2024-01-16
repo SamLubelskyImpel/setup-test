@@ -61,6 +61,7 @@ Globals:
           !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
         PARTNER_NAME: "reyrey"
         PARTNER_ID: "impel"
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -128,6 +129,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
         - PolicyName: LambdaPolicy
           PolicyDocument:
@@ -398,7 +404,7 @@ Resources:
             Resource: !GetAtt ReyReyTransformNewLeadQueue.Arn
             Condition:
               ArnEquals:
-                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+                aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
 
   ReyReyTransformLeadUpdate:
     Type: AWS::Serverless::Function

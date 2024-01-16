@@ -23,6 +23,7 @@ CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
@@ -56,7 +57,7 @@ s3_client = boto3.client("s3")
 #     return True
 
 
-def get_secret(secret_name, secret_key) -> Any:
+def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
@@ -94,7 +95,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def convert_time_format(original_time):
-        """Convert the time format from 'Last, First 6/16/2021 1:44 PM' to '2021-06-16T13:44:00Z' """
+        """Convert the time format from 'Last, First 6/16/2021 1:44 PM' to '2021-06-16T13:44:00Z'"""
         # Split the name and date/time parts
         first_name, last_name, date_time_str = original_time.split(" ", 2)
 
@@ -105,9 +106,11 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return formatted_time
-    
+
     def map_status(status: str) -> str:
         # TODO take the mapping config from the S3 bucket.
+        response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=f"configurations/{ENVIRONMENT}_REYREY.json")
+
         return None
 
     # Extract Prospect fields
@@ -223,8 +226,7 @@ def record_handler(record: SQSRecord) -> None:
 
         if not unified_crm_consumer_id:
             logger.error(f"Error creating consumer: {consumer}")
-            # TODO Check if this should be any other time of Exception
-            raise Exception("Error creating consumer")
+            raise Exception(f"Error creating consumer")
 
         # Extract lead data and write it to the Unified Layer, using the received consumer_id assigned by the layer
         lead = extract_lead(root, namespace)
@@ -244,10 +246,7 @@ def record_handler(record: SQSRecord) -> None:
 
         if not unified_crm_lead_id:
             logger.error(f"Error creating lead: {lead}")
-            # TODO Check if this should be any other time of Exception
             raise Exception("Error creating lead")
-
-        # logger.info(f"Transformed entries: {entries}")
 
         event_listener_secrets = get_secret(
             secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
