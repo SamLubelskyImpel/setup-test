@@ -19,7 +19,7 @@ paths:
   /leads:
     post:
       operationId: post-lead
-      summary: This endpoint creates a record for a Lead in the CRM persistance data layer.
+      summary: This endpoint creates a record for a Lead in the CRM persistence data layer. CRM IDs and salesperson fields should only be included in the request body if the caller is creating a lead on behalf of the CRM. Chat AI should not include these fields.
       #{{CREATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
@@ -32,6 +32,8 @@ paths:
           "$ref": "#/components/responses/401"
         '404':
           description: Not Found. The consumer_id of the request didn't match any existing records on Impel.
+        '409':
+          description: Conflict. Lead record couldn't be created due to a conflict with an existing record with the same crm_lead_id and consumer_id on Impel.
         '500':
           "$ref": "#/components/responses/500"
       parameters:
@@ -50,6 +52,15 @@ paths:
                       type: integer
                       description: Unique identifier for the associated consumer
                       example: 2
+                    crm_lead_id:
+                      type: string
+                      description: Lead id in the CRM
+                      example: 'D973DAF4-D0F2'
+                    lead_ts:
+                      type: string
+                      description: Lead timestamp in UTC format
+                      format: date-time
+                      example: "2023-09-22T14:00:00Z"
                 - $ref: '#/components/schemas/Lead'
                 - required:
                     - consumer_id
@@ -59,6 +70,40 @@ paths:
                     - lead_origin
                     - lead_source
                     - vehicles_of_interest
+                - type: object
+                  properties:
+                    vehicles_of_interest:
+                      allOf:
+                        - type: array
+                          items:
+                            description: Object containing description of the vehicle
+                            type: object
+                            properties:
+                              crm_vehicle_id:
+                                type: string
+                                description: Vehicle ID assigned by CRM (Car ID, Stock, License plate, etc.)
+                                example: '8EEAD89E-E87'
+                        - $ref: "#/components/schemas/VehiclesOfInterest"
+                - type: object
+                  properties:
+                    salespersons:
+                      type: array
+                      items:
+                        allOf:
+                          - $ref: '#/components/schemas/Salesperson'
+                          - required:
+                              - crm_salesperson_id
+                              - first_name
+                              - last_name
+                              - email
+                              - phone
+                - type: object
+                  properties:
+                    metadata:
+                      description: Metadata for a lead
+                      type: object
+                      additionalProperties: true
+                      example: {"crmLeadStatus": "Active"}
     get:
       operationId: get-leads
       summary: Retrieve a list of all leads for a given dealer id.
@@ -67,7 +112,7 @@ paths:
         - Leads
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -181,7 +226,7 @@ paths:
         - "$ref": "#/components/parameters/leadId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -226,14 +271,14 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
-      summary: This endpoint updates an existing lead in the CRM persistance data layer. The existing vehicles in the 'vehicles_of_interest' array won't be modified. Instead, new vehicles will be added to the array.
+      summary: This endpoint updates an existing lead in the CRM persistence data layer. The existing vehicles in the 'vehicles_of_interest' array won't be modified. Instead, new vehicles will be added to the array.
       #{{UPDATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
       operationId: put-lead
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -253,12 +298,6 @@ paths:
           application/json:
             schema:
               allOf:
-                - type: object
-                  properties:
-                    consumer_id:
-                      type: integer
-                      description: Unique identifier for the associated consumer
-                      example: 2
                 - $ref: '#/components/schemas/Lead'
                 - type: object
                   properties:
@@ -266,72 +305,14 @@ paths:
                       type: array
                       items:
                         $ref: '#/components/schemas/Salesperson'
-
-  /leads/crm/{crm_lead_id}:
-    get:
-      operationId: get-lead-by-crm-lead-id
-      summary: Retrieve a specific lead by CRM Lead ID
-      #{{RETRIEVE_LEAD_BY_CRM_LEAD_ID_LAMBDA_INFO}}
-      tags:
-        - Leads
-      parameters:
-        - "$ref": "#/components/parameters/partnerId"
-        - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/crmLeadId"
-        - "$ref": "#/components/parameters/crmDealerId"
-      responses:
-        '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - type: object
-                    properties:
-                      consumer_id:
-                        type: integer
-                        description: Unique identifier for the associated consumer
-                        example: 2
-                  - type: object
-                    properties:
-                      lead_id:
-                        type: integer
-                        description: Unique lead_id in the Impel system
-                        example: 3
-                  - $ref: '#/components/schemas/Lead'
-                  - type: object
-                    properties:
-                      vehicles_of_interest:
-                        allOf:
-                          - $ref: '#/components/schemas/VehiclesOfInterest'
-                          - type: array
-                            items:
-                              type: object
-                              properties:
-                                db_creation_date:
-                                  type: string
-                                  format: date-time
-                                  description: The created datetime of the vehicle in the unified CRM layer.
-                                  example: "2023-10-16T20:44:12.027184+00:00"
-                      lead_ts:
-                        type: string
-                        format: date-time
-                        description: The created datetime of the lead in the CRM.
-                        example: "2023-10-16T20:44:12.027184+00:00"
-                      db_creation_date:
-                        type: string
-                        format: date-time
-                        description: The created datetime of the lead in the unified CRM layer.
-                        example: "2023-10-16T20:44:12.027184+00:00"
-        '400':
-          "$ref": "#/components/responses/400"
-        '401':
-          "$ref": "#/components/responses/401"
-        '404':
-          "$ref": "#/components/responses/404"
-        '500':
-          "$ref": "#/components/responses/500"
-
+                - type: object
+                  properties:
+                    metadata:
+                      description: Metadata for a lead
+                      type: object
+                      additionalProperties: true
+                      example: {"crmLeadStatus": "Active"}
+              
   /leads/{lead_id}/status:
     get:
       summary: Retrieve the current status of a specific lead.
@@ -344,7 +325,7 @@ paths:
         - "$ref": "#/components/parameters/leadId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -385,7 +366,7 @@ paths:
         - "$ref": "#/components/parameters/leadId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -405,7 +386,7 @@ paths:
           
   /consumers:
     post:
-      summary: This endpoint creates a record for a Consumer in the CRM persistance data layer.
+      summary: This endpoint creates a record for a Consumer in the CRM persistence data layer. The crm_consumer_id field should only be included in the request body if the caller is creating a consumer on behalf of the CRM. Chat AI should not include this field.
       #{{CREATE_CONSUMER_LAMBDA_INFO}}
       tags:
         - Consumers
@@ -426,7 +407,23 @@ paths:
                     - first_name
                     - last_name
                     - email
+                - type: object
+                  properties:
+                    crm_consumer_id:
+                      type: string
+                      description: The ID of the consumer in the CRM
+                      example: "123abc-1234ab-123abc"
       responses:
+        '200':
+          description: Consumer found and updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  consumer_id:
+                    type: integer
+                    description: ID of the existing consumer
         '201':
           description: Consumer successfully created
           content:
@@ -460,7 +457,7 @@ paths:
         - "$ref": "#/components/parameters/consumerId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -481,14 +478,14 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
-      summary: This endpoint updates an existing consumer in the CRM persistance data layer.
+      summary: This endpoint updates an existing consumer in the CRM persistence data layer.
       #{{UPDATE_CONSUMER_LAMBDA_INFO}}
       tags:
         - Consumers
       operationId: put-consumer
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -551,7 +548,7 @@ paths:
           "$ref": "#/components/responses/500"
   /activities/{activity_id}:
     put:
-      summary: This endpoint updates an existing activity in the CRM persistance data layer.
+      summary: This endpoint updates an existing activity in the CRM persistence data layer.
       #{{UPDATE_ACTIVITY_LAMBDA_INFO}}
       tags:
         - Activities
@@ -561,7 +558,7 @@ paths:
         - "$ref": "#/components/parameters/activityId"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -594,7 +591,7 @@ paths:
         - "$ref": "#/components/parameters/integrationPartnerName"
       responses:
         '200':
-          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
           content:
             application/json:
               schema:
@@ -1102,7 +1099,7 @@ components:
       name: activity_id
       in: path
       required: true
-      description: The ID of the activity in the CRM persistance data layer.
+      description: The ID of the activity in the CRM persistence data layer.
       schema:
         type: integer
     dbCreationDateStart:
