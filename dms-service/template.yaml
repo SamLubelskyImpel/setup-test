@@ -211,6 +211,31 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
                       ]
+  CreateDealer:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: create_dealer_inbound.lambda_handler
+      Timeout: 30
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /create-dealer/v1
+            Method: POST
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !If [ IsProd,
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                      ]
 
   VehicleSaleInbound:
     Type: AWS::Serverless::Function
