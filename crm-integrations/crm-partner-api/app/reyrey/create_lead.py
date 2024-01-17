@@ -96,23 +96,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
 
         lead_xml_body = event["body"]
-        reyrey_dealer_list = get_dealers("REYREY")
-        crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
-        product_dealer_id = None
+        # TODO: Uncomment when ReyRey is ready to send CRM dealer ID
+        # reyrey_dealer_list = get_dealers("REYREY")
+        # crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
 
-        for dealer in reyrey_dealer_list:
-            if dealer["crm_dealer_id"] == crm_dealer_id:
-                product_dealer_id = dealer["product_dealer_id"]
-                break
+        product_dealer_id = 'test'
+        # product_dealer_id = None
 
-        if not product_dealer_id:
-            logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
-            return {
-                "statusCode": 401,
-                "body": {
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel."
-                },
-            }
+        # for dealer in reyrey_dealer_list:
+        #     if dealer["crm_dealer_id"] == crm_dealer_id:
+        #         product_dealer_id = dealer["product_dealer_id"]
+        #         break
+
+        # if not product_dealer_id:
+        #     logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+        #     return {
+        #         "statusCode": 401,
+        #         "body": {
+        #             "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel."
+        #         },
+        #     }
 
         logger.info("New lead received for dealer: " + product_dealer_id)
         logger.info(f"Lead body: {lead_xml_body}")
