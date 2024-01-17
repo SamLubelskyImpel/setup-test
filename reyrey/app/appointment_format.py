@@ -177,8 +177,9 @@ def parse_xml_to_entries(xml_string, s3_uri):
                     db_vehicle["mileage"] = vehicle_detail.get("OdomReading")
 
             outside_appt_src = service_appointment.find(".//ns:OutsideApptSrc", namespaces=ns)
-            if outside_appt_src.get("Appointment") is not None:
-                db_service_appointment["appointment_source"] = 'External'
+            if outside_appt_src is not None:
+                if outside_appt_src.get("Appointment") is not None:
+                    db_service_appointment["appointment_source"] = 'External'
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
