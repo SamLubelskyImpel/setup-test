@@ -19,6 +19,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
+PARTNER_NAME = environ.get("PARTNER_NAME")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
@@ -109,7 +110,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     def map_status(status: str) -> str:
         # TODO take the mapping config from the S3 bucket.
-        response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=f"configurations/{ENVIRONMENT}_REYREY.json")
+        # response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=f"configurations/{ENVIRONMENT}_{PARTNER_NAME.upper()}.json")
 
         return None
 
@@ -183,7 +184,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
-    prospect_data["salesperson"] = [salesperson_data]
+    prospect_data["salespersons"] = [salesperson_data]
 
     return prospect_data
 

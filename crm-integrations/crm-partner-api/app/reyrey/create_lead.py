@@ -19,6 +19,18 @@ s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 
+def create_soap_response(error_message):
+    # Create SOAP response for error
+    envelope = ET.Element(
+        "soap:Envelope", xmlns="http://schemas.xmlsoap.org/soap/envelope/"
+    )
+    body = ET.SubElement(envelope, "soap:Body")
+    fault = ET.SubElement(body, "soap:Fault")
+    fault_string = ET.SubElement(fault, "faultstring")
+    fault_string.text = error_message
+
+    return ET.tostring(envelope, encoding="unicode")
+
 def get_secrets():
     """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
@@ -28,7 +40,6 @@ def get_secrets():
     secret_data = json.loads(secret)
 
     return secret_data["api_key"]
-
 
 
 def get_dealers(integration_partner_name: str) -> Any:
@@ -108,14 +119,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Type of lead: {type(lead_xml_body)}")
         save_raw_lead(str(lead_xml_body), product_dealer_id)
 
-        return {"statusCode": 200, "body": "Success."}
+        return {"statusCode": 200}
+
     except ValueError as e:
-        return {"statusCode": 400, "body": json.dumps({"error": str(e)})}
+        soap_response = create_soap_response(str(e))
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "text/xml"},
+            "body": soap_response,
+        }
     except Exception as e:
-        logger.error(f"Error creating consumer: {str(e)}")
+        logger.error(f"Error getting ReyRey lead update: {str(e)}")
+        error_message = "Internal Server Error. Please contact Impel support."
+        soap_response = create_soap_response(error_message)
         return {
             "statusCode": 500,
-            "body": json.dumps(
-                {"error": "Internal Server Error. Please contact Impel support."}
-            ),
+            "headers": {"Content-Type": "text/xml"},
+            "body": soap_response,
         }
