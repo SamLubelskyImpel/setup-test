@@ -41,14 +41,13 @@ def get_secrets():
     return secret_data["api_key"]
 
 
-
 def get_dealers(integration_partner_name: str) -> Any:
     """Get dealers from CRM API."""
     api_key = get_secrets()
     url = f"{CRM_API_URL}dealers"
 
     response = requests.get(
-        url=f"{CRM_API_URL}dealers",
+        url=url,
         headers={"partner_id": PARTNER_ID, "x_api_key": api_key},
         params={"integration_partner_name": integration_partner_name},
     )
@@ -78,16 +77,20 @@ def save_raw_lead(lead: str, product_dealer_id: str):
 
 def extract_crm_dealer_id(lead_xml_body: str) -> str:
     """Extract CRM dealer ID from incoming xml."""
-    root = ET.fromstring(lead_xml_body)
+    try:
+        root = ET.fromstring(lead_xml_body)
 
-    namespace = {"star": "http://www.starstandards.org/STAR"}
+        namespace = {"star": "http://www.starstandards.org/STAR"}
 
-    dealer_number = root.find(".//star:DealerNumber", namespace).text
-    store_number = root.find(".//star:StoreNumber", namespace).text
-    area_number = root.find(".//star:AreaNumber", namespace).text
+        dealer_number = root.find(".//star:DealerNumber", namespace).text
+        store_number = root.find(".//star:StoreNumber", namespace).text
+        area_number = root.find(".//star:AreaNumber", namespace).text
 
-    concatenated_dealer_id = f"{dealer_number}_{store_number}_{area_number}"
-    logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
+        concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+        logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
+    except Exception as e:
+        logger.error(f"Error parsing XML: {e}")
+        raise
 
     return concatenated_dealer_id
 
@@ -98,24 +101,24 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
 
         lead_xml_body = event["body"]
-        # reyrey_dealer_list = get_dealers("REYREY")
-        # crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
-        product_dealer_id = 'test'
+        reyrey_dealer_list = get_dealers("REYREY")
+        crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
 
-        # for dealer in reyrey_dealer_list:
-        #     if dealer["crm_dealer_id"] == crm_dealer_id:
-        #         product_dealer_id = dealer["product_dealer_id"]
-        #         break
+        product_dealer_id = None
+        for dealer in reyrey_dealer_list:
+            if dealer["crm_dealer_id"] == crm_dealer_id:
+                product_dealer_id = dealer["product_dealer_id"]
+                break
 
-        # if not product_dealer_id:
-        #     logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
-        #     error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
-        #     soap_response = create_soap_response(error_message)
-        #     return {
-        #         "statusCode": 401,
-        #         "headers": {"Content-Type": "text/xml"},
-        #         "body": soap_response
-        #     }
+        if not product_dealer_id:
+            logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+            error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
+            soap_response = create_soap_response(error_message)
+            return {
+                "statusCode": 401,
+                "headers": {"Content-Type": "text/xml"},
+                "body": soap_response
+            }
 
         logger.info("New lead received for dealer: " + product_dealer_id)
         logger.info(f"Lead body: {lead_xml_body}")

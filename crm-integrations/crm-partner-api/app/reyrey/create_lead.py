@@ -31,6 +31,7 @@ def create_soap_response(error_message):
 
     return ET.tostring(envelope, encoding="unicode")
 
+
 def get_secrets():
     """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
@@ -76,16 +77,20 @@ def save_raw_lead(lead: str, product_dealer_id: str):
 
 def extract_crm_dealer_id(lead_xml_body: str) -> str:
     """Extract CRM dealer ID from incoming xml."""
-    root = ET.fromstring(lead_xml_body)
+    try:
+        root = ET.fromstring(lead_xml_body)
 
-    namespace = {"star": "http://www.starstandards.org/STAR"}
+        namespace = {"star": "http://www.starstandards.org/STAR"}
 
-    dealer_number = root.find(".//star:DealerNumber", namespace).text
-    store_number = root.find(".//star:StoreNumber", namespace).text
-    area_number = root.find(".//star:AreaNumber", namespace).text
+        dealer_number = root.find(".//star:DealerNumber", namespace).text
+        store_number = root.find(".//star:StoreNumber", namespace).text
+        area_number = root.find(".//star:AreaNumber", namespace).text
 
-    concatenated_dealer_id = f"{dealer_number}_{store_number}_{area_number}"
-    logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
+        concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+        logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
+    except Exception as e:
+        logger.error(f"Error parsing XML: {e}")
+        raise
 
     return concatenated_dealer_id
 
@@ -96,26 +101,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
 
         lead_xml_body = event["body"]
-        # TODO: Uncomment when ReyRey is ready to send CRM dealer ID
-        # reyrey_dealer_list = get_dealers("REYREY")
-        # crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
+        reyrey_dealer_list = get_dealers("REYREY")
+        crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
 
-        product_dealer_id = 'test'
-        # product_dealer_id = None
+        product_dealer_id = None
+        for dealer in reyrey_dealer_list:
+            if dealer["crm_dealer_id"] == crm_dealer_id:
+                product_dealer_id = dealer["product_dealer_id"]
+                break
 
-        # for dealer in reyrey_dealer_list:
-        #     if dealer["crm_dealer_id"] == crm_dealer_id:
-        #         product_dealer_id = dealer["product_dealer_id"]
-        #         break
-
-        # if not product_dealer_id:
-        #     logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
-        #     return {
-        #         "statusCode": 401,
-        #         "body": {
-        #             "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel."
-        #         },
-        #     }
+        if not product_dealer_id:
+            logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+            return {
+                "statusCode": 401,
+                "body": {
+                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel."
+                },
+            }
 
         logger.info("New lead received for dealer: " + product_dealer_id)
         logger.info(f"Lead body: {lead_xml_body}")

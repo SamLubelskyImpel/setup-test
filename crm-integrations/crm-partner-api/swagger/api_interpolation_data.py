@@ -5,10 +5,10 @@ As such this data is interpolated with the client copy as part of deployment scr
 CRM_PARTNER_API_AWS_VALIDATION = """
 x-amazon-apigateway-request-validators:
   basic:
+    validateRequestBody: true
     validateRequestParameters: true
-    validateRequestHeaders: true
 
-x-amazon-apigateway-request-validator: basic
+x-amazon-apigateway-request-validator: full
 """
 
 # httpMethod should always be POST even for other endpoint types

@@ -4,12 +4,14 @@ servers:
     url: https://4eg8ki6y0a.execute-api.us-east-1.amazonaws.com/test
   - description: Impel Stage Environment
     url: https://crm.testenv.impel.io
-  - description: Impel Prod Environmenthttps://4eg8ki6y0a.execute-api.us-east-1.amazonaws.com
+  - description: Impel Prod Environment
     url: https://crm.impel.io
 info:
   version: "1.0.0"
   title: ReyRey CRM Integration API
   description: This API allows ReyRey to post records for new leads and lead updates.
+security:
+  - basicAuth: []
 #{{CRM_PARTNER_API_AWS_VALIDATION}}
 paths:
   /reyrey/crm-upload/v1/leads:
@@ -65,6 +67,11 @@ paths:
           description: Internal Server Error. Please contact Impel support.
 
 components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Basic Authentication
   schemas:
     ImpelCRMSalesLead:
       type: object
@@ -438,7 +445,7 @@ components:
         Sender:
           $ref: '#/components/schemas/SenderUpdate'
         CreationDateTime:
-          description: Publish – Local time of the dealer server in the format of YYYY-MM-DD'T'HH:mm:ss
+          description: Publish - Local time of the dealer server in the format of YYYY-MM-DD'T'HH:mm:ss
           format: date-time
           example: 2017-01-23T10:23:45
         BODId:

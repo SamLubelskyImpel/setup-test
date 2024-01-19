@@ -55,11 +55,10 @@ Globals:
         LOGLEVEL: INFO
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
-        UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "1wjwo7lel3.execute-api.us-east-1.amazonaws.com/Stage"]
         CRM_API_URL:
           !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
-        PARTNER_NAME: "reyrey"
+        REYREY_PARTNER_NAME: "reyrey"
         PARTNER_ID: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
     VpcConfig:
@@ -130,11 +129,6 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
-                    ]
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -158,22 +152,6 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-        - PolicyName: SQSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
-                Resource:
-                  - !GetAtt ReyReyTransformLeadUpdateQueue.Arn
-                  - !GetAtt ReyReyTransformNewLeadQueue.Arn
-              - Effect: "Allow"
-                Action:
-                  - "sqs:SendMessage"
-                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -202,10 +180,12 @@ Resources:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
           DefaultAuth:
-            Type: REQUEST
             FunctionArn: !GetAtt Authorizer.Arn
-            IdentitySource: method.request.header.Authorization
-            ReauthorizeEvery: 0
+            Identity:
+              Headers:
+                - Authorization
+              ValidationExpression: ^Basic.*$
+              ReauthorizeEvery: 0
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-
@@ -228,7 +208,7 @@ Resources:
           StatusCode: "401"
         ACCESS_DENIED:
           ResponseTemplates:
-            application/json: '{"message": "$context.authorizer.key"}'
+            application/json: '{"message": "$context.authorizer.integration.request.header.Authorization"}'
           StatusCode: "403"
         DEFAULT_5xx:
           ResponseTemplates:
@@ -295,28 +275,12 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/leads
             Method: POST
-
-  ReyReyUpdateLead:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyUpdateLead"
-      CodeUri: app/reyrey/
-      Handler: update_lead.lambda_handler
-      Timeout: 30
-      Role: !GetAtt LambdaRole.Arn
-      Events:
-        Put:
-          Type: Api
-          Properties:
-            RestApiId: !Ref CrmPartnerApiGateway
-            Path: /reyrey/crm-upload/v1/lead-updates
-            Method: POST
-
-  ReyReyUpdateLeadErrorAlarm:
+  
+  ReyReyCreateLeadErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub reyrey-${Environment}-UpdateLead
-      AlarmDescription: ReyRey Update Lead failed to process incoming data
+      AlarmName: !Sub crm-partner-api-${Environment}-ReyReyCreateLead
+      AlarmDescription: ReyRey Create Lead failed to process incoming data
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -332,192 +296,38 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  ReyReyTransformNewLead:
+  ReyReyUpdateLead:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub reyrey-${Environment}-ReyReyTransformNewLead
+      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyUpdateLead"
       CodeUri: app/reyrey/
-      Handler: transform_new_lead.lambda_handler
-      Timeout: 60
-      MemorySize: 256
+      Handler: update_lead.lambda_handler
+      Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /reyrey/crm-upload/v1/lead-updates
+            Method: POST
 
-  ReyReyTransformNewLeadEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt ReyReyTransformNewLeadQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt ReyReyTransformNewLead.Arn
-
-  ReyReyTransformNewLeadQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-ReyReyTransformNewLeadQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
-      VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ReyReyTransformNewLeadDeadLetterQueue.Arn
-        maxReceiveCount: 3
-
-  ReyReyTransformNewLeadDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-ReyReyTransformNewLeadDLQ.fifo"
-      FifoQueue: true
-      MessageRetentionPeriod: 604800
-      VisibilityTimeout: 10
-  
-  ReyReyTransformNewLeadDLQAlarm:
+  ReyReyUpdateLeadErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "reyrey-${Environment}-ReyReyTransformNewLeadDLQ"
-      AlarmDescription: There are over 1 unprocessed messages in the ReyRey Transform New Lead DLQ
+      AlarmName: !Sub crm-partner-api-${Environment}-ReyReyUpdateLead
+      AlarmDescription: ReyRey Update Lead failed to process incoming data
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt ReyReyTransformNewLeadDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReyReyUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
-
-  ReyReyTransformNewLeadQueuePolicy:
-    Type: "AWS::SQS::QueuePolicy"
-    Properties:
-      Queues:
-        - !Ref ReyReyTransformNewLeadQueue
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sqs:SendMessage
-            Resource: !GetAtt ReyReyTransformNewLeadQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
-
-  ReyReyTransformLeadUpdate:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub reyrey-${Environment}-ReyReyTransformLeadUpdate
-      CodeUri: app/reyrey/
-      Handler: transform_lead_update.lambda_handler
-      Timeout: 60
-      MemorySize: 256
-      Role: !GetAtt LambdaRole.Arn
-
-  ReyReyTransformLeadUpdateEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt ReyReyTransformLeadUpdateQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt ReyReyTransformLeadUpdate.Arn
-
-  ReyReyTransformLeadUpdateQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-ReyReyTransformLeadUpdateQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
-      VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ReyReyTransformLeadUpdateDeadLetterQueue.Arn
-        maxReceiveCount: 3
-
-  ReyReyTransformLeadUpdateDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-ReyReyTransformLeadUpdateDLQ.fifo"
-      FifoQueue: true
-      MessageRetentionPeriod: 604800
-      VisibilityTimeout: 10
-  
-  ReyReyTransformLeadUpdateDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "reyrey-${Environment}-ReyReyTransformLeadUpdateDLQ"
-      AlarmDescription: There are over 1 unprocessed messages in the ReyRey Transform Lead Update DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt ReyReyTransformLeadUpdateDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
-
-  ReyReyTransformLeadUpdateQueuePolicy:
-    Type: "AWS::SQS::QueuePolicy"
-    Properties:
-      Queues:
-        - !Ref ReyReyTransformLeadUpdateQueue
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sqs:SendMessage
-            Resource: !GetAtt ReyReyTransformLeadUpdateQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt EventBridgeRule.Arn
-
-  EventBridgeRule:
-    Type: AWS::Events::Rule
-    Properties:
-      EventPattern:
-        source:
-          - "aws.s3"
-        detail-type:
-          - "Object Created"
-        detail:
-          bucket:
-            name:
-              - !Sub "crm-integrations-${Environment}"
-          object:
-            key:
-              - { "prefix": "raw_updates/reyrey/" }
-      Targets:
-        - Id: "ReyReyTransformLeadUpdateTarget"
-          Arn: !GetAtt ReyReyTransformLeadUpdateQueue.Arn
-          SqsParameters:
-            MessageGroupId: "ReyReyTransformLeadUpdate"
-
-  EventBridgeRuleNewLead:
-    Type: AWS::Events::Rule
-    Properties:
-      EventPattern:
-        source:
-          - "aws.s3"
-        detail-type:
-          - "Object Created"
-        detail:
-          bucket:
-            name:
-              - !Sub "crm-integrations-${Environment}"
-          object:
-            key:
-              - { "prefix": "raw/reyrey/" }
-      Targets:
-        - Id: "ReyReyTransformNewLeadTarget"
-          Arn: !GetAtt ReyReyTransformNewLeadQueue.Arn
-          SqsParameters:
-            MessageGroupId: "ReyReyTransformNewLead"
