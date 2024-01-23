@@ -61,9 +61,13 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     return secret_data
 
 
-def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api_key: str) -> Any:
     """Get lead by crm lead id through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?crm_dealer_id={crm_dealer_id}'
+    queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
+    if crm_consumer_id:
+        queryStringParameters += f"&crm_consumer_id={crm_consumer_id}"
+
+    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
     headers = {
         'partner_id': PARTNER_ID,
@@ -143,27 +147,15 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
         'x_api_key': crm_api_key
     }
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except HTTPError as http_err:
-        if response.status_code == 404:
-            logger.error(f"Lead not found: {http_err}")
-            raise ValueError(f"Lead not found: {lead_id}") from None
-        else:
-            # Handle other HTTP errors
-            logger.error(f"HTTP error occurred: {http_err}")
-            raise
-    except Exception as err:
-        # Handle other exceptions, such as a connection error
-        logger.error(f"Error occurred: {err}")
+    response = requests.get(url, headers=headers)
+    logger.info(f"CRM API Get Salesperson responded with: {response.status_code}")
+
+    if response.status_code != 200:
+        logger.error(f"Error getting lead salespersons with lead_id {lead_id}: {response.text}")
         raise
 
     response_data = response.json()
-    logger.info(f"CRM API Get Salesperson Response: {response_data}")
-
     salespersons = process_salespersons(response_data, new_salesperson)
-
     return salespersons
 
 
@@ -212,32 +204,42 @@ def record_handler(record: SQSRecord) -> None:
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
         logger.info(f"CRM Lead ID: {crm_lead_id}")
 
+        crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)
+        if crm_consumer_id is not None:
+            crm_consumer_id = crm_consumer_id.text
+
         event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
+        event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
         logger.info(f"Event ID: {event_id}")
+        logger.info(f"Event Name: {event_name}")
 
-        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
-
+        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key)
         logger.info(f"Lead ID: {lead_id}")
-
 
         lead_status = get_lead_status(event_id=str(event_id), partner_name=SECRET_KEY)
 
         data = {
-            'lead_status': lead_status
+            'lead_status': lead_status,
+            'metadata': {"updatedCrmLeadStatus": event_name}
         }
 
         salespersons = {}
         # update salesperson data if new salesperson is assigned
-        if event_id == "30" or event_id == "31":
-            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
+        if event_id == "29" or event_id == "30":
+            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)
+            if new_salesperson is not None:
+                new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
+            else:
+                raise Exception("Field with salesperson name is not provided.")
+
             salespersons = update_lead_salespersons(new_salesperson, lead_id, crm_api_key)
-            # data['salespersons'] = salespersons
+            data['salespersons'] = salespersons
 
         update_lead_status(lead_id, data, crm_api_key)
 
         return {
-            'statusCode': 200
-            # 'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
+            'statusCode': 200,
+            'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
         }
 
     except Exception as e:

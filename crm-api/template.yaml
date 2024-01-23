@@ -323,12 +323,12 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
-  RetrieveLeadByCrmLeadId:
+  RetrieveLeadByCrmIds:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadByCrmLeadId"
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadByCrmIds"
       CodeUri: app/lead/
-      Handler: retrieve_lead_by_crm_lead_id.lambda_handler
+      Handler: retrieve_lead_by_crm_ids.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Events:

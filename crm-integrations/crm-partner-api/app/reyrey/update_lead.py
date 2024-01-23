@@ -120,7 +120,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": soap_response
             }
 
-        logger.info("New lead received for dealer: " + product_dealer_id)
+        logger.info("Lead update received for dealer: " + product_dealer_id)
         logger.info(f"Lead body: {lead_xml_body}")
         save_raw_lead(str(lead_xml_body), product_dealer_id)
 
