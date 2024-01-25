@@ -195,7 +195,7 @@ def record_handler(record: SQSRecord) -> None:
                 store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
                 area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
 
-        crm_dealer_id = f"{dealer_number}_{store_number}_{area_number}"
+        crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
         logger.info(f"CRM Dealer ID: {crm_dealer_id}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=PARTNER_ID)["api_key"]
