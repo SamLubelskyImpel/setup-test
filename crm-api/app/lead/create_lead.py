@@ -80,7 +80,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 source_channel=body["lead_source"],
                 crm_lead_id=crm_lead_id,
                 request_product=request_product,
-                lead_ts=body.get("lead_ts", datetime.utcnow())
+                lead_ts=body.get("lead_ts", datetime.utcnow()),
+                metadata_=body.get("metadata"),
             )
 
             session.add(lead)
