@@ -10,7 +10,7 @@ from os import environ
 import requests
 from json import loads
 from requests.auth import HTTPBasicAuth
-from dateutil import parser
+from datetime import datetime
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -81,6 +81,7 @@ class DealerpeakApiWrapper:
         self.__activity = kwargs.get("activity")
         self.__salesperson = kwargs.get("salesperson")
         self.__dealer_group_id = self.__activity["crm_dealer_id"].split("__")[0]
+        self.__utc_offset = self.__activity["utc_offset"]
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -91,23 +92,19 @@ class DealerpeakApiWrapper:
 
         return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
-    def convert_to_utc_datetime(self, datetime_str):
-        try:
-            parsed_datetime = parser.isoparse(datetime_str)
-            original_offset = parsed_datetime.utcoffset()
+    def apply_utc_offset(self, utc_time_str):
+        """Apply the UTC offset to a datetime string.
+        DealerPeak expects the datetime string to be in UTC time.
+        """
+        # utc_time_str == Local Dealer Time, this must be converted to UTC Dealer Time
+        utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
+        utc_offset = datetime.strptime(self.__utc_offset, "%z").utcoffset()
 
-            # Apply offset
-            if original_offset:
-                utc_datetime = parsed_datetime - original_offset
-            else:
-                utc_datetime = parsed_datetime
+        # Apply the UTC offset
+        new_time = utc_time - utc_offset
 
-            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-        except ValueError as e:
-            # Handle parsing errors
-            logger.error(f"Error parsing datetime string: {e}")
-            raise
+        new_time_str = new_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return new_time_str
 
     def __insert_note(self):
         payload = {
@@ -149,10 +146,10 @@ class DealerpeakApiWrapper:
         }
 
         if self.__activity["activity_type"] in ("appointment", "phone_call_task"):
-            payload["dueDate"] = self.convert_to_utc_datetime(self.__activity["activity_due_ts"])
+            payload["dueDate"] = self.apply_utc_offset(self.__activity["activity_due_ts"])
         elif self.__activity["activity_type"] == "outbound_call":
-            payload["dueDate"] = self.convert_to_utc_datetime(self.__activity["activity_requested_ts"])
-            payload["completedDate"] = self.convert_to_utc_datetime(self.__activity["activity_requested_ts"])
+            payload["dueDate"] = self.apply_utc_offset(self.__activity["activity_requested_ts"])
+            payload["completedDate"] = self.apply_utc_offset(self.__activity["activity_requested_ts"])
             payload["taskResult"]["resultID"] = 5
 
         logging.info(f"Payload to CRM: {payload}")

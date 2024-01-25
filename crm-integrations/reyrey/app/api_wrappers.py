@@ -179,8 +179,15 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
+    def format_dealertime(self, utc_time_str):
+        """Format Local Dealer Time."""
+        # utc_time_str == Local Dealer Time
+        utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
+        formatted_time = utc_time.strftime("%Y-%m-%dT%H:%M:%S")
+        return formatted_time
+
     def __insert_note(self):
-        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
+        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -204,8 +211,8 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_appointment(self):
-        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
-        due_date = parser.isoparse(self.__activity["activity_due_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
+        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
+        due_date = self.format_dealertime(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -229,7 +236,7 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_activity(self):
-        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
+        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()
