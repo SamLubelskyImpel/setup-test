@@ -10,6 +10,7 @@ from os import environ
 import requests
 from json import loads
 from requests.auth import HTTPBasicAuth
+from dateutil import parser
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -90,6 +91,24 @@ class DealerpeakApiWrapper:
 
         return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
+    def convert_to_utc_datetime(self, datetime_str):
+        try:
+            parsed_datetime = parser.isoparse(datetime_str)
+            original_offset = parsed_datetime.utcoffset()
+
+            # Apply offset
+            if original_offset:
+                utc_datetime = parsed_datetime - original_offset
+            else:
+                utc_datetime = parsed_datetime
+
+            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        except ValueError as e:
+            # Handle parsing errors
+            logger.error(f"Error parsing datetime string: {e}")
+            raise
+
     def __insert_note(self):
         payload = {
             "addedBy_UserID": self.__salesperson["crm_salesperson_id"],
@@ -130,10 +149,10 @@ class DealerpeakApiWrapper:
         }
 
         if self.__activity["activity_type"] in ("appointment", "phone_call_task"):
-            payload["dueDate"] = self.__activity["activity_due_ts"]
+            payload["dueDate"] = self.convert_to_utc_datetime(self.__activity["activity_due_ts"])
         elif self.__activity["activity_type"] == "outbound_call":
-            payload["dueDate"] = self.__activity["activity_requested_ts"]
-            payload["completedDate"] = self.__activity["activity_requested_ts"]
+            payload["dueDate"] = self.convert_to_utc_datetime(self.__activity["activity_requested_ts"])
+            payload["completedDate"] = self.convert_to_utc_datetime(self.__activity["activity_requested_ts"])
             payload["taskResult"]["resultID"] = 5
 
         logging.info(f"Payload to CRM: {payload}")

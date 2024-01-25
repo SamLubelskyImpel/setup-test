@@ -153,7 +153,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub reyrey-${Environment}-SendActivityDLQ
-      AlarmDescription: There are over 10 unprocessed messages in the ReyRey SendActivity DLQ
+      AlarmDescription: There are over 1 unprocessed messages in the ReyRey SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'

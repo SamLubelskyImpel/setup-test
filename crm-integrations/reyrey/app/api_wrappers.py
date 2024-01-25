@@ -13,6 +13,7 @@ import requests
 from uuid import uuid4
 from json import loads
 from datetime import datetime, timedelta
+from dateutil import parser
 import xmltodict
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -139,7 +140,6 @@ class ReyreyApiWrapper:
         self.__url, self.__username, self.__password = self.get_secrets()
         self.__activity = kwargs.get("activity")
         self.__store_number, self.__area_number, self.__dealer_number = self.__activity["crm_dealer_id"].split("_")
-        self.__utc_offset = self.__activity.get("dealer_metadata").get("utc_offset")  # "+05:00"
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -179,20 +179,8 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
-    def __compute_offset(self):
-        # Extract the sign, hours, and minutes from the UTC offset string
-        sign, offset_str = self.__utc_offset[0], self.__utc_offset[1:]
-        hours, minutes = map(int, offset_str.split(':'))
-
-        # Determine the sign of the offset and create a timedelta object
-        offset_multiplier = 1 if sign == '+' else -1
-        offset = timedelta(hours=offset_multiplier * hours, minutes=offset_multiplier * minutes)
-        return offset
-
     def __insert_note(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        time_offset = self.__compute_offset()
-        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
+        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -216,11 +204,8 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_appointment(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        due_date_time = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        time_offset = self.__compute_offset()
-        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
-        due_date = (due_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
+        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
+        due_date = parser.isoparse(self.__activity["activity_due_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -244,9 +229,7 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_activity(self):
-        requested_date_time = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        time_offset = self.__compute_offset()
-        created_date = (requested_date_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S")
+        created_date = parser.isoparse(self.__activity["activity_requested_ts"]).strftime('%Y-%m-%dT%H:%M:%S')
         request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()

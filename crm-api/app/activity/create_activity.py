@@ -126,7 +126,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             dealer_partner = lead.consumer.dealer_integration_partner
             partner_name = dealer_partner.integration_partner.impel_integration_partner_name
-            dealer_metadata = dealer_partner.dealer.metadata_
 
             payload = {
                 # Lead info
@@ -134,7 +133,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "crm_lead_id": lead.crm_lead_id,
                 "dealer_integration_partner_id": dealer_partner.id,
                 "crm_dealer_id": dealer_partner.crm_dealer_id,
-                "dealer_metadata": dealer_metadata,
                 "consumer_id": lead.consumer.id,
                 "crm_consumer_id": lead.consumer.crm_consumer_id,
                 # Activity info
@@ -145,6 +143,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "activity_type": activity.activity_type.type,
                 "contact_method": activity.contact_method,
             }
+
+            logger.info(f"Payload to CRM: {dumps(payload)}")
 
             create_on_crm(partner_name=partner_name, payload=payload)
 
