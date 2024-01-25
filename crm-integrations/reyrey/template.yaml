@@ -105,6 +105,18 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformNewLeadQueue.Arn
                   - !GetAtt TransformLeadUpdateQueue.Arn
               - Effect: "Allow"
@@ -147,9 +159,9 @@ Resources:
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
         maxReceiveCount: 3
-
+        
   TransformNewLeadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -158,6 +170,47 @@ Resources:
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-SendActivityQueue.fifo"
+  
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ.fifo"
+        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
+        maxReceiveCount: 3
+  
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+      
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub reyrey-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+            
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub reyrey-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the ReyRey SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+
   TransformNewLeadDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
