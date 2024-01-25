@@ -179,9 +179,6 @@ def record_handler(record: SQSRecord) -> None:
         ns = {'ns': 'http://www.starstandards.org/STAR'}
         ET.register_namespace('', ns['ns'])
 
-        # if root.tag != '{http://www.starstandards.org/STAR}rey_ImpelCRMPublishLeadDisposition':
-        #     raise ValueError("Invalid XML format")
-
         application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
         record = root.find(".//ns:Record", namespaces=ns)
 

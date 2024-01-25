@@ -9,7 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
-CRM_API_URL = environ.get("CRM_API_URL")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 ENVIRONMENT = environ.get("ENVIRONMENT")
 PARTNER_ID = environ.get("PARTNER_ID")
 
@@ -17,6 +17,28 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
+
+
+def redact_sensitive_info(event):
+    # Redacting Authorization header
+    if 'headers' in event and 'Authorization' in event['headers']:
+        event['headers']['Authorization'] = 'Basic ******'
+    
+    if 'multiValueHeaders' in event and 'Authorization' in event['multiValueHeaders']:
+        event['multiValueHeaders']['Authorization'] = ['Basic ******']
+
+    if 'body' in event:
+        root = ET.fromstring(event['body'])
+        
+        namespaces = {'wsse': 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd'}
+        for username in root.findall('.//wsse:Username', namespaces):
+            username.text = '******'
+        for password in root.findall('.//wsse:Password', namespaces):
+            password.text = '******'
+
+        event['body'] = ET.tostring(root, encoding='unicode')
+
+    return event
 
 
 def create_soap_response(error_message):
@@ -44,7 +66,7 @@ def get_secrets():
 def get_dealers(integration_partner_name: str) -> Any:
     """Get dealers from CRM API."""
     api_key = get_secrets()
-    url = f"{CRM_API_URL}dealers"
+    url = f"https://{CRM_API_DOMAIN}/dealers"
 
     response = requests.get(
         url=url,
@@ -87,7 +109,6 @@ def extract_crm_dealer_id(lead_xml_body: str) -> str:
         area_number = root.find(".//star:AreaNumber", namespace).text
 
         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-        logger.info(f"Extracted CRM dealer ID: {concatenated_dealer_id}")
     except Exception as e:
         logger.error(f"Error parsing XML: {e}")
         raise
@@ -98,6 +119,7 @@ def extract_crm_dealer_id(lead_xml_body: str) -> str:
 def lambda_handler(event: Any, context: Any) -> Any:
     """This API handler takes the XML sent by ReyRey and puts the raw XML into the S3 bucket."""
     try:
+        event = redact_sensitive_info(event)
         logger.info(f"Event: {event}")
 
         lead_xml_body = event["body"]
@@ -120,8 +142,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": soap_response
             }
 
-        logger.info("Lead update received for dealer: " + product_dealer_id)
-        logger.info(f"Lead body: {lead_xml_body}")
         save_raw_lead(str(lead_xml_body), product_dealer_id)
 
         return {
