@@ -143,10 +143,6 @@ Resources:
                 Action:
                   - "s3:PutObject"
                   - "s3:DeleteObject"
-                Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
-              - Effect: "Allow"
-                Action:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
