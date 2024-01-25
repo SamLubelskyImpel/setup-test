@@ -82,6 +82,9 @@ def update_lead_salespersons(lead_id, dealer_partner_id, new_salespersons):
 
 def modify_salespersons(lead_id, dealer_partner_id, new_salespersons):
     """Modify salesperson tables for a given lead ID."""
+    if not new_salespersons:
+        return
+
     update_salespersons(lead_id, dealer_partner_id, new_salespersons)
     update_lead_salespersons(lead_id, dealer_partner_id, new_salespersons)
 

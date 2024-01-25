@@ -59,12 +59,12 @@ elif [[ $config_env == "test" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"test\" DomainSuffix=\"-test\""
+    --parameter-overrides "Environment=\"test\" DomainSuffix=\"\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "reyrey-crm-api-$env" \
+    --stack-name "crm-partner-api-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

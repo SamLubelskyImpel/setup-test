@@ -382,8 +382,73 @@ paths:
         '404':
           description: Not Found. The lead_id of the request didn't match any existing records on Impel, or the lead does not have an associated salesperson.
         '500':
+
+  /leads/crm/{crm_lead_id}:
+    get:
+      operationId: get-lead-by-crm-ids
+      summary: Retrieve a specific lead by CRM Lead ID and CRM Dealer ID
+      #{{RETRIEVE_LEAD_BY_CRM_IDS_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/crmLeadId"
+        - "$ref": "#/components/parameters/crmDealerId"
+        - "$ref": "#/components/parameters/integrationPartnerName"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
+                  - type: object
+                    properties:
+                      lead_id:
+                        type: integer
+                        description: Unique lead_id in the Impel system
+                        example: 3
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
           "$ref": "#/components/responses/500"
-          
+
   /consumers:
     post:
       summary: This endpoint creates a record for a Consumer in the CRM persistence data layer. The crm_consumer_id field should only be included in the request body if the caller is creating a consumer on behalf of the CRM. Chat AI should not include this field.
@@ -1055,6 +1120,16 @@ components:
         minLength: 1
         maxLength: 50
         example: "test_dealer_id"
+    crmDealerId:
+      name: crm_dealer_id
+      in: query
+      description: Uniqely identifies a dealer in the CRM.
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 50
+        example: "test_crm_dealer_id"
     integrationPartnerName:
       name: integration_partner_name
       in: query
@@ -1070,6 +1145,14 @@ components:
       description: Impel Lead ID for which details are to be retrieved or updated.
       schema:
         type: integer
+    crmLeadId:
+      name: crm_lead_id
+      in: path
+      required: true
+      description: CRM Lead ID for which details are to be retrieved or updated.
+      schema:
+        type: string
+        example: "test_crm_lead_id"
     consumerId:
       name: consumer_id
       in: path

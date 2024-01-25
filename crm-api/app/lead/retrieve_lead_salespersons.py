@@ -143,13 +143,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"No lambda ARN detected for partner {partner_name}. Using salespersons from DB.")
             salespersons = get_salespersons_from_db(lead_id)
 
-        if not salespersons:
-            logger.error(f"No salespersons found for lead {lead_id}")
-            return {
-                "statusCode": 404,
-                "body": dumps({"error": "No salespersons found for the given lead."})
-            }
-
         return {
             "statusCode": 200,
             "body": dumps(salespersons)

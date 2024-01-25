@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: reyrey crm api
+Description: crm partner api
 
 Parameters:
   Environment:
@@ -54,6 +54,11 @@ Globals:
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        REYREY_PARTNER_NAME: "reyrey"
+        PARTNER_ID: "impel"
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -74,7 +79,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
         - Key: Product
-          Value: reyrey-crm-api
+          Value: crm-partner-api
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -109,6 +114,19 @@ Resources:
                   - "ec2:DescribeNetworkInterfaces"
                   - "ec2:DeleteNetworkInterface"
                 Resource: "*"
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -117,6 +135,17 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -127,10 +156,10 @@ Resources:
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
-  ReyReyCrmApiGateway:
+  CrmPartnerApiGateway:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub "reyrey-crm-api-${Environment}"
+      Name: !Sub "crm-partner-api-${Environment}"
       StageName: !Ref Environment
       Domain:
         DomainName: !If [ IsProd, 'crm.impel.io', !Sub 'crm${DomainSuffix}.testenv.impel.io' ]
@@ -145,14 +174,11 @@ Resources:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
           DefaultAuth:
-            FunctionPayloadType: REQUEST
             FunctionArn: !GetAtt Authorizer.Arn
             Identity:
               Headers:
-                - partner_id
-                - x_api_key
-              Context:
-                - resourcePath
+                - Authorization
+              ValidationExpression: ^Basic.*$
               ReauthorizeEvery: 0
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
@@ -162,7 +188,7 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: "./swagger/reyrey-crm-api-oas-interpolated.yaml"
+            Location: "./swagger/crm-partner-api-oas-interpolated.yaml"
       GatewayResponses:
         BAD_REQUEST_PARAMETERS:
           ResponseTemplates:
@@ -176,7 +202,7 @@ Resources:
           StatusCode: "401"
         ACCESS_DENIED:
           ResponseTemplates:
-            application/json: '{"message": "$context.authorizer.key"}'
+            application/json: '{"message": "$context.authorizer.integration.request.header.Authorization"}'
           StatusCode: "403"
         DEFAULT_5xx:
           ResponseTemplates:
@@ -209,7 +235,7 @@ Resources:
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-Authorizer"
+      FunctionName: !Sub "crm-partner-api-${Environment}-Authorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 120
@@ -228,11 +254,11 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/reyrey_crm*",
                 ]
 
-  CreateLead:
+  ReyReyCreateLead:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-CreateLead"
-      CodeUri: app/
+      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyCreateLead"
+      CodeUri: app/reyrey/
       Handler: create_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
@@ -240,22 +266,62 @@ Resources:
         Post:
           Type: Api
           Properties:
-            RestApiId: !Ref ReyReyCrmApiGateway
+            RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/leads
             Method: POST
+  
+  ReyReyCreateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ReyReyCreateLead
+      AlarmDescription: ReyRey Create Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReyReyUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
-  UpdateLead:
+  ReyReyUpdateLead:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "reyrey-crm-api-${Environment}-UpdateLead"
-      CodeUri: app/
+      FunctionName: !Sub "crm-partner-api-${Environment}-ReyReyUpdateLead"
+      CodeUri: app/reyrey/
       Handler: update_lead.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
       Events:
-        Put:
+        Post:
           Type: Api
           Properties:
-            RestApiId: !Ref ReyReyCrmApiGateway
+            RestApiId: !Ref CrmPartnerApiGateway
             Path: /reyrey/crm-upload/v1/lead-updates
             Method: POST
+
+  ReyReyUpdateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ReyReyUpdateLead
+      AlarmDescription: ReyRey Update Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ReyReyUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
