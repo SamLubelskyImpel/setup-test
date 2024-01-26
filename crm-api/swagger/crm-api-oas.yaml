@@ -382,6 +382,7 @@ paths:
         '404':
           description: Not Found. The lead_id of the request didn't match any existing records on Impel, or the lead does not have an associated salesperson.
         '500':
+          "$ref": "#/components/responses/500"
 
   /leads/crm/{crm_lead_id}:
     get:
