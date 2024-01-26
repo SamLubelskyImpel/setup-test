@@ -26,7 +26,7 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "REYREY"
-        PARTNER_ID: "impel"
+        UPLOAD_SECRET_KEY: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -105,17 +105,6 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-        - PolicyName: SQSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
-                Resource:
                   - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformNewLeadQueue.Arn
                   - !GetAtt TransformLeadUpdateQueue.Arn
@@ -169,47 +158,6 @@ Resources:
       FifoQueue: true
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
-  
-  SendActivityQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-SendActivityQueue.fifo"
-  
-  SendActivityDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ.fifo"
-        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
-        maxReceiveCount: 3
-  
-  SendActivityEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt SendActivityQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt SendActivity.Arn
-      
-  SendActivity:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub reyrey-${Environment}-SendActivity
-      CodeUri: app/
-      Handler: send_activity.lambda_handler
-      Timeout: 30
-      Role: !GetAtt LambdaRole.Arn
-            
-  SendActivityDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub reyrey-${Environment}-SendActivityDLQ
-      AlarmDescription: There are over 1 unprocessed messages in the ReyRey SendActivity DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
 
   TransformNewLeadDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -363,3 +311,59 @@ Resources:
           Arn: !GetAtt TransformLeadUpdateQueue.Arn
           SqsParameters:
             MessageGroupId: "TransformLeadUpdate"
+
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-SendActivityQueue.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ.fifo"
+      FifoQueue: true
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub reyrey-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub reyrey-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the ReyRey SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching

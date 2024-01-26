@@ -24,7 +24,7 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-PARTNER_ID = environ.get("PARTNER_ID")
+UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 SECRET_KEY = environ.get("SECRET_KEY")
 
@@ -70,7 +70,7 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
     headers = {
-        'partner_id': PARTNER_ID,
+        'partner_id': UPLOAD_SECRET_KEY,
         'x_api_key': crm_api_key
     }
 
@@ -92,7 +92,7 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
     headers = {
-        'partner_id': PARTNER_ID,
+        'partner_id': UPLOAD_SECRET_KEY,
         'x_api_key': crm_api_key
     }
 
@@ -143,7 +143,7 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
     headers = {
-        'partner_id': PARTNER_ID,
+        'partner_id': UPLOAD_SECRET_KEY,
         'x_api_key': crm_api_key
     }
 
@@ -195,7 +195,7 @@ def record_handler(record: SQSRecord) -> None:
         crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
         logger.info(f"CRM Dealer ID: {crm_dealer_id}")
 
-        crm_api_key = get_secret(secret_name="crm-api", secret_key=PARTNER_ID)["api_key"]
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
         identifier = record.find(".//ns:Identifier", namespaces=ns)
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
