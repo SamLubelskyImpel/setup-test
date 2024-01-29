@@ -4,6 +4,7 @@ import boto3
 import logging
 import requests
 import json
+import uuid
 import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
@@ -197,8 +198,11 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         primary_salesperson = primary_salesperson.text
         first_name = primary_salesperson.split(",")[1].strip()
         last_name = primary_salesperson.split(",")[0].strip()
+        
+        impel_salesperson_id = f"Impel_generated_{str(uuid.uuid4())}"
+
         salesperson_data = {
-            "crm_salesperson_id": primary_salesperson,
+            "crm_salesperson_id": impel_salesperson_id,
             "first_name": first_name,
             "last_name": last_name,
             "is_primary": True,
