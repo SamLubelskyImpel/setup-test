@@ -28,6 +28,7 @@ def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
     try:
         activity = loads(record['body'])
+        raise
         salesperson = crm_api.get_salesperson(activity["lead_id"])
 
         dealer_peak_api = DealerpeakApiWrapper(activity=activity, salesperson=salesperson)
@@ -39,8 +40,11 @@ def record_handler(record: SQSRecord):
 
     except CRMApiError:
         return
-    except Exception:
+    except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Dealerpeak")
+        logger.error("[TEST ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            )
         raise
 
 
