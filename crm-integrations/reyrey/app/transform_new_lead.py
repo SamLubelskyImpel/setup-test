@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
 from datetime import datetime
+from utils import send_email_notification
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
@@ -280,7 +281,11 @@ def record_handler(record: SQSRecord) -> None:
 
         send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
         logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
-
+    except EventListenerError:
+        message = f"Error sending the lead {unified_crm_lead_id} to DA"
+        logger.error(message)
+        send_email_notification(message)
+        raise
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
         raise
