@@ -100,7 +100,7 @@ def lambda_handler(event, context):
     lead_id = event["lead_id"]
     dealer_partner_id = event["dealer_integration_partner_id"]
     crm_lead_id = event["crm_lead_id"]
-    crm_dealer_id = event["crm_dealer_id"] + "12334"
+    crm_dealer_id = event["crm_dealer_id"]
 
     try:
         lead = get_lead(crm_dealer_id, crm_lead_id)
