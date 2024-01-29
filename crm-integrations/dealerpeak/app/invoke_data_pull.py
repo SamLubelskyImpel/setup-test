@@ -38,7 +38,6 @@ def get_secrets():
 
 def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     """Fetch new leads from DealerPeak CRM."""
-    raise
     api_url, username, password = get_secrets()
     auth = HTTPBasicAuth(username, password)
     dealer_group_id, location_id = crm_dealer_id.split("__")
@@ -138,7 +137,7 @@ def record_handler(record: SQSRecord):
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
-        logger.error("[TEST ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
+        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
             product_dealer_id, crm_dealer_id, start_time, end_time, e)
             )
         raise

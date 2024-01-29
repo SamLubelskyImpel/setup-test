@@ -103,10 +103,10 @@ def lambda_handler(event, context):
     crm_dealer_id = event["crm_dealer_id"] + "12334"
 
     try:
-        lead = get_lead(crm_dealer_id, crm_lead_id, event)
+        lead = get_lead(crm_dealer_id, crm_lead_id)
     except Exception as e:
         logger.error(f"Error occured calling DealerPeak APIs: {e}")
-        logger.error("[TEST ALERT] Failed to Get Status/Salesperson [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
+        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
             dealer_partner_id, lead_id, crm_dealer_id, crm_lead_id, e)
             )
         raise

@@ -5,7 +5,7 @@ from os import environ
 import zlib
 import boto3
 
-SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+REPORTING_TOPIC_ARN = environ.get("REPORTING_TOPIC_ARN")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -21,10 +21,10 @@ def decode_logs_event(logs_event):
     return logs_data
 
 
-def process_log_entry(log_entry, log_stream):
-    """Process log entry and send alert notification."""
-    # Example: "[TEST ALERT] This is a test alert. [CONTENT] Traceback (most recent call last)..."
-    log_message = log_entry.split("[TEST ALERT]")[1].strip()
+def process_support_log(log_entry, log_stream):
+    """Process support log and send alert notification."""
+    # Example: "[SUPPORT ALERT] This is a test alert. [CONTENT] Traceback (most recent call last)..."
+    log_message = log_entry.split("[SUPPORT ALERT]")[1].strip()
     alert, content = log_message.split("[CONTENT]")
 
     alert_body = content.strip() + f"\nLog Stream: {log_stream}"
@@ -41,22 +41,16 @@ def lambda_handler(event, context):
 
     log_stream = log_data['logGroup'] + '/' + log_data['logStream']
     for log in log_data['logEvents']:
-        if "[TEST ALERT]" in log['message']:
-            process_log_entry(log['message'], log_stream)
+        if "[SUPPORT ALERT]" in log['message']:
+            process_support_log(log['message'], log_stream)
 
 
-def send_alert_notification(alert_title, alert_body) -> None:
-    """Send alert notification to CE team."""
+def send_alert_notification(alert_title, alert_body, alert_type="SUPPORT ALERT") -> None:
+    """Send alert notification to Support team."""
     sns_client = boto3.client('sns')
     sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
+        TopicArn=REPORTING_TOPIC_ARN,
         Message=alert_body,
-        Subject=f'DealerPeak CRM - {alert_title}',
-        MessageStructure='string',
-        MessageAttributes={
-            'alert_type': {
-                'DataType': 'String',
-                'StringValue': 'TEST ALERT'
-            }
-        }
+        Subject=f'CRM Shared Layer Alerts: DealerPeak - {alert_title}',
+        MessageStructure='string'
     )
