@@ -4,10 +4,12 @@ import boto3
 import logging
 import requests
 import json
+import uuid
 import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
 from datetime import datetime
+from utils import send_email_notification
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
@@ -30,32 +32,33 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-# def post_and_forward_entry(
-#     entry: dict, crm_api_key: str, listener_secrets: dict, index: int
-# ) -> bool:
-#     """Process a single entry."""
-#     logger.info(f"[THREAD {index}] Processing entry {entry}")
-#     try:
-#         lead_id = upload_entry_to_db(entry=entry, api_key=crm_api_key, index=index)
-#         data = {
-#             "message": "New Lead available from CRM API",
-#             "lead_id": lead_id,
-#         }
-#         logger.info(f"[THREAD {index}] Sending data to DA Event Listener: {data}")
-#         send_to_event_listener(
-#             data=data, listener_secrets=listener_secrets, index=index
-#         )
-#     except EventListenerError as e:
-#         send_alert_notification(e, lead_id)
-#     except Exception as e:
-#         if "409" in str(e):
-#             # Log the 409 error and continue with the next entry
-#             logger.warning(f"[THREAD {index}] {e}")
-#         else:
-#             logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
-#             return False
+class EventListenerError(Exception):
+    pass
 
-#     return True
+
+def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
+    """Send notification to DA Event listener."""
+    try:
+        data = {
+            "message": "New Lead available from CRM API",
+            "lead_id": lead_id,
+        }
+        response = requests.post(
+            url=listener_secrets["API_URL"],
+            headers={"Authorization": listener_secrets["API_TOKEN"]},
+            json=data,
+            timeout=30,
+        )
+        logger.info(f"DA Event Listener responded with status: {response.status_code}")
+        response.raise_for_status()
+
+    except requests.exceptions.Timeout:
+        logger.error(
+            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
+        )
+    except Exception as e:
+        logger.error("Error occurred calling DA Event Listener: {e}")
+        raise EventListenerError
 
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
@@ -96,23 +99,42 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def convert_time_format(original_time):
-        """Convert the time format from 'Last, First 6/16/2021 1:44 PM' to '2021-06-16T13:44:00Z'"""
-        # Split the name and date/time parts
-        first_name, last_name, date_time_str = original_time.split(" ", 2)
+        """Convert the time format from 'Lead 2024-01-18T10:56:59' to '2021-06-16T13:44:00Z'"""
 
-        # Parse the date and time into a datetime object
-        date_time_obj = datetime.strptime(date_time_str, "%m/%d/%Y %I:%M %p")
+        # IMPORTANT
+        # Previous provided example had the 'Last, First 6/16/2021 1:44 PM' time format, in the new example the time format is 'Lead 2024-01-18T10:56:59'
+        # Commenting out the previous parser and adding the new one to support the new format
 
-        # Format the datetime object into the desired format
-        formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        # # Split the name and date/time parts
+        # print(f"\n\n{original_time}\n\n")
+        # first_name, last_name, date_time_str = original_time.split(" ", 2)
+
+        # # Parse the date and time into a datetime object
+        # date_time_obj = datetime.strptime(date_time_str, "%m/%d/%Y %I:%M %p")
+
+        # # Format the datetime object into the desired format
+        # formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        formatted_time = original_time.split(" ")[1] + "Z"
 
         return formatted_time
 
     def map_status(status: str) -> str:
-        # TODO take the mapping config from the S3 bucket.
-        # response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json")
+        """Map the initial ReyRey status to the Unified Layer status."""
+        response = s3_client.get_object(
+            Bucket=INTEGRATIONS_BUCKET,
+            Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
+        )
+        config = json.loads(response["Body"].read())
+        status_map = config["initial_status_map"]
+        unified_layer_status = status_map.get(status, None)
 
-        return None
+        if not unified_layer_status:
+            logger.error(
+                f"Error mapping status: {status}, status not found in the status map"
+            )
+
+        return unified_layer_status
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
@@ -133,7 +155,8 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     # Extract Vehicle of Interest fields
     vin = root.find(".//star:DesiredVehicle/star:Vin", namespace).text
-    stock_id = root.find(".//star:DesiredVehicle/star:StockId", namespace).text
+    stock_id = root.find(".//star:DesiredVehicle/star:StockId", namespace)
+    stock_id = stock_id.text if stock_id is not None else None
     vehicle_make = root.find(".//star:DesiredVehicle/star:VehicleMake", namespace).text
     vehicle_model = root.find(
         ".//star:DesiredVehicle/star:VehicleModel", namespace
@@ -169,22 +192,28 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     # Extract Salesperson fields, primary salesperson format: "Last, First"
     primary_salesperson = root.find(
         ".//star:Record/star:Prospect/star:PrimarySalesPerson", namespace
-    ).text
-    first_name = primary_salesperson.split(",")[1].strip()
-    last_name = primary_salesperson.split(",")[0].strip()
-    salesperson_data = {
-        "crm_salesperson_id": primary_salesperson,
-        "first_name": first_name,
-        "last_name": last_name,
-        "is_primary": True,
-        "position_name": "Primary Salesperson",
-        "email": None,
-        "phone": None,
-    }
+    )
+    salesperson_data = None
+    if primary_salesperson is not None:
+        primary_salesperson = primary_salesperson.text
+        first_name = primary_salesperson.split(",")[1].strip()
+        last_name = primary_salesperson.split(",")[0].strip()
+        
+        impel_salesperson_id = f"Impel_generated_{str(uuid.uuid4())}"
+
+        salesperson_data = {
+            "crm_salesperson_id": impel_salesperson_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            "is_primary": True,
+            "position_name": "Primary Salesperson",
+            "email": None,
+            "phone": None,
+        }
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
-    prospect_data["salespersons"] = [salesperson_data]
+    prospect_data["salespersons"] = [salesperson_data] if salesperson_data else []
 
     return prospect_data
 
@@ -211,6 +240,7 @@ def record_handler(record: SQSRecord) -> None:
 
         # Extract consumer data and write it to the Unified Layer
         consumer = extract_consumer(root, namespace)
+        logger.info(f"Consumer data to send: {consumer}")
         response = requests.post(
             f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
             json=consumer,
@@ -253,6 +283,13 @@ def record_handler(record: SQSRecord) -> None:
             secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
         )
 
+        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
+        logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
+    except EventListenerError:
+        message = f"Error sending the lead {unified_crm_lead_id} to DA"
+        logger.error(message)
+        send_email_notification(message)
+        raise
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
         raise
