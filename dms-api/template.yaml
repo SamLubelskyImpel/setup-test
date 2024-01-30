@@ -218,7 +218,7 @@ Resources:
       Handler: create_dealer_inbound.lambda_handler
       Timeout: 30
       Events:
-        Get:
+        Post:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway

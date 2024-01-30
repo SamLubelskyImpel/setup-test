@@ -106,7 +106,7 @@ paths:
           description: This request is unauthorized.
         '500':
           description: Internal Server Error. Please contact Impel support.
-        #{{CREATE_DEALER_LAMBDA_INFO}} 
+      #{{CREATE_DEALER_LAMBDA_INFO}} 
   /repair-order/v1:
     get:
       summary: Get DMS repair order data.
