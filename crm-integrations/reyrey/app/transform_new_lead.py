@@ -5,6 +5,7 @@ import logging
 import requests
 import json
 import uuid
+import re
 import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
@@ -99,25 +100,17 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def convert_time_format(original_time):
-        """Convert the time format from 'Lead 2024-01-18T10:56:59' to '2021-06-16T13:44:00Z'"""
+        """Try to extract time from the XML if it is like this: 2023-12-31T12:00:00 otherwise use current time."""
+        pattern = r'\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b'
+        matches = re.findall(pattern, original_time)
 
-        # IMPORTANT
-        # Previous provided example had the 'Last, First 6/16/2021 1:44 PM' time format, in the new example the time format is 'Lead 2024-01-18T10:56:59'
-        # Commenting out the previous parser and adding the new one to support the new format
+        if len(matches) > 0:
+            formatted_time = matches[0]
+        else:
+            current_time = datetime.now()
+            formatted_time = current_time.strftime("%Y-%m-%dT%H:%M:%S")
 
-        # # Split the name and date/time parts
-        # print(f"\n\n{original_time}\n\n")
-        # first_name, last_name, date_time_str = original_time.split(" ", 2)
-
-        # # Parse the date and time into a datetime object
-        # date_time_obj = datetime.strptime(date_time_str, "%m/%d/%Y %I:%M %p")
-
-        # # Format the datetime object into the desired format
-        # formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        formatted_time = original_time.split(" ")[1] + "Z"
-
-        return formatted_time
+        return formatted_time + "Z"
 
     def map_status(status: str) -> str:
         """Map the initial ReyRey status to the Unified Layer status."""
