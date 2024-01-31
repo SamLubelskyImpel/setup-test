@@ -25,6 +25,7 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 PARTNER_ID = environ.get("PARTNER_ID")
+UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -191,11 +192,9 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         primary_salesperson = primary_salesperson.text
         first_name = primary_salesperson.split(",")[1].strip()
         last_name = primary_salesperson.split(",")[0].strip()
-        
-        impel_salesperson_id = f"Impel_generated_{str(uuid.uuid4())}"
 
         salesperson_data = {
-            "crm_salesperson_id": impel_salesperson_id,
+            "crm_salesperson_id": f"{last_name}, {first_name}",
             "first_name": first_name,
             "last_name": last_name,
             "is_primary": True,
@@ -224,7 +223,7 @@ def record_handler(record: SQSRecord) -> None:
         content = response["Body"].read()
         xml_data = content
         logger.info(f"Raw data: {xml_data}")
-        crm_api_key = get_secret(secret_name="crm-api", secret_key=PARTNER_ID)[
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)[
             "api_key"
         ]
 
@@ -239,7 +238,7 @@ def record_handler(record: SQSRecord) -> None:
             json=consumer,
             headers={
                 "x_api_key": crm_api_key,
-                "partner_id": PARTNER_ID,
+                "partner_id": UPLOAD_SECRET_KEY,
             },
         )
         logger.info(
@@ -260,7 +259,7 @@ def record_handler(record: SQSRecord) -> None:
         response = requests.post(
             f"https://{CRM_API_DOMAIN}/leads",
             json=lead,
-            headers={"x_api_key": crm_api_key, "partner_id": PARTNER_ID},
+            headers={"x_api_key": crm_api_key, "partner_id": UPLOAD_SECRET_KEY},
         )
         logger.info(
             f"Response from Unified Layer Create Lead {response.status_code} {response.text}"

@@ -9,7 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
-CRM_API_URL = environ.get("CRM_API_URL")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 ENVIRONMENT = environ.get("ENVIRONMENT")
 PARTNER_ID = environ.get("PARTNER_ID")
 
@@ -47,7 +47,7 @@ def get_dealers(integration_partner_name: str) -> Any:
     """Get dealers from CRM API."""
     api_key = get_secrets()
     response = requests.get(
-        url=f"{CRM_API_URL}dealers",
+        url=f"https://{CRM_API_DOMAIN}/dealers",
         headers={"partner_id": PARTNER_ID, "x_api_key": api_key},
         params={"integration_partner_name": integration_partner_name},
     )

@@ -84,7 +84,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         activity_type = body["activity_type"].lower()
         activity_due_ts = body.get("activity_due_ts")
         activity_requested_ts = body["activity_requested_ts"]
+        utc_offset = body["utc_offset"]
         notes = body.get("notes", "")
+        contact_method = body.get("contact_method")
 
         validate_activity_body(activity_type, activity_due_ts, activity_requested_ts, notes)
 
@@ -113,7 +115,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 activity_due_ts=activity_due_ts,
                 activity_requested_ts=activity_requested_ts,
                 request_product=request_product,
-                notes=notes
+                notes=notes,
+                contact_method=contact_method,
+                metadata_={"utc_offset": utc_offset}
             )
 
             session.add(activity)
@@ -138,8 +142,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "notes": activity.notes,
                 "activity_due_ts": activity_due_ts,
                 "activity_requested_ts": activity_requested_ts,
+                "utc_offset": utc_offset,
                 "activity_type": activity.activity_type.type,
+                "contact_method": activity.contact_method,
             }
+
+            logger.info(f"Payload to CRM: {dumps(payload)}")
 
             create_on_crm(partner_name=partner_name, payload=payload)
 
