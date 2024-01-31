@@ -163,7 +163,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       State: !If [ IsProd, ENABLED, DISABLED ]
-      ScheduleExpression: rate(12 hours)
+      ScheduleExpression: cron(0 12,0 * * ? *)
       Description: Runs CRM alerting semi-daily
       Targets:
         - Id: CRMSemiDailyAlertFunctionTarget
