@@ -230,6 +230,7 @@ Resources:
   CESnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      Endpoint: !If [IsProd, 'impel_alert_client_engineering@impel.io', 'srwoods@impel.ai']
+      Endpoint: !If [IsProd, 'impel_alert_client_engineering@impel.io', 'srwoods@impel.io']
       Protocol: email
       TopicArn: !Ref CRMReportingSnsTopic
+      FilterPolicy: '{"alert_type": ["client_engineering"]}'

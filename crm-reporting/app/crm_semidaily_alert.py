@@ -103,7 +103,13 @@ def alert_topic(dealerlist, data_type):
     SNS_CLIENT.publish(
             TopicArn=SNS_TOPIC_ARN,
             Subject="CRM Shared Layer Alerts: Missing Data for 12 Hours",
-            Message=message
+            Message=message,
+            MessageAttributes={
+                "alert_type": {
+                    "DataType": "String",
+                    "StringValue": "client_engineering"
+                }
+            }
         )
 
 
