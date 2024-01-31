@@ -97,7 +97,7 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     )
 
 
-def extract_crm_dealer_id(lead_xml_body: str) -> str:
+def extract_crm_ids(lead_xml_body: str) -> str:
     """Extract CRM dealer ID from incoming xml."""
     try:
         root = ET.fromstring(lead_xml_body)
@@ -109,11 +109,17 @@ def extract_crm_dealer_id(lead_xml_body: str) -> str:
         area_number = root.find(".//star:AreaNumber", namespace).text
 
         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+        
+        record = root.find(".//ns:Record", namespaces=namespace)
+        identifier = record.find(".//ns:Identifier", namespaces=namespace)
+        crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=namespace).text
+        logger.info(f"CRM Lead ID: {crm_lead_id}")
+
     except Exception as e:
         logger.error(f"Error parsing XML: {e}")
         raise
 
-    return concatenated_dealer_id
+    return concatenated_dealer_id, crm_lead_id
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -124,7 +130,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         lead_xml_body = event["body"]
         reyrey_dealer_list = get_dealers("REYREY")
-        crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
+        crm_dealer_id, crm_lead_id = extract_crm_ids(lead_xml_body)
 
         product_dealer_id = None
         for dealer in reyrey_dealer_list:
@@ -157,6 +163,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
     except Exception as e:
         logger.error(f"Error getting ReyRey lead update: {str(e)}")
+        logger.error("[SUPPORT ALERT] Failed to Get New ReyRey Lead [CONTENT] ProductDealerId: {}\nCRMDealerId: {}\nCRMLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
+            )
         error_message = "Internal Server Error. Please contact Impel support."
         soap_response = create_soap_response(error_message)
         return {
