@@ -15,10 +15,11 @@ is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 def _lambda_handler(event, context):
     """Take in the API_KEY/client_id pair sent to our API Gateway and verifies against secrets manager."""
     logger.info(event)
-
     method_arn = event["methodArn"]
-    client_id = event["headers"]["client_id"]
-    api_key = event["headers"]["x_api_key"]
+
+    headers = {k.lower(): v for k, v in event['headers'].items()}
+    client_id = headers.get('client_id')
+    api_key = headers.get('x_api_key')    
 
     SM_CLIENT = boto3.client("secretsmanager")
 
