@@ -117,7 +117,7 @@ Resources:
         WaitOnResourceSignals: true
     Properties:
       HealthCheckGracePeriod: 300
-      HealthCheckType: EC2
+      HealthCheckType: ELB
       MinSize: !If [ IsProd, '2', '1' ]
       MaxSize: !If [ IsProd, '6', '2' ]
       LaunchTemplate:
