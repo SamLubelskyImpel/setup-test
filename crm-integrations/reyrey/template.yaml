@@ -148,7 +148,7 @@ Resources:
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
         maxReceiveCount: 3
         
   TransformNewLeadDeadLetterQueue:
