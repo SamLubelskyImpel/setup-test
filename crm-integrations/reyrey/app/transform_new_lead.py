@@ -106,8 +106,8 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
             for note in notes:
                 if "Best Time" not in note.text:
                     return note.text 
-            # If no note without "Best Time" is found, return empty string, it will be changed by the DA anyway.
-            return ""
+            # If no note without "Best Time" is found, return first note.
+            return notes[0].text
         else:
             return ""
 
