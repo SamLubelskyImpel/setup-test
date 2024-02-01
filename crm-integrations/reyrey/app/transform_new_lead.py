@@ -36,6 +36,15 @@ s3_client = boto3.client("s3")
 class EventListenerError(Exception):
     pass
 
+class LeadExistsException(Exception):
+    pass
+
+class ConsumerCreationException(Exception):
+    pass
+
+class LeadCreationException(Exception):
+    pass
+
 
 def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
     """Send notification to DA Event listener."""
@@ -58,7 +67,7 @@ def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
             f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
         )
     except Exception as e:
-        logger.error("Error occurred calling DA Event Listener: {e}")
+        logger.error(f"Error occurred calling DA Event Listener: {e}")
         raise EventListenerError
 
 
@@ -73,9 +82,15 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     return secret_data
 
 
+def get_text(element, path, namespace):
+    """Get the text of the element if it's present."""
+    found_element = element.find(path, namespace)
+    return found_element.text if found_element is not None else None
+
+
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
-    name_rec_id = root.find(".//star:NameRecId", namespace).text
+    name_rec_id = get_text(root, ".//star:NameRecId", namespace)
     first_name = root.find(".//star:FirstName", namespace).text
     last_name = root.find(".//star:LastName", namespace).text
     email_mail_to = root.find(".//star:Email/star:MailTo", namespace).text
@@ -90,8 +105,8 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
         "last_name": last_name,
         "email": email_mail_to,
         "phone": phone_num,
-        "email_optin_flag": True if consent_email == "Y" else False,
-        "sms_optin_flag": True if consent_text == "Y" else False,
+        "email_optin_flag": False if consent_email == "N" else True,
+        "sms_optin_flag": False if consent_text == "N" else True,
     }
     return extracted_data
 
@@ -219,6 +234,102 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     return prospect_data
 
 
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+    """Check if lead exists through CRM API."""
+    queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
+    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    response = requests.get(url, headers=headers)
+    logger.info(f"CRM API Get Lead responded with: {response.status_code}")
+
+    if response.status_code == 200:
+        response_data = response.json()
+        lead_id = response_data.get('lead_id')
+        return lead_id
+    elif response.status_code == 404:
+        logger.info(f"Lead with crm_lead_id {crm_lead_id} not found.")
+        return None
+    else:
+        logger.error(f"Error getting lead with crm_lead_id {crm_lead_id}: {response.text}")
+        raise
+
+
+def get_crm_dealer_id(root: ET.Element, ns: Any) -> str:
+    application_area = root.find(".//star:ApplicationArea", namespaces=ns)
+
+    dealer_number = None
+    store_number = None
+    area_number = None
+    if application_area is not None:
+        sender = application_area.find(".//star:Sender", namespaces=ns)
+        if sender is not None:
+            dealer_number = sender.find(".//star:DealerNumber", namespaces=ns).text
+            store_number = sender.find(".//star:StoreNumber", namespaces=ns).text
+            area_number = sender.find(".//star:AreaNumber", namespaces=ns).text
+
+    crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+    return crm_dealer_id
+
+
+def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Element, namespace: dict, product_dealer_id: str, crm_api_key: str) -> Any:
+    """Create a new consumer in the Unified Layer."""
+
+    # If the CRM consumer ID is not present, check whether the lead exists in the Unified Layer. If it does, throw an error; otherwise, create a new consumer.
+    if consumer["crm_consumer_id"] is None:
+        crm_lead_id = lead["crm_lead_id"]
+        crm_dealer_id = get_crm_dealer_id(root, namespace)
+        lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
+        if lead:
+            logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+            raise LeadExistsException(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+
+    logger.info(f"Consumer data to send: {consumer}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
+        json=consumer,
+        headers={
+            "x_api_key": crm_api_key,
+            "partner_id": UPLOAD_SECRET_KEY,
+        },
+    )
+    logger.info(
+        f"Response from Unified Layer Create Customer {response.status_code} {response.text}",
+    )
+
+    unified_crm_consumer_id = response.json().get("consumer_id")
+
+    if not unified_crm_consumer_id:
+        logger.error(f"Error creating the consumer: {consumer}")
+        raise ConsumerCreationException(f"Error creating consumer: {consumer}")
+
+    return unified_crm_consumer_id
+
+
+def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product_dealer_id: str) -> Any:
+    """Create a new lead in the Unified Layer."""
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/leads",
+        json=lead,
+        headers={"x_api_key": crm_api_key, "partner_id": UPLOAD_SECRET_KEY},
+    )
+    logger.info(
+        f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
+    )
+
+    unified_crm_lead_id = response.json().get("lead_id")
+
+    if not unified_crm_lead_id:
+        logger.error(f"Error creating lead: {lead}")
+        raise LeadCreationException(f"Error creating lead: {lead}")
+
+    return unified_crm_lead_id
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -227,7 +338,6 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split("/")[2]
-
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response["Body"].read()
         xml_data = content
@@ -239,46 +349,15 @@ def record_handler(record: SQSRecord) -> None:
         root = ET.fromstring(xml_data)
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
-        # Extract consumer data and write it to the Unified Layer
         consumer = extract_consumer(root, namespace)
-        logger.info(f"Consumer data to send: {consumer}")
-        response = requests.post(
-            f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
-            json=consumer,
-            headers={
-                "x_api_key": crm_api_key,
-                "partner_id": UPLOAD_SECRET_KEY,
-            },
-        )
-        logger.info(
-            f"Response from Unified Layer Create Customer {response.status_code} {response.text}",
-        )
-
-        unified_crm_consumer_id = response.json().get("consumer_id")
-
-        if not unified_crm_consumer_id:
-            logger.error(f"Error creating consumer: {consumer}")
-            raise Exception(f"Error creating consumer")
-
-        # Extract lead data and write it to the Unified Layer, using the received consumer_id assigned by the layer
         lead = extract_lead(root, namespace)
+        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
+
+        # Write new lead to the Unified Layer, using the consumer_id that was just created
         lead["consumer_id"] = unified_crm_consumer_id
         logger.info(f"Lead data to send: {lead}")
 
-        response = requests.post(
-            f"https://{CRM_API_DOMAIN}/leads",
-            json=lead,
-            headers={"x_api_key": crm_api_key, "partner_id": UPLOAD_SECRET_KEY},
-        )
-        logger.info(
-            f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
-        )
-
-        unified_crm_lead_id = response.json().get("lead_id")
-
-        if not unified_crm_lead_id:
-            logger.error(f"Error creating lead: {lead}")
-            raise Exception("Error creating lead")
+        unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
 
         event_listener_secrets = get_secret(
             secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
@@ -290,6 +369,12 @@ def record_handler(record: SQSRecord) -> None:
         message = f"Error sending the lead {unified_crm_lead_id} to DA"
         logger.error(message)
         send_email_notification(message)
+        raise
+    except ConsumerCreationException:
+        raise
+    except LeadExistsException:
+        raise
+    except LeadCreationException:
         raise
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
