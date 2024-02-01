@@ -167,7 +167,7 @@ Resources:
       ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
         maxReceiveCount: 3
         
   TransformNewLeadDeadLetterQueue:
@@ -410,7 +410,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformNewLead"
+      LogGroupName: !Sub "/aws/lambda/reyrey-test-TransformNewLead"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -420,7 +420,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformLeadUpdate"
+      LogGroupName: !Sub "/aws/lambda/reyrey-test-TransformLeadUpdate"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -430,6 +430,6 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
+      LogGroupName: !Sub "/aws/lambda/reyrey-test-SendActivity"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
