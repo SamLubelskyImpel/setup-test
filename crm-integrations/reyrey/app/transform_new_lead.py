@@ -100,9 +100,23 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
 def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
-    def convert_time_format(original_time):
-        """Try to extract time from the XML if it is like this: 2023-12-31T12:00:00 otherwise use current time."""
-        pattern = r'\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b'
+    def extract_note(notes: list) -> str:
+        """Extract note which contains actual lead comment."""
+        if len(notes) > 0:
+            for note in notes:
+                if "Best Time" not in note.text:
+                    return note.text 
+            # If no note without "Best Time" is found, return empty string, it will be changed by the DA anyway.
+            return ""
+        else:
+            return ""
+
+    def convert_time_format(original_time: str, metadata: dict) -> tuple[str, dict]:
+        """
+        Try to extract time from the XML if it is like this: 2023-12-31T12:00:00 otherwise use current time.
+        If the current time has been used, add original time to the metadata.
+        """
+        pattern = r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b"
         matches = re.findall(pattern, original_time)
 
         if len(matches) > 0:
@@ -110,10 +124,11 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         else:
             current_time = datetime.now()
             formatted_time = current_time.strftime("%Y-%m-%dT%H:%M:%S")
+            metadata["original_lead_insert_time"] = original_time
 
-        return formatted_time + "Z"
+        return formatted_time + "Z", metadata
 
-    def map_status(status: str) -> str:
+    def map_status(status: str, metadata: dict) -> tuple[str, dict]:
         """Map the initial ReyRey status to the Unified Layer status."""
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
@@ -122,25 +137,30 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         config = json.loads(response["Body"].read())
         status_map = config["initial_status_map"]
         unified_layer_status = status_map.get(status, None)
+        metadata["original_status"] = status
 
         if not unified_layer_status:
             logger.error(
                 f"Error mapping status: {status}, status not found in the status map"
             )
 
-        return unified_layer_status
+        return unified_layer_status, metadata
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = root.find(".//star:InsertedBy", namespace).text
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
-    prospect_note = root.find(".//star:ProspectNote", namespace).text
+    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace)) 
     prospect_type = root.find(".//star:ProspectType", namespace).text
+    metadata = {}
+
+    lead_ts, metadata = convert_time_format(inserted_by, metadata)
+    lead_status, metadata = map_status(prospect_status_type, metadata)
 
     prospect_data = {
         "crm_lead_id": prospect_id,
-        "lead_ts": convert_time_format(inserted_by),
-        "lead_status": map_status(prospect_status_type),
+        "lead_ts": lead_ts,
+        "lead_status": lead_status,
         "lead_substatus": None,
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,
@@ -206,6 +226,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
     prospect_data["salespersons"] = [salesperson_data] if salesperson_data else []
+    prospect_data["metadata"] = metadata
 
     return prospect_data
 
