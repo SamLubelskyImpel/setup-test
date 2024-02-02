@@ -126,9 +126,8 @@ def process_salespersons(response_data, new_salesperson):
 
 def create_or_update_salesperson(new_salesperson):
     first_name, last_name = new_salesperson.split()
-    guid = str(uuid.uuid4())
     return {
-        "crm_salesperson_id": f"Impel_generated_{guid}",
+        "crm_salesperson_id": f"{last_name}, {first_name}",
         "first_name": first_name,
         "last_name": last_name,
         "email": "",
@@ -222,7 +221,8 @@ def record_handler(record: SQSRecord) -> None:
 
         salespersons = {}
         # update salesperson data if new salesperson is assigned
-        if event_id == "29" or event_id == "30":
+        # TODO: add logic to event id 29 once it's finalized
+        if event_id == "30":
             new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)
             if new_salesperson is not None:
                 new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
