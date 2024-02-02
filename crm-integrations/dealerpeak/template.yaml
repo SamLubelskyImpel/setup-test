@@ -143,6 +143,11 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
+  
+  InvokeDataPullLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Invoke"
 
   InvokeDataPullErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -220,6 +225,11 @@ Resources:
       Timeout: 60
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
+    
+  TransformDealerpeakDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-TransformData"
 
   TransformDealerpeakDataEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -314,6 +324,11 @@ Resources:
       Handler: lead_updates.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+  
+  GetLeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-LeadUpdates"
 
   GetLeadUpdatesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -370,6 +385,11 @@ Resources:
       Handler: send_activity.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-SendActivity"
             
   SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -400,6 +420,11 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
   
+  MonitoringDealerpeakLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Monitoring"
+  
   LogGroupInvokeLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -413,8 +438,9 @@ Resources:
     DependsOn:
       - LogGroupInvokeLambdaPermission
       - MonitoringDealerpeak
+      - InvokeDataPullLogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Invoke"
+      LogGroupName: !Ref InvokeDataPullLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
       FilterPattern: "SUPPORT ALERT"
   
@@ -423,8 +449,9 @@ Resources:
     DependsOn:
       - LogGroupInvokeLambdaPermission
       - MonitoringDealerpeak
+      - GetLeadUpdatesLogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-LeadUpdates"
+      LogGroupName: !Ref GetLeadUpdatesLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -433,7 +460,8 @@ Resources:
     DependsOn:
       - LogGroupInvokeLambdaPermission
       - MonitoringDealerpeak
+      - SendActivityLogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-SendActivity"
+      LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
       FilterPattern: "SUPPORT ALERT"
