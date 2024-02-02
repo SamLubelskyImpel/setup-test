@@ -144,7 +144,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 db_vehicle = {}
                 db_vehicle["crm_vehicle_id"] = vehicle.get('carID')
                 db_vehicle["vin"] = vehicle.get('vin')
-                db_vehicle["year"] = int(vehicle.get('year'))
+                if vehicle.get('year'):  # If year is not present, None type cannot be converted to int.
+                    db_vehicle["year"] = int(vehicle.get('year'))
                 db_vehicle["make"] = vehicle.get('make')
                 db_vehicle["model"] = vehicle.get('model')
 
