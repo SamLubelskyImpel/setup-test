@@ -92,12 +92,12 @@ def get_text(element, path, namespace):
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
     name_rec_id = get_text(root, ".//star:NameRecId", namespace)
-    first_name = root.find(".//star:FirstName", namespace).text
-    last_name = root.find(".//star:LastName", namespace).text
+    first_name = get_text(root, ".//star:FirstName", namespace)
+    last_name = get_text(root, ".//star:LastName", namespace)
     email_mail_to = root.find(".//star:Email/star:MailTo", namespace).text
     phone_num = root.find(".//star:PhoneNumbers/star:Phone/star:Num", namespace).text
-    consent_email = root.find(".//star:Consent/star:Email", namespace).text
-    consent_text = root.find(".//star:Consent/star:Text", namespace).text
+    consent_email = get_text(root, ".//star:Consent/star:Email", namespace)
+    consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
 
     # Assemble the payload for the CRM API
     extracted_data = {
@@ -183,18 +183,17 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     }
 
     # Extract Vehicle of Interest fields
-    vin = root.find(".//star:DesiredVehicle/star:Vin", namespace).text
-    stock_id = root.find(".//star:DesiredVehicle/star:StockId", namespace)
-    stock_id = stock_id.text if stock_id is not None else None
-    vehicle_make = root.find(".//star:DesiredVehicle/star:VehicleMake", namespace).text
-    vehicle_model = root.find(
-        ".//star:DesiredVehicle/star:VehicleModel", namespace
-    ).text
-    vehicle_year = root.find(".//star:DesiredVehicle/star:VehicleYear", namespace).text
-    vehicle_style = root.find(
-        ".//star:DesiredVehicle/star:VehicleStyle", namespace
-    ).text
-    stock_type = root.find(".//star:DesiredVehicle/star:StockType", namespace).text
+    vin = get_text(root, ".//star:DesiredVehicle/star:Vin", namespace)
+    stock_id = get_text(root, ".//star:DesiredVehicle/star:StockId", namespace)
+    vehicle_make = get_text(root, ".//star:DesiredVehicle/star:VehicleMake", namespace)
+    vehicle_model = get_text(root, ".//star:DesiredVehicle/star:VehicleModel", namespace)
+    vehicle_year = get_text(root, ".//star:DesiredVehicle/star:VehicleYear", namespace)
+    vehicle_style = get_text(root, ".//star:DesiredVehicle/star:VehicleStyle", namespace)
+    stock_type = get_text(root, ".//star:DesiredVehicle/star:StockType", namespace)
+
+    if not vin and (not vehicle_year or not vehicle_make or not vehicle_model):
+        logger.error(f"Error creating lead with crm_lead_id: {prospect_id}. Either VIN must be provided or all of Year, Make, and Model must not be None or empty.")
+        raise LeadCreationException(f"Error creating lead with crm_lead_id: {prospect_id}. Either VIN must be provided or all of Year, Make, and Model must not be None or empty.")
 
     vehicle_of_interest_data = {
         "vin": vin,
