@@ -215,6 +215,11 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
   
+  TransformNewLeadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformNewLead"
+
   EventBridgeRuleNewLead:
     Type: AWS::Events::Rule
     Properties:
@@ -310,6 +315,11 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRuleUpdateLead.Arn
 
+  TransformLeadUpdateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformLeadUpdate"
+
   EventBridgeRuleUpdateLead:
     Type: AWS::Events::Rule
     Properties:
@@ -387,6 +397,11 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
+
   MonitoringReyRey:
     Type: AWS::Serverless::Function
     Properties:
@@ -410,7 +425,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-test-TransformNewLead"
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformNewLead"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -420,7 +435,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-test-TransformLeadUpdate"
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformLeadUpdate"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -430,6 +445,6 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-test-SendActivity"
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"

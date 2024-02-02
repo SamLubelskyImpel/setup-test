@@ -239,6 +239,8 @@ def record_handler(record: SQSRecord) -> None:
         root = ET.fromstring(xml_data)
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
+        crm_dealer_id = get_crm_dealer_id(root, namespace)
+
         # Extract consumer data and write it to the Unified Layer
         consumer = extract_consumer(root, namespace)
         logger.info(f"Consumer data to send: {consumer}")
@@ -293,6 +295,9 @@ def record_handler(record: SQSRecord) -> None:
         raise
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
+            )
         raise
 
 
