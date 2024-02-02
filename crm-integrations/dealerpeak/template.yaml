@@ -30,6 +30,11 @@ Globals:
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        REPORTING_TOPIC_ARN: !If [
+            IsProd,
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+          ]
 
 Resources:
   LambdaRole:
@@ -72,6 +77,7 @@ Resources:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
                 Resource: "arn:aws:logs:*:*:*"
         - PolicyName: S3Policy
           PolicyDocument:
@@ -114,6 +120,19 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
+                    IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
 
   InvokeDataPull:
     Type: AWS::Serverless::Function
@@ -124,6 +143,11 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
+  
+  InvokeDataPullLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Invoke"
 
   InvokeDataPullErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -201,6 +225,11 @@ Resources:
       Timeout: 60
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
+    
+  TransformDealerpeakDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-TransformData"
 
   TransformDealerpeakDataEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -295,6 +324,11 @@ Resources:
       Handler: lead_updates.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+  
+  GetLeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-LeadUpdates"
 
   GetLeadUpdatesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -351,6 +385,11 @@ Resources:
       Handler: send_activity.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-SendActivity"
             
   SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -371,3 +410,58 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
+  MonitoringDealerpeak:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealerpeak-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+  
+  MonitoringDealerpeakLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Monitoring"
+  
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringDealerpeak.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+  
+  MonitoringInvokeDataPullSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealerpeak
+      - InvokeDataPullLogGroup
+    Properties:
+      LogGroupName: !Ref InvokeDataPullLogGroup
+      DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+      FilterPattern: "SUPPORT ALERT"
+  
+  MonitoringGetLeadUpdatesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealerpeak
+      - GetLeadUpdatesLogGroup
+    Properties:
+      LogGroupName: !Ref GetLeadUpdatesLogGroup
+      DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealerpeak
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+      FilterPattern: "SUPPORT ALERT"
