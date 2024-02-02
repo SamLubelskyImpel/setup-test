@@ -1,5 +1,6 @@
 """Create lead in the shared CRM layer."""
 import logging
+import pytz
 from os import environ
 from datetime import datetime
 from json import dumps, loads
@@ -8,6 +9,7 @@ from typing import Any, List
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
+from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
@@ -29,6 +31,31 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
             setattr(db_object, attr, combined_data[attr])
 
 
+def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
+    """Get the timezone of the dealer."""
+    with DBSession() as session:
+        dealer_timezone = session.query(Dealer.metadata_['timezone']).filter(
+            Dealer.id == dealer_integration_partner_id
+        ).first()
+
+        timezone = dealer_timezone[0] if dealer_timezone else "UTC"
+        logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
+        return timezone
+
+
+def convert_local_to_utc(lead_ts_local, dealer_timezone) -> Any:
+    """Convert lead local time to UTC."""
+    logger.info(f"Local time: {lead_ts_local}, Dealer timezone: {dealer_timezone}")
+    local_time_str = lead_ts_local.rstrip('Z')
+    local_time = datetime.strptime(local_time_str, '%Y-%m-%dT%H:%M:%S')
+
+    local_tz = pytz.timezone(dealer_timezone)
+    local_time = local_tz.localize(local_time)
+
+    utc_time = local_time.astimezone(pytz.utc)
+    return utc_time
+
+
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
@@ -39,6 +66,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
+        lead_ts = body.get("lead_ts")
 
         with DBSession() as session:
             consumer = session.query(
@@ -53,6 +81,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
                 }
+
+            dealer_integration_partner_id = consumer.dealer_integration_partner_id
+            dealer_timezone = get_dealer_timezone(dealer_integration_partner_id)
+            if dealer_timezone is not None or dealer_timezone != "UTC":
+                lead_ts = convert_local_to_utc(lead_ts, dealer_timezone)
 
             # Query for existing lead
             if crm_lead_id:
