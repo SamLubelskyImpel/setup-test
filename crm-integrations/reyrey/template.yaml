@@ -425,7 +425,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformNewLead"
+      LogGroupName: !Ref TransformNewLeadLogGroup
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -435,7 +435,7 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformLeadUpdate"
+      LogGroupName: !Ref TransformLeadUpdateLogGroup
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
 
@@ -445,6 +445,6 @@ Resources:
       - LogGroupInvokeLambdaPermission
       - MonitoringReyRey
     Properties:
-      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
+      LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringReyRey.Arn
       FilterPattern: "SUPPORT ALERT"
