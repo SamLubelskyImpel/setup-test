@@ -1,6 +1,7 @@
 """Create lead in the shared CRM layer."""
 import logging
 import pytz
+from dateutil import parser
 from os import environ
 from datetime import datetime
 from json import dumps, loads
@@ -43,17 +44,34 @@ def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
         return timezone
 
 
-def convert_local_to_utc(lead_ts_local, dealer_timezone) -> Any:
-    """Convert lead local time to UTC."""
-    logger.info(f"Local time: {lead_ts_local}, Dealer timezone: {dealer_timezone}")
-    local_time_str = lead_ts_local.rstrip('Z')
-    local_time = datetime.strptime(local_time_str, '%Y-%m-%dT%H:%M:%S')
+def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
+    """
+    Process an input timestamp based on whether it's in UTC, has an offset, or is local without an offset.
 
-    local_tz = pytz.timezone(dealer_timezone)
-    local_time = local_tz.localize(local_time)
+    Apply dealer_timezone if it is present.
+    """
+    try:
+        parsed_ts = parser.parse(input_ts)
 
-    utc_time = local_time.astimezone(pytz.utc)
-    return utc_time
+        # Check if the timestamp is already in UTC (ends with 'Z')
+        if parsed_ts.tzinfo is not None and parsed_ts.tzinfo.utcoffset(parsed_ts) is not None:
+            # Timestamp is either UTC or has an offset; return in ISO format
+            return parsed_ts.isoformat()
+
+        # If the timestamp is local (no 'Z' or offset) and dealer_timezone is provided
+        if dealer_timezone:
+            dealer_tz = pytz.timezone(dealer_timezone)
+            # Localize the timestamp to the dealer's timezone
+            localized_ts = dealer_tz.localize(parsed_ts)
+            return localized_ts.isoformat()
+        else:
+            # Timestamp is local without a specified dealer_timezone
+            # Returning the naive timestamp as it is
+            return parsed_ts.isoformat()
+
+    except Exception as e:
+        logger.info(f"Error processing timestamp: {input_ts}, Dealer timezone: {dealer_timezone}. Error: {e}")
+        return None
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -66,7 +84,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts")
+        lead_ts=body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
             consumer = session.query(
@@ -84,8 +102,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             dealer_integration_partner_id = consumer.dealer_integration_partner_id
             dealer_timezone = get_dealer_timezone(dealer_integration_partner_id)
-            if dealer_timezone is not None or dealer_timezone != "UTC":
-                lead_ts = convert_local_to_utc(lead_ts, dealer_timezone)
+
+            logger.info(f"Original timestamp: {lead_ts}")
+            lead_ts = process_lead_ts(lead_ts, dealer_timezone)
+            logger.info(f"Processed timestamp: {lead_ts}")
 
             # Query for existing lead
             if crm_lead_id:
@@ -113,7 +133,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 source_channel=body["lead_source"],
                 crm_lead_id=crm_lead_id,
                 request_product=request_product,
-                lead_ts=body.get("lead_ts", datetime.utcnow()),
+                lead_ts=lead_ts,
                 metadata_=body.get("metadata"),
             )
 

@@ -141,7 +141,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
             formatted_time = current_time.strftime("%Y-%m-%dT%H:%M:%S")
             metadata["original_lead_insert_time"] = original_time
 
-        return formatted_time + "Z", metadata
+        return formatted_time, metadata
 
     def map_status(status: str, metadata: dict) -> tuple[str, dict]:
         """Map the initial ReyRey status to the Unified Layer status."""
@@ -163,7 +163,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
-    inserted_by = root.find(".//star:InsertedBy", namespace).text
+    inserted_by = get_text(root, ".//star:InsertedBy", namespace)
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
     prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace)) 
     prospect_type = root.find(".//star:ProspectType", namespace).text
@@ -190,10 +190,6 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     vehicle_year = get_text(root, ".//star:DesiredVehicle/star:VehicleYear", namespace)
     vehicle_style = get_text(root, ".//star:DesiredVehicle/star:VehicleStyle", namespace)
     stock_type = get_text(root, ".//star:DesiredVehicle/star:StockType", namespace)
-
-    if not vin and (not vehicle_year or not vehicle_make or not vehicle_model):
-        logger.error(f"Error creating lead with crm_lead_id: {prospect_id}. Either VIN must be provided or all of Year, Make, and Model must not be None or empty.")
-        raise LeadCreationException(f"Error creating lead with crm_lead_id: {prospect_id}. Either VIN must be provided or all of Year, Make, and Model must not be None or empty.")
 
     vehicle_of_interest_data = {
         "vin": vin,
