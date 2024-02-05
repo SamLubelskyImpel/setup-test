@@ -70,6 +70,8 @@ def get_activity_data(cursor):
 
 def get_impel_dealer_ids_by_integration_partner_ids(cursor, ids):
     """Return Product dealer IDs based on a set of integration partner IDs sorted by integration partner."""
+    if not ids:
+        return {}
     query = f"""
         SELECT d.product_dealer_id, ip.impel_integration_partner_name
         FROM {schema}.crm_dealer_integration_partner dip
