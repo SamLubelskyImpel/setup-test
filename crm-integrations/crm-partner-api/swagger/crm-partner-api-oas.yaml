@@ -1,15 +1,13 @@
 openapi: 3.0.0
 servers:
-  - description: Impel Test Environment
-    url: https://4eg8ki6y0a.execute-api.us-east-1.amazonaws.com/test
   - description: Impel Stage Environment
     url: https://crm.testenv.impel.io
   - description: Impel Prod Environment
     url: https://crm.impel.io
 info:
   version: "1.0.0"
-  title: ReyRey CRM Integration API
-  description: This API allows ReyRey to post records for new leads and lead updates.
+  title: CRM Partner API
+  description: This API allows CRM Partners to post records for new leads and lead updates.
 security:
   - basicAuth: []
 #{{CRM_PARTNER_API_AWS_VALIDATION}}
@@ -19,8 +17,8 @@ paths:
       summary: Post ReyRey CRM new leads.
       #{{REYREY_CREATE_LEAD_LAMBDA_INFO}}
       tags:
-        - Leads
-      operationId: post-lead
+        - ReyRey
+      operationId: reyrey-post-lead
       description: |-
         This API endpoint creates a CRM lead record in the Impel system.
       requestBody:
@@ -45,8 +43,8 @@ paths:
       summary: Post ReyRey CRM lead updates.      
       #{{REYREY_UPDATE_LEAD_LAMBDA_INFO}}
       tags:
-        - Leads
-      operationId: post-lead-update
+        - ReyRey
+      operationId: reyrey-post-lead-update
       description: |-
         This API endpoint updates a CRM lead record in the Impel system.
       requestBody:
@@ -65,7 +63,57 @@ paths:
           description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
         '500':
           description: Internal Server Error. Please contact Impel support.
-
+  /momentum/crm-upload/v1/leads:
+    post:
+      summary: Post Momentum CRM new leads.
+      #{{MOMENTUM_CREATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Momentum
+      operationId: momentum-post-lead
+      description: |-
+        This API endpoint creates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MomentumLead'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+          
+  # /momentum/crm-upload/v1/lead-updates:
+  #   post:
+  #     summary: Post Momentum CRM lead updates.      
+  #     #{{MOMENTUM_UPDATE_LEAD_LAMBDA_INFO}}
+  #     tags:
+  #       - Momentum
+  #     operationId: momentum-post-lead-update
+  #     description: |-
+  #       This API endpoint updates a CRM lead record in the Impel system.
+  #     requestBody:
+  #       description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             $ref: '#/components/schemas/MomentumLead'
+  #     responses:
+  #       '200':
+  #         description: Success. 
+  #       '400':
+  #         description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+  #       '401':
+  #         description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+  #       '500':
+  #         description: Internal Server Error. Please contact Impel support.
 components:
   securitySchemes:
     basicAuth:
@@ -540,3 +588,190 @@ components:
           maxLength: 84
           minLength: 1
           example: John Doe
+    MomentumLead:
+      description: Request body for Momentum leads
+      type: object
+      required:
+        - id
+        - dealerID
+      properties:
+        id:
+          type: string
+          description: ID of the lead
+          minLength: 1
+          maxLength: 50
+          example: "D973DAF4-D0F2124-389FC"
+        dealerID:
+          type: string
+          description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        date:
+          type: string
+          format: date-time
+          description: Timestamp of the lead in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        leadStatus:
+          type: string
+          description: Status of the lead
+          minLength: 1
+          maxLength: 50
+          example: "New"
+        leadType:
+          type: string
+          description: Type of the lead
+          minLength: 1
+          maxLength: 50
+          example: "Internet"
+        comments:
+          type: string
+          description: Comment about the lead
+          minLength: 1
+          maxLength: 2048
+          example: "Does this car have a sunroof?"
+        providerType:
+          type: string
+          description: Source of the lead
+          minLength: 1
+          maxLength: 40
+          example: "Momentum lead source"
+        contactID:
+          type: string
+          description: ID of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        contactName:
+          type: string
+          description: Name of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Jane Smith"
+        bdcID:
+          type: string
+          description: ID of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        bdcName:
+          type: string
+          description: Name of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Richard Roe"
+        firstName:
+          type: string
+          description: Customer first name
+          minLength: 1
+          maxLength: 50
+          example: John
+        lastName:
+          type: string
+          description: Customer last name
+          minLength: 1
+          maxLength: 50
+          example: Doe
+        email:
+          type: string
+          format: email
+          description: Customer primary email address
+          minLength: 1
+          maxLength: 50
+          example: john.doe@example.com
+        homePhone:
+          type: string
+          description: Customer home phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        workPhone:
+          type: string
+          description: Customer work phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        cellPhone:
+          type: string
+          description: Customer cell phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        address1:
+          type: string
+          description: Customer address line 1
+          minLength: 1
+          maxLength: 255
+          example: "123 Main St, Apt 4B"
+        address2:
+          type: string
+          description: Customer address line 2
+          minLength: 1
+          maxLength: 255
+          example: "123 Main St, Apt 4B"
+        country:
+          type: string
+          description: Country where the customer resides
+          minLength: 1
+          maxLength: 100
+          example: USA
+        city:
+          type: string
+          description: City where the customer resides
+          minLength: 1
+          maxLength: 100
+          example: New York
+        zip:
+          type: string
+          description: Postal or ZIP code for the customer's address
+          minLength: 1
+          maxLength: 20
+          example: "10001"
+        vin:
+          type: string
+          description: Vehicle Identification Number
+          minLength: 1
+          maxLength: 17
+          example: "1HGBH41JXMN109186"
+        stock:
+          type: string
+          description: Vehicle stock number
+          minLength: 1
+          maxLength: 50
+          example: SN12345
+        year:
+          type: string
+          description: The sales model year of the vehicle
+          minLength: 1
+          maxLength: 10
+          example: 2023
+        make:
+          type: string
+          description: The brand or make of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: Ford
+        model:
+          type: string
+          description: The model name of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: F-150
+        color:
+          type: string
+          description: Exterior color of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: White
+        trim:
+          type: string
+          description: Trim of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: GT
+        vehicleType:
+          type: string
+          description: Condition of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: Used
