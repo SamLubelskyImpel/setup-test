@@ -630,7 +630,7 @@ components:
           minLength: 1
           maxLength: 2048
           example: "Does this car have a sunroof?"
-        providerType:
+        providerName:
           type: string
           description: Source of the lead
           minLength: 1
@@ -702,13 +702,13 @@ components:
           description: Customer address line 1
           minLength: 1
           maxLength: 255
-          example: "123 Main St, Apt 4B"
+          example: "123 Main St"
         address2:
           type: string
           description: Customer address line 2
           minLength: 1
           maxLength: 255
-          example: "123 Main St, Apt 4B"
+          example: "Apt 4B"
         country:
           type: string
           description: Country where the customer resides
