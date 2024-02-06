@@ -78,7 +78,7 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
 
     lead_obj.update({
         "consumer_id": consumer_id,
-        "vehicles_of_interest": [parsed_lead["vehicle"]],
+        "vehicles_of_interest": [parsed_lead["vehicle"]] if parsed_lead["vehicle"] else [],
         "salespersons": [parsed_lead["salesperson"]] if parsed_lead["salesperson"] else [],
     })
 
@@ -104,6 +104,16 @@ def parse_phone_number(data):
     return ''.join(char for char in phone_number if char.isdigit())
 
 
+def parse_address(data):
+    """Parse the address."""
+    add1 = data.get("address1")
+    add2 = data.get("address2")
+    if add1 and add2:
+        return f"{add1} {add2}"
+    else:
+        return add1 or add2 or None
+
+
 def parse_lead(product_dealer_id, data):
     """Parse the JSON lead data."""
     parsed_data = {}
@@ -115,7 +125,7 @@ def parse_lead(product_dealer_id, data):
             "last_name": data.get("lastName", ""),
             "email": data.get("email", ""),
             "phone": parse_phone_number(data),
-            "address": data.get("address1", "") + " " + data.get("address2", ""),
+            "address": parse_address(data),
             "city": data.get("city"),
             "country": data.get("country"),
             "postal_code": data.get("zip")
@@ -130,7 +140,7 @@ def parse_lead(product_dealer_id, data):
             "lead_status": data.get("leadStatus", ""),
             "lead_substatus": "",
             "lead_comment": data.get("comments", ""),
-            "lead_origin": data.get("providerName", ""),
+            "lead_origin": data.get("leadType", ""),
             "lead_source": data.get("providerName", ""),
         }
 
@@ -144,13 +154,11 @@ def parse_lead(product_dealer_id, data):
             "trim": data.get("trim"),
             "condition": data.get("vehicleType"),
         }
+        db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
-        sp_id = data.get("contactID")
-        sp_first, sp_last = data.get("contactName", " ").split(" ")
-        if not sp_id and not sp_first and not sp_last:
-            db_salesperson = {}
-            logger.info("No salesperson found in the lead data")
-        else:
+        if data.get("contactName") and data.get("contactID"):
+            sp_id = data.get("contactID")
+            sp_first, sp_last = data.get("contactName").split(" ")
             db_salesperson = {
                 "crm_salesperson_id": sp_id,
                 "first_name": sp_first,
@@ -158,6 +166,9 @@ def parse_lead(product_dealer_id, data):
                 "is_primary": True,
                 "position_name": "Primary Salesperson",
             }
+        else:
+            db_salesperson = {}
+            logger.info("No salesperson found in the lead data")
 
         parsed_data = {
             "product_dealer_id": product_dealer_id,
