@@ -5,6 +5,7 @@ import logging
 import requests
 import json
 import uuid
+import re
 import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
@@ -35,6 +36,12 @@ s3_client = boto3.client("s3")
 
 class EventListenerError(Exception):
     pass
+
+
+def get_text(element, path, namespace):
+    """Get the text of the element if it's present."""
+    found_element = element.find(path, namespace)
+    return found_element.text if found_element is not None else None
 
 
 def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
@@ -75,13 +82,13 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
 
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
-    name_rec_id = root.find(".//star:NameRecId", namespace).text
-    first_name = root.find(".//star:FirstName", namespace).text
-    last_name = root.find(".//star:LastName", namespace).text
+    name_rec_id = get_text(root, ".//star:NameRecId", namespace)
+    first_name = get_text(root, ".//star:FirstName", namespace)
+    last_name = get_text(root, ".//star:LastName", namespace)
     email_mail_to = root.find(".//star:Email/star:MailTo", namespace).text
     phone_num = root.find(".//star:PhoneNumbers/star:Phone/star:Num", namespace).text
-    consent_email = root.find(".//star:Consent/star:Email", namespace).text
-    consent_text = root.find(".//star:Consent/star:Text", namespace).text
+    consent_email = get_text(root, ".//star:Consent/star:Email", namespace)
+    consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
 
     # Assemble the payload for the CRM API
     extracted_data = {
@@ -99,26 +106,33 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
 def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
-    def convert_time_format(original_time):
-        """Convert the time format from 'Lead 2024-01-18T10:56:59' to '2021-06-16T13:44:00Z'"""
+    def extract_note(notes: list) -> Any:
+        """Extract note which contains actual lead comment."""
+        if len(notes) > 0:
+            for note in notes:
+                if "Best Time" not in note.text:
+                    return note.text
+            # If no note without "Best Time" is found, return first note.
+            return notes[0].text
+        else:
+            return ""
 
-        # IMPORTANT
-        # Previous provided example had the 'Last, First 6/16/2021 1:44 PM' time format, in the new example the time format is 'Lead 2024-01-18T10:56:59'
-        # Commenting out the previous parser and adding the new one to support the new format
+    def convert_time_format(original_time: str, metadata: dict) -> tuple[str, dict]:
+        """
+        Try to extract time from the XML if it is like this: 2023-12-31T12:00:00 otherwise use current time.
+        If the current time has been used, add original time to the metadata.
+        """
+        pattern = r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\b"
+        matches = re.findall(pattern, original_time)
 
-        # # Split the name and date/time parts
-        # print(f"\n\n{original_time}\n\n")
-        # first_name, last_name, date_time_str = original_time.split(" ", 2)
+        if len(matches) > 0:
+            formatted_time = matches[0]
+        else:
+            current_time = datetime.now()
+            formatted_time = current_time.strftime("%Y-%m-%dT%H:%M:%S")
+            metadata["original_lead_insert_time"] = original_time
 
-        # # Parse the date and time into a datetime object
-        # date_time_obj = datetime.strptime(date_time_str, "%m/%d/%Y %I:%M %p")
-
-        # # Format the datetime object into the desired format
-        # formatted_time = date_time_obj.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        formatted_time = original_time.split(" ")[1] + "Z"
-
-        return formatted_time
+        return formatted_time, metadata
 
     def map_status(status: str) -> str:
         """Map the initial ReyRey status to the Unified Layer status."""
@@ -139,14 +153,17 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
-    inserted_by = root.find(".//star:InsertedBy", namespace).text
+    inserted_by = get_text(root, ".//star:InsertedBy", namespace)
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
-    prospect_note = root.find(".//star:ProspectNote", namespace).text
+    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace)) 
     prospect_type = root.find(".//star:ProspectType", namespace).text
+    metadata = {}
+
+    lead_ts, metadata = convert_time_format(inserted_by, metadata)
 
     prospect_data = {
         "crm_lead_id": prospect_id,
-        "lead_ts": convert_time_format(inserted_by),
+        "lead_ts": lead_ts,
         "lead_status": map_status(prospect_status_type),
         "lead_substatus": None,
         "lead_comment": prospect_note,
@@ -155,18 +172,13 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     }
 
     # Extract Vehicle of Interest fields
-    vin = root.find(".//star:DesiredVehicle/star:Vin", namespace).text
-    stock_id = root.find(".//star:DesiredVehicle/star:StockId", namespace)
-    stock_id = stock_id.text if stock_id is not None else None
-    vehicle_make = root.find(".//star:DesiredVehicle/star:VehicleMake", namespace).text
-    vehicle_model = root.find(
-        ".//star:DesiredVehicle/star:VehicleModel", namespace
-    ).text
-    vehicle_year = root.find(".//star:DesiredVehicle/star:VehicleYear", namespace).text
-    vehicle_style = root.find(
-        ".//star:DesiredVehicle/star:VehicleStyle", namespace
-    ).text
-    stock_type = root.find(".//star:DesiredVehicle/star:StockType", namespace).text
+    vin = get_text(root, ".//star:DesiredVehicle/star:Vin", namespace)
+    stock_id = get_text(root, ".//star:DesiredVehicle/star:StockId", namespace)
+    vehicle_make = get_text(root, ".//star:DesiredVehicle/star:VehicleMake", namespace)
+    vehicle_model = get_text(root, ".//star:DesiredVehicle/star:VehicleModel", namespace)
+    vehicle_year = get_text(root, ".//star:DesiredVehicle/star:VehicleYear", namespace)
+    vehicle_style = get_text(root, ".//star:DesiredVehicle/star:VehicleStyle", namespace)
+    stock_type = get_text(root, ".//star:DesiredVehicle/star:StockType", namespace)
 
     vehicle_of_interest_data = {
         "vin": vin,
@@ -213,6 +225,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
     prospect_data["salespersons"] = [salesperson_data] if salesperson_data else []
+    prospect_data["metadata"] = metadata
 
     return prospect_data
 
