@@ -1,5 +1,8 @@
 """Create lead in the shared CRM layer."""
 import logging
+import boto3
+import json
+import requests
 from os import environ
 from datetime import datetime
 from json import dumps, loads
@@ -11,12 +14,21 @@ from crm_orm.models.consumer import Consumer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
+from utils import send_email_notification
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+ENVIRONMENT = environ.get("ENVIRONMENT")
+DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
+
+sm_client = boto3.client("secretsmanager")
+
 salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
+
+class EventListenerError(Exception):
+    pass
 
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
@@ -27,6 +39,48 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
     for attr in allowed_attrs:
         if attr in combined_data:
             setattr(db_object, attr, combined_data[attr])
+
+
+def get_secret(secret_name: Any, secret_key: Any) -> Any:
+    """Get secret from Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret = json.loads(secret["SecretString"])[str(secret_key)]
+    secret_data = json.loads(secret)
+
+    return secret_data
+
+
+def send_to_event_listener(lead_id: int) -> None:
+    """Send notification to DA Event listener."""
+    try:
+        listener_secrets = get_secret(
+            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
+        )
+
+        data = {
+            "message": "New Lead available from CRM API",
+            "lead_id": lead_id,
+        }
+        response = requests.post(
+            url=listener_secrets["API_URL"],
+            headers={"Authorization": listener_secrets["API_TOKEN"]},
+            json=data,
+            timeout=30,
+        )
+        logger.info(f"DA Event Listener responded with status: {response.status_code}")
+        response.raise_for_status()
+
+    except requests.exceptions.Timeout:
+        logger.error(
+            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
+        )
+    except Exception as e:
+        message = f"Error sending the lead {lead_id} to DA Event Listener: {e}"
+        logger.error(message)
+        send_email_notification(message)
+        raise EventListenerError
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -53,6 +107,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
                 }
+
+            integration_partner = consumer.dealer_integration_partner.integration_partner
 
             # Query for existing lead
             if crm_lead_id:
@@ -147,8 +203,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             session.commit()
             lead_id = lead.id
+            integration_partner_name = integration_partner.impel_integration_partner_name
 
         logger.info(f"Created lead {lead_id}")
+        logger.info(f"Integration partner: {integration_partner_name}")
+
+        if integration_partner_name == 'REYREY' or integration_partner_name == 'DEALERPEAK':
+            send_to_event_listener(lead_id)
+            logger.info(f"Successfully sent the lead {lead_id} to DA")
 
         return {
             "statusCode": "201",

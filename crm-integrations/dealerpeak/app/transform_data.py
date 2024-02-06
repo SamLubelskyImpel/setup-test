@@ -177,54 +177,11 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         raise
 
 
-def send_to_event_listener(data: Dict[str, Any], listener_secrets: dict, index: int) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=3
-        )
-        logger.info(f"[THREAD {index}] DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    # Event Listener should respond right away, temporarily ignoring timeout errors until DA fix.
-    except requests.exceptions.Timeout:
-        logger.info(f"[THREAD {index}] Ignoring event listener response.")
-    except Exception as e:
-        logger.error(f"[THREAD {index}] Error occurred calling DA Event Listener: {e}")
-        raise EventListenerError
-
-
-def send_alert_notification(e: Exception, lead_id: int) -> None:
-    """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred while sending data to DA Event Listener: {e}",
-        "lead_id": lead_id
-    }
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps(data)}),
-        Subject='Dealerpeak - DA Event Listener Failure Alert',
-        MessageStructure='json'
-    )
-
-
-def post_and_forward_entry(entry: dict, crm_api_key: str, listener_secrets: dict, index: int) -> bool:
+def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
         lead_id = upload_entry_to_db(entry=entry, api_key=crm_api_key, index=index)
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        logger.info(f"[THREAD {index}] Sending data to DA Event Listener: {data}")
-        send_to_event_listener(data=data, listener_secrets=listener_secrets, index=index)
-    except EventListenerError as e:
-        send_alert_notification(e, lead_id)
     except Exception as e:
         if '409' in str(e):
             # Log the 409 error and continue with the next entry
@@ -254,14 +211,13 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Transformed entries: {entries}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        event_listener_secrets = get_secret(secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY)
 
         results = []
         # Process each entry in parallel, each entry takes about 8 seconds to process.
         with ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(post_and_forward_entry,
-                                entry, crm_api_key, event_listener_secrets, idx)
+                executor.submit(post_entry,
+                                entry, crm_api_key, idx)
                 for idx, entry in enumerate(entries)
             ]
             for future in as_completed(futures):

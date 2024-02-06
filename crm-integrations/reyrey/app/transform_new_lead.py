@@ -10,7 +10,6 @@ import xml.etree.ElementTree as ET
 from os import environ
 from typing import Any, Dict
 from datetime import datetime
-from utils import send_email_notification
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
@@ -26,7 +25,6 @@ SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 PARTNER_ID = environ.get("PARTNER_ID")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
@@ -34,39 +32,10 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-class EventListenerError(Exception):
-    pass
-
-
 def get_text(element, path, namespace):
     """Get the text of the element if it's present."""
     found_element = element.find(path, namespace)
     return found_element.text if found_element is not None else None
-
-
-def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=30,
-        )
-        logger.info(f"DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        logger.error(
-            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
-        )
-    except Exception as e:
-        logger.error("Error occurred calling DA Event Listener: {e}")
-        raise EventListenerError
 
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
@@ -290,18 +259,6 @@ def record_handler(record: SQSRecord) -> None:
         if not unified_crm_lead_id:
             logger.error(f"Error creating lead: {lead}")
             raise Exception("Error creating lead")
-
-        event_listener_secrets = get_secret(
-            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
-        )
-
-        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
-        logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
-    except EventListenerError:
-        message = f"Error sending the lead {unified_crm_lead_id} to DA"
-        logger.error(message)
-        send_email_notification(message)
-        raise
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
         raise
