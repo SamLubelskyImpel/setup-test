@@ -373,20 +373,20 @@ def record_handler(record: SQSRecord) -> None:
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
         consumer = extract_consumer(root, namespace)
-        # lead = extract_lead(root, namespace)
-        # unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
+        lead = extract_lead(root, namespace)
+        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
 
         # Write new lead to the Unified Layer, using the consumer_id that was just created
-        # lead["consumer_id"] = unified_crm_consumer_id
-        # logger.info(f"Lead data to send: {lead}")
+        lead["consumer_id"] = unified_crm_consumer_id
+        logger.info(f"Lead data to send: {lead}")
 
-        # unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
+        unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
 
         event_listener_secrets = get_secret(
             secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
         )
 
-        # send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
+        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
         logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
     except EventListenerError:
         message = f"Error sending the lead {unified_crm_lead_id} to DA"
