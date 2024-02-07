@@ -89,15 +89,33 @@ def get_text(element, path, namespace):
     return found_element.text if found_element is not None else None
 
 
+def extract_phone(root: ET.Element, namespace: dict) -> str:
+    """Extract phone number from the XML."""
+    first_phone_num = get_text(root, ".//star:PhoneNumbers/star:Phone/star:Num", namespace)
+    logger.info(f"First phone number: {first_phone_num}")
+
+    # Try to find a phone number with Type 'C' (Cell phone)
+    phone_num_type_c = get_text(root, ".//star:PhoneNumbers/star:Phone[star:Type='C']/star:Num", namespace)
+    logger.info(f"Phone number with Type C: {phone_num_type_c}")
+
+    # Use Type C number if found otherwise use the first phone number
+    phone_num = phone_num_type_c.text if phone_num_type_c is not None else first_phone_num
+
+    return phone_num
+
+
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
     name_rec_id = get_text(root, ".//star:NameRecId", namespace)
     first_name = get_text(root, ".//star:FirstName", namespace)
     last_name = get_text(root, ".//star:LastName", namespace)
-    email_mail_to = root.find(".//star:Email/star:MailTo", namespace).text
-    phone_num = root.find(".//star:PhoneNumbers/star:Phone/star:Num", namespace).text
+    email_mail_to = get_text(root, ".//star:Email/star:MailTo", namespace)
+    phone_num = extract_phone(root, namespace)
     consent_email = get_text(root, ".//star:Consent/star:Email", namespace)
     consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
+
+    if email_mail_to is None and phone_num is None:
+        logger.warning(f"Consumer {name_rec_id} does not have email or phone number")
 
     # Assemble the payload for the CRM API
     extracted_data = {
@@ -165,7 +183,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = get_text(root, ".//star:InsertedBy", namespace)
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
-    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace)) 
+    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace))
     prospect_type = root.find(".//star:ProspectType", namespace).text
     metadata = {}
 
@@ -357,20 +375,20 @@ def record_handler(record: SQSRecord) -> None:
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
         consumer = extract_consumer(root, namespace)
-        lead = extract_lead(root, namespace)
-        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
+        # lead = extract_lead(root, namespace)
+        # unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
 
         # Write new lead to the Unified Layer, using the consumer_id that was just created
-        lead["consumer_id"] = unified_crm_consumer_id
-        logger.info(f"Lead data to send: {lead}")
+        # lead["consumer_id"] = unified_crm_consumer_id
+        # logger.info(f"Lead data to send: {lead}")
 
-        unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
+        # unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
 
         event_listener_secrets = get_secret(
             secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
         )
 
-        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
+        # send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
         logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
     except EventListenerError:
         message = f"Error sending the lead {unified_crm_lead_id} to DA"
