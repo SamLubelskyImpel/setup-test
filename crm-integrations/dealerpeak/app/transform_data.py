@@ -45,18 +45,50 @@ def get_secret(secret_name, secret_key) -> Any:
 
 def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
     """Upload entries to the database through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/upload'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': api_key
-    }
+    consumer = entry["consumer"]
+    product_dealer_id = entry["product_dealer_id"]
+    lead = entry["lead"]
+    salesperson = entry["salesperson"]
+    lead["salespersons"] = [salesperson] if salesperson else []
 
-    response = requests.post(url, headers=headers, json=entry)
-    logger.info(f"[THREAD {index}] CRM API responded with status: {response.status_code}")
+    logger.info(f"Consumer data to send: {consumer}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
+        json=consumer,
+        headers={
+            "x_api_key": api_key,
+            "partner_id": UPLOAD_SECRET_KEY,
+        },
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
+    )
     response.raise_for_status()
-    response_data = response.json()
-    lead_id = response_data.get('lead_id')
+    unified_crm_consumer_id = response.json().get("consumer_id")
+
+    if not unified_crm_consumer_id:
+        logger.error(f"Error creating consumer: {consumer}")
+        raise Exception(f"Error creating consumer")
+
+    lead["consumer_id"] = unified_crm_consumer_id
+    logger.info(f"Lead data to send: {lead}")
+
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/leads",
+        json=lead,
+        headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
+    )
+    response.raise_for_status()
+    unified_crm_lead_id = response.json().get("lead_id")
+
+    if not unified_crm_lead_id:
+        logger.error(f"Error creating lead: {lead}")
+        raise Exception("Error creating lead")
+
     return lead_id
 
 
@@ -116,13 +148,6 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
             db_entity["email_optin_flag"] = communication_preferences.get('email', True)
 
 
-def remove_none_or_empty_entries(d, key=None):
-    """Recursively remove None entries and empty string entries from a dictionary, except for the 'salesperson' key."""
-    if isinstance(d, dict):
-        return {k: remove_none_or_empty_entries(v, k) for k, v in d.items() if (v is not None and v != '') or (key == 'salesperson')}
-    return d
-
-
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format dealerpeak json data to unified format."""
     entries = []
@@ -133,11 +158,13 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {}
             db_salesperson = {}
 
-            db_lead["crm_lead_id"] = item.get('leadID')
+            db_lead["crm_lead_id"] = item.get('leadID', '')
             db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
-            db_lead["lead_status"] = item.get('status', {}).get('status')
-            db_lead["lead_comment"] = item.get('firstNote', {}).get('note')
-            db_lead["lead_source"] = item.get('source', {}).get('source')
+            db_lead["lead_status"] = item.get('status', {}).get('status', '')
+            db_lead["lead_substatus"] = ''
+            db_lead["lead_comment"] = item.get('firstNote', {}).get('note', '')
+            db_lead["lead_source"] = item.get('source', {}).get('source', '')
+            db_lead["lead_origin"] = ''
 
             vehicles = item.get('vehiclesOfInterest', [])
             for vehicle in vehicles:
@@ -168,9 +195,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "salesperson": db_salesperson,
             }
 
-            cleaned_entry = remove_none_or_empty_entries(entry)
-            entries.append(cleaned_entry)
-
+            entries.append(entry)
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
