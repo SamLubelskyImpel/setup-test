@@ -92,14 +92,12 @@ def get_text(element, path, namespace):
 def extract_phone(root: ET.Element, namespace: dict) -> str:
     """Extract phone number from the XML."""
     first_phone_num = get_text(root, ".//star:PhoneNumbers/star:Phone/star:Num", namespace)
-    logger.info(f"First phone number: {first_phone_num}")
 
     # Try to find a phone number with Type 'C' (Cell phone)
     phone_num_type_c = get_text(root, ".//star:PhoneNumbers/star:Phone[star:Type='C']/star:Num", namespace)
-    logger.info(f"Phone number with Type C: {phone_num_type_c}")
 
     # Use Type C number if found otherwise use the first phone number
-    phone_num = phone_num_type_c.text if phone_num_type_c is not None else first_phone_num
+    phone_num = phone_num_type_c if phone_num_type_c is not None else first_phone_num
 
     return phone_num
 
