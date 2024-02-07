@@ -113,7 +113,8 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
 
     if email_mail_to is None and phone_num is None:
-        logger.warning(f"Consumer {name_rec_id} does not have email or phone number")
+        logger.error(f"Consumer {name_rec_id} does not have email or phone number")
+        raise ConsumerCreationException(f"Consumer {name_rec_id} does not have email or phone number")
 
     # Assemble the payload for the CRM API
     extracted_data = {
