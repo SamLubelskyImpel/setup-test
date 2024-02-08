@@ -4,11 +4,10 @@ import boto3
 import logging
 import requests
 import json
-import uuid
 import re
 import xml.etree.ElementTree as ET
 from os import environ
-from typing import Any, Dict
+from typing import Any
 from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -32,10 +31,17 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-def get_text(element, path, namespace):
-    """Get the text of the element if it's present."""
-    found_element = element.find(path, namespace)
-    return found_element.text if found_element is not None else None
+class EventListenerError(Exception):
+    pass
+
+class LeadExistsException(Exception):
+    pass
+
+class ConsumerCreationException(Exception):
+    pass
+
+class LeadCreationException(Exception):
+    pass
 
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
@@ -47,6 +53,12 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     secret_data = json.loads(secret)
 
     return secret_data
+
+
+def get_text(element: Any, path: str, namespace: Any) -> Any:
+    """Get the text of the element if it's present."""
+    found_element = element.find(path, namespace)
+    return found_element.text if found_element is not None else None
 
 
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
@@ -66,8 +78,8 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
         "last_name": last_name,
         "email": email_mail_to,
         "phone": phone_num,
-        "email_optin_flag": True if consent_email == "Y" else False,
-        "sms_optin_flag": True if consent_text == "Y" else False,
+        "email_optin_flag": False if consent_email == "N" else True,
+        "sms_optin_flag": False if consent_text == "N" else True,
     }
     return extracted_data
 
@@ -75,7 +87,7 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
 def extract_lead(root: ET.Element, namespace: dict) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
-    def extract_note(notes: list) -> Any:
+    def extract_note(notes: list) -> str:
         """Extract note which contains actual lead comment."""
         if len(notes) > 0:
             for note in notes:
@@ -103,7 +115,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
         return formatted_time, metadata
 
-    def map_status(status: str) -> str:
+    def map_status(status: str, metadata: dict) -> tuple[str, dict]:
         """Map the initial ReyRey status to the Unified Layer status."""
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
@@ -112,13 +124,14 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         config = json.loads(response["Body"].read())
         status_map = config["initial_status_map"]
         unified_layer_status = status_map.get(status, None)
+        metadata["original_status"] = status
 
         if not unified_layer_status:
             logger.error(
                 f"Error mapping status: {status}, status not found in the status map"
             )
 
-        return unified_layer_status
+        return unified_layer_status, metadata
 
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
@@ -129,11 +142,12 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     metadata = {}
 
     lead_ts, metadata = convert_time_format(inserted_by, metadata)
+    lead_status, metadata = map_status(prospect_status_type, metadata)
 
     prospect_data = {
         "crm_lead_id": prospect_id,
         "lead_ts": lead_ts,
-        "lead_status": map_status(prospect_status_type),
+        "lead_status": lead_status,
         "lead_substatus": None,
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,

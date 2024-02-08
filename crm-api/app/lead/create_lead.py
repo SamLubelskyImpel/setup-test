@@ -1,5 +1,7 @@
 """Create lead in the shared CRM layer."""
 import logging
+import pytz
+from dateutil import parser
 import boto3
 import json
 import requests
@@ -11,6 +13,7 @@ from typing import Any, List
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
+from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
@@ -39,6 +42,48 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
     for attr in allowed_attrs:
         if attr in combined_data:
             setattr(db_object, attr, combined_data[attr])
+
+
+def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
+    """Get the timezone of the dealer."""
+    with DBSession() as session:
+        dealer_timezone = session.query(Dealer.metadata_['timezone']).filter(
+            Dealer.id == dealer_integration_partner_id
+        ).first()
+
+        timezone = dealer_timezone[0] if dealer_timezone else "UTC"
+        logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
+        return timezone
+
+
+def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
+    """
+    Process an input timestamp based on whether it's in UTC, has an offset, or is local without an offset.
+
+    Apply dealer_timezone if it is present.
+    """
+    try:
+        parsed_ts = parser.parse(input_ts)
+
+        # Check if the timestamp is already in UTC (ends with 'Z')
+        if parsed_ts.tzinfo is not None and parsed_ts.tzinfo.utcoffset(parsed_ts) is not None:
+            # Timestamp is either UTC or has an offset; return in ISO format
+            return parsed_ts.isoformat()
+
+        # If the timestamp is local (no 'Z' or offset) and dealer_timezone is provided
+        if dealer_timezone:
+            dealer_tz = pytz.timezone(dealer_timezone)
+            # Localize the timestamp to the dealer's timezone
+            localized_ts = dealer_tz.localize(parsed_ts)
+            return localized_ts.isoformat()
+        else:
+            # Timestamp is local without a specified dealer_timezone
+            # Returning the naive timestamp as it is
+            return parsed_ts.isoformat()
+
+    except Exception as e:
+        logger.info(f"Error processing timestamp: {input_ts}, Dealer timezone: {dealer_timezone}. Error: {e}")
+        return None
 
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
@@ -93,6 +138,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
+        lead_ts=body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
             consumer = session.query(
@@ -107,6 +153,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
                 }
+
+            dealer_integration_partner_id = consumer.dealer_integration_partner_id
+            dealer_timezone = get_dealer_timezone(dealer_integration_partner_id)
+
+            logger.info(f"Original timestamp: {lead_ts}")
+            lead_ts = process_lead_ts(lead_ts, dealer_timezone)
+            logger.info(f"Processed timestamp: {lead_ts}")
 
             integration_partner = consumer.dealer_integration_partner.integration_partner
 
@@ -136,7 +189,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 source_channel=body["lead_source"],
                 crm_lead_id=crm_lead_id,
                 request_product=request_product,
-                lead_ts=body.get("lead_ts", datetime.utcnow()),
+                lead_ts=lead_ts,
                 metadata_=body.get("metadata"),
             )
 
