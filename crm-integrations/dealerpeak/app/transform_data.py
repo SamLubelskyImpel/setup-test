@@ -43,15 +43,8 @@ def get_secret(secret_name, secret_key) -> Any:
     return secret_data
 
 
-def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
-    """Upload entries to the database through CRM API."""
-
-    consumer = entry["consumer"]
-    product_dealer_id = entry["product_dealer_id"]
-    lead = entry["lead"]
-    salesperson = entry["salesperson"]
-    lead["salespersons"] = [salesperson] if salesperson else []
-
+def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
+    """Upload consumer to the database through CRM API."""
     logger.info(f"Consumer data to send: {consumer}")
     response = requests.post(
         f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
@@ -69,11 +62,14 @@ def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
 
     if not unified_crm_consumer_id:
         logger.error(f"Error creating consumer: {consumer}")
-        raise Exception(f"Error creating consumer")
+        raise Exception(f"Error creating consumer: {consumer}")
 
-    lead["consumer_id"] = unified_crm_consumer_id
+    return unified_crm_consumer_id
+
+
+def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
+    """Upload lead to the database through CRM API."""
     logger.info(f"Lead data to send: {lead}")
-
     response = requests.post(
         f"https://{CRM_API_DOMAIN}/leads",
         json=lead,
@@ -87,9 +83,9 @@ def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
 
     if not unified_crm_lead_id:
         logger.error(f"Error creating lead: {lead}")
-        raise Exception("Error creating lead")
+        raise Exception(f"Error creating lead: {lead}")
 
-    return lead_id
+    return unified_crm_lead_id
 
 
 def format_ts(input_ts: str) -> str:
@@ -187,12 +183,12 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             salesperson = item.get('agent', None)
             extract_contact_information('salesperson', salesperson, db_salesperson)
+            db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
 
             entry = {
                 "product_dealer_id": product_dealer_id,
                 "lead": db_lead,
-                "consumer": db_consumer,
-                "salesperson": db_salesperson,
+                "consumer": db_consumer
             }
 
             entries.append(entry)
@@ -206,7 +202,13 @@ def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
-        lead_id = upload_entry_to_db(entry=entry, api_key=crm_api_key, index=index)
+        product_dealer_id = entry["product_dealer_id"]
+        consumer = entry["consumer"]
+        lead = entry["lead"]
+        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
+        lead["consumer_id"] = unified_crm_consumer_id
+        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
+        logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
             # Log the 409 error and continue with the next entry
