@@ -226,9 +226,9 @@ class ReyreyApiWrapper:
             prospect_id=self.__activity["crm_lead_id"],
             activity_schema="",
             appointment_schema=APPOINTMENT_SCHEMA.format(
-                scheduled_date_time=due_date,
+                scheduled_date_time=created_date,
                 note=self.__activity["notes"],
-                date_time=created_date,
+                date_time=due_date,
             ),
             note_schema=""
         )
