@@ -61,15 +61,31 @@ def get_text(element: Any, path: str, namespace: Any) -> Any:
     return found_element.text if found_element is not None else None
 
 
+def extract_phone(root: ET.Element, namespace: dict) -> str:
+    """Extract phone number from the XML."""
+    first_phone_num = get_text(root, ".//star:PhoneNumbers/star:Phone/star:Num", namespace)
+
+    # Try to find a phone number with Type 'C' (Cell phone)
+    phone_num_type_c = get_text(root, ".//star:PhoneNumbers/star:Phone[star:Type='C']/star:Num", namespace)
+
+    # Use Type C number if found otherwise use the first phone number
+    phone_num = phone_num_type_c if phone_num_type_c is not None else first_phone_num
+
+    return phone_num
+
+
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
     name_rec_id = get_text(root, ".//star:NameRecId", namespace)
     first_name = get_text(root, ".//star:FirstName", namespace)
     last_name = get_text(root, ".//star:LastName", namespace)
-    email_mail_to = root.find(".//star:Email/star:MailTo", namespace).text
-    phone_num = root.find(".//star:PhoneNumbers/star:Phone/star:Num", namespace).text
+    email_mail_to = get_text(root, ".//star:Email/star:MailTo", namespace)
+    phone_num = extract_phone(root, namespace)
     consent_email = get_text(root, ".//star:Consent/star:Email", namespace)
     consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
+
+    if email_mail_to is None and phone_num is None:
+        logger.warning(f"Consumer {name_rec_id} does not have email or phone number")
 
     # Assemble the payload for the CRM API
     extracted_data = {
