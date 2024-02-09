@@ -15,6 +15,7 @@ from json import loads
 from datetime import datetime, timedelta
 from dateutil import parser
 import xmltodict
+import pytz
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -140,6 +141,7 @@ class ReyreyApiWrapper:
         self.__url, self.__username, self.__password = self.get_secrets()
         self.__activity = kwargs.get("activity")
         self.__store_number, self.__area_number, self.__dealer_number = self.__activity["crm_dealer_id"].split("_")
+        self.__dealer_timezone = self.__activity["dealer_timezone"]
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -179,15 +181,30 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
-    def format_dealertime(self, utc_time_str):
-        """Format Local Dealer Time."""
-        # utc_time_str == Local Dealer Time
-        utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
-        formatted_time = utc_time.strftime("%Y-%m-%dT%H:%M:%S")
-        return formatted_time
+    def convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str) -> str:
+        """Convert UTC timestamp to dealer's local time."""
+        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+        utc_datetime = pytz.utc.localize(utc_datetime)
+
+        if not self.__dealer_timezone:
+            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
+            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
+        # Get the dealer timezone object, convert UTC datetime to dealer timezone
+        dealer_tz = pytz.timezone(dealer_timezone)
+        dealer_datetime = utc_datetime.astimezone(dealer_tz)
+
+        return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
+    # def format_dealertime(self, utc_time_str):
+    #     """Format Local Dealer Time."""
+    #     # utc_time_str == Local Dealer Time
+    #     utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
+    #     formatted_time = utc_time.strftime("%Y-%m-%dT%H:%M:%S")
+    #     return formatted_time
 
     def __insert_note(self):
-        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
+        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -211,8 +228,8 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_appointment(self):
-        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
-        due_date = self.format_dealertime(self.__activity["activity_due_ts"])
+        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
+        due_date = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -236,7 +253,7 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_activity(self):
-        created_date = self.format_dealertime(self.__activity["activity_requested_ts"])
+        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()

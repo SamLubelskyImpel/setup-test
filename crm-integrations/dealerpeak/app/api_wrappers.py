@@ -92,19 +92,19 @@ class DealerpeakApiWrapper:
 
         return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
-    def apply_utc_offset(self, utc_time_str):
-        """Apply the UTC offset to a datetime string.
-        DealerPeak expects the datetime string to be in UTC time.
-        """
-        # utc_time_str == Local Dealer Time, this must be converted to UTC Dealer Time
-        utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
-        utc_offset = datetime.strptime(self.__utc_offset, "%z").utcoffset()
+    # def apply_utc_offset(self, utc_time_str):
+    #     """Apply the UTC offset to a datetime string.
+    #     DealerPeak expects the datetime string to be in UTC time.
+    #     """
+    #     # utc_time_str == Local Dealer Time, this must be converted to UTC Dealer Time
+    #     utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
+    #     utc_offset = datetime.strptime(self.__utc_offset, "%z").utcoffset()
 
-        # Apply the UTC offset
-        new_time = utc_time - utc_offset
+    #     # Apply the UTC offset
+    #     new_time = utc_time - utc_offset
 
-        new_time_str = new_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        return new_time_str
+    #     new_time_str = new_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    #     return new_time_str
 
     def __insert_note(self):
         payload = {
@@ -146,10 +146,10 @@ class DealerpeakApiWrapper:
         }
 
         if self.__activity["activity_type"] in ("appointment", "phone_call_task"):
-            payload["dueDate"] = self.apply_utc_offset(self.__activity["activity_due_ts"])
+            payload["dueDate"] = self.__activity["activity_due_ts"]
         elif self.__activity["activity_type"] == "outbound_call":
-            payload["dueDate"] = self.apply_utc_offset(self.__activity["activity_requested_ts"])
-            payload["completedDate"] = self.apply_utc_offset(self.__activity["activity_requested_ts"])
+            payload["dueDate"] = self.__activity["activity_requested_ts"]
+            payload["completedDate"] = self.__activity["activity_requested_ts"]
             payload["taskResult"]["resultID"] = 5
 
         logging.info(f"Payload to CRM: {payload}")
