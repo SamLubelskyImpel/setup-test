@@ -63,31 +63,6 @@ paths:
           description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
         '500':
           description: Internal Server Error. Please contact Impel support.
-  /momentum/crm-upload/v1/leads:
-    post:
-      summary: Post Momentum CRM new leads.
-      #{{MOMENTUM_CREATE_LEAD_LAMBDA_INFO}}
-      tags:
-        - Momentum
-      operationId: momentum-post-lead
-      description: |-
-        This API endpoint creates a CRM lead record in the Impel system.
-      requestBody:
-        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MomentumLead'
-      responses:
-        '200':
-          description: Success. 
-        '400':
-          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
-        '401':
-          description: This request is unauthorized. The authorization credentials are missing or are wrong.
-        '500':
-          description: Internal Server Error. Please contact Impel support.
           
   /momentum/crm-upload/v1/lead-updates:
     post:

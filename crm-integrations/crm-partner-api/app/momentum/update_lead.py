@@ -18,27 +18,6 @@ s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 
-# def redact_sensitive_info(event):
-#     # Redacting Authorization header
-#     if 'headers' in event and 'Authorization' in event['headers']:
-#         event['headers']['Authorization'] = 'Basic ******'
-    
-#     if 'multiValueHeaders' in event and 'Authorization' in event['multiValueHeaders']:
-#         event['multiValueHeaders']['Authorization'] = ['Basic ******']
-
-#     if 'body' in event:
-#         root = ET.fromstring(event['body'])
-        
-#         namespaces = {'wsse': 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd'}
-#         for username in root.findall('.//wsse:Username', namespaces):
-#             username.text = '******'
-#         for password in root.findall('.//wsse:Password', namespaces):
-#             password.text = '******'
-
-#         event['body'] = ET.tostring(root, encoding='unicode')
-
-#     return event
-
 def get_secrets():
     """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
@@ -75,7 +54,7 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     format_string = "%Y/%m/%d/%H/%M"
     date_key = datetime.utcnow().strftime(format_string)
 
-    s3_key = f"raw_updates/momentum/{product_dealer_id}/{date_key}_{uuid4()}.xml"
+    s3_key = f"raw_updates/momentum/{product_dealer_id}/{date_key}_{uuid4()}.json"
     logger.info(f"Saving momentum lead to {s3_key}")
     s3_client.put_object(
         Body=lead,
@@ -84,27 +63,8 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     )
 
 
-# def extract_crm_dealer_id(lead_xml_body: str) -> str:
-#     """Extract CRM dealer ID from incoming xml."""
-#     try:
-#         root = ET.fromstring(lead_xml_body)
-
-#         namespace = {"star": "http://www.starstandards.org/STAR"}
-
-#         dealer_number = root.find(".//star:DealerNumber", namespace).text
-#         store_number = root.find(".//star:StoreNumber", namespace).text
-#         area_number = root.find(".//star:AreaNumber", namespace).text
-
-#         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-#     except Exception as e:
-#         logger.error(f"Error parsing XML: {e}")
-#         raise
-
-#     return concatenated_dealer_id
-
-
 def lambda_handler(event: Any, context: Any) -> Any:
-    """This API handler takes the XML sent by momentum and puts the raw XML into the S3 bucket."""
+    """This API handler takes the Json sent by momentum and puts the raw Json into the S3 bucket."""
     try:
         # event = redact_sensitive_info(event)
         logger.info(f"Event: {event}")
@@ -113,7 +73,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         momentum_dealer_list = get_dealers("MOMENTUM")
         crm_dealer_id = body["dealerID"]
 
-        # product_dealer_id = None
+        product_dealer_id = None
         for dealer in momentum_dealer_list:
             if dealer["crm_dealer_id"] == crm_dealer_id:
                 product_dealer_id = dealer["product_dealer_id"]
@@ -124,10 +84,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
             error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
             return {
                 "statusCode": 401,
-                "headers": {"Content-Type": "text/xml"},
-                "body": dumps({error_message})
+                "headers": {"Content-Type": "application/json"},
+                "body": dumps({"error": error_message})
             }
-
+            
+        logger.info(f"Lead update received for dealer: {product_dealer_id}")
+        logger.info(f"Lead body: {body}")
         save_raw_lead(str(dumps(body)), product_dealer_id)
 
         return {
@@ -135,14 +97,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     except ValueError as e:
+        error_message = str(e)
         return {
             "statusCode": 400,
-            "headers": {"Content-Type": "text/xml"},
-            "body": dumps({e})
+            "headers": {"Content-Type": "application/json"},
+            "body": dumps({"error": error_message})
         }
     except Exception as e:
-        logger.error(f"Error getting Momentum lead update: {str(e)}")
+        error_message = str(e)
+        logger.error(f"Error getting Momentum lead update: {error_message}")
         return {
             "statusCode": 500,
-            "body": dumps({"error": "Internal Server Error. Please contact Impel support."}),
+            "headers": {"Content-Type": "application/json"},
+            "body": dumps({"error": "Internal Server Error. Please contact Impel support."})
         }

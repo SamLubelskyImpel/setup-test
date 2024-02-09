@@ -47,7 +47,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/reyrey_crm"
+            SecretId=f"{'prod' if is_prod else 'test'}/crm-partner-api"
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
