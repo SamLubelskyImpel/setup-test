@@ -46,6 +46,11 @@ class ConsumerCreationException(Exception):
 class LeadCreationException(Exception):
     pass
 
+class NotInternetLeadException(Exception):
+    pass
+
+class NoCustomerInitiatedLeadException(Exception):
+    pass
 
 def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
     """Send notification to DA Event listener."""
@@ -163,7 +168,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         """Map the initial ReyRey status to the Unified Layer status."""
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
+            Key=f"configurations/test_{SECRET_KEY.upper()}.json",
         )
         config = json.loads(response["Body"].read())
         status_map = config["initial_status_map"]
@@ -182,7 +187,15 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     inserted_by = get_text(root, ".//star:InsertedBy", namespace)
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
     prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace))
-    prospect_type = root.find(".//star:ProspectType", namespace).text
+    prospect_type = get_text(root, ".//star:ProspectType", namespace)
+    is_ci_lead = get_text(root, ".//star:IsCiLead", namespace)
+
+    if is_ci_lead == "false":
+        raise NoCustomerInitiatedLeadException(f"Lead is not customer initiated: {prospect_id}")
+
+    if prospect_type != "Internet":
+        raise NotInternetLeadException(f"Lead type is not Internet: {prospect_type}")
+
     metadata = {}
 
     lead_ts, metadata = convert_time_format(inserted_by, metadata)
@@ -399,6 +412,10 @@ def record_handler(record: SQSRecord) -> None:
         raise
     except LeadCreationException:
         raise
+    except NotInternetLeadException:
+        logger.info("Lead type is not Internet")
+    except NoCustomerInitiatedLeadException:
+        logger.info("Lead is not customer initiated")
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
         raise
