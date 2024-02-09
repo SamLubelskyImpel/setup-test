@@ -33,7 +33,7 @@ def create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_
         state = state,
         city = city,
         zip_code = zip_code,
-        # full_name = full_name
+        full_name = full_name
     )
     session.add(new_dealer)
     session.commit()
@@ -105,7 +105,6 @@ def lambda_handler(event, context):
     """Run repair order API."""
 
     logger.info(f"Event: {event}")
-    print("in lambda handler")
     try:
         return create_dealer_handler(event, context)
     except Exception:
