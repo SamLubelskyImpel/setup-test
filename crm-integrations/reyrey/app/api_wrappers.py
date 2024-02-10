@@ -181,7 +181,7 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
-    def convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str) -> str:
+    def convert_utc_to_timezone(self, input_ts: str) -> str:
         """Convert UTC timestamp to dealer's local time."""
         utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
         utc_datetime = pytz.utc.localize(utc_datetime)
@@ -191,7 +191,7 @@ class ReyreyApiWrapper:
             return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
         # Get the dealer timezone object, convert UTC datetime to dealer timezone
-        dealer_tz = pytz.timezone(dealer_timezone)
+        dealer_tz = pytz.timezone(self.__dealer_timezone)
         dealer_datetime = utc_datetime.astimezone(dealer_tz)
 
         return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')

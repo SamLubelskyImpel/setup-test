@@ -10,7 +10,6 @@ from os import environ
 import requests
 from json import loads
 from requests.auth import HTTPBasicAuth
-from datetime import datetime
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -81,7 +80,6 @@ class DealerpeakApiWrapper:
         self.__activity = kwargs.get("activity")
         self.__salesperson = kwargs.get("salesperson")
         self.__dealer_group_id = self.__activity["crm_dealer_id"].split("__")[0]
-        self.__utc_offset = self.__activity["utc_offset"]
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
