@@ -19,7 +19,12 @@ paths:
   /leads:
     post:
       operationId: post-lead
-      summary: This endpoint creates a record for a Lead in the CRM persistence data layer. CRM IDs and salesperson fields should only be included in the request body if the caller is creating a lead on behalf of the CRM. Chat AI should not include these fields.
+      summary: "This endpoint creates a record for a Lead in the CRM persistence data layer. CRM IDs and salesperson fields should only be included in the request body if the caller is creating a lead on behalf of the CRM. Chat AI should not include these fields."
+      description: |
+        **Timestamp Formats:** The `lead_ts` field supports timestamps in three formats:
+        1. **UTC Format:** Append 'Z' to denote UTC time. Example: `2023-09-22T14:00:00Z`.
+        2. **Local Time with Offset:** Include the time offset from UTC. Example: `2024-02-02T14:00:00-0500`.
+        3. **Local Time with Timezone Metadata:** Specify local time, with the timezone defined during onboarding. Example: `2023-09-22T14:00:00`. 
       #{{CREATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
@@ -383,7 +388,7 @@ paths:
           description: Not Found. The lead_id of the request didn't match any existing records on Impel, or the lead does not have an associated salesperson.
         '500':
           "$ref": "#/components/responses/500"
-
+  
   /leads/crm/{crm_lead_id}:
     get:
       operationId: get-lead-by-crm-ids
@@ -449,7 +454,7 @@ paths:
           "$ref": "#/components/responses/404"
         '500':
           "$ref": "#/components/responses/500"
-
+  
   /consumers:
     post:
       summary: This endpoint creates a record for a Consumer in the CRM persistence data layer. The crm_consumer_id field should only be included in the request body if the caller is creating a consumer on behalf of the CRM. Chat AI should not include this field.
@@ -467,18 +472,10 @@ paths:
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: '#/components/schemas/Consumer'
-                - required:
-                    - first_name
-                    - last_name
-                    - email
-                - type: object
-                  properties:
-                    crm_consumer_id:
-                      type: string
-                      description: The ID of the consumer in the CRM
-                      example: "123abc-1234ab-123abc"
+              type: object
+              properties:
+                Consumer:
+                  $ref: '#/components/schemas/Consumer'
       responses:
         '200':
           description: Consumer found and updated
@@ -672,7 +669,145 @@ paths:
           description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
-
+  /dealers/{dealer_id}:
+    get:
+      summary: Get active dealer by ID. For internal use only.
+      #{{RETRIEVE_DEALER_BY_ID_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: dealer_id
+          in: path
+          description: The ID assigned to the dealership by Impel during onboarding.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+            example: "test_dealer_id"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A dealership or rooftop in the CRM layer.
+                properties:
+                  product_dealer_id:
+                    type: string
+                    description: The ID assigned to the dealership by Impel during onboarding. Corresponds to the dealer_id in the request.
+                    example: "test_dealer_id"
+                  dealer_integration_partner_id:
+                    type: number
+                    description: The ID of the dealer integration partner in the CRM layer.
+                    example: 24
+                  dealer_name:
+                    type: string
+                    description: The name of the dealer.
+                    example: "Test Dealership"
+                  timezone:
+                    type: string
+                    description: The timezone of the dealership or rooftop (IANA Time Zone Database Format)
+                    example: "America/New_York"
+                  integration_partner_name:
+                    type: string
+                    description: The name of the integration partner assigned by Impel.
+                    example: "TESTCRM"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No active dealership found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
+  /upload:
+    post:
+      summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
+      #{{UPLOAD_DATA_LAMBDA_INFO}}
+      tags:
+        - Upload
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_dealer_id:
+                  type: string
+                  description: The ID assigned to the dealership by Impel during onboarding.
+                  example: "test_dealer_id"
+                lead:
+                  allOf:
+                    - type: object
+                      properties:
+                        crm_lead_id:
+                          type: string
+                          description: Lead id in the CRM
+                          minLength: 1
+                          maxLength: 40
+                          example: 'D973DAF4-D0F2'
+                        lead_ts:
+                          type: string
+                          description: Lead timestamp in UTC format
+                          format: date-time
+                          example: "2023-09-22T14:00:00Z"
+                    - $ref: "#/components/schemas/Lead"
+                    - type: object
+                      properties:
+                        vehicles_of_interest:
+                          allOf:
+                            - type: array
+                              items:
+                                description: Object containing description of the vehicle
+                                type: object
+                                properties:
+                                  crm_vehicle_id:
+                                    type: string
+                                    description: Vehicle ID assigned by CRM (Car ID, Stock, License plate, etc.)
+                                    example: '8EEAD89E-E87'
+                            - $ref: "#/components/schemas/VehiclesOfInterest"
+                consumer:
+                  allOf:
+                    - type: object
+                      properties:
+                        crm_consumer_id:
+                          type: string
+                          description: The ID of the consumer in the CRM
+                          example: "123abc-1234ab-123abc"
+                    - $ref: "#/components/schemas/Consumer"
+                salesperson:
+                  allOf:
+                    - $ref: '#/components/schemas/Salesperson'
+                    - required:
+                      - crm_salesperson_id
+                      - first_name
+                      - last_name
+                      - email
+                      - phone
+      responses:
+        '200':
+          description: Data successfully uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lead_id:
+                    type: integer
+                    description: ID of the lead that was created.
+        '400':
+          "$ref": "#/components/responses/400"
+        '404':
+          description: Not Found. The dealer_id of the request didn't match any existing records on Impel.
+        '409':
+          description: Conflict. Lead record couldn't be created due to a conflict with an existing record with the same crm_lead_id and customer_id on Impel.
 components:
   schemas:
     Activity:
@@ -681,8 +816,6 @@ components:
       required:
         - activity_type
         - activity_requested_ts
-        - contact_method
-        - utc_offset
       properties:
         activity_type:
           type: string
@@ -696,15 +829,15 @@ components:
         activity_due_ts:
           type: string
           format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          description: Timestamp in UTC format indicating when the activity is to take place. This is required when an activity needs to be scheduled or completed by a specific date and time, such as an appointment or phone_call_task.
+          description: Timestamp in UTC Time (Zero Offset) indicating when the activity is to take place. This is required when an activity needs to be scheduled or completed by a specific date and time, such as an appointment or phone_call_task.
           example: "2023-09-22T14:00:00Z"
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
         activity_requested_ts:
           type: string
           format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          description: Timestamp in UTC format when the activity was requested. 
+          description: Timestamp in UTC Time (Zero Offset) when the activity was requested. 
           example: "2023-09-22T12:00:00Z"
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
         notes:
           type: string
           description: Notes about the activity. Required when the activity type is "note".
@@ -717,12 +850,6 @@ components:
             - phone
             - text
           example: "email"
-        utc_offset:
-          type: string
-          pattern: "^([+-])(0[0-9]|1[0-3]):[0-5][0-9]$"
-          description: The UTC offset of the dealership for which the activity is assigned.
-          default: "+00:00"
-          
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object
@@ -863,6 +990,10 @@ components:
       description: An object containing all information about a person interested in a vehicle
       type: object
       properties:
+        crm_consumer_id:
+          type: string
+          description: The ID of the consumer in the CRM
+          example: "123abc-1234ab-123abc"
         first_name:
           type: string
           description: Consumer first name

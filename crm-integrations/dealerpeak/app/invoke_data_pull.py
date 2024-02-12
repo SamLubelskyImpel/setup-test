@@ -137,6 +137,9 @@ def record_handler(record: SQSRecord):
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, start_time, end_time, e)
+            )
         raise
 
 

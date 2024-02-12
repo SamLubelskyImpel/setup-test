@@ -36,19 +36,14 @@ def get_lead(crm_dealer_id, crm_lead_id):
 
     dealer_group_id = crm_dealer_id.split("__")[0]
 
-    try:
-        response = requests.get(
-            url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{crm_lead_id}",
-            auth=auth,
-            timeout=3,
-        )
-        logger.info(f"DealerPeak responded with: {response.status_code}")
-        response.raise_for_status()
-        return response.json()
-
-    except Exception as e:
-        logger.error(f"Error occured calling DealerPeak APIs: {e}")
-        raise
+    response = requests.get(
+        url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{crm_lead_id}",
+        auth=auth,
+        timeout=3,
+    )
+    logger.info(f"DealerPeak responded with: {response.status_code}")
+    response.raise_for_status()
+    return response.json()
 
 
 def parse_salesperson(lead: dict):
@@ -107,7 +102,15 @@ def lambda_handler(event, context):
     crm_lead_id = event["crm_lead_id"]
     crm_dealer_id = event["crm_dealer_id"]
 
-    lead = get_lead(crm_dealer_id, crm_lead_id)
+    try:
+        lead = get_lead(crm_dealer_id, crm_lead_id)
+    except Exception as e:
+        logger.error(f"Error occured calling DealerPeak APIs: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
+            dealer_partner_id, lead_id, crm_dealer_id, crm_lead_id, e)
+            )
+        raise
+
     if not lead:
         logger.info(f"Lead not found. lead_id {lead_id}, crm_lead_id {crm_lead_id}")
         return {

@@ -18,8 +18,10 @@ def _lambda_handler(event: Any, context: Any) -> Any:
     logger.info(event)
 
     method_arn = event["methodArn"]
-    partner_id = event["headers"]["partner_id"]
-    api_key = event["headers"]["x_api_key"]
+
+    headers = {k.lower(): v for k, v in event['headers'].items()}
+    partner_id = headers.get('partner_id')
+    api_key = headers.get('x_api_key')    
 
     SM_CLIENT = boto3.client("secretsmanager")
 

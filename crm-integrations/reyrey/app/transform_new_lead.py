@@ -43,6 +43,11 @@ class ConsumerCreationException(Exception):
 class LeadCreationException(Exception):
     pass
 
+class NotInternetLeadException(Exception):
+    pass
+
+class NoCustomerInitiatedLeadException(Exception):
+    pass
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -153,8 +158,16 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = get_text(root, ".//star:InsertedBy", namespace)
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
-    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace)) 
-    prospect_type = root.find(".//star:ProspectType", namespace).text
+    prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace))
+    prospect_type = get_text(root, ".//star:ProspectType", namespace)
+    is_ci_lead = get_text(root, ".//star:IsCiLead", namespace)
+
+    if is_ci_lead == "false":
+        raise NoCustomerInitiatedLeadException(f"Lead is not customer initiated: {prospect_id}")
+
+    if prospect_type != "Internet":
+        raise NotInternetLeadException(f"Lead type is not Internet: {prospect_type}")
+
     metadata = {}
 
     lead_ts, metadata = convert_time_format(inserted_by, metadata)
@@ -271,13 +284,12 @@ def get_crm_dealer_id(root: ET.Element, ns: Any) -> str:
     return crm_dealer_id
 
 
-def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Element, namespace: dict, product_dealer_id: str, crm_api_key: str) -> Any:
+def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Element, namespace: dict, crm_dealer_id: str, product_dealer_id: str, crm_api_key: str) -> Any:
     """Create a new consumer in the Unified Layer."""
 
     # If the CRM consumer ID is not present, check whether the lead exists in the Unified Layer. If it does, throw an error; otherwise, create a new consumer.
     if consumer["crm_consumer_id"] is None:
         crm_lead_id = lead["crm_lead_id"]
-        crm_dealer_id = get_crm_dealer_id(root, namespace)
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:
             logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
@@ -346,9 +358,10 @@ def record_handler(record: SQSRecord) -> None:
         root = ET.fromstring(xml_data)
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
+        crm_dealer_id = get_crm_dealer_id(root, namespace)
         consumer = extract_consumer(root, namespace)
         lead = extract_lead(root, namespace)
-        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
+        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, crm_dealer_id, product_dealer_id, crm_api_key)
 
         lead["consumer_id"] = unified_crm_consumer_id
 
@@ -360,8 +373,15 @@ def record_handler(record: SQSRecord) -> None:
         raise
     except LeadCreationException:
         raise
+    except NotInternetLeadException:
+        logger.info("Lead type is not Internet")
+    except NoCustomerInitiatedLeadException:
+        logger.info("Lead is not customer initiated")
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
+            )
         raise
 
 
