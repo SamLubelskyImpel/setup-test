@@ -38,7 +38,6 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> 
     }
 
     response = requests.request(method, url, headers=headers, json=data)
-    logger.info(f"API {method} request to {url} responded with: {response.status_code}")
 
     if response.status_code != 200:
         error_msg = f"Error during {method} request to {url}: {response.text}"
@@ -80,8 +79,6 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
 def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api_key: str) -> Any:
     """Get lead by crm lead id through CRM API."""
     queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
-    if crm_consumer_id:
-        queryStringParameters += f"&crm_consumer_id={crm_consumer_id}"
 
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
@@ -149,6 +146,7 @@ def update_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: 
     """Update CRM Consumer ID through CRM API."""
 
     current_crm_consumer_id = get_current_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+    logger.info(f"Current CRM Consumer ID: {current_crm_consumer_id}")
 
     if not current_crm_consumer_id:
         url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
