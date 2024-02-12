@@ -312,13 +312,12 @@ def get_crm_dealer_id(root: ET.Element, ns: Any) -> str:
     return crm_dealer_id
 
 
-def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Element, namespace: dict, product_dealer_id: str, crm_api_key: str) -> Any:
+def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Element, namespace: dict, crm_dealer_id: str, product_dealer_id: str, crm_api_key: str) -> Any:
     """Create a new consumer in the Unified Layer."""
 
     # If the CRM consumer ID is not present, check whether the lead exists in the Unified Layer. If it does, throw an error; otherwise, create a new consumer.
     if consumer["crm_consumer_id"] is None:
         crm_lead_id = lead["crm_lead_id"]
-        crm_dealer_id = get_crm_dealer_id(root, namespace)
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:
             logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
@@ -385,9 +384,10 @@ def record_handler(record: SQSRecord) -> None:
         root = ET.fromstring(xml_data)
         namespace = {"star": "http://www.starstandards.org/STAR"}
 
+        crm_dealer_id = get_crm_dealer_id(root, namespace)
         consumer = extract_consumer(root, namespace)
         lead = extract_lead(root, namespace)
-        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, product_dealer_id, crm_api_key)
+        unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, crm_dealer_id, product_dealer_id, crm_api_key)
 
         # Write new lead to the Unified Layer, using the consumer_id that was just created
         lead["consumer_id"] = unified_crm_consumer_id
@@ -418,6 +418,9 @@ def record_handler(record: SQSRecord) -> None:
         logger.info("Lead is not customer initiated")
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
+            )
         raise
 
 

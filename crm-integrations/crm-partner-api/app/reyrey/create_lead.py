@@ -134,7 +134,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": soap_response,
         }
     except Exception as e:
-        logger.error(f"Error getting ReyRey lead update: {str(e)}")
+        logger.error(f"Error getting ReyRey new lead: {str(e)}")
         error_message = "Internal Server Error. Please contact Impel support."
         soap_response = create_soap_response(error_message)
         return {
