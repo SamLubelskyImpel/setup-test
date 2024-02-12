@@ -102,11 +102,11 @@ def extract_crm_ids(lead_xml_body: str) -> str:
     try:
         root = ET.fromstring(lead_xml_body)
 
-        namespace = {"star": "http://www.starstandards.org/STAR"}
+        namespace = {"ns": "http://www.starstandards.org/STAR"}
 
-        dealer_number = root.find(".//star:DealerNumber", namespace).text
-        store_number = root.find(".//star:StoreNumber", namespace).text
-        area_number = root.find(".//star:AreaNumber", namespace).text
+        dealer_number = root.find(".//ns:DealerNumber", namespace).text
+        store_number = root.find(".//ns:StoreNumber", namespace).text
+        area_number = root.find(".//ns:AreaNumber", namespace).text
 
         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
         
