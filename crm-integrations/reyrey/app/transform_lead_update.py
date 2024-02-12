@@ -4,13 +4,10 @@ from json import loads
 import logging
 import os
 import boto3
-import uuid
 from os import environ
 from typing import Any
-from datetime import datetime
 import xml.etree.ElementTree as ET
 import requests
-from requests.exceptions import HTTPError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -32,9 +29,28 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
+def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> Any:
+    """Generic helper function to make CRM API requests."""
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    response = requests.request(method, url, headers=headers, json=data)
+    logger.info(f"API {method} request to {url} responded with: {response.status_code}")
+
+    if response.status_code != 200:
+        error_msg = f"Error during {method} request to {url}: {response.text}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    return response.json()
+
+
 def get_lead_status(event_id: str, partner_name: str) -> Any:
     """Get lead status from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/test_{partner_name.upper()}.json"
     try:
         s3_object = json.loads(
                 s3_client.get_object(
@@ -69,43 +85,17 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api
 
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
-
-    response = requests.get(url, headers=headers)
-
-    logger.info(f"CRM API Get Lead responded with: {response.status_code}")
-
-    if response.status_code != 200:
-        logger.error(f"Error getting lead with crm_lead_id {crm_lead_id}: {response.text}")
-        raise
-
-    response_data = response.json()
+    response_data = make_crm_api_request(url, "GET", crm_api_key)
     lead_id = response_data.get('lead_id')
-    return lead_id
+    consumer_id = response_data.get('consumer_id')
+    return lead_id, consumer_id
 
 
 def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
-
-    response = requests.put(url, headers=headers, json=data)
-
-    logger.info(f"CRM API Put Lead responded with: {response.status_code}")
-
-    if response.status_code != 200:
-        logger.error(f"Error updating lead with lead_id {lead_id}: {response.text}")
-        raise
-
-    response_data = response.json()
-    return response_data
+    response_data = make_crm_api_request(url, "PUT", crm_api_key, data)
 
 
 def process_salespersons(response_data, new_salesperson):
@@ -141,21 +131,37 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     """Update lead salespersons through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': crm_api_key
-    }
-
-    response = requests.get(url, headers=headers)
-    logger.info(f"CRM API Get Salesperson responded with: {response.status_code}")
-
-    if response.status_code != 200:
-        logger.error(f"Error getting lead salespersons with lead_id {lead_id}: {response.text}")
-        raise
-
-    response_data = response.json()
+    response_data = make_crm_api_request(url, "GET", crm_api_key)
     salespersons = process_salespersons(response_data, new_salesperson)
     return salespersons
+
+
+def get_current_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str) -> Any:
+    """Get CRM Consumer ID through CRM API."""
+    url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
+
+    response_data = make_crm_api_request(url, "GET", crm_api_key)
+    current_crm_consumer_id = response_data.get('crm_consumer_id')
+    return current_crm_consumer_id
+
+
+def update_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str) -> Any:
+    """Update CRM Consumer ID through CRM API."""
+
+    current_crm_consumer_id = get_current_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+
+    if not current_crm_consumer_id:
+        url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
+
+        data = {
+            "crm_consumer_id": crm_consumer_id
+        }
+
+        response_data = make_crm_api_request(url, "PUT", crm_api_key, data)
+        return response_data
+
+    if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
+        raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -209,8 +215,11 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
 
-        lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key)
+        lead_id, consumer_id = get_lead(crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key)
         logger.info(f"Lead ID: {lead_id}")
+
+        if crm_consumer_id:
+            update_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
 
         lead_status = get_lead_status(event_id=str(event_id), partner_name=SECRET_KEY)
 
@@ -220,8 +229,7 @@ def record_handler(record: SQSRecord) -> None:
         }
 
         salespersons = {}
-        # update salesperson data if new salesperson is assigned
-        # TODO: add logic to event id 29 once it's finalized
+        # update salesperson data if new salesperson is assigned to the lead
         if event_id == "30":
             new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)
             if new_salesperson is not None:
