@@ -126,8 +126,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Created activity {activity_id}")
 
             dealer_partner = lead.consumer.dealer_integration_partner
-            dealer_timezone = dealer_partner.dealer.metadata_.get("timezone", "")
             partner_name = dealer_partner.integration_partner.impel_integration_partner_name
+
+            dealer_metadata = dealer_partner.dealer.metadata_
+            if dealer_metadata:
+                dealer_timezone = dealer_metadata.get("timezone", "")
+            else:
+                logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
+                dealer_timezone = ""
 
             payload = {
                 # Lead info
