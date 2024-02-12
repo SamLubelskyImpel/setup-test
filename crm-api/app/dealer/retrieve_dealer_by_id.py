@@ -23,7 +23,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             crm_dealer = session.query(
-                    Dealer, DealerIntegrationPartner
+                    Dealer
                 ).filter(
                     Dealer.product_dealer_id == product_dealer_id
                 ).first()
@@ -38,7 +38,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             crm_dealer_partner = session.query(
                     DealerIntegrationPartner
                 ).filter(
-                    DealerIntegrationPartner.dealer_id == crm_dealer.Dealer.id,
+                    DealerIntegrationPartner.dealer_id == crm_dealer.id,
                     DealerIntegrationPartner.is_active == True
                 ).first()
             if not crm_dealer_partner:
@@ -50,11 +50,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Found dealer partner: {crm_dealer_partner.as_dict()}")
 
-            timezone = crm_dealer.metadata_.get("timezone", "")
+            metadata = crm_dealer.metadata_
+            if metadata:
+                timezone = metadata.get("timezone", "")
+            else:
+                logger.warning(f"No metadata found for dealer: {product_dealer_id}")
+                timezone = ""
+
             dealer_record = {
-                "product_dealer_id": crm_dealer.Dealer.product_dealer_id,
+                "product_dealer_id": crm_dealer.product_dealer_id,
                 "dealer_integration_partner_id": crm_dealer_partner.id,
-                "dealer_name": crm_dealer.Dealer.dealer_name,
+                "dealer_name": crm_dealer.dealer_name,
                 "timezone": timezone,
                 "integration_partner_name": crm_dealer_partner.integration_partner.impel_integration_partner_name
             }
