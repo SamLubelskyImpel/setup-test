@@ -503,6 +503,24 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveDealerById:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveDealerById"
+      CodeUri: app/dealer/
+      Handler: retrieve_dealer_by_id.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/{dealer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UploadData:
     Type: AWS::Serverless::Function
     Properties:
