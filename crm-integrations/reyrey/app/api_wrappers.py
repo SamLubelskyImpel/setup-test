@@ -196,13 +196,6 @@ class ReyreyApiWrapper:
 
         return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
-    # def format_dealertime(self, utc_time_str):
-    #     """Format Local Dealer Time."""
-    #     # utc_time_str == Local Dealer Time
-    #     utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
-    #     formatted_time = utc_time.strftime("%Y-%m-%dT%H:%M:%S")
-    #     return formatted_time
-
     def __insert_note(self):
         created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())

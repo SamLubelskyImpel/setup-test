@@ -90,20 +90,6 @@ class DealerpeakApiWrapper:
 
         return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
-    # def apply_utc_offset(self, utc_time_str):
-    #     """Apply the UTC offset to a datetime string.
-    #     DealerPeak expects the datetime string to be in UTC time.
-    #     """
-    #     # utc_time_str == Local Dealer Time, this must be converted to UTC Dealer Time
-    #     utc_time = datetime.strptime(utc_time_str, '%Y-%m-%dT%H:%M:%SZ')
-    #     utc_offset = datetime.strptime(self.__utc_offset, "%z").utcoffset()
-
-    #     # Apply the UTC offset
-    #     new_time = utc_time - utc_offset
-
-    #     new_time_str = new_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    #     return new_time_str
-
     def __insert_note(self):
         payload = {
             "addedBy_UserID": self.__salesperson["crm_salesperson_id"],
