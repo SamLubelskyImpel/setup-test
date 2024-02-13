@@ -24,3 +24,19 @@ def upload_dms_data(client_id: str, file_type: str, filename: str, data: str):
     except ClientError:
         _logger.exception(f"Error uploading {filename} to {key} for client {client_id}")
         raise
+
+
+def upload_crm_data(client_id: str, file_type: str, filename: str, data: str):
+    """Upload file to s3 dms uploads bucket."""
+    ENV = environ.get("ENV", "test")
+    CRM_UPLOAD_BUCKET = f"crm-integrations-{ENV}"
+
+    now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
+    key = f"{client_id}/{file_type}/{now.year}/{now.month}/{now.day}/{now.hour}/{filename}"
+
+    try:
+        s3_client = boto3.client("s3")
+        s3_client.put_object(Body=data, Bucket=CRM_UPLOAD_BUCKET, Key=key)
+    except ClientError:
+        _logger.exception(f"Error uploading {filename} to {key} for client {client_id}")
+        raise
