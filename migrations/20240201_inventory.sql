@@ -20,7 +20,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- inv_integration_partner Table
-CREATE TABLE inv_integration_partner (
+CREATE TABLE stage.inv_integration_partner (
     id SERIAL PRIMARY KEY NOT NULL,
     impel_integration_partner_id VARCHAR(40) NOT NULL,
     "type" VARCHAR(20) NULL,
@@ -63,7 +63,7 @@ BEGIN
 END $$;
 
 -- inv_dealer Table
-CREATE TABLE inv_dealer (
+CREATE TABLE stage.inv_dealer (
     id SERIAL PRIMARY KEY NOT NULL,
     impel_dealer_id VARCHAR(100) NOT NULL,
     location_name VARCHAR(80) NULL,
@@ -71,10 +71,10 @@ CREATE TABLE inv_dealer (
     city VARCHAR(40) NULL,
     zip_code VARCHAR(20) NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+    db_update_date timestamptz NULL,
+    db_update_user varchar(255) NULL,
     full_name VARCHAR(255) NULL,
-    CONSTRAINT unique_impel_id UNIQUE (impel_dealer_id)
+    CONSTRAINT unique_inv_impel_id UNIQUE (impel_dealer_id)
 );
 
 -- Create a trigger on inv_dealer table that fires on INSERT
@@ -110,16 +110,16 @@ BEGIN
 END $$;
 
 -- inv_dealer_integration_partner Table
-CREATE TABLE inv_dealer_integration_partner (
+CREATE TABLE stage.inv_dealer_integration_partner (
     id SERIAL PRIMARY KEY NOT NULL,
-    integration_partner_id INTEGER REFERENCES inv_integration_partner(id) NOT NULL,
-    dealer_id INTEGER REFERENCES inv_dealer(id) NOT NULL,
+    integration_partner_id INTEGER REFERENCES stage.inv_integration_partner(id) NOT NULL,
+    dealer_id INTEGER REFERENCES stage.inv_dealer(id) NOT NULL,
     provider_dealer_id VARCHAR(255) NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT true,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
 	db_update_user varchar(255) NULL,
-    CONSTRAINT dealer_integration_partner_un UNIQUE (dealer_id, integration_partner_id, provider_dealer_id)
+    CONSTRAINT inv_dealer_integration_partner_un UNIQUE (dealer_id, integration_partner_id, provider_dealer_id)
 );
 
 -- Create a trigger on inv_dealer_integration_partner table that fires on INSERT
@@ -155,7 +155,7 @@ BEGIN
 END $$;
 
 -- inv_vehicle Table
-CREATE TABLE inv_vehicle (
+CREATE TABLE stage.inv_vehicle (
     id SERIAL PRIMARY KEY NOT NULL,
     vin varchar NULL,
     oem_name VARCHAR(80) NULL,
@@ -168,7 +168,7 @@ CREATE TABLE inv_vehicle (
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
 	db_update_user varchar(255) NULL,
-    dealer_integration_partner_id INTEGER REFERENCES inv_dealer_integration_partner(id) NOT NULL,
+    dealer_integration_partner_id INTEGER REFERENCES stage.inv_dealer_integration_partner(id) NOT NULL,
     new_or_used VARCHAR(1) NULL,
     metadata jsonb NULL
 );
@@ -206,9 +206,9 @@ BEGIN
 END $$;
 
 -- inv_inventory Table
-CREATE TABLE inv_inventory (
+CREATE TABLE stage.inv_inventory (
     id SERIAL PRIMARY KEY NOT NULL,
-    vehicle_id INTEGER REFERENCES inv_vehicle(id) NOT NULL,
+    vehicle_id INTEGER REFERENCES stage.inv_vehicle(id) NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
 	db_update_user varchar(255) NULL,
@@ -229,7 +229,7 @@ CREATE TABLE inv_inventory (
     on_lot BOOLEAN NULL,
     inventory_status VARCHAR(255) NULL,
     vin VARCHAR(255) NULL,
-    dealer_integration_partner_id INTEGER REFERENCES inv_dealer_integration_partner(id) NOT NULL,
+    dealer_integration_partner_id INTEGER REFERENCES stage.inv_dealer_integration_partner(id) NOT NULL,
     interior_material VARCHAR(255) NULL,
     source_data_drive_train VARCHAR(255) NULL,
     source_data_interior_material_description VARCHAR(255) NULL,
@@ -282,7 +282,7 @@ BEGIN
 END $$;
 
 -- inv_equipment Table
-CREATE TABLE inv_equipment (
+CREATE TABLE stage.inv_equipment (
     id SERIAL PRIMARY KEY NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
@@ -324,7 +324,7 @@ BEGIN
 END $$;
 
 -- inv_option Table
-CREATE TABLE inv_option (
+CREATE TABLE stage.inv_option (
     id SERIAL PRIMARY KEY NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
@@ -366,17 +366,17 @@ BEGIN
 END $$;
 
 -- inv_option_inventory Table
-CREATE TABLE inv_option_inventory (
+CREATE TABLE stage.inv_option_inventory (
     id SERIAL PRIMARY KEY NOT NULL,
-    inv_option_id INTEGER REFERENCES inv_option(id) NOT NULL,
-    inv_inventory_id INTEGER REFERENCES inv_inventory(id) NOT NULL,
+    inv_option_id INTEGER REFERENCES stage.inv_option(id) NOT NULL,
+    inv_inventory_id INTEGER REFERENCES stage.inv_inventory(id) NOT NULL,
     CONSTRAINT unique_inv_option_inventory UNIQUE (inv_option_id, inv_inventory_id)
 );
 
 -- inv_equipment_inventory Table
-CREATE TABLE inv_equipment_inventory (
+CREATE TABLE stage.inv_equipment_inventory (
     id SERIAL PRIMARY KEY NOT NULL,
-    inv_equipment_id INTEGER REFERENCES inv_equipment(id) NOT NULL,
-    inv_inventory_id INTEGER REFERENCES inv_inventory(id) NOT NULL,
+    inv_equipment_id INTEGER REFERENCES stage.inv_equipment(id) NOT NULL,
+    inv_inventory_id INTEGER REFERENCES stage.inv_inventory(id) NOT NULL,
     CONSTRAINT unique_inv_equipment_inventory UNIQUE (inv_equipment_id, inv_inventory_id)
 );
