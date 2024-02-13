@@ -31,9 +31,6 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-class EventListenerError(Exception):
-    pass
-
 class LeadExistsException(Exception):
     pass
 
@@ -48,6 +45,7 @@ class NotInternetLeadException(Exception):
 
 class NoCustomerInitiatedLeadException(Exception):
     pass
+
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""

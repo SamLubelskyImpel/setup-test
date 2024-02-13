@@ -24,6 +24,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
+EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 
 sm_client = boto3.client("secretsmanager")
 
@@ -262,8 +263,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Integration partner: {integration_partner_name}")
 
         if integration_partner_name == 'REYREY' or integration_partner_name == 'DEALERPEAK':
-            send_to_event_listener(lead_id)
-            logger.info(f"Successfully sent the lead {lead_id} to DA")
+            sqs_client = boto3.client('sqs')
+
+            sqs_client.send_message(
+                QueueUrl=EVENT_LISTENER_QUEUE,
+                MessageBody=json.dumps({"lead_id": lead_id})
+            )
 
         return {
             "statusCode": "201",
