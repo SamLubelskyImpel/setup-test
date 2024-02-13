@@ -5,6 +5,7 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 import boto3
+import botocore.exceptions
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -53,6 +54,12 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
             MessageGroupId=partner_name
         )
         logger.info(f"Sent activity {payload['activity_id']} to CRM")
+    except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            logger.warning(f"Configuration file not found for {partner_name}")
+            raise Exception(f"Configuration file not found for {partner_name}")
+        else:
+            raise Exception(e)
     except Exception as e:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)
