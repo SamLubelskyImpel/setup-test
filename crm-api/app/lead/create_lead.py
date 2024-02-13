@@ -17,22 +17,16 @@ from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
-from utils import send_email_notification
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 
-sm_client = boto3.client("secretsmanager")
 
 salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
-
-class EventListenerError(Exception):
-    pass
 
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
@@ -87,48 +81,6 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
         return None
 
 
-def get_secret(secret_name: Any, secret_key: Any) -> Any:
-    """Get secret from Secrets Manager."""
-    secret = sm_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-    )
-    secret = json.loads(secret["SecretString"])[str(secret_key)]
-    secret_data = json.loads(secret)
-
-    return secret_data
-
-
-def send_to_event_listener(lead_id: int) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        listener_secrets = get_secret(
-            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
-        )
-
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=30,
-        )
-        logger.info(f"DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        logger.error(
-            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
-        )
-    except Exception as e:
-        message = f"Error sending the lead {lead_id} to DA Event Listener: {e}"
-        logger.error(message)
-        send_email_notification(message)
-        raise EventListenerError
-
-
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
@@ -139,7 +91,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts=body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
             consumer = session.query(
@@ -263,11 +215,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Integration partner: {integration_partner_name}")
 
         if integration_partner_name == 'REYREY' or integration_partner_name == 'DEALERPEAK':
+            logger.info("EVENT_LISTENER_QUEUE: " + EVENT_LISTENER_QUEUE)
             sqs_client = boto3.client('sqs')
 
             sqs_client.send_message(
                 QueueUrl=EVENT_LISTENER_QUEUE,
-                MessageBody=json.dumps({"lead_id": lead_id})
+                MessageBody=json.dumps({"lead_id": lead_id}),
+                MessageGroupId=integration_partner_name
             )
 
         return {
