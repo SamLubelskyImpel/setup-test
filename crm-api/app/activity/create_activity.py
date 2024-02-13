@@ -81,10 +81,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
         request_product = event["headers"]["partner_id"]
         lead_id = event["queryStringParameters"]["lead_id"]
 
+        # Timestamps are required as UTC with Zero Offset, eg. "2021-08-25T12:00:00Z"
         activity_type = body["activity_type"].lower()
         activity_due_ts = body.get("activity_due_ts")
         activity_requested_ts = body["activity_requested_ts"]
-        utc_offset = body["utc_offset"]
         notes = body.get("notes", "")
         contact_method = body.get("contact_method")
 
@@ -116,8 +116,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 activity_requested_ts=activity_requested_ts,
                 request_product=request_product,
                 notes=notes,
-                contact_method=contact_method,
-                metadata_={"utc_offset": utc_offset}
+                contact_method=contact_method
             )
 
             session.add(activity)
@@ -128,6 +127,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             dealer_partner = lead.consumer.dealer_integration_partner
             partner_name = dealer_partner.integration_partner.impel_integration_partner_name
+
+            dealer_metadata = dealer_partner.dealer.metadata_
+            if dealer_metadata:
+                dealer_timezone = dealer_metadata.get("timezone", "")
+            else:
+                logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
+                dealer_timezone = ""
 
             payload = {
                 # Lead info
@@ -142,7 +148,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "notes": activity.notes,
                 "activity_due_ts": activity_due_ts,
                 "activity_requested_ts": activity_requested_ts,
-                "utc_offset": utc_offset,
+                "dealer_timezone": dealer_timezone,
                 "activity_type": activity.activity_type.type,
                 "contact_method": activity.contact_method,
             }

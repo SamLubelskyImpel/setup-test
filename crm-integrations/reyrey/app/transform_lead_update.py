@@ -241,6 +241,9 @@ def record_handler(record: SQSRecord) -> None:
 
     except Exception as e:
         logger.error(f"Error transforming reyrey lead update record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] ProductDealerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, lead_id, crm_dealer_id, crm_lead_id, e)
+            )
         raise
 
 

@@ -30,6 +30,11 @@ Globals:
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        REPORTING_TOPIC_ARN: !If [
+            IsProd,
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+          ]
 
 Resources:
   LambdaRole:
@@ -72,6 +77,7 @@ Resources:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
                 Resource: "arn:aws:logs:*:*:*"
         - PolicyName: LambdaEC2ENIManagement
           PolicyDocument:
@@ -121,6 +127,19 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
+                    IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
 
   TransformNewLead:
     Type: AWS::Serverless::Function
@@ -196,6 +215,11 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
   
+  TransformNewLeadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformNewLead"
+
   EventBridgeRuleNewLead:
     Type: AWS::Events::Rule
     Properties:
@@ -291,6 +315,11 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRuleUpdateLead.Arn
 
+  TransformLeadUpdateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-TransformLeadUpdate"
+
   EventBridgeRuleUpdateLead:
     Type: AWS::Events::Rule
     Properties:
@@ -367,3 +396,55 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
+
+  MonitoringReyRey:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub reyrey-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringReyRey.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
+  MonitoringGetNewLeadsSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringReyRey
+    Properties:
+      LogGroupName: !Ref TransformNewLeadLogGroup
+      DestinationArn: !GetAtt MonitoringReyRey.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringGetLeadUpdatesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringReyRey
+    Properties:
+      LogGroupName: !Ref TransformLeadUpdateLogGroup
+      DestinationArn: !GetAtt MonitoringReyRey.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringReyRey
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringReyRey.Arn
+      FilterPattern: "SUPPORT ALERT"
