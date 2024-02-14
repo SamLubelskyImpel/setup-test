@@ -34,11 +34,9 @@ def get_lambda_arn(partner_name: str) -> Any:
         return lambda_arn
 
     except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
-            logger.warning(f"Configuration file not found for {partner_name}")
-            raise Exception(f"Configuration file not found for {partner_name}")
-        else:
-            raise Exception(e)
+        logger.error(f"Error retrieving configuration file for {partner_name}")
+        raise Exception(e)
+
     except Exception as e:
         logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
         raise Exception(e)
