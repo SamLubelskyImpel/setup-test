@@ -23,10 +23,28 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
+s3_client = boto3.client("s3")
 
 
 salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
+
+
+def send_notification_to_event_listener(integration_partner_name: str) -> bool:
+    """Check if notification should be sent to the event listener."""
+    response = s3_client.get_object(
+        Bucket=INTEGRATIONS_BUCKET,
+        Key="configurations/test_GENERAL.json",
+    )
+    # Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
+    config = json.loads(response["Body"].read())
+    logger.info(f"Config: {config}")
+    notification_partners = config["notification_partners"]
+    if integration_partner_name in notification_partners:
+        return True
+    return False
 
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
@@ -214,8 +232,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
-        if integration_partner_name == 'REYREY' or integration_partner_name == 'DEALERPEAK':
-            logger.info("EVENT_LISTENER_QUEUE: " + EVENT_LISTENER_QUEUE)
+        notify_listener = send_notification_to_event_listener(integration_partner_name)
+
+        if notify_listener:
             sqs_client = boto3.client('sqs')
 
             sqs_client.send_message(
