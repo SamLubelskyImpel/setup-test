@@ -3,14 +3,13 @@ from os import environ
 from json import loads
 from boto3 import client
 from logging import getLogger
-
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-from api_wrappers import CrmApiWrapper, CRMApiError, MomentumApiWrapper
+from api_wrappers import CrmApiWrapper, MomentumApiWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -23,6 +22,7 @@ secret_client = client("secretsmanager")
 
 crm_api = CrmApiWrapper()
 
+
 def record_handler(record: SQSRecord):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")
@@ -30,21 +30,22 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         salesperson = crm_api.get_salesperson(activity["lead_id"])
 
-        momentum_crm_api = MomentumApiWrapper(activity=activity, salesperson=salesperson)
+        logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
 
-        dealerpeak_task_id = momentum_crm_api.create_activity()
-        logger.info(f"Momentum responded with task ID: {dealerpeak_task_id}")
+        # momentum_crm_api = MomentumApiWrapper(activity=activity, salesperson=salesperson)
 
-        crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
+        # dealerpeak_task_id = momentum_crm_api.create_activity()
+        # logger.info(f"Momentum responded with task ID: {dealerpeak_task_id}")
 
-    except CRMApiError:
-        return
+        # crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
+
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Momentum")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
             activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
             )
         raise
+
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create activity on Momentum."""

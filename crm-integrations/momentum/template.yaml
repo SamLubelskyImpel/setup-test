@@ -100,7 +100,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-              #     - !GetAtt SendActivityQueue.Arn
+                  - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformNewLeadQueue.Arn
               #     - !GetAtt TransformLeadUpdateQueue.Arn
               - Effect: "Allow"

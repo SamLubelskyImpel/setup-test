@@ -8,23 +8,20 @@ import requests
 from os import environ
 from json import loads
 from boto3 import client
+from uuid import uuid4
 from datetime import datetime
-from logging import getLogger, info
-from requests.auth import HTTPBasicAuth
-
+from typing import Tuple
+import logging
+import pytz
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
-logger = getLogger()
+logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
-
-
-class CRMApiError(Exception):
-    pass
 
 
 class CrmApiWrapper:
@@ -44,22 +41,27 @@ class CrmApiWrapper:
         return secret_data["api_key"]
 
     def __run_get(self, endpoint: str):
-        res = requests.get(
+        response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/{endpoint}",
             headers={
                 "x_api_key": self.api_key,
                 "partner_id": self.partner_id,
             },
         )
-        res.raise_for_status()
-        return res.json()
+        response.raise_for_status()
+        return response.json()
 
     def get_salesperson(self, lead_id: int):
-        return self.__run_get(f"leads/{lead_id}/salespersons")[0]
+        salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
+        if not salespersons:
+            logger.warning(f"No salespersons found for lead_id: {lead_id}")
+            raise Exception(f"No salespersons found for lead_id: {lead_id}")
+
+        return salespersons[0]
 
     def update_activity(self, activity_id, crm_activity_id):
         try:
-            res = requests.put(
+            response = requests.put(
                 url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
                 json={"crm_activity_id": crm_activity_id},
                 headers={
@@ -67,36 +69,42 @@ class CrmApiWrapper:
                     "partner_id": self.partner_id,
                 },
             )
-            res.raise_for_status()
-            return res.json()
+            response.raise_for_status()
+            logger.info(f"CRM API PUT Activities responded with: {response.status_code}")
+            return response.json()
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
-            raise CRMApiError(f"Error occured calling CRM API: {e}")
 
 
 class MomentumApiWrapper:
     """Momentum API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__url, self.__username, self.__password = self.get_secrets()
-        self.__api_token, self.__api_end_point = self.get_token()
+        self.__login_url, self.__master_key = self.get_secrets()
+        self.__api_token, self.__api_url = self.get_token()
         self.__activity = kwargs.get("activity")
+        self.__salesperson = kwargs.get("salesperson")
+        self.__dealer_timezone = self.__activity["dealer_timezone"]
 
     def get_token(self):
-        res = requests.get(
-            url=self.__url,
+        response = requests.get(
+            url="{}/{}".format(self.__login_url, self.__activity["crm_dealer_id"]),
             headers={
                 "Content-Type": "application/json",
                 "MOM-ApplicationType": "V",
-                "MOM-Api-Key": self.__password,
+                "MOM-Api-Key": self.__master_key,
             },
         )
-        res.raise_for_status()
-        json_data = res.json()
-        api_token = json_data["apiToken"]
-        end_point = json_data["endPoint"]
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM - Get Token: {response_json}")
 
-        return api_token, end_point
+        api_token = response_json["apiToken"]
+        api_url = response_json["endPoint"]
+        if ENVIRONMENT != "prod":
+            api_url += "/v1"
+
+        return api_token, api_url
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -107,59 +115,91 @@ class MomentumApiWrapper:
 
         return (
             secret_data["API_URL"],
-            secret_data["API_USERNAME"],
-            secret_data["API_PASSWORD"],
+            secret_data["API_MASTER_KEY"]
         )
 
-    def __call_api(self, payload, endpoint):
+    def __call_api(self, url, payload):
         headers = {
             "Content-Type": "application/json",
             "MOM-ApplicationType": "V",
             "MOM-Api-Key": self.__api_token,
         }
-        res = requests.post(
-            url=f"{self.__api_end_point}/{self.__activity['crm_lead_id']}/{endpoint}",
+        response = requests.post(
+            url=url,
             json=payload,
             headers=headers,
         )
+        response.raise_for_status()
+        logger.info(f"Response from CRM: {response.status_code}")
+        return response.json()
 
-        res.raise_for_status()
-        return res.json()["taskID"]
+    def convert_utc_to_timezone(self, input_ts: str) -> Tuple[str, str]:
+        """Convert UTC timestamp to dealer's local time."""
+        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+        utc_datetime = pytz.utc.localize(utc_datetime)
 
-    def format_dealertime(self, utc_time_str):
-        """Format Local Dealer Time."""
-        # utc_time_str == Local Dealer Time
-        utc_time = datetime.strptime(utc_time_str, "%Y-%m-%dT%H:%M:%SZ")
-        apptDate = utc_time.strftime("%Y-%m-%d")
-        apptTime = utc_time.strftime("%H:%M")
-        return apptDate, apptTime
+        if not self.__dealer_timezone:
+            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
+            new_ts = utc_datetime.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Get the dealer timezone object, convert UTC datetime to dealer timezone
+            dealer_tz = pytz.timezone(self.__dealer_timezone)
+            dealer_datetime = utc_datetime.astimezone(dealer_tz)
+            new_ts = dealer_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+        timestamp_str = new_ts.split(" ")
+        return timestamp_str[0], timestamp_str[1]
 
     def __create_appointment(self):
-        apptDate, apptTime = self.format_dealertime(self.__activity["activity_due_ts"])
+        """Create appointment on CRM."""
+        url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
+        appt_date, app_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
+        request_id = str(uuid4())
+
         payload = {
-            "apptDate": apptDate,
-            "apptTime": apptTime,
-            "_______managerApiID": "[your-manager-api-id]",
-            "salesmanApiID": "ce15f797-4690-4df3-b045-ebdcae71d605",
+            "apptDate": appt_date,
+            "apptTime": app_time,
+            # "_______managerApiID": "[your-manager-api-id]",
+            "salesmanApiID": self.__salesperson["crm_salesperson_id"],
             "note": self.__activity["notes"],
             "externalCreatedByName": "ImpelCRM",
+            "externalID": request_id,
         }
 
-        return self.__call_api(payload, "appointment/sales")
+        logger.info(f"Payload to CRM: {payload}")
+        response_json = self.__call_api(url, payload)
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("appointmentApiID", ""))
 
     def __insert_note(self):
-        payload = {"remark": self.__activity["notes"]}
-        info(f"Payload to CRM: {payload}")
+        """Insert note on CRM."""
+        url = "{}/lead/{}/contact/remark".format(self.__api_url, self.__activity["crm_lead_id"])
 
-        return self.__call_api(payload, "contact/remark")
+        payload = {
+            "remark": self.__activity["notes"]
+        }
+        logger.info(f"Payload to CRM: {payload}")
+        response_json = self.__call_api(url, payload)
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("leadRemarkID", ""))
 
     def __create_outbound_call(self):
-        payload = {"remark": self.__activity["notes"]}
-        info(f"Payload to CRM: {payload}")
+        """Create outbound call on CRM."""
+        url = "{}/lead/{}/contact/remark/clockstop".format(self.__api_url, self.__activity["crm_lead_id"])
 
-        return self.__call_api(payload, "contact/remark/clockstop")
+        payload = {
+            "remark": self.__activity["notes"]
+        }
+        logger.info(f"Payload to CRM: {payload}")
+        response_json = self.__call_api(url, payload)
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("leadRemarkID", ""))
 
     def create_activity(self):
+        """Create activity on CRM."""
         if self.__activity["activity_type"] == "note":
             return self.__insert_note()
         elif self.__activity["activity_type"] == "appointment":
