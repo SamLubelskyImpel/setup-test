@@ -66,7 +66,6 @@ def save_raw_lead(lead: str, product_dealer_id: str):
 def lambda_handler(event: Any, context: Any) -> Any:
     """This API handler takes the Json sent by momentum and puts the raw Json into the S3 bucket."""
     try:
-        # event = redact_sensitive_info(event)
         logger.info(f"Event: {event}")
 
         body = loads(event["body"])

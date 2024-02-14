@@ -63,6 +63,31 @@ paths:
           description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
         '500':
           description: Internal Server Error. Please contact Impel support.
+  # /momentum/crm-upload/v1/leads:
+  #   post:
+  #     summary: Post Momentum CRM new leads.
+  #     #{{MOMENTUM_CREATE_LEAD_LAMBDA_INFO}}
+  #     tags:
+  #       - Momentum
+  #     operationId: momentum-post-lead
+  #     description: |-
+  #       This API endpoint creates a CRM lead record in the Impel system.
+  #     requestBody:
+  #       description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             $ref: '#/components/schemas/MomentumLead'
+  #     responses:
+  #       '200':
+  #         description: Success. 
+  #       '400':
+  #         description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+  #       '401':
+  #         description: This request is unauthorized. The authorization credentials are missing or are wrong.
+  #       '500':
+  #         description: Internal Server Error. Please contact Impel support.
           
   /momentum/crm-upload/v1/lead-updates:
     post:
@@ -79,7 +104,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MomentumLead'
+              $ref: '#/components/schemas/MomentumLeadUpdate'
       responses:
         '200':
           description: Success. 
@@ -563,6 +588,65 @@ components:
           maxLength: 84
           minLength: 1
           example: John Doe
+    MomentumLeadUpdate:
+      description: Request body for Momentum lead updates
+      type: object
+      required:
+        - id
+        - dealerID
+      properties:
+        id:
+          type: string
+          description: ID of the lead
+          minLength: 1
+          maxLength: 50
+          example: "D973DAF4-D0F2124-389FC"
+        dealerID:
+          type: string
+          description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        date:
+          type: string
+          format: date-time
+          description: Timestamp of the lead in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        leadStatus:
+          type: string
+          description: Status of the lead
+          minLength: 1
+          maxLength: 50
+          example: "New"
+        leadStatusTimestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the lead status update in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        contactID:
+          type: string
+          description: ID of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        contactName:
+          type: string
+          description: Name of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Jane Smith"
+        bdcID:
+          type: string
+          description: ID of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        bdcName:
+          type: string
+          description: Name of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Richard Roe"
     MomentumLead:
       description: Request body for Momentum leads
       type: object
