@@ -21,7 +21,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = event["pathParameters"]["consumer_id"]
 
         fields_to_update = [
-            "first_name", "last_name", "middle_name", "email", "phone",
+            "crm_consumer_id", "first_name", "last_name", "middle_name", "email", "phone",
             "email_optin_flag", "sms_optin_flag", "city", "country",
             "address", "postal_code"
         ]

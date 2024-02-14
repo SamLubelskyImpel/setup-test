@@ -97,23 +97,29 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     )
 
 
-def extract_crm_dealer_id(lead_xml_body: str) -> str:
+def extract_crm_ids(lead_xml_body: str) -> str:
     """Extract CRM dealer ID from incoming xml."""
     try:
         root = ET.fromstring(lead_xml_body)
 
-        namespace = {"star": "http://www.starstandards.org/STAR"}
+        namespace = {"ns": "http://www.starstandards.org/STAR"}
 
-        dealer_number = root.find(".//star:DealerNumber", namespace).text
-        store_number = root.find(".//star:StoreNumber", namespace).text
-        area_number = root.find(".//star:AreaNumber", namespace).text
+        dealer_number = root.find(".//ns:DealerNumber", namespace).text
+        store_number = root.find(".//ns:StoreNumber", namespace).text
+        area_number = root.find(".//ns:AreaNumber", namespace).text
 
         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
+        
+        record = root.find(".//ns:Record", namespaces=namespace)
+        identifier = record.find(".//ns:Identifier", namespaces=namespace)
+        crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=namespace).text
+        logger.info(f"CRM Lead ID: {crm_lead_id}")
+
     except Exception as e:
         logger.error(f"Error parsing XML: {e}")
         raise
 
-    return concatenated_dealer_id
+    return concatenated_dealer_id, crm_lead_id
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -124,7 +130,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         lead_xml_body = event["body"]
         reyrey_dealer_list = get_dealers("REYREY")
-        crm_dealer_id = extract_crm_dealer_id(lead_xml_body)
+        crm_dealer_id, crm_lead_id = extract_crm_ids(lead_xml_body)
 
         product_dealer_id = None
         for dealer in reyrey_dealer_list:

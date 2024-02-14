@@ -38,8 +38,11 @@ def record_handler(record: SQSRecord):
 
     except CRMApiError:
         return
-    except Exception:
+    except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to ReyRey")
+        logger.error("[SUPPORT ALERT] Failed to Send Activity to ReyRey Focus CRM [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            )
         raise
 
 
