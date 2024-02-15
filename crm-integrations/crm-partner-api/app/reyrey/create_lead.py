@@ -112,11 +112,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         if not product_dealer_id:
             logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+            error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
+            soap_response = create_soap_response(error_message)
             return {
                 "statusCode": 401,
-                "body": {
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel."
-                },
+                "headers": {"Content-Type": "text/xml"},
+                "body": soap_response
             }
 
         logger.info("New lead received for dealer: " + product_dealer_id)
