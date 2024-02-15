@@ -54,7 +54,6 @@ def get_lead(crm_lead_id, crm_dealer_id, crm_api_key):
 
     except Exception as e:
         logger.error(f"Error getting existing lead from CRM API: {e}")
-#         raise
 
 def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
@@ -76,22 +75,23 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     response_data = response.json()
     return response_data
 
-
-def process_salespersons(response_data, new_salesperson):
+def process_salespersons(response_data, contact_id, new_salesperson):
     """Process salespersons from CRM API response."""
     new_first_name, new_last_name = new_salesperson.split()
     logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
 
-    if not response_data:
-        logger.info("No salespersons found for this lead.")
+    for salesperson in response_data:
+        if salesperson.get('crm_salesperson_id') == contact_id:
+            salesperson['first_name'] = new_first_name
+            salesperson['last_name'] = new_last_name
+            salesperson['is_primary'] = True 
+            return response_data
+
+    if contact_id:
         return [create_or_update_salesperson(new_salesperson)]
-
-    return [
-        create_or_update_salesperson(new_salesperson)
-        if salesperson.get('is_primary') and (salesperson.get('first_name') != new_first_name or salesperson.get('last_name') != new_last_name)
-        else salesperson for salesperson in response_data
-    ]
-
+    else:
+        logger.info("No contact ID provided, not updating salesperson.")
+        return response_data
 
 def create_or_update_salesperson(new_salesperson):
     first_name, last_name = new_salesperson.split()
@@ -105,7 +105,7 @@ def create_or_update_salesperson(new_salesperson):
         "is_primary": True
     }
 
-def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: str) -> Any:
+def update_lead_salespersons(contact_id: str, contact_name: str, lead_id: str, crm_api_key: str) -> Any:
     """Update lead salespersons through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
@@ -122,9 +122,11 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
         raise
         
     response_data = response.json()
-    salespersons = process_salespersons(response_data, new_salesperson)
+    logger.info(f"CRM API Get Salesperson response data: {response_data}")
+    salespersons = process_salespersons(response_data, contact_id, contact_name)
+    logger.info(f"Processed salespersons: {salespersons}")
     return salespersons
-    
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -141,35 +143,54 @@ def record_handler(record: SQSRecord) -> None:
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        crm_lead_id = json_data["id"]
-        crm_dealer_id = json_data["dealerID"]
-        contact_name = json_data["contactName"]
-        lead_status = json_data["leadStatus"]
-        lead_status_timestamp = json_data["leadStatusTimestamp"]
+        crm_lead_id = json_data.get("id")
+        crm_dealer_id = json_data.get("dealerID")
+        lead_status = json_data.get("leadStatus", "")
+        lead_status_timestamp = json_data.get("leadStatusTimestamp", "")
+        contact_id = json_data.get("contactID", "")
+        contact_name = json_data.get("contactName", "")
+
+        if not crm_lead_id or not crm_dealer_id:
+            logger.error(f"Required CRM lead ID or dealer ID is missing in the data: {json_data}")
+            raise ValueError("Missing required lead ID or dealer ID.")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         
-        salesperson = update_lead_salespersons(contact_name, lead_id, crm_api_key)
+        if not lead_id:
+            logger.error(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
+            raise ValueError("Lead ID could not be retrieved.")
 
-        data = {
-            'lead_status': lead_status,
-            'metadata': {"leadStatusTimestamp": lead_status_timestamp},
-            'salespersons': salesperson
-        }
+        data = {'metadata': {}}
 
-        update_lead_status(lead_id, data, crm_api_key)
+        if lead_status:
+            data['lead_status'] = lead_status
+        else:
+            logger.warning(f"Lead status is empty for CRM lead ID: {crm_lead_id}. No update will be performed for this field.")
+        if lead_status_timestamp:
+            data['metadata']['leadStatusTimestamp'] = lead_status_timestamp
+
+        if contact_id and contact_name:
+            salesperson = update_lead_salespersons(contact_id, contact_name, lead_id, crm_api_key)
+            data['salespersons'] = salesperson
+
+        if 'lead_status' in data or 'salespersons' in data:
+            update_lead_status(lead_id, data, crm_api_key)
+            logger.info(f"Lead {crm_lead_id} updated successfully.")
+        else:
+            logger.info(f"No updates to apply for lead {crm_lead_id}.")
 
         return {
             'statusCode': 200,
-            'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
+            'body': json.dumps({'message': f"Lead {crm_lead_id} processed successfully."})
         }
 
     except Exception as e:
         logger.error(f"Error transforming momentum lead update record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] ProductDealerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, lead_id, crm_dealer_id, crm_lead_id, e)
+        )
         raise
-
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw momentum lead update data to the unified format."""
