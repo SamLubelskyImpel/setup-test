@@ -180,11 +180,6 @@ def record_handler(record: SQSRecord) -> None:
         else:
             logger.info(f"No updates to apply for lead {crm_lead_id}.")
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'message': f"Lead {crm_lead_id} processed successfully."})
-        }
-
     except Exception as e:
         logger.error(f"Error transforming momentum lead update record - {record}: {e}")
         logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] ProductDealerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
