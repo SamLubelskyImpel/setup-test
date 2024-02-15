@@ -125,8 +125,8 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
         "crm_consumer_id": name_rec_id,
         "first_name": first_name,
         "last_name": last_name,
-        "email": email_mail_to,
-        "phone": phone_num,
+        "email": email_mail_to if email_mail_to is not None else "",
+        "phone": phone_num if phone_num is not None else "",
         "email_optin_flag": False if consent_email == "N" else True,
         "sms_optin_flag": False if consent_text == "N" else True,
     }
