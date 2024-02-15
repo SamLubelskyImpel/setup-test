@@ -85,18 +85,17 @@ def process_salespersons(response_data, contact_id, new_salesperson):
             salesperson['first_name'] = new_first_name
             salesperson['last_name'] = new_last_name
             salesperson['is_primary'] = True 
-            return response_data
+            break  # Since we've found and updated the primary salesperson, we can exit the loop.
 
-    if contact_id:
-        return [create_or_update_salesperson(new_salesperson)]
     else:
-        logger.info("No contact ID provided, not updating salesperson.")
-        return response_data
+        # If no existing salesperson matches the contact_id, add a new primary salesperson.
+        response_data.append(create_or_update_salesperson(new_salesperson, contact_id))
+    return response_data
 
-def create_or_update_salesperson(new_salesperson):
+def create_or_update_salesperson(new_salesperson, contact_id):
     first_name, last_name = new_salesperson.split()
     return {
-        "crm_salesperson_id": f"{last_name}, {first_name}",
+        "crm_salesperson_id": contact_id,
         "first_name": first_name,
         "last_name": last_name,
         "email": "",
