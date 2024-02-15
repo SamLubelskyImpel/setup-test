@@ -89,9 +89,12 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
 
 
 def get_text(element, path, namespace):
-    """Get the text of the element if it's present."""
+    """Get the text of the element, handling 'Null' as None."""
     found_element = element.find(path, namespace)
-    return found_element.text if found_element is not None else None
+    if found_element is not None and found_element.text != "Null":
+        return found_element.text
+    else:
+        return None
 
 
 def extract_phone(root: ET.Element, namespace: dict) -> str:
@@ -109,27 +112,25 @@ def extract_phone(root: ET.Element, namespace: dict) -> str:
 
 def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     """Extract consumer data from the XML."""
-    name_rec_id = get_text(root, ".//star:NameRecId", namespace)
-    first_name = get_text(root, ".//star:FirstName", namespace)
-    last_name = get_text(root, ".//star:LastName", namespace)
-    email_mail_to = get_text(root, ".//star:Email/star:MailTo", namespace)
-    phone_num = extract_phone(root, namespace)
-    consent_email = get_text(root, ".//star:Consent/star:Email", namespace)
-    consent_text = get_text(root, ".//star:Consent/star:Text", namespace)
-
-    if email_mail_to is None and phone_num is None:
-        logger.warning(f"Consumer {name_rec_id} does not have email or phone number")
-
-    # Assemble the payload for the CRM API
-    extracted_data = {
-        "crm_consumer_id": name_rec_id,
-        "first_name": first_name,
-        "last_name": last_name,
-        "email": email_mail_to,
-        "phone": phone_num,
-        "email_optin_flag": False if consent_email == "N" else True,
-        "sms_optin_flag": False if consent_text == "N" else True,
+    fields = {
+        "crm_consumer_id": get_text(root, ".//star:NameRecId", namespace),
+        "first_name": get_text(root, ".//star:FirstName", namespace),
+        "last_name": get_text(root, ".//star:LastName", namespace),
+        "email": get_text(root, ".//star:Email/star:MailTo", namespace),
+        "phone": extract_phone(root, namespace),
+        "email_optin_flag": False if get_text(root, ".//star:Consent/star:Email", namespace) == "N" else True,
+        "sms_optin_flag": False if get_text(root, ".//star:Consent/star:Text", namespace) == "N" else True,
     }
+
+    extracted_data = {}
+
+    for key, value in fields.items():
+        if value:
+            extracted_data[key] = value
+
+    if not extracted_data.get("email") and not extracted_data.get("phone"):
+        logger.warning(f"Consumer {fields['crm_consumer_id']} does not have an email or phone number.")
+
     return extracted_data
 
 
