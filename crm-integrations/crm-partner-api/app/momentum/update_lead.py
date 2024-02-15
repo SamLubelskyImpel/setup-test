@@ -89,14 +89,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         return {
             "statusCode": 200
         }
-
-    except ValueError as e:
-        error_message = str(e)
-        return {
-            "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": dumps({"error": error_message})
-        }
+        
     except Exception as e:
         error_message = str(e)
         logger.error(f"Error getting Momentum lead update: {error_message}")
