@@ -68,10 +68,7 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
 
     logger.info(f"CRM API Put Lead responded with: {response.status_code}")
 
-    if response.status_code != 200:
-        logger.error(f"Error updating lead with lead_id {lead_id}: {response.text}")
-        raise
-
+    response.raise_for_status()
     response_data = response.json()
     return response_data
 

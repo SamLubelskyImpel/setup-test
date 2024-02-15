@@ -40,12 +40,7 @@ def get_dealers(integration_partner_name: str) -> Any:
         params={"integration_partner_name": integration_partner_name},
     )
     logger.info(f"CRM API responded with: {response.status_code}")
-    if response.status_code != 200:
-        logger.error(
-            f"Error getting dealers {integration_partner_name}: {response.text}"
-        )
-        raise
-
+    response.raise_for_status()
     return response.json()
 
 
