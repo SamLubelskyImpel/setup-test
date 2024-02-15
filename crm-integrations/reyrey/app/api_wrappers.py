@@ -176,7 +176,7 @@ class ReyreyApiWrapper:
         status_code = str(trans_status["StatusCode"])
         if status_code != "0":
             logger.error(f"ReyRey responded with an error: {status_code} {trans_status['Status']}")
-            raise
+            raise Exception(f"ReyRey responded with an error: {status_code}")
 
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
@@ -252,7 +252,7 @@ class ReyreyApiWrapper:
         contact_method = self.__activity["contact_method"].capitalize()
         if contact_method not in ("Phone", "Email", "Text"):
             logger.error(f"ReyRey CRM doesn't support contact method: {contact_method}")
-            raise
+            raise Exception(f"ReyRey CRM doesn't support contact method: {contact_method}")
 
         payload = REYREY_XML_TEMPLATE.format(
             auth_username=self.__username,
