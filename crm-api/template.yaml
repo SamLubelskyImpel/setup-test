@@ -566,7 +566,7 @@ Resources:
   SendNotificationToEventListenerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 1
+      BatchSize: 5
       EventSourceArn: !GetAtt SendNotificationToEventListenerQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt SendNotificationToEventListener.Arn
@@ -574,9 +574,7 @@ Resources:
   SendNotificationToEventListenerQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendNotificationToEventListenerDeadLetterQueue.Arn
@@ -585,8 +583,7 @@ Resources:
   SendNotificationToEventListenerDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   

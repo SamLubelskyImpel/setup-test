@@ -239,8 +239,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             sqs_client.send_message(
                 QueueUrl=EVENT_LISTENER_QUEUE,
-                MessageBody=json.dumps({"lead_id": lead_id}),
-                MessageGroupId=integration_partner_name
+                MessageBody=json.dumps({"lead_id": lead_id})
             )
 
         return {
