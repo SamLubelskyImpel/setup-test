@@ -8,10 +8,10 @@ from os import environ
 from typing import Any
 import xml.etree.ElementTree as ET
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
-    SqsFifoPartialProcessor,
+    BatchProcessor,
+    EventType,
     process_partial_response,
 )
 
@@ -240,10 +240,10 @@ def record_handler(record: SQSRecord) -> None:
 
         update_lead_status(lead_id, data, crm_api_key)
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
-        }
+        # return {
+        #     'statusCode': 200,
+        #     'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
+        # }
 
     except Exception as e:
         logger.error(f"Error transforming reyrey lead update record - {record}: {e}")
@@ -258,7 +258,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = SqsFifoPartialProcessor()
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,

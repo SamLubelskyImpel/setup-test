@@ -40,7 +40,7 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
         s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
-        fifo_queue = loads(
+        queue_url = loads(
             s3_client.get_object(
                 Bucket=INTEGRATIONS_BUCKET,
                 Key=s3_key
@@ -48,9 +48,8 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
         )["send_activity_queue_url"]
 
         sqs_client.send_message(
-            QueueUrl=fifo_queue,
-            MessageBody=dumps(payload),
-            MessageGroupId=partner_name
+            QueueUrl=queue_url,
+            MessageBody=dumps(payload)
         )
         logger.info(f"Sent activity {payload['activity_id']} to CRM")
     except Exception as e:

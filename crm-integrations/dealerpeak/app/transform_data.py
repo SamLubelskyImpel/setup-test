@@ -10,7 +10,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
-    SqsFifoPartialProcessor,
+    BatchProcessor,
+    EventType,
     process_partial_response,
 )
 
@@ -265,7 +266,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = SqsFifoPartialProcessor()
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
