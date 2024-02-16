@@ -162,9 +162,7 @@ Resources:
   TransformNewLeadQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-TransformNewLeadQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "reyrey-${Environment}-TransformNewLeadQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
@@ -173,8 +171,7 @@ Resources:
   TransformNewLeadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-TransformNewLeadDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "reyrey-${Environment}-TransformNewLeadDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -238,8 +235,6 @@ Resources:
       Targets:
         - Id: "TransformNewLeadTarget"
           Arn: !GetAtt TransformNewLeadQueue.Arn
-          SqsParameters:
-            MessageGroupId: "TransformNewLead"
   
   TransformLeadUpdate:
     Type: AWS::Serverless::Function
@@ -262,9 +257,7 @@ Resources:
   TransformLeadUpdateQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformLeadUpdateDeadLetterQueue.Arn
@@ -273,8 +266,7 @@ Resources:
   TransformLeadUpdateDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
@@ -338,15 +330,11 @@ Resources:
       Targets:
         - Id: "TransformLeadUpdateTarget"
           Arn: !GetAtt TransformLeadUpdateQueue.Arn
-          SqsParameters:
-            MessageGroupId: "TransformLeadUpdate"
 
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-SendActivityQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "reyrey-${Environment}-SendActivityQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -355,8 +343,7 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
