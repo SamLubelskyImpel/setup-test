@@ -189,9 +189,7 @@ Resources:
   TransformLeadUpdateQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformLeadUpdateDeadLetterQueue.Arn
@@ -200,8 +198,7 @@ Resources:
   TransformLeadUpdateDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
