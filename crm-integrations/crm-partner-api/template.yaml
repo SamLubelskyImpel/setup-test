@@ -341,3 +341,19 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /momentum/crm-upload/v1/leads
             Method: POST
+
+  MomentumUpdateLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-partner-api-${Environment}-MomentumUpdateLead"
+      CodeUri: app/momentum/
+      Handler: update_lead.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /momentum/crm-upload/v1/lead-updates
+            Method: POST

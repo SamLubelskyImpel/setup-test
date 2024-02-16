@@ -102,7 +102,7 @@ Resources:
                 Resource:
                   - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformNewLeadQueue.Arn
-              #     - !GetAtt TransformLeadUpdateQueue.Arn
+                  - !GetAtt TransformLeadUpdateQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -156,9 +156,7 @@ Resources:
   TransformNewLeadQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
@@ -167,8 +165,7 @@ Resources:
   TransformNewLeadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -227,15 +224,11 @@ Resources:
       Targets:
         - Id: "TransformNewLeadTarget"
           Arn: !GetAtt TransformNewLeadQueue.Arn
-          SqsParameters:
-            MessageGroupId: "TransformNewLead"
   
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-SendActivityQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "momentum-${Environment}-SendActivityQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -244,8 +237,7 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-SendActivityDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "momentum-${Environment}-SendActivityDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -291,6 +283,101 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  TransformLeadUpdate:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-TransformLeadUpdate
+      CodeUri: app/
+      Handler: transform_lead_update.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformLeadUpdateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-TransformLeadUpdate"
+
+  TransformLeadUpdateEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformLeadUpdateQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformLeadUpdate.Arn
+
+  TransformLeadUpdateQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformLeadUpdateDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformLeadUpdateDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  TransformLeadUpdateDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Momentum Transform Lead Update DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformLeadUpdateDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformLeadUpdateQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformLeadUpdateQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformLeadUpdateQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRuleUpdateLead.Arn
+
+  EventBridgeRuleUpdateLead:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw_updates/momentum/" }
+      Targets:
+        - Id: "TransformLeadUpdateTarget"
+          Arn: !GetAtt TransformLeadUpdateQueue.Arn
+
   MonitoringMomentum:
     Type: AWS::Serverless::Function
     Properties:
@@ -332,5 +419,16 @@ Resources:
       - SendActivityLogGroup
     Properties:
       LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringTransformLeadUpdateSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - TransformLeadUpdateLogGroup
+    Properties:
+      LogGroupName: !Ref TransformLeadUpdateLogGroup
       DestinationArn: !GetAtt MonitoringMomentum.Arn
       FilterPattern: "SUPPORT ALERT"

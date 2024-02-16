@@ -180,9 +180,7 @@ Resources:
   InvokeDataPullQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
@@ -191,8 +189,7 @@ Resources:
   InvokeDataPullDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
@@ -242,9 +239,7 @@ Resources:
   TransformDealerpeakDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-TransformQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "dealerpeak-${Environment}-TransformQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
@@ -253,8 +248,7 @@ Resources:
   TransformDealerpeakDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
@@ -313,8 +307,6 @@ Resources:
       Targets:
         - Id: "TransformDealerpeakDataTarget"
           Arn: !GetAtt TransformDealerpeakDataQueue.Arn
-          SqsParameters:
-            MessageGroupId: "TransformDealerpeakData"
 
   GetLeadUpdates:
     Type: AWS::Serverless::Function
@@ -353,9 +345,7 @@ Resources:
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue.fifo"
-      FifoQueue: true
-      ContentBasedDeduplication: true
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -364,8 +354,7 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ.fifo"
-      FifoQueue: true
+      QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
