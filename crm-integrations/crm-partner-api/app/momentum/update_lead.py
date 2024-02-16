@@ -67,21 +67,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
         momentum_dealer_list = get_dealers("MOMENTUM")
         crm_dealer_id = body["dealerID"]
 
-        product_dealer_id = None
         for dealer in momentum_dealer_list:
             if dealer["crm_dealer_id"] == crm_dealer_id:
                 product_dealer_id = dealer["product_dealer_id"]
                 break
-
-        if not product_dealer_id:
+        else:
             logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
-            error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
             return {
                 "statusCode": 401,
                 "headers": {"Content-Type": "application/json"},
-                "body": dumps({"error": error_message})
+                "body": dumps({
+                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealerID provided hasn't been configured with Impel."
+                }),
             }
-            
+
         logger.info(f"Lead update received for dealer: {product_dealer_id}")
         logger.info(f"Lead body: {body}")
         save_raw_lead(str(dumps(body)), product_dealer_id)
@@ -89,7 +88,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         return {
             "statusCode": 200
         }
-        
+
     except Exception as e:
         error_message = str(e)
         logger.error(f"Error getting Momentum lead update: {error_message}")

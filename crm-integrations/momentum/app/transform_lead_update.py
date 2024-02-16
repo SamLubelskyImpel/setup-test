@@ -27,6 +27,7 @@ SECRET_KEY = environ.get("SECRET_KEY")
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
+
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
@@ -36,6 +37,7 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     secret_data = json.loads(secret)
 
     return secret_data
+
 
 def get_lead(crm_lead_id, crm_dealer_id, crm_api_key):
     """Get existing lead from CRM API."""
@@ -56,6 +58,7 @@ def get_lead(crm_lead_id, crm_dealer_id, crm_api_key):
     except Exception as e:
         logger.error(f"Error getting existing lead from CRM API: {e}")
 
+
 def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
@@ -73,6 +76,7 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     response_data = response.json()
     return response_data
 
+
 def process_salespersons(response_data, contact_id, new_salesperson):
     """Process salespersons from CRM API response."""
     new_first_name, new_last_name = new_salesperson.split()
@@ -82,13 +86,11 @@ def process_salespersons(response_data, contact_id, new_salesperson):
         if salesperson.get('crm_salesperson_id') == contact_id:
             salesperson['first_name'] = new_first_name
             salesperson['last_name'] = new_last_name
-            salesperson['is_primary'] = True 
-            break  # Since we've found and updated the primary salesperson, we can exit the loop.
+            salesperson['is_primary'] = True
+            return response_data
 
-    else:
-        # If no existing salesperson matches the contact_id, add a new primary salesperson.
-        response_data.append(create_or_update_salesperson(new_salesperson, contact_id))
-    return response_data
+    return [create_or_update_salesperson(new_salesperson, contact_id)]
+
 
 def create_or_update_salesperson(new_salesperson, contact_id):
     first_name, last_name = new_salesperson.split()
@@ -96,11 +98,12 @@ def create_or_update_salesperson(new_salesperson, contact_id):
         "crm_salesperson_id": contact_id,
         "first_name": first_name,
         "last_name": last_name,
-        "email": "",
-        "phone": "",
+        # "email": "",
+        # "phone": "",
         "position_name": "Primary Salesperson",
         "is_primary": True
     }
+
 
 def update_lead_salespersons(contact_id: str, contact_name: str, lead_id: str, crm_api_key: str) -> Any:
     """Update lead salespersons through CRM API."""
@@ -117,12 +120,13 @@ def update_lead_salespersons(contact_id: str, contact_name: str, lead_id: str, c
     if response.status_code != 200:
         logger.error(f"Error getting lead salespersons with lead_id {lead_id}: {response.text}")
         raise
-        
+
     response_data = response.json()
     logger.info(f"CRM API Get Salesperson response data: {response_data}")
     salespersons = process_salespersons(response_data, contact_id, contact_name)
     logger.info(f"Processed salespersons: {salespersons}")
     return salespersons
+
 
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
@@ -140,20 +144,16 @@ def record_handler(record: SQSRecord) -> None:
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        crm_lead_id = json_data.get("id")
-        crm_dealer_id = json_data.get("dealerID")
+        crm_lead_id = json_data["id"]
+        crm_dealer_id = json_data["dealerID"]
         lead_status = json_data.get("leadStatus", "")
         lead_status_timestamp = json_data.get("leadStatusTimestamp", "")
         contact_id = json_data.get("contactID", "")
         contact_name = json_data.get("contactName", "")
 
-        if not crm_lead_id or not crm_dealer_id:
-            logger.error(f"Required CRM lead ID or dealer ID is missing in the data: {json_data}")
-            raise ValueError("Missing required lead ID or dealer ID.")
-
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
-        
+
         if not lead_id:
             logger.error(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
             raise ValueError("Lead ID could not be retrieved.")
@@ -170,6 +170,8 @@ def record_handler(record: SQSRecord) -> None:
         if contact_id and contact_name:
             salesperson = update_lead_salespersons(contact_id, contact_name, lead_id, crm_api_key)
             data['salespersons'] = salesperson
+        else:
+            logger.warning(f"Contact ID or contact name is empty for CRM lead ID: {crm_lead_id}. No update will be performed for salespersons.")
 
         if 'lead_status' in data or 'salespersons' in data:
             update_lead_status(lead_id, data, crm_api_key)
@@ -184,10 +186,11 @@ def record_handler(record: SQSRecord) -> None:
         )
         raise
 
+
 def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw momentum lead update data to the unified format."""
     logger.info(f"Event: {event}")
-    
+
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
