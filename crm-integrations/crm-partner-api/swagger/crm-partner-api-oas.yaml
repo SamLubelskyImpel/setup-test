@@ -653,6 +653,10 @@ components:
       required:
         - id
         - dealerID
+        - firstName
+        - lastName
+        - leadStatus
+        - leadType
       properties:
         id:
           type: string

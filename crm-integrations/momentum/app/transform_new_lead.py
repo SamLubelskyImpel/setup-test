@@ -4,6 +4,7 @@ from json import loads
 from os import environ
 import logging
 from typing import Any
+from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     SqsFifoPartialProcessor,
@@ -121,10 +122,10 @@ def parse_lead(product_dealer_id, data):
         crm_lead_id = data["id"]
 
         db_consumer = {
-            "first_name": data.get("firstName", ""),
-            "last_name": data.get("lastName", ""),
-            "email": data.get("email", ""),
+            "first_name": data["firstName"],
+            "last_name": data["lastName"],
             "phone": parse_phone_number(data),
+            "email": data.get("email"),
             "address": parse_address(data),
             "city": data.get("city"),
             "country": data.get("country"),
@@ -134,13 +135,15 @@ def parse_lead(product_dealer_id, data):
         if not db_consumer["email"] and not db_consumer["phone"]:
             raise Exception("Email or phone number is required")
 
+        db_consumer = {key: value for key, value in db_consumer.items() if value}
+
         db_lead = {
-            "lead_ts": data.get("date"),  # 2024-01-26T17:16:19-0800
+            "lead_ts": data.get("date", datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')),  # 2024-01-26T17:16:19-0800
             "crm_lead_id": crm_lead_id,
-            "lead_status": data.get("leadStatus", ""),
+            "lead_status": data["leadStatus"],
             "lead_substatus": "",
             "lead_comment": data.get("comments", ""),
-            "lead_origin": data.get("leadType", ""),
+            "lead_origin": data["leadType"],
             "lead_source": data.get("providerName", ""),
         }
 
@@ -156,16 +159,18 @@ def parse_lead(product_dealer_id, data):
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
-        if data.get("contactName") and data.get("contactID"):
-            sp_id = data.get("contactID")
-            sp_first, sp_last = data.get("contactName").split(" ")
+        if data.get("contactID"):
             db_salesperson = {
-                "crm_salesperson_id": sp_id,
-                "first_name": sp_first,
-                "last_name": sp_last,
+                "crm_salesperson_id": data["contactID"],
+                "first_name": "",
+                "last_name": "",
                 "is_primary": True,
                 "position_name": "Primary Salesperson",
             }
+            if data.get("contactName"):
+                sp_first, sp_last = data["contactName"].split()
+                db_salesperson["first_name"] = sp_first
+                db_salesperson["last_name"] = sp_last
         else:
             db_salesperson = {}
             logger.info("No salesperson found in the lead data")
