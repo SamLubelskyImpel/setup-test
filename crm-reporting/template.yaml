@@ -235,7 +235,7 @@ Resources:
       TopicArn: !Ref CRMReportingSnsTopic
       # FilterPolicy: '{"alert_type": ["client_engineering"]}'
   
-  CESnsSubscription:
+  L3SnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Endpoint: !If [IsProd, 'l3support@impel.ai', 'srwoods@impel.io']
