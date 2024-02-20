@@ -142,16 +142,16 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             vehicles = item.get('vehiclesOfInterest', [])
             for vehicle in vehicles:
-                db_vehicle = {}
-                db_vehicle["crm_vehicle_id"] = vehicle.get('carID')
-                db_vehicle["vin"] = vehicle.get('vin')
-                if vehicle.get('year'):  # If year is not present, None type cannot be converted to int.
-                    db_vehicle["year"] = int(vehicle.get('year'))
-                db_vehicle["make"] = vehicle.get('make')
-                db_vehicle["model"] = vehicle.get('model')
-
                 is_new = vehicle.get("isNew")
-                db_vehicle["condition"] = 'New' if is_new is True else ('Used' if is_new is False else None)
+                db_vehicle = {
+                    "crm_vehicle_id": vehicle.get('carID'),
+                    "vin": vehicle.get('vin'),
+                    "year": int(vehicle.get('year')) if vehicle.get('year') else None,
+                    "make": vehicle.get('make'),
+                    "model": vehicle.get('model'),
+                    "condition": 'New' if is_new is True else ('Used' if is_new is False else None)
+                }
+                db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
                 db_vehicles.append(db_vehicle)
 
