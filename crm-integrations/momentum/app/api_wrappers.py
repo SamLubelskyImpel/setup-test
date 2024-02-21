@@ -81,8 +81,8 @@ class MomentumApiWrapper:
 
     def __init__(self, **kwargs):
         self.__login_url, self.__master_key = self.get_secrets()
-        self.__api_token, self.__api_url = self.get_token()
         self.__activity = kwargs.get("activity")
+        self.__api_token, self.__api_url = self.get_token()
         self.__salesperson = kwargs.get("salesperson")
         self.__dealer_timezone = self.__activity["dealer_timezone"]
 

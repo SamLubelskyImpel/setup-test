@@ -130,7 +130,7 @@ def parse_lead(product_dealer_id, data):
             "address": parse_address(data),
             "city": data.get("city"),
             "country": data.get("country"),
-            "postal_code": data.get("zip")
+            "postal_code": str(data.get("zip", "")) if data.get("zip") else None
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
