@@ -118,13 +118,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         vehicles_of_interest = body.get('vehicles_of_interest', [])
         metadata = body.get('metadata')
+        consumer_id = body.get("consumer_id")
 
         lead_field_mapping = {
             "lead_status": "status",
             "lead_substatus": "substatus",
             "lead_comment": "comment",
             "lead_origin": "origin_channel",
-            "lead_source": "source_channel"
+            "lead_source": "source_channel",
+            "crm_lead_id": "crm_lead_id"
         }
 
         with DBSession() as session:
@@ -136,6 +138,28 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
+
+            if consumer_id and lead.consumer_id != consumer_id:
+                consumer = session.query(Consumer).filter(Consumer.id == consumer_id).first()
+
+                if not consumer:
+                    logger.error(f"Consumer not found and cannot be updated {consumer_id}")
+                    return {
+                        "statusCode": 404,
+                        "body": dumps({"error": f"Consumer not found and cannot be updated {consumer_id}"})
+                    }
+
+                if lead.consumer.dealer_integration_partner_id != consumer.dealer_integration_partner_id:
+                    message = "Leads cannot be reassigned to consumers outside of their dealer_integration_partner."
+                    logger.error(message)
+                    return {
+                        "statusCode": 400,
+                        "body": dumps({"error": message})
+                    }
+
+                original_consumer = lead.consumer_id
+                lead.consumer_id = consumer_id
+                logger.info(f"Lead reassigned from consumer {original_consumer} to {consumer_id}")
 
             # Get dealer_partner_id
             dealer_partner_id = lead.consumer.dealer_integration_partner_id

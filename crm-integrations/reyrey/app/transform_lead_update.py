@@ -5,7 +5,7 @@ import logging
 import os
 import boto3
 from os import environ
-from typing import Any
+from typing import Any, Dict
 import xml.etree.ElementTree as ET
 import requests
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
@@ -38,17 +38,12 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> 
     }
 
     response = requests.request(method, url, headers=headers, json=data)
-
-    if response.status_code != 200:
-        error_msg = f"Error during {method} request to {url}: {response.text}"
-        logger.error(error_msg)
-        raise Exception(error_msg)
-
-    return response.json()
+    logger.info(f"CRM API responded with: {response.status_code}")
+    return response
 
 
-def get_lead_status(event_id: str, partner_name: str) -> Any:
-    """Get lead status from S3."""
+def get_mapped_status(event_id: str, partner_name: str) -> Any:
+    """Get mapped lead status from S3."""
     s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
     try:
         s3_object = json.loads(
@@ -82,9 +77,12 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api
 
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
-    response_data = make_crm_api_request(url, "GET", crm_api_key)
-    lead_id = response_data.get('lead_id')
-    consumer_id = response_data.get('consumer_id')
+    response = make_crm_api_request(url, "GET", crm_api_key)
+    response.raise_for_status()
+
+    response_json = response.json()
+    lead_id = response_json.get('lead_id')
+    consumer_id = response_json.get('consumer_id')
     return lead_id, consumer_id
 
 
@@ -92,17 +90,25 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
-    response_data = make_crm_api_request(url, "PUT", crm_api_key, data)
+    response = make_crm_api_request(url, "PUT", crm_api_key, data)
+    response.raise_for_status()
 
 
 def process_salespersons(response_data, new_salesperson):
     """Process salespersons from CRM API response."""
-    new_first_name, new_last_name = new_salesperson.split()
-    logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
+    try:
+        new_first_name, new_last_name = new_salesperson.split()
+    except ValueError:
+        logger.warning(f"Salesperson name is not in the correct format: {new_salesperson}")
+        new_first_name = new_salesperson.strip().replace(" ", "")
+        new_last_name = ""
+
+    crm_salesperson_id = new_salesperson.strip().replace(" ", "")
+    logger.info(f"New Salesperson: {crm_salesperson_id}")
 
     if not response_data:
         logger.info("No salespersons found for this lead.")
-        return [create_or_update_salesperson(new_salesperson)]
+        return [create_or_update_salesperson(new_first_name, new_last_name, crm_salesperson_id)]
 
     return [
         create_or_update_salesperson(new_salesperson)
@@ -111,10 +117,9 @@ def process_salespersons(response_data, new_salesperson):
     ]
 
 
-def create_or_update_salesperson(new_salesperson):
-    first_name, last_name = new_salesperson.split()
+def create_or_update_salesperson(first_name, last_name, crm_salesperson_id):
     return {
-        "crm_salesperson_id": f"{last_name}, {first_name}",
+        "crm_salesperson_id": crm_salesperson_id,
         "first_name": first_name,
         "last_name": last_name,
         "email": "",
@@ -128,8 +133,10 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     """Update lead salespersons through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
-    response_data = make_crm_api_request(url, "GET", crm_api_key)
-    salespersons = process_salespersons(response_data, new_salesperson)
+    response = make_crm_api_request(url, "GET", crm_api_key)
+    response.raise_for_status(response)
+
+    salespersons = process_salespersons(response.json(), new_salesperson)
     return salespersons
 
 
@@ -137,29 +144,45 @@ def get_current_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_
     """Get CRM Consumer ID through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
 
-    response_data = make_crm_api_request(url, "GET", crm_api_key)
-    current_crm_consumer_id = response_data.get('crm_consumer_id')
+    response = make_crm_api_request(url, "GET", crm_api_key)
+    if response.status_code != 200:
+        error_msg = f"Error during fetching consumer: {response.text}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
+
+    current_crm_consumer_id = response.json().get('crm_consumer_id')
     return current_crm_consumer_id
 
 
-def update_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str) -> Any:
-    """Update CRM Consumer ID through CRM API."""
+def get_existing_consumer_by_id(crm_consumer_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+    """Get existing consumer by CRM Consumer ID through CRM API."""
+    url = f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}?crm_dealer_id={crm_dealer_id}?integration_partner_name={SECRET_KEY}"
 
-    current_crm_consumer_id = get_current_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
-    logger.info(f"Current CRM Consumer ID: {current_crm_consumer_id}")
+    response = make_crm_api_request(url, "GET", crm_api_key)
 
-    if not current_crm_consumer_id:
-        url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
+    if response.status_code == 404:
+        logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} not found. {response.text}")
+        return None
 
-        data = {
-            "crm_consumer_id": crm_consumer_id
-        }
+    response.raise_for_status()
 
-        response_data = make_crm_api_request(url, "PUT", crm_api_key, data)
-        return response_data
+    response_json = response.json()
+    logger.info(f"Existing consumer with CRM Consumer ID {response_json}")
+    consumer_id = response_json["consumer_id"]
 
-    if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
-        raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
+    return consumer_id
+
+
+def set_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str) -> None:
+    """Set CRM Consumer ID through CRM API."""
+    url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
+    data = {
+        "crm_consumer_id": crm_consumer_id
+    }
+
+    response = make_crm_api_request(url, "PUT", crm_api_key, data)
+    response.raise_for_status()
+    return
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -175,6 +198,7 @@ def record_handler(record: SQSRecord) -> None:
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
+        logger.info(f"XML Content: {content}")
 
         # Parse the XML content
         root = ET.fromstring(content)
@@ -183,7 +207,7 @@ def record_handler(record: SQSRecord) -> None:
         ET.register_namespace('', ns['ns'])
 
         application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
-        record = root.find(".//ns:Record", namespaces=ns)
+        record = root.find(".//ns:Record", namespaces=ns)  # type: ignore
 
         dealer_number = None
         store_number = None
@@ -191,16 +215,16 @@ def record_handler(record: SQSRecord) -> None:
         if application_area is not None:
             sender = application_area.find(".//ns:Sender", namespaces=ns)
             if sender is not None:
-                dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
-                store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
-                area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
+                dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text  # type: ignore
+                store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text  # type: ignore
+                area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text  # type: ignore
 
         crm_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
         logger.info(f"CRM Dealer ID: {crm_dealer_id}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        identifier = record.find(".//ns:Identifier", namespaces=ns)
+        identifier = record.find(".//ns:Identifier", namespaces=ns)  # type: ignore
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
         logger.info(f"CRM Lead ID: {crm_lead_id}")
 
@@ -208,30 +232,57 @@ def record_handler(record: SQSRecord) -> None:
         if crm_consumer_id is not None:
             crm_consumer_id = crm_consumer_id.text
 
-        event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text
-        event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text
+        event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text  # type: ignore
+        event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text  # type: ignore
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
 
         lead_id, consumer_id = get_lead(crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key)
         logger.info(f"Lead ID: {lead_id}")
 
+        data: Dict[str, Any] = {}
+
+        # Handle lead merge event
+        if event_id == "19":
+            merged_prospect_id = record.find(".//ns:RCIDispositionMergedProspectId", namespaces=ns).text  # type: ignore
+            if not merged_prospect_id:
+                raise Exception("Lead Merged User Event: MergedProspectId not provided.")
+
+            data.update({
+                "crm_lead_id": str(merged_prospect_id)
+            })
+
         if crm_consumer_id:
-            update_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+            current_crm_consumer_id = get_current_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
 
-        lead_status = get_lead_status(event_id=str(event_id), partner_name=SECRET_KEY)
+            if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
+                raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
 
-        data = {
-            'lead_status': lead_status,
+            if not current_crm_consumer_id:
+                existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
+
+                # Reassign lead to existing consumer
+                if existing_consumer_id:
+                    logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} found. Reassigning lead to new consumer.")
+                    data.update({
+                        "consumer_id": existing_consumer_id
+                    })
+                # Set CRM Consumer ID for consumer
+                else:
+                    set_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+
+        mapped_lead_status = get_mapped_status(event_id=str(event_id), partner_name=SECRET_KEY)  # type: ignore
+        data.update({
+            'lead_status': mapped_lead_status,
             'metadata': {"updatedCrmLeadStatus": event_name}
-        }
+        })
 
         salespersons = {}
         # update salesperson data if new salesperson is assigned to the lead
         if event_id == "30":
-            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)
+            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)  # type: ignore
             if new_salesperson is not None:
-                new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns).text
+                new_salesperson = new_salesperson.text  # type: ignore
             else:
                 raise Exception("Field with salesperson name is not provided.")
 
@@ -239,11 +290,6 @@ def record_handler(record: SQSRecord) -> None:
             data['salespersons'] = salespersons
 
         update_lead_status(lead_id, data, crm_api_key)
-
-        # return {
-        #     'statusCode': 200,
-        #     'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
-        # }
 
     except Exception as e:
         logger.error(f"Error transforming reyrey lead update record - {record}: {e}")

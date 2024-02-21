@@ -47,7 +47,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 DealerIntegrationPartner.is_active == True,
                 IntegrationPartner.impel_integration_partner_name == integration_partner_name
             ).first()
-            
+
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {crm_dealer_id}.")
                 return {
