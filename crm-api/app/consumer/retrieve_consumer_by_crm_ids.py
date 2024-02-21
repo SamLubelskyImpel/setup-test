@@ -69,7 +69,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         return {
-            "statusCode": "200",
+            "statusCode": 200,
             "body": dumps(consumer_record)
         }
 
