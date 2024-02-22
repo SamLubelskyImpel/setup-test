@@ -23,7 +23,7 @@ BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
-SECRET_KEY = environ.get("SECRET_KEY")
+SECRET_KEY = environ.get("SECRET_KEY", "")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -71,23 +71,26 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     return secret_data
 
 
-def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str, crm_api_key: str) -> Any:
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     """Get lead by crm lead id through CRM API."""
     queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
 
     url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
 
     response = make_crm_api_request(url, "GET", crm_api_key)
-    response.raise_for_status()
+
+    if response.status_code != 200:
+        raise Exception(f"Lead with CRM Lead ID {crm_lead_id} not found. {response.text}")
 
     response_json = response.json()
-    lead_id = response_json.get('lead_id')
-    consumer_id = response_json.get('consumer_id')
+    lead_id = response_json.get("lead_id")
+    consumer_id = response_json.get("consumer_id")
     return lead_id, consumer_id
 
 
 def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     """Update lead status through CRM API."""
+    logger.info(f"Updating lead status for lead {lead_id} with data: {data}")
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
     response = make_crm_api_request(url, "PUT", crm_api_key, data)
@@ -140,7 +143,7 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     return salespersons
 
 
-def get_current_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str) -> Any:
+def get_current_crm_consumer_id(consumer_id: str, crm_api_key: str) -> Any:
     """Get CRM Consumer ID through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/consumers/{consumer_id}'
 
@@ -150,8 +153,8 @@ def get_current_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    current_crm_consumer_id = response.json().get('crm_consumer_id')
-    return current_crm_consumer_id
+    crm_consumer_id = response.json().get('crm_consumer_id')
+    return crm_consumer_id
 
 
 def get_existing_consumer_by_id(crm_consumer_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
@@ -185,6 +188,61 @@ def set_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str
     return
 
 
+def perform_updates(
+        record: ET.Element,
+        ns: dict,
+        crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str | None,
+        crm_api_key: str,
+        event_id, event_name,
+        ) -> None:
+    """Perform updates on the lead."""
+    lead_id, consumer_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
+    logger.info(f"Lead ID: {lead_id}")
+
+    data: Dict[str, Any] = {}
+
+    if crm_consumer_id:
+        current_crm_consumer_id = get_current_crm_consumer_id(consumer_id, crm_api_key)
+
+        if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
+            raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
+
+        if not current_crm_consumer_id:
+            existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
+
+            # Reassign lead to existing consumer
+            if existing_consumer_id:
+                logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} found. Reassigning lead {lead_id} to consumer {existing_consumer_id}.")
+                data.update({
+                    "consumer_id": existing_consumer_id
+                })
+            # Set CRM Consumer ID for consumer
+            else:
+                set_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+
+    mapped_lead_status = get_mapped_status(event_id=str(event_id), partner_name=SECRET_KEY)
+    data.update({
+        "lead_status": mapped_lead_status,
+        "metadata": {
+            "updatedCrmLeadStatus": event_name
+        }
+    })
+
+    salespersons = {}
+    # update salesperson data if new salesperson is assigned to the lead
+    if event_id == "30":
+        new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)  # type: ignore
+        if new_salesperson is not None:
+            new_salesperson = new_salesperson.text  # type: ignore
+        else:
+            raise Exception("Field with salesperson name is not provided.")
+
+        salespersons = update_lead_salespersons(new_salesperson, lead_id, crm_api_key)  # type: ignore
+        data["salespersons"] = salespersons
+
+    update_lead_status(lead_id, data, crm_api_key)
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -207,7 +265,9 @@ def record_handler(record: SQSRecord) -> None:
         ET.register_namespace('', ns['ns'])
 
         application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
-        record = root.find(".//ns:Record", namespaces=ns)  # type: ignore
+        xml_record = root.find(".//ns:Record", namespaces=ns)  # type: ignore
+        if xml_record is None:
+            raise Exception("Record not found in the XML content.")
 
         dealer_number = None
         store_number = None
@@ -224,77 +284,28 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        identifier = record.find(".//ns:Identifier", namespaces=ns)  # type: ignore
-        crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
+        identifier = xml_record.find(".//ns:Identifier", namespaces=ns)  # type: ignore
+        crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text  # type: ignore
+        if not crm_lead_id:
+            raise Exception("ProspectId not provided. Cannot update lead without CRM Lead ID.")
+
         logger.info(f"CRM Lead ID: {crm_lead_id}")
 
-        crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)
+        crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)  # type: ignore
         if crm_consumer_id is not None:
             crm_consumer_id = crm_consumer_id.text
 
-        event_id = record.find(".//ns:RCIDispositionEventId", namespaces=ns).text  # type: ignore
-        event_name = record.find(".//ns:RCIDispositionEventName", namespaces=ns).text  # type: ignore
+        event_id = xml_record.find(".//ns:RCIDispositionEventId", namespaces=ns).text  # type: ignore
+        event_name = xml_record.find(".//ns:RCIDispositionEventName", namespaces=ns).text  # type: ignore
         logger.info(f"Event ID: {event_id}")
         logger.info(f"Event Name: {event_name}")
 
-        lead_id, consumer_id = get_lead(crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key)
-        logger.info(f"Lead ID: {lead_id}")
-
-        data: Dict[str, Any] = {}
-
-        # Handle lead merge event
-        if event_id == "19":
-            merged_prospect_id = record.find(".//ns:RCIDispositionMergedProspectId", namespaces=ns).text  # type: ignore
-            if not merged_prospect_id:
-                raise Exception("Lead Merged User Event: MergedProspectId not provided.")
-
-            data.update({
-                "crm_lead_id": str(merged_prospect_id)
-            })
-
-        if crm_consumer_id:
-            current_crm_consumer_id = get_current_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
-
-            if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
-                raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
-
-            if not current_crm_consumer_id:
-                existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
-
-                # Reassign lead to existing consumer
-                if existing_consumer_id:
-                    logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} found. Reassigning lead to new consumer.")
-                    data.update({
-                        "consumer_id": existing_consumer_id
-                    })
-                # Set CRM Consumer ID for consumer
-                else:
-                    set_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
-
-        mapped_lead_status = get_mapped_status(event_id=str(event_id), partner_name=SECRET_KEY)  # type: ignore
-        data.update({
-            'lead_status': mapped_lead_status,
-            'metadata': {"updatedCrmLeadStatus": event_name}
-        })
-
-        salespersons = {}
-        # update salesperson data if new salesperson is assigned to the lead
-        if event_id == "30":
-            new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)  # type: ignore
-            if new_salesperson is not None:
-                new_salesperson = new_salesperson.text  # type: ignore
-            else:
-                raise Exception("Field with salesperson name is not provided.")
-
-            salespersons = update_lead_salespersons(new_salesperson, lead_id, crm_api_key)
-            data['salespersons'] = salespersons
-
-        update_lead_status(lead_id, data, crm_api_key)
+        perform_updates(xml_record, ns, crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key, event_id, event_name)
 
     except Exception as e:
-        logger.error(f"Error transforming reyrey lead update record - {record}: {e}")
-        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] ProductDealerId: {}\nLeadId: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
-            product_dealer_id, lead_id, crm_dealer_id, crm_lead_id, e)
+        logger.error(f"Error transforming reyrey lead update record - {xml_record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] ProductDealerId: {}\nEventName: {}\nCrmDealerId: {}\nCrmLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, event_name, crm_dealer_id, crm_lead_id, e)
             )
         raise
 

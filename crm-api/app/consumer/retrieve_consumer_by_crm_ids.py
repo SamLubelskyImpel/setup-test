@@ -53,6 +53,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Found consumer {consumer.as_dict()}")
 
             consumer_record = {
+                "consumer_id": consumer.id,
                 "dealer_id": dealer_partner.dealer.product_dealer_id,
                 "crm_consumer_id": consumer.crm_consumer_id,
                 "first_name": consumer.first_name,

@@ -125,8 +125,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_substatus": "substatus",
             "lead_comment": "comment",
             "lead_origin": "origin_channel",
-            "lead_source": "source_channel",
-            "crm_lead_id": "crm_lead_id"
+            "lead_source": "source_channel"
         }
 
         with DBSession() as session:
@@ -143,10 +142,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 consumer = session.query(Consumer).filter(Consumer.id == consumer_id).first()
 
                 if not consumer:
-                    logger.error(f"Consumer not found and cannot be updated {consumer_id}")
+                    logger.error(f"Consumer {consumer_id} not found and cannot be updated.")
                     return {
                         "statusCode": 404,
-                        "body": dumps({"error": f"Consumer not found and cannot be updated {consumer_id}"})
+                        "body": dumps({"error": f"Consumer {consumer_id} not found and cannot be updated."})
                     }
 
                 if lead.consumer.dealer_integration_partner_id != consumer.dealer_integration_partner_id:

@@ -309,12 +309,6 @@ paths:
                       type: integer
                       description: Unique identifier for the associated consumer
                       example: 2
-                    crm_lead_id:
-                      type: string
-                      description: Lead ID in the CRM
-                      example: 'D973DAF4-D0F2'
-                      minLength: 1
-                      maxLength: 40
                 - $ref: '#/components/schemas/Lead'
                 - type: object
                   properties:

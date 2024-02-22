@@ -12,8 +12,7 @@ from os import environ
 import requests
 from uuid import uuid4
 from json import loads
-from datetime import datetime, timedelta
-from dateutil import parser
+from datetime import datetime
 import xmltodict
 import pytz
 
@@ -74,7 +73,7 @@ ACTIVITY_SCHEMA = """
     <ActivityCompletedOn>{completed_on}</ActivityCompletedOn>
     <ActivityName>{name}</ActivityName>
     <ContactMethod>{contact_method}</ContactMethod>
-    <ActivityNote>{note}</ActivityNote>
+    <ActivityNote><![CDATA[{note}]]></ActivityNote>
     <ActivityResult>Success</ActivityResult>
     <ActivityResultType>Success</ActivityResultType>
 </Activity>
@@ -83,7 +82,7 @@ ACTIVITY_SCHEMA = """
 APPOINTMENT_SCHEMA = """
 <Appointment>
     <AppointmentScheduledDateTime>{scheduled_date_time}</AppointmentScheduledDateTime>
-    <ActivityNote>{note}</ActivityNote>
+    <ActivityNote><![CDATA[{note}]]></ActivityNote>
     <AppointmentDateTime>{date_time}</AppointmentDateTime>
 </Appointment>
 """
@@ -91,7 +90,7 @@ APPOINTMENT_SCHEMA = """
 NOTE_SCHEMA = """
 <Note>
     <NoteInsertedOn>{inserted_on}</NoteInsertedOn>
-    <ProspectNote>{note}</ProspectNote>
+    <ProspectNote><![CDATA[{note}]]></ProspectNote>
     <NoteUpdatedOn>{updated_on}</NoteUpdatedOn>
 </Note>
 """
