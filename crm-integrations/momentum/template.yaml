@@ -244,7 +244,7 @@ Resources:
   SendActivityEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 10
+      BatchSize: 2
       EventSourceArn: !GetAtt SendActivityQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt SendActivity.Arn

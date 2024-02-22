@@ -18,6 +18,7 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+OUTBOUND_CALL_DEFAULT_MESSAGE = "Sales AI email/text sent. Clock stopped."
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -122,7 +123,7 @@ class MomentumApiWrapper:
         headers = {
             "Content-Type": "application/json",
             "MOM-ApplicationType": "V",
-            "MOM-Api-Key": self.__api_token,
+            "MOM-Api-Token": self.__api_token,
         }
         response = requests.post(
             url=url,
@@ -190,7 +191,7 @@ class MomentumApiWrapper:
         url = "{}/lead/{}/contact/remark/clockstop".format(self.__api_url, self.__activity["crm_lead_id"])
 
         payload = {
-            "remark": self.__activity["notes"]
+            "remark": self.__activity["notes"] if self.__activity["notes"] else OUTBOUND_CALL_DEFAULT_MESSAGE
         }
         logger.info(f"Payload to CRM: {payload}")
         response_json = self.__call_api(url, payload)
