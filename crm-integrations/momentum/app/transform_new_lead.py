@@ -148,6 +148,12 @@ def parse_lead(product_dealer_id, data):
             "lead_source": data.get("providerName", ""),
         }
 
+        vehicleType = data.get("vehicleType")
+        if vehicleType:
+            vehicleType = vehicleType.lower().capitalize()
+            if vehicleType not in ("New", "Used"):
+                logger.warning(f"Unexpected vehicle type: {vehicleType}")
+
         db_vehicle = {
             "vin": data.get("vin"),
             "stock_num": data.get("stock"),
@@ -156,7 +162,7 @@ def parse_lead(product_dealer_id, data):
             "year": data.get("year"),
             "exterior_color": data.get("color"),
             "trim": data.get("trim"),
-            "condition": data.get("vehicleType"),
+            "condition": vehicleType
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
