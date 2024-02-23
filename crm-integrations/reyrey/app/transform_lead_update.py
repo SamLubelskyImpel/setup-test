@@ -195,14 +195,12 @@ def update_consumer(
         crm_api_key: str,
         data: dict
         ) -> None:
-    # if event_id == "18":  # Vehicle Sold, Ignore customer reassignment
-    #     logger.warning(f"Event ID: {event_id} - Vehicle Sold. Ignoring customer reassignment.")
-    #     return
-
+    """Update consumer in shared layer."""
     current_crm_consumer_id = get_current_crm_consumer_id(consumer_id, crm_api_key)
 
     if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
-        raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
+        logger.warning(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}. Ignoring consumer reassignment.")
+        return
 
     if not current_crm_consumer_id:
         existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
