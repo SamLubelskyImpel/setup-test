@@ -252,6 +252,11 @@ Resources:
               - sns:Publish
             Resource:
               - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+          - Sid: LambdaPolicy
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: "*"
 
   LifecycleHookTerminate:
     Type: AWS::AutoScaling::LifecycleHook

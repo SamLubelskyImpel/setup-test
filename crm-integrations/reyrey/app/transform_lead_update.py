@@ -255,6 +255,26 @@ def perform_updates(
     update_lead_status(lead_id, data, crm_api_key)
 
 
+def is_historical_lead(crm_lead_id: str, crm_dealer_id: str) -> bool:
+    """Check if the lead is a historical lead."""
+    s3_key = f"historical_data/processed/reyrey_crm/{crm_dealer_id}.json"
+    try:
+        s3_object = json.loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )
+        historical_leads = s3_object.get("historical_leads", [])
+        return crm_lead_id in historical_leads
+    except s3_client.exceptions.NoSuchKey:
+        logger.info(f"Historical data for this dealer_id does not exist: {s3_key}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to check if lead is historical. Partner: REYREY_CRM, Error: {str(e)}")
+        raise
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -302,6 +322,10 @@ def record_handler(record: SQSRecord) -> None:
             raise Exception("ProspectId not provided. Cannot update lead without CRM Lead ID.")
 
         logger.info(f"CRM Lead ID: {crm_lead_id}")
+
+        if is_historical_lead(crm_lead_id, crm_dealer_id):
+            logger.info(f"CRM Lead ID: {crm_lead_id} is a historical lead. Skipping.")
+            return
 
         crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)  # type: ignore
         if crm_consumer_id is not None:
