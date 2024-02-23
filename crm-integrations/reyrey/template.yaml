@@ -405,6 +405,26 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-ProcessHistoricalData"
 
+  ProcessHistoricalDataErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub reyrey-${Environment}-ProcessHistoricalData
+      AlarmDescription: ReyRey Process Historical Data failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ProcessHistoricalData
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   MonitoringReyRey:
     Type: AWS::Serverless::Function
     Properties:

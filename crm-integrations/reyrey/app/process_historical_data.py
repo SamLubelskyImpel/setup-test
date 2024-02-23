@@ -6,6 +6,7 @@ from io import BytesIO
 import logging
 import os
 from typing import Any
+from utils import send_email_notification
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -42,7 +43,9 @@ def lambda_handler(event, context):
             'statusCode': 200
         }
     except Exception as e:
-        logger.error(f'Error processing historical data: {str(e)}')
+        message = f'Error processing historical data: {str(e)}'
+        logger.error(message)
+        send_email_notification(message)
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Error processing historical data.'})
@@ -63,15 +66,26 @@ def get_s3_object_content(bucket, key):
 
 
 def put_historical_data_to_s3(prospect_ids, bucket, crm_dealer_id):
-    """Create and upload the extracted prospect IDs as historical leads to a specified S3 bucket."""
+    """Create or update the extracted prospect IDs as historical leads in a specified S3 bucket."""
     s3_key = f"historical_data/processed/reyrey_crm/{crm_dealer_id}.json"
     try:
-        s3_object = {"historical_leads": prospect_ids}
-        updated_s3_content = json.dumps(s3_object)
-        s3_client.put_object(Bucket=bucket, Key=s3_key, Body=updated_s3_content)
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=s3_key)
+            existing_content = response['Body'].read().decode('utf-8')
+            existing_data = json.loads(existing_content)
+            historical_leads = set(existing_data.get("historical_leads", []))
+        except s3_client.exceptions.NoSuchKey:
+            logger.info(f"No existing data for {crm_dealer_id}, creating a new list.")
+            historical_leads = set()
+
+        historical_leads.update(prospect_ids)
+        updated_data = {"historical_leads": list(historical_leads)}
+        updated_content = json.dumps(updated_data)
+        s3_client.put_object(Bucket=bucket, Key=s3_key, Body=updated_content)
+        logger.info(f"Successfully updated historical leads for {crm_dealer_id}.")
 
     except Exception as e:
-        logger.error(f"Failed to create S3 object. Partner: {SECRET_KEY}, Error: {str(e)}")
+        logger.error(f"Failed to update S3 object. Partner: {SECRET_KEY}, Error: {str(e)}")
         raise
 
 
