@@ -19,6 +19,7 @@ s3_client = boto3.client("s3")
 
 ENVIRONMENT = environ.get("ENV", "test")
 CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
+REGION_NAME = environ.get("REGION_NAME", "us-east-1")
 
 
 def get_reyrey_file_type(filename: str):
@@ -55,7 +56,7 @@ def get_lambda_arn():
 def process_historical_data(key: str):
     """Process historical data."""
     try:
-        lambda_client = boto3.client("lambda")
+        lambda_client = boto3.client("lambda", region_name=REGION_NAME)
         payload = {
             "bucket_name": CRM_UPLOAD_BUCKET,
             "file_name": key,
@@ -68,7 +69,6 @@ def process_historical_data(key: str):
             InvocationType='Event',
             Payload=dumps(payload).encode('utf-8')
         )
-        print(response)
     except Exception:
         _logger.exception(f"Error processing historical data for {key}")
         raise
