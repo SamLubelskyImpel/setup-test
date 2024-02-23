@@ -9,6 +9,8 @@ from typing import Any
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 s3_client = boto3.client('s3')
 
@@ -61,22 +63,15 @@ def get_s3_object_content(bucket, key):
 
 
 def put_historical_data_to_s3(prospect_ids, bucket, crm_dealer_id):
-    """Upload the extracted prospect IDs to a different S3 bucket."""
-    s3_key = f"configurations/test_REYREY.json"
+    """Create and upload the extracted prospect IDs as historical leads to a specified S3 bucket."""
+    s3_key = f"historical_data/processed/reyrey_crm/{crm_dealer_id}.json"
     try:
-        s3_response = s3_client.get_object(Bucket=bucket, Key=s3_key)
-        s3_content = s3_response['Body'].read().decode('utf-8')
-        s3_object = json.loads(s3_content)
-
-        if "historical_data" not in s3_object:
-            s3_object["historical_data"] = {}
-
-        s3_object["historical_data"][crm_dealer_id] = prospect_ids
+        s3_object = {"historical_leads": prospect_ids}
         updated_s3_content = json.dumps(s3_object)
         s3_client.put_object(Bucket=bucket, Key=s3_key, Body=updated_s3_content)
 
     except Exception as e:
-        logger.error(f"Failed to update S3 object. Partner: REYREY_CRM, Error: {str(e)}")
+        logger.error(f"Failed to create S3 object. Partner: {SECRET_KEY}, Error: {str(e)}")
         raise
 
 

@@ -164,21 +164,22 @@ def update_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: 
 
 def is_historical_lead(crm_lead_id: str, crm_dealer_id: str) -> bool:
     """Check if the lead is a historical lead."""
-    s3_key = f"configurations/test_REYREY.json"
+    s3_key = f"historical_data/processed/reyrey_crm/{crm_dealer_id}.json"
     try:
         s3_object = json.loads(
-                s3_client.get_object(
-                    Bucket=BUCKET,
-                    Key=s3_key
-                )['Body'].read().decode('utf-8')
-            )
-        historical_data = s3_object.get("historical_data")
-        if crm_dealer_id in historical_data:
-            return crm_lead_id in historical_data[crm_dealer_id]
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )
+        historical_leads = s3_object.get("historical_leads", [])
+        return crm_lead_id in historical_leads
+    except s3_client.exceptions.NoSuchKey:
+        logger.info(f"Historical data for this dealer_id does not exist: {s3_key}")
+        return False
     except Exception as e:
         logger.error(f"Failed to check if lead is historical. Partner: REYREY_CRM, Error: {str(e)}")
         raise
-    return False
 
 
 def record_handler(record: SQSRecord) -> None:

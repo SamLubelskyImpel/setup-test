@@ -32,7 +32,7 @@ def upload_crm_data(client_id: str, file_type: str, filename: str, data: str):
     CRM_UPLOAD_BUCKET = f"crm-integrations-{ENV}"
 
     now = datetime.utcnow().replace(microsecond=0).replace(tzinfo=timezone.utc)
-    key = f"historical_data/{client_id}/{file_type}/{now.year}/{now.month}/{now.day}/{now.hour}/{filename}"
+    key = f"historical_data/raw/{client_id}/{file_type}/{now.year}/{now.month}/{now.day}/{now.hour}/{filename}"
 
     try:
         s3_client = boto3.client("s3")
