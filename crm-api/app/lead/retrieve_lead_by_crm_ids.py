@@ -38,7 +38,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         crm_lead_id = event["pathParameters"]["crm_lead_id"]
         crm_dealer_id = event["queryStringParameters"]["crm_dealer_id"]
-        crm_consumer_id = event.get("queryStringParameters", {}).get("crm_consumer_id")
         integration_partner_name = event["queryStringParameters"]["integration_partner_name"]
 
         with DBSession() as session:
@@ -47,7 +46,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 DealerIntegrationPartner.is_active == True,
                 IntegrationPartner.impel_integration_partner_name == integration_partner_name
             ).first()
-            
+
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {crm_dealer_id}.")
                 return {
@@ -55,23 +54,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"No active dealer found with id {crm_dealer_id}."})
                 }
 
-            if crm_consumer_id:
-                leads = session.query(Lead).join(Lead.consumer).join(Consumer.dealer_integration_partner).filter(
-                    Lead.crm_lead_id == crm_lead_id,
-                    DealerIntegrationPartner.id == dealer_partner.id,
-                    Consumer.crm_consumer_id == crm_consumer_id
-                ).all()
-            else:
-                leads = session.query(Lead).join(Lead.consumer).join(Consumer.dealer_integration_partner).filter(
-                    Lead.crm_lead_id == crm_lead_id,
-                    DealerIntegrationPartner.id == dealer_partner.id
-                ).all()
+            leads = session.query(Lead).join(Lead.consumer).join(Consumer.dealer_integration_partner).filter(
+                Lead.crm_lead_id == crm_lead_id,
+                DealerIntegrationPartner.id == dealer_partner.id
+            ).all()
 
             if not leads:
-                logger.error(f"Lead with crm_lead_id: {crm_lead_id} and crm_consumer_id: {crm_consumer_id} not found.")
+                logger.error(f"Lead with crm_lead_id: {crm_lead_id} and crm_dealer_id: {crm_dealer_id} not found.")
                 return {
                     "statusCode": 404,
-                    "body": json.dumps({"error": f"Lead with crm_lead_id: {crm_lead_id} and crm_consumer_id: {crm_consumer_id} not found."})
+                    "body": json.dumps({"error": f"Lead with crm_lead_id: {crm_lead_id} and crm_dealer_id: {crm_dealer_id} not found."})
                 }
 
             # Check if multiple leads are found

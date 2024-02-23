@@ -431,6 +431,24 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveConsumerByCrmIds:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveConsumerByCrmIds"
+      CodeUri: app/consumer/
+      Handler: retrieve_consumer_by_crm_ids.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /consumers/crm/{crm_consumer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UpdateConsumer:
     Type: AWS::Serverless::Function
     Properties:
