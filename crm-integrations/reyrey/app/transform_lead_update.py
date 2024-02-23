@@ -162,6 +162,25 @@ def update_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: 
         raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
 
 
+def is_historical_lead(crm_lead_id: str, crm_dealer_id: str) -> bool:
+    """Check if the lead is a historical lead."""
+    s3_key = f"configurations/test_REYREY.json"
+    try:
+        s3_object = json.loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )
+        historical_data = s3_object.get("historical_data")
+        if crm_dealer_id in historical_data:
+            return crm_lead_id in historical_data[crm_dealer_id]
+    except Exception as e:
+        logger.error(f"Failed to check if lead is historical. Partner: REYREY_CRM, Error: {str(e)}")
+        raise
+    return False
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -204,6 +223,10 @@ def record_handler(record: SQSRecord) -> None:
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=ns).text
         logger.info(f"CRM Lead ID: {crm_lead_id}")
 
+        if is_historical_lead(crm_lead_id, crm_dealer_id):
+            logger.info(f"CRM Lead ID: {crm_lead_id} is a historical lead. Skipping.")
+            return
+
         crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)
         if crm_consumer_id is not None:
             crm_consumer_id = crm_consumer_id.text
@@ -239,11 +262,6 @@ def record_handler(record: SQSRecord) -> None:
             data['salespersons'] = salespersons
 
         update_lead_status(lead_id, data, crm_api_key)
-
-        # return {
-        #     'statusCode': 200,
-        #     'body': json.dumps({'message': f'Lead {crm_lead_id} updated successfully'})
-        # }
 
     except Exception as e:
         logger.error(f"Error transforming reyrey lead update record - {record}: {e}")
