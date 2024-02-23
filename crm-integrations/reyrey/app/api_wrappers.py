@@ -73,7 +73,7 @@ ACTIVITY_SCHEMA = """
     <ActivityCompletedOn>{completed_on}</ActivityCompletedOn>
     <ActivityName>{name}</ActivityName>
     <ContactMethod>{contact_method}</ContactMethod>
-    <ActivityNote><![CDATA[{note}]]></ActivityNote>
+    <ActivityNote>{note}</ActivityNote>
     <ActivityResult>Success</ActivityResult>
     <ActivityResultType>Success</ActivityResultType>
 </Activity>

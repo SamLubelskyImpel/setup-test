@@ -137,7 +137,7 @@ def update_lead_salespersons(new_salesperson: str, lead_id: str, crm_api_key: st
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
     response = make_crm_api_request(url, "GET", crm_api_key)
-    response.raise_for_status(response)
+    response.raise_for_status()
 
     salespersons = process_salespersons(response.json(), new_salesperson)
     return salespersons
@@ -159,7 +159,7 @@ def get_current_crm_consumer_id(consumer_id: str, crm_api_key: str) -> Any:
 
 def get_existing_consumer_by_id(crm_consumer_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     """Get existing consumer by CRM Consumer ID through CRM API."""
-    url = f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}?crm_dealer_id={crm_dealer_id}?integration_partner_name={SECRET_KEY}"
+    url = f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}?crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
 
     response = make_crm_api_request(url, "GET", crm_api_key)
 
@@ -191,7 +191,7 @@ def set_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str
 def perform_updates(
         record: ET.Element,
         ns: dict,
-        crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str | None,
+        crm_lead_id: str, crm_dealer_id: str, crm_consumer_id: str,
         crm_api_key: str,
         event_id, event_name,
         ) -> None:
