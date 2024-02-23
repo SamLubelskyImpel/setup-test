@@ -27,7 +27,7 @@ def upload_dms_data(client_id: str, file_type: str, filename: str, data: str):
 
 
 def upload_crm_data(client_id: str, file_type: str, filename: str, data: str):
-    """Upload file to s3 dms uploads bucket."""
+    """Upload file to s3 crm uploads bucket."""
     ENV = environ.get("ENV", "test")
     CRM_UPLOAD_BUCKET = f"crm-integrations-{ENV}"
 
@@ -37,6 +37,7 @@ def upload_crm_data(client_id: str, file_type: str, filename: str, data: str):
     try:
         s3_client = boto3.client("s3")
         s3_client.put_object(Body=data, Bucket=CRM_UPLOAD_BUCKET, Key=key)
+        return key
     except ClientError:
         _logger.exception(f"Error uploading {filename} to {key} for client {client_id}")
         raise
