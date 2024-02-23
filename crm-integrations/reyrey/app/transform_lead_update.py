@@ -114,7 +114,7 @@ def process_salespersons(response_data, new_salesperson):
         return [create_or_update_salesperson(new_first_name, new_last_name, crm_salesperson_id)]
 
     return [
-        create_or_update_salesperson(new_salesperson)
+        create_or_update_salesperson(new_first_name, new_last_name, crm_salesperson_id)
         if salesperson.get('is_primary') and (salesperson.get('first_name') != new_first_name or salesperson.get('last_name') != new_last_name)
         else salesperson for salesperson in response_data
     ]
@@ -188,6 +188,36 @@ def set_crm_consumer_id(crm_consumer_id: str, consumer_id: str, crm_api_key: str
     return
 
 
+def update_consumer(
+        event_id: str,
+        crm_dealer_id: str, crm_consumer_id: str,
+        lead_id: str, consumer_id: str,
+        crm_api_key: str,
+        data: dict
+        ) -> None:
+    # if event_id == "18":  # Vehicle Sold, Ignore customer reassignment
+    #     logger.warning(f"Event ID: {event_id} - Vehicle Sold. Ignoring customer reassignment.")
+    #     return
+
+    current_crm_consumer_id = get_current_crm_consumer_id(consumer_id, crm_api_key)
+
+    if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
+        raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
+
+    if not current_crm_consumer_id:
+        existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
+
+        # Reassign lead to existing consumer
+        if existing_consumer_id:
+            logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} found. Reassigning lead {lead_id} to consumer {existing_consumer_id}.")
+            data.update({
+                "consumer_id": existing_consumer_id
+            })
+        # Set CRM Consumer ID for consumer
+        else:
+            set_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+
+
 def perform_updates(
         record: ET.Element,
         ns: dict,
@@ -202,23 +232,7 @@ def perform_updates(
     data: Dict[str, Any] = {}
 
     if crm_consumer_id:
-        current_crm_consumer_id = get_current_crm_consumer_id(consumer_id, crm_api_key)
-
-        if current_crm_consumer_id and current_crm_consumer_id != crm_consumer_id:
-            raise Exception(f"Consumer ID {consumer_id} is already associated with CRM Consumer ID {current_crm_consumer_id}.")
-
-        if not current_crm_consumer_id:
-            existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
-
-            # Reassign lead to existing consumer
-            if existing_consumer_id:
-                logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} found. Reassigning lead {lead_id} to consumer {existing_consumer_id}.")
-                data.update({
-                    "consumer_id": existing_consumer_id
-                })
-            # Set CRM Consumer ID for consumer
-            else:
-                set_crm_consumer_id(crm_consumer_id, consumer_id, crm_api_key)
+        update_consumer(event_id, crm_dealer_id, crm_consumer_id, lead_id, consumer_id, crm_api_key, data)
 
     mapped_lead_status = get_mapped_status(event_id=str(event_id), partner_name=SECRET_KEY)
     data.update({
