@@ -232,16 +232,16 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         "type": vehicle_style,
         "body_style": vehicle_style,
         "condition": stock_type,
-        "class": None,
-        "mileage": None,
-        "trim": None,
-        "transmission": None,
-        "interior_color": None,
-        "exterior_color": None,
-        "price": None,
-        "status": None,
-        "odometer_units": None,
-        "vehicle_comments": None,
+        # "class": None,
+        # "mileage": None,
+        # "trim": None,
+        # "transmission": None,
+        # "interior_color": None,
+        # "exterior_color": None,
+        # "price": None,
+        # "status": None,
+        # "odometer_units": None,
+        # "vehicle_comments": None,
     }
 
     # Extract Salesperson fields, primary salesperson format: "Last, First"
@@ -318,7 +318,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
     """Create a new consumer in the Unified Layer."""
 
     # If the CRM consumer ID is not present, check whether the lead exists in the Unified Layer. If it does, throw an error; otherwise, create a new consumer.
-    if consumer["crm_consumer_id"] is None:
+    if not consumer.get("crm_consumer_id"):
         crm_lead_id = lead["crm_lead_id"]
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:

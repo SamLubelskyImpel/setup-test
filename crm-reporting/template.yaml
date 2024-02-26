@@ -213,19 +213,19 @@ Resources:
     Properties:
       TopicName: !Sub crm-reporting-topic-${Environment}
 
-  SupportSnsSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Endpoint: !If [IsProd, 'support@impel.io', 'srwoods@impel.ai']
-      Protocol: email
-      TopicArn: !Ref CRMReportingSnsTopic
+  # SupportSnsSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Endpoint: !If [IsProd, 'support@impel.io', 'srwoods@impel.ai']
+  #     Protocol: email
+  #     TopicArn: !Ref CRMReportingSnsTopic
 
-  SupportAISnsSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Endpoint: !If [IsProd, 'aisupportalerts@impel.io', 'srwoods@impel.ai']
-      Protocol: email
-      TopicArn: !Ref CRMReportingSnsTopic
+  # SupportAISnsSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Endpoint: !If [IsProd, 'aisupportalerts@impel.io', 'srwoods@impel.ai']
+  #     Protocol: email
+  #     TopicArn: !Ref CRMReportingSnsTopic
 
   CESnsSubscription:
     Type: AWS::SNS::Subscription
@@ -233,4 +233,11 @@ Resources:
       Endpoint: !If [IsProd, 'impel_alert_client_engineering@impel.io', 'srwoods@impel.io']
       Protocol: email
       TopicArn: !Ref CRMReportingSnsTopic
-      FilterPolicy: '{"alert_type": ["client_engineering"]}'
+      # FilterPolicy: '{"alert_type": ["client_engineering"]}'
+  
+  L3SnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'l3support@impel.ai', 'srwoods@impel.io']
+      Protocol: email
+      TopicArn: !Ref CRMReportingSnsTopic

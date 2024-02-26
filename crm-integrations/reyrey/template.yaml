@@ -101,6 +101,7 @@ Resources:
                   - "s3:ListBucket"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                - !Sub "arn:aws:s3:::crm-integrations-test*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -388,6 +389,41 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-SendActivity"
+
+  ProcessHistoricalData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub reyrey-${Environment}-ProcessHistoricalData
+      CodeUri: app/
+      Handler: process_historical_data.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  ProcessHistoricalDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/reyrey-${Environment}-ProcessHistoricalData"
+
+  ProcessHistoricalDataErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub reyrey-${Environment}-ProcessHistoricalData
+      AlarmDescription: ReyRey Process Historical Data failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ProcessHistoricalData
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   MonitoringReyRey:
     Type: AWS::Serverless::Function
