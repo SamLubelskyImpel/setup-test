@@ -181,7 +181,7 @@ Resources:
       AlarmDescription: Messages are in the unified DMS RO insertion lambda
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
           Value: !GetAtt UnifiedRODLQ.QueueName
@@ -294,7 +294,7 @@ Resources:
       AlarmDescription: Messages are in the unified DMS FI insertion lambda
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
           Value: !GetAtt UnifiedFIDLQ.QueueName
@@ -407,7 +407,7 @@ Resources:
       AlarmDescription: Messages are in the unified DMS appointment insertion lambda
       ActionsEnabled: true
       AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_service_availability
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
           Value: !GetAtt UnifiedAppointmentDLQ.QueueName
