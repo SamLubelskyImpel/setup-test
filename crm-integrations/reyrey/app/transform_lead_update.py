@@ -29,6 +29,10 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
+class LeadNotFoundError(Exception):
+    pass
+
+
 def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> Any:
     """Generic helper function to make CRM API requests."""
 
@@ -80,7 +84,7 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     response = make_crm_api_request(url, "GET", crm_api_key)
 
     if response.status_code != 200:
-        raise Exception(f"Lead with CRM Lead ID {crm_lead_id} not found. {response.text}")
+        raise LeadNotFoundError(f"Lead with CRM Lead ID {crm_lead_id} not found. {response.text}")
 
     response_json = response.json()
     lead_id = response_json.get("lead_id")
@@ -337,6 +341,10 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Event Name: {event_name}")
 
         perform_updates(xml_record, ns, crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key, event_id, event_name)
+
+    except LeadNotFoundError as e:
+        logger.error(f"Lead not found: {e}")
+        raise
 
     except Exception as e:
         logger.error(f"Error transforming reyrey lead update record - {xml_record}: {e}")
