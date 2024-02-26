@@ -55,8 +55,7 @@ class CrmApiWrapper:
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
         if not salespersons:
-            logger.warning(f"No salespersons found for lead_id: {lead_id}")
-            raise Exception(f"No salespersons found for lead_id: {lead_id}")
+            return None
 
         return salespersons[0]
 
@@ -75,6 +74,10 @@ class CrmApiWrapper:
             return response.json()
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
+
+    def get_appointments(self, lead_id):
+        response_json = self.__run_get(f"leads/{lead_id}/activities")
+        return [activity for activity in response_json if activity["activity_type"] == "appointment"]
 
 
 class MomentumApiWrapper:
@@ -119,20 +122,20 @@ class MomentumApiWrapper:
             secret_data["API_MASTER_KEY"]
         )
 
-    def __call_api(self, url, payload):
+    def __call_api(self, url, payload=None, method="POST"):
         headers = {
             "Content-Type": "application/json",
             "MOM-ApplicationType": "V",
             "MOM-Api-Token": self.__api_token,
         }
-        response = requests.post(
+        response = requests.request(
+            method=method,
             url=url,
             json=payload,
             headers=headers,
         )
-        response.raise_for_status()
         logger.info(f"Response from CRM: {response.status_code}")
-        return response.json()
+        return response
 
     def convert_utc_to_timezone(self, input_ts: str) -> Tuple[str, str]:
         """Convert UTC timestamp to dealer's local time."""
@@ -151,16 +154,38 @@ class MomentumApiWrapper:
         timestamp_str = new_ts.split(" ")
         return timestamp_str[0], timestamp_str[1]
 
+    def __reschedule_appointment(self, url, appt_date, appt_time, payload):
+        """Reschedule appointment on CRM."""
+        crm_api = CrmApiWrapper()
+        existing_appointments = crm_api.get_appointments(self.__activity["lead_id"])
+        logger.info(f"Existing appointments: {existing_appointments}")
+
+        appointment = next((appt for appt in existing_appointments if appt["crm_activity_id"]), None)
+        if not appointment:
+            logger.error(f"No scheduled appointments found for lead_id: {self.__activity['lead_id']}.")
+            raise Exception(f"Conflict creating appointment for lead_id: {self.__activity['lead_id']}. No existing scheduled appointments found.")
+
+        cancel_url = "{}/lead/{}/appointment/sales/{}".format(
+            self.__api_url, self.__activity["crm_lead_id"], appointment["crm_activity_id"]
+        )
+        logger.info(f"Cancelling appointment. URL: {cancel_url}")
+        response = self.__call_api(cancel_url, method="DELETE")
+        response.raise_for_status()
+
+        logger.info("Retry creating appointment.")
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        return response.json()
+
     def __create_appointment(self):
         """Create appointment on CRM."""
         url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
-        appt_date, app_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
+        appt_date, appt_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = {
             "apptDate": appt_date,
-            "apptTime": app_time,
-            # "_______managerApiID": "[your-manager-api-id]",
+            "apptTime": appt_time,
             "salesmanApiID": self.__salesperson["crm_salesperson_id"],
             "note": self.__activity["notes"],
             "externalCreatedByName": "ImpelCRM",
@@ -168,7 +193,14 @@ class MomentumApiWrapper:
         }
 
         logger.info(f"Payload to CRM: {payload}")
-        response_json = self.__call_api(url, payload)
+        response = self.__call_api(url, payload)
+        if response.status_code == 409:
+            logger.warning(f"Appointment already exists for lead_id: {self.__activity['crm_lead_id']}. Rescheduling...")
+            response_json = self.__reschedule_appointment(url, appt_date, appt_time, payload)
+        else:
+            response.raise_for_status()
+            response_json = response.json()
+
         logger.info(f"Response from CRM: {response_json}")
 
         return str(response_json.get("appointmentApiID", ""))
@@ -181,7 +213,9 @@ class MomentumApiWrapper:
             "remark": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM: {payload}")
-        response_json = self.__call_api(url, payload)
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
         return str(response_json.get("leadRemarkID", ""))
@@ -194,7 +228,9 @@ class MomentumApiWrapper:
             "remark": self.__activity["notes"] if self.__activity["notes"] else OUTBOUND_CALL_DEFAULT_MESSAGE
         }
         logger.info(f"Payload to CRM: {payload}")
-        response_json = self.__call_api(url, payload)
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
         return str(response_json.get("leadRemarkID", ""))
