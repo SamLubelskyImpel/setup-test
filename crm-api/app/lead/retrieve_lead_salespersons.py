@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
+import botocore.exceptions
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.salesperson import Salesperson
@@ -30,10 +31,15 @@ def get_lambda_arn(partner_name: str) -> Any:
                 )['Body'].read().decode('utf-8')
             )
         lambda_arn = s3_object.get("get_lead_salesperson_arn")
+        return lambda_arn
+
+    except botocore.exceptions.ClientError as e:
+        logger.error(f"Error retrieving configuration file for {partner_name}")
+        raise Exception(e)
+
     except Exception as e:
         logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
-        raise
-    return lambda_arn
+        raise Exception(e)
 
 
 def get_salespersons_from_crm(body: dict, lambda_arn: str) -> Any:

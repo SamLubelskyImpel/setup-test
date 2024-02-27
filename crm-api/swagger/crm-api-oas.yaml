@@ -394,6 +394,42 @@ paths:
           description: Not Found. The lead_id of the request didn't match any existing records on Impel, or the lead does not have an associated salesperson.
         '500':
           "$ref": "#/components/responses/500"
+  /leads/{lead_id}/activities:
+    get:
+      summary: This endpoint returns all existing activites for a given lead ID.
+      #{{RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/leadId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Activity'
+                    - type: object
+                      properties:
+                        activity_id:
+                          type: number
+                          description: The ID of the activity in the CRM persistence data layer.
+                          example: 123
+                        crm_activity_id:
+                          type: string
+                          description: The ID of the activity in the CRM.
+                          example: "12345"
+                        db_creation_date:
+                          type: string
+                          format: date-time
+                          description: The created datetime of the activity in the unified CRM layer.
+                          example: "2023-10-16T20:44:12.027184+00:00"
+                    
   
   /leads/crm/{crm_lead_id}:
     get:
