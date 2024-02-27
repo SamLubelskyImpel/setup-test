@@ -4,13 +4,11 @@ import boto3
 import logging
 import requests
 import json
-import uuid
 import re
 import xml.etree.ElementTree as ET
 from os import environ
-from typing import Any, Dict
+from typing import Any
 from datetime import datetime
-from utils import send_email_notification
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -27,16 +25,12 @@ SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 PARTNER_ID = environ.get("PARTNER_ID")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
-
-class EventListenerError(Exception):
-    pass
 
 class LeadExistsException(Exception):
     pass
@@ -53,30 +47,6 @@ class NotInternetLeadException(Exception):
 class NoCustomerInitiatedLeadException(Exception):
     pass
 
-def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=30,
-        )
-        logger.info(f"DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        logger.error(
-            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
-        )
-    except Exception as e:
-        logger.error(f"Error occurred calling DA Event Listener: {e}")
-        raise EventListenerError
-
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -89,8 +59,8 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     return secret_data
 
 
-def get_text(element, path, namespace):
-    """Get the text of the element, handling 'Null' as None."""
+def get_text(element: Any, path: str, namespace: Any) -> Any:
+    """Get the text of the element if it's present."""
     found_element = element.find(path, namespace)
     if found_element is not None and found_element.text != "Null":
         return found_element.text
@@ -143,7 +113,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         if len(notes) > 0:
             for note in notes:
                 if "Best Time" not in note.text:
-                    return note.text 
+                    return note.text
             # If no note without "Best Time" is found, return first note.
             return notes[0].text
         else:
@@ -349,6 +319,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
 
 def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product_dealer_id: str) -> Any:
     """Create a new lead in the Unified Layer."""
+    logger.info(f"Lead data to send: {lead}")
     response = requests.post(
         f"https://{CRM_API_DOMAIN}/leads",
         json=lead,
@@ -375,6 +346,7 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split("/")[2]
+
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response["Body"].read()
         xml_data = content
@@ -391,23 +363,10 @@ def record_handler(record: SQSRecord) -> None:
         lead = extract_lead(root, namespace)
         unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, crm_dealer_id, product_dealer_id, crm_api_key)
 
-        # Write new lead to the Unified Layer, using the consumer_id that was just created
         lead["consumer_id"] = unified_crm_consumer_id
-        logger.info(f"Lead data to send: {lead}")
 
         unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
-
-        event_listener_secrets = get_secret(
-            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
-        )
-
-        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
-        logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
-    except EventListenerError:
-        message = f"Error sending the lead {unified_crm_lead_id} to DA"
-        logger.error(message)
-        send_email_notification(message)
-        raise
+        logger.info(f"Lead successfully created: {unified_crm_lead_id}")
     except ConsumerCreationException:
         raise
     except LeadExistsException:

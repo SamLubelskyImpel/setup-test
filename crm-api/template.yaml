@@ -55,6 +55,8 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
+        EVENT_LISTENER_QUEUE: !Ref SendNotificationToEventListenerQueue
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -113,6 +115,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -156,8 +163,15 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt SendNotificationToEventListenerQueue.Arn
+              - Effect: "Allow"
+                Action:
                   - "sqs:SendMessage"
-                Resource: "*"
+                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -167,6 +181,7 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
@@ -556,6 +571,59 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
+  
+  SendNotificationToEventListener:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-SendNotificationToEventListener"
+      CodeUri: app/lead/
+      Handler: send_notification_to_event_listener.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+  
+  SendNotificationToEventListenerEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 5
+      EventSourceArn: !GetAtt SendNotificationToEventListenerQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendNotificationToEventListener.Arn
+
+  SendNotificationToEventListenerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendNotificationToEventListenerDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendNotificationToEventListenerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+  
+  SendNotificationToEventListenerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Notification To Event Listener DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendNotificationToEventListenerDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   CrmOrmLayer:
     Type: AWS::Serverless::LayerVersion

@@ -2,6 +2,9 @@
 import logging
 import pytz
 from dateutil import parser
+import boto3
+import json
+import requests
 from os import environ
 from datetime import datetime
 from json import dumps, loads
@@ -18,8 +21,29 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+ENVIRONMENT = environ.get("ENVIRONMENT")
+EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
+s3_client = boto3.client("s3")
+
+
 salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
+
+
+def send_notification_to_event_listener(integration_partner_name: str) -> bool:
+    """Check if notification should be sent to the event listener."""
+    response = s3_client.get_object(
+        Bucket=INTEGRATIONS_BUCKET,
+        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+    )
+    config = json.loads(response["Body"].read())
+    logger.info(f"Config: {config}")
+    notification_partners = config["notification_partners"]
+    if integration_partner_name in notification_partners:
+        return True
+    return False
 
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
@@ -84,7 +108,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts=body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
             consumer = session.query(
@@ -106,6 +130,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Original timestamp: {lead_ts}")
             lead_ts = process_lead_ts(lead_ts, dealer_timezone)
             logger.info(f"Processed timestamp: {lead_ts}")
+
+            integration_partner = consumer.dealer_integration_partner.integration_partner
 
             # Query for existing lead
             if crm_lead_id:
@@ -200,8 +226,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             session.commit()
             lead_id = lead.id
+            integration_partner_name = integration_partner.impel_integration_partner_name
 
         logger.info(f"Created lead {lead_id}")
+        logger.info(f"Integration partner: {integration_partner_name}")
+
+        notify_listener = send_notification_to_event_listener(integration_partner_name)
+
+        if notify_listener:
+            sqs_client = boto3.client('sqs')
+
+            sqs_client.send_message(
+                QueueUrl=EVENT_LISTENER_QUEUE,
+                MessageBody=json.dumps({"lead_id": lead_id})
+            )
 
         return {
             "statusCode": "201",
