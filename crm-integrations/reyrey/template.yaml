@@ -396,7 +396,7 @@ Resources:
       FunctionName: !Sub reyrey-${Environment}-ProcessHistoricalData
       CodeUri: app/
       Handler: process_historical_data.lambda_handler
-      Timeout: 60
+      Timeout: 180
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
