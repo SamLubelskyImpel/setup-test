@@ -36,7 +36,6 @@ def get_lambda_arn():
     ENVIRONMENT = environ.get("ENV", "test")
     CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
     s3_key = f"configurations/{ENVIRONMENT}_REYREY.json"
-    _logger.info(f"Getting lambda ARN from S3. Bucket: {CRM_UPLOAD_BUCKET} Key: {s3_key}")
     try:
         s3_object = loads(
                 s3_client.get_object(
