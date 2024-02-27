@@ -100,7 +100,7 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
 
 def parse_phone_number(data):
     """Parse the phone number."""
-    phone_numbers = [data.get("homePhone", ""), data.get("workPhone", ""), data.get("cellPhone", "")]
+    phone_numbers = [data.get("cellPhone", ""), data.get("homePhone", ""), data.get("workPhone", "")]
     phone_number = next((number for number in phone_numbers if number), "")
 
     return ''.join(char for char in phone_number if char.isdigit())
