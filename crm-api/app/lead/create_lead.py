@@ -36,9 +36,8 @@ def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     """Check if notification should be sent to the event listener."""
     response = s3_client.get_object(
         Bucket=INTEGRATIONS_BUCKET,
-        Key="configurations/test_GENERAL.json",
+        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
     )
-    # Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
     config = json.loads(response["Body"].read())
     logger.info(f"Config: {config}")
     notification_partners = config["notification_partners"]
