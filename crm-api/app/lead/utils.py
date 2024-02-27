@@ -14,11 +14,11 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 sm_client = boto3.client("secretsmanager")
 
 
-def send_email_notification(msg: str):
+def send_email_notification(msg: str, subject: str = 'DA Event Listener Failure Alert'):
     """Send a notification message to the 'alert_client_engineering' SNS topic."""
     sns_client = boto3.client('sns', region_name=AWS_REGION)
     try:
-        sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=msg, Subject='ReyRey CRM Failure Alert')
+        sns_client.publish(TopicArn=SNS_TOPIC_ARN, Message=msg, Subject=subject)
     except Exception as e:
         logger.exception(f'Failed to send notification {e}')
         raise
