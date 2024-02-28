@@ -17,10 +17,6 @@ _logger = get_logger()
 crm_upload_api = Blueprint("crm_upload_api", __name__)
 s3_client = boto3.client("s3")
 
-ENVIRONMENT = environ.get("ENV", "test")
-CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
-REGION_NAME = environ.get("REGION_NAME", "us-east-1")
-
 
 def get_reyrey_file_type(filename: str):
     """Categorize ReyRey file types by filename.
@@ -37,6 +33,8 @@ def get_reyrey_file_type(filename: str):
 
 def get_lambda_arn():
     """Get lambda ARN from S3."""
+    ENVIRONMENT = environ.get("ENV", "test")
+    CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
     s3_key = f"configurations/{ENVIRONMENT}_REYREY.json"
     try:
         s3_object = loads(
@@ -54,6 +52,9 @@ def get_lambda_arn():
 
 def process_historical_data(key: str):
     """Process historical data."""
+    ENVIRONMENT = environ.get("ENV", "test")
+    CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
+    REGION_NAME = environ.get("REGION_NAME", "us-east-1")
     try:
         lambda_client = boto3.client("lambda", region_name=REGION_NAME)
         payload = {
@@ -71,7 +72,6 @@ def process_historical_data(key: str):
     except Exception:
         _logger.exception(f"Error processing historical data for {key}")
         raise
-
 
 
 @crm_upload_api.route("/v1", methods=["POST"])
