@@ -144,6 +144,10 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
         if communication_preferences:
             db_entity["email_optin_flag"] = communication_preferences.get('email', True)
 
+    # Remove None values from db_entity without reassignment
+    keys_to_remove = [key for key, value in db_entity.items() if value is None]
+    for key in keys_to_remove:
+        del db_entity[key]
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format dealerpeak json data to unified format."""
