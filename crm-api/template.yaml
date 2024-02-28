@@ -56,7 +56,7 @@ Globals:
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
-        EVENT_LISTENER_QUEUE: !Ref SendNotificationToEventListenerQueue
+        EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -167,7 +167,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                  - !GetAtt SendNotificationToEventListenerQueue.Arn
+                  - !GetAtt NotifyEventListenerQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -607,50 +607,50 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
   
-  SendNotificationToEventListener:
+  NotifyEventListener:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "crm-api-${Environment}-SendNotificationToEventListener"
-      CodeUri: app/lead/
-      Handler: send_notification_to_event_listener.lambda_handler
+      FunctionName: !Sub "crm-api-${Environment}-NotifyEventListener"
+      CodeUri: app/notifications/
+      Handler: notify_event_listener.lambda_handler
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
   
-  SendNotificationToEventListenerEventMapping:
+  NotifyEventListenerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 5
-      EventSourceArn: !GetAtt SendNotificationToEventListenerQueue.Arn
+      EventSourceArn: !GetAtt NotifyEventListenerQueue.Arn
       MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt SendNotificationToEventListener.Arn
+      FunctionName: !GetAtt NotifyEventListener.Arn
 
-  SendNotificationToEventListenerQueue:
+  NotifyEventListenerQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerQueue"
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SendNotificationToEventListenerDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt NotifyEventListenerDeadLetterQueue.Arn
         maxReceiveCount: 3
 
-  SendNotificationToEventListenerDeadLetterQueue:
+  NotifyEventListenerDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ"
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
-  SendNotificationToEventListenerDLQAlarm:
+  NotifyEventListenerDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "crm-api-${Environment}-SendNotificationToEventListenerDLQ"
+      AlarmName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
       AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Notification To Event Listener DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt SendNotificationToEventListenerDeadLetterQueue.QueueName
+          Value: !GetAtt NotifyEventListenerDeadLetterQueue.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS

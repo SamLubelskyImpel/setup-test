@@ -4,7 +4,6 @@ import pytz
 from dateutil import parser
 import boto3
 import json
-import requests
 from os import environ
 from datetime import datetime
 from json import dumps, loads
