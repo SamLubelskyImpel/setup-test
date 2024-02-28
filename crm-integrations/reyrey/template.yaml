@@ -172,7 +172,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-TransformNewLeadDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   TransformNewLeadDLQAlarm:
@@ -267,7 +267,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
   TransformLeadUpdateDLQAlarm:
@@ -344,7 +344,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   SendActivityEventMapping:
@@ -362,6 +362,7 @@ Resources:
       CodeUri: app/
       Handler: send_activity.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
   SendActivityDLQAlarm:
@@ -431,6 +432,7 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
   LogGroupInvokeLambdaPermission:

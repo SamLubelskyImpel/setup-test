@@ -166,7 +166,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   TransformNewLeadDLQAlarm:
@@ -238,7 +238,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "momentum-${Environment}-SendActivityDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   SendActivityEventMapping:
@@ -256,6 +256,7 @@ Resources:
       CodeUri: app/
       Handler: send_activity.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   
   SendActivityLogGroup:
@@ -319,7 +320,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   TransformLeadUpdateDLQAlarm:
@@ -385,6 +386,7 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   
   MonitoringMomentumLogGroup:

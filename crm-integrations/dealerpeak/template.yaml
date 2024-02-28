@@ -190,7 +190,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   InvokeDataPullDLQAlarm:
@@ -249,7 +249,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
   TransformDealerpeakDataDLQAlarm:
@@ -315,6 +315,7 @@ Resources:
       CodeUri: app/
       Handler: lead_updates.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   
   GetLeadUpdatesLogGroup:
@@ -355,7 +356,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
   SendActivityEventMapping:
@@ -373,6 +374,7 @@ Resources:
       CodeUri: app/
       Handler: send_activity.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   
   SendActivityLogGroup:
@@ -407,6 +409,7 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   
   MonitoringDealerpeakLogGroup:
