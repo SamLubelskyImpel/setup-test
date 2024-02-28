@@ -61,6 +61,7 @@ paths:
                       type: string
                       description: Lead ID in the CRM
                       example: 'D973DAF4-D0F2'
+                      maxLength: 50
                     lead_ts:
                       type: string
                       description: Lead timestamp in UTC format
@@ -88,6 +89,7 @@ paths:
                                 type: string
                                 description: Vehicle ID assigned by CRM (Car ID, Stock, License plate, etc.)
                                 example: '8EEAD89E-E87'
+                                maxLength: 50
                         - $ref: "#/components/schemas/VehiclesOfInterest"
                 - type: object
                   properties:
@@ -141,22 +143,27 @@ paths:
                           type: string
                           description: A status that can be used to group leads that are in similar state
                           example: "ACTIVE"
+                          maxLength: 50
                         lead_substatus:
                           type: string
                           description: Current state of the lead
                           example: "Appointment Set"
+                          maxLength: 50
                         lead_comment:
                           type: string
                           description: Comment about the lead or generated text from the source on behalf of the lead
                           example: "Does this car have a sunroof?"
+                          maxLength: 5000
                         lead_origin:
                           type: string
                           description: The first point of contact or channel through which the lead is generated
                           example: "INTERNET"
+                          maxLength: 50
                         lead_source:
                           type: string
                           description: The specific channel through which the lead was generated
                           example: cars.com
+                          maxLength: 100
                         vehicles_of_interest:
                           allOf:
                             - $ref: '#/components/schemas/VehiclesOfInterest'
@@ -534,6 +541,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
+                        maxLength: 40
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -601,6 +609,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
+                        maxLength: 40
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -684,6 +693,7 @@ paths:
                   type: string
                   description: The ID assigned to the activity in the CRM.
                   example: "12345"
+                  maxLength: 50
   /dealers:
     get:
       summary: This endpoint returns all active dealers for a given integration partner.
@@ -727,7 +737,7 @@ paths:
           schema:
             type: string
             minLength: 1
-            maxLength: 50
+            maxLength: 40
             example: "test_dealer_id"
       responses:
         '200':
@@ -785,6 +795,7 @@ paths:
                   type: string
                   description: The ID assigned to the dealership by Impel during onboarding.
                   example: "test_dealer_id"
+                  maxLength: 40
                 lead:
                   allOf:
                     - type: object
@@ -792,8 +803,7 @@ paths:
                         crm_lead_id:
                           type: string
                           description: Lead id in the CRM
-                          minLength: 1
-                          maxLength: 40
+                          maxLength: 100
                           example: 'D973DAF4-D0F2'
                         lead_ts:
                           type: string
@@ -814,6 +824,7 @@ paths:
                                     type: string
                                     description: Vehicle ID assigned by CRM (Car ID, Stock, License plate, etc.)
                                     example: '8EEAD89E-E87'
+                                    maxLength: 50
                             - $ref: "#/components/schemas/VehiclesOfInterest"
                 consumer:
                   allOf:
@@ -823,6 +834,7 @@ paths:
                           type: string
                           description: The ID of the consumer in the CRM
                           example: "123abc-1234ab-123abc"
+                          maxLength: 100
                     - $ref: "#/components/schemas/Consumer"
                 salesperson:
                   allOf:
@@ -884,6 +896,7 @@ components:
           type: string
           description: Notes about the activity. Required when the activity type is "note".
           example: "Customer requested a follow-up call."
+          maxLength: 5000
         contact_method:
           type: string
           description: The method for which the consumer was contacted with.
@@ -892,6 +905,7 @@ components:
             - phone
             - text
           example: "email"
+          maxLength: 20
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object
@@ -922,26 +936,22 @@ components:
           vin:
             type: string
             description: Vehicle Identification Number
-            minLength: 1
-            maxLength: 17
+            maxLength: 20
             example: "1HGBH41JXMN109186"
           stock_number:
             type: string
             description: Vehicle stock number
-            minLength: 1
             maxLength: 50
             example: SN12345
           type:
             type: string
             description: Type of the vehicle (e.g., Sedan, SUV, Truck)
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: SUV
           class:
             type: string
             description: Classification of the vehicle (e.g., Compact, Midsize, Luxury)
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: Compact
           mileage:
             type: number
@@ -956,20 +966,17 @@ components:
           make:
             type: string
             description: The brand or make of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: Ford
           model:
             type: string
             description: The model name of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: F-150
           oem_name:
             type: string
             description: OEM name of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: Ford
           trim:
             type: string
@@ -980,26 +987,22 @@ components:
           body_style:
             type: string
             description: Body style of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: SUV
           transmission:
             type: string
             description: Transmission of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: Manual
           interior_color:
             type: string
             description: Interior color of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: Black
           exterior_color:
             type: string
             description: Exterior color of the vehicle
-            minLength: 1
-            maxLength: 50
+            maxLength: 80
             example: White
           price:
             type: number
@@ -1009,7 +1012,6 @@ components:
           status:
             type: string
             description: Current status of the vehicle (e.g., Available, Sold)
-            minLength: 1
             maxLength: 50
             example: Available
           condition:
@@ -1017,16 +1019,17 @@ components:
             description: Condition of the vehicle
             enum: [New, Used]
             example: Used
+            maxLength: 20
           odometer_units:
             type: string
             description: Units for the odometer reading (e.g., miles, kilometers)
             enum: [miles, kilometers]
             example: miles
+            maxLength: 20
           vehicle_comments:
             type: string
             description: Comments about the vehicle
-            minLength: 1
-            maxLength: 2048
+            maxLength: 5000
             example: Has a scratch
     Consumer:
       description: An object containing all information about a person interested in a vehicle
@@ -1039,32 +1042,27 @@ components:
         first_name:
           type: string
           description: Consumer first name
-          minLength: 1
           maxLength: 50
           example: John
         last_name:
           type: string
           description: Consumer last name
-          minLength: 1
           maxLength: 50
           example: Doe
         middle_name:
           type: string
           description: Consumer middle name
-          minLength: 1
           maxLength: 50
           example: Michael
         email:
           type: string
           format: email
           description: Consumer primary email address
-          minLength: 1
           maxLength: 50
           example: john.doe@example.com
         phone:
           type: string
           description: Consumer primary phone number
-          minLength: 1
           maxLength: 20
           example: "+11231231134"
         email_optin_flag:
@@ -1080,25 +1078,21 @@ components:
         city:
           type: string
           description: City where the consumer resides
-          minLength: 1
           maxLength: 100
           example: New York
         country:
           type: string
           description: Country where the consumer resides
-          minLength: 1
           maxLength: 100
           example: USA
         address:
           type: string
           description: Complete address of the consumer
-          minLength: 1
-          maxLength: 255
+          maxLength: 100
           example: "123 Main St, Apt 4B"
         postal_code:
           type: string
           description: Postal or ZIP code for the consumer's address
-          minLength: 1
           maxLength: 20
           example: "10001"
     Lead:
@@ -1121,18 +1115,19 @@ components:
           type: string
           description: Comment about the lead or generated text from the source on behalf of the lead
           minLength: 1
-          maxLength: 2048
+          maxLength: 5000
           example: "Does this car have a sunroof?"
         lead_origin:
           type: string
           description: The first point of contact or channel through which the lead is generated
           enum: [INTERNET, CALL, WALK-IN, OTHER]
           example: "INTERNET"
+          maxLength: 50
         lead_source:
           type: string
           description: The specific channel through which the lead was generated.
           minLength: 1
-          maxLength: 2048
+          maxLength: 100
           example: cars.com
         vehicles_of_interest:
           $ref: '#/components/schemas/VehiclesOfInterest'
@@ -1146,26 +1141,32 @@ components:
           type: string
           description: The ID of the salesperson in the CRM
           example: "123abc-1234ab-123abc"
+          maxLength: 100
         first_name:
           type: string
           description: First name of the salesperson
           example: "John"
+          maxLength: 50
         last_name:
           type: string
           description: Last name of the salesperson
           example: "Smith"
+          maxLength: 50
         email:
           type: string
           description: Email address of the salesperson
           example: "john.smith@example.com"
+          maxLength: 50
         phone:
           type: string
           description: Phone number of the salesperson
           example: "123-456-7890"
+          maxLength: 20
         position_name:
           type: string
           description: Salesperson position or role
           example: "Sales Manager"
+          maxLength: 50
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
@@ -1262,6 +1263,7 @@ components:
       schema:
         type: string
         example: "test_crm_lead_id"
+        maxLength: 50
     crmConsumerId:
       name: crm_consumer_id
       in: path
@@ -1270,6 +1272,7 @@ components:
       schema:
         type: string
         example: "test_crm_consumer_id"
+        maxLength: 50
     consumerId:
       name: consumer_id
       in: path
