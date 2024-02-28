@@ -160,6 +160,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     prospect_status_type = root.find(".//star:ProspectStatusType", namespace).text
     prospect_note = extract_note(root.findall(".//star:ProspectNote", namespace))
     prospect_type = get_text(root, ".//star:ProspectType", namespace)
+    provider_name = get_text(root, ".//star:ProviderName", namespace)
     is_ci_lead = get_text(root, ".//star:IsCiLead", namespace)
 
     if is_ci_lead == "false":
@@ -180,7 +181,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         "lead_substatus": None,
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,
-        "lead_source": None,
+        "lead_source": provider_name,
     }
 
     # Extract Vehicle of Interest fields

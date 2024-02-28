@@ -269,6 +269,7 @@ Resources:
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 120
+      MemorySize: 256
       Policies:
         - Id: AuthorizerPermissions
           Version: "2012-10-17"
@@ -291,6 +292,7 @@ Resources:
       CodeUri: app/lead/
       Handler: create_lead.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -309,6 +311,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_leads.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -327,6 +330,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -345,6 +349,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_by_crm_ids.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -363,6 +368,7 @@ Resources:
       CodeUri: app/lead/
       Handler: update_lead.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -381,6 +387,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_status.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -399,6 +406,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_salespersons.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -435,6 +443,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: create_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -453,6 +462,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: retrieve_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -471,6 +481,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: retrieve_consumer_by_crm_ids.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -489,6 +500,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: update_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -507,6 +519,7 @@ Resources:
       CodeUri: app/activity/
       Handler: create_activity.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -525,6 +538,7 @@ Resources:
       CodeUri: app/activity/
       Handler: update_activity.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -543,6 +557,7 @@ Resources:
       CodeUri: app/dealer/
       Handler: retrieve_dealers.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -561,6 +576,7 @@ Resources:
       CodeUri: app/dealer/
       Handler: retrieve_dealer_by_id.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -579,6 +595,7 @@ Resources:
       CodeUri: app/upload/
       Handler: upload_data.lambda_handler
       Timeout: 30
+      MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
