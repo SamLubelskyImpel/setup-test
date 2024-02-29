@@ -21,7 +21,7 @@ class InvVehicle(BaseForModels):
     db_update_user = Column(String(255), nullable=True)
     dealer_integration_partner_id = Column(Integer, ForeignKey("inv_dealer_integration_partner.id"), nullable=False)
     new_or_used = Column(String(1), nullable=True)
-    metadata = Column(JSON, nullable=True)
+    metadata_ = Column(JSON, nullable=True)
 
     # Define relationship
     dealer_integration_partner = relationship("InvDealerIntegrationPartner")

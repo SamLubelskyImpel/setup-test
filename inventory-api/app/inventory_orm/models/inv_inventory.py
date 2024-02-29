@@ -46,7 +46,7 @@ class InvInventory(BaseForModels):
     engine = Column(String(255), nullable=True)
     engine_displacement = Column(String(255), nullable=True)
     factory_certified = Column(Boolean, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    metadata_ = Column(JSON, nullable=True)
 
     # Define relationship
     vehicle = relationship("InvVehicle")
