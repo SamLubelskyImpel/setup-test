@@ -1,6 +1,8 @@
 from inventory_orm.session_config import BaseForModels
-from sqlalchemy import Column, DateTime, Integer, String, JSON, ForeignKey, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+
 
 class InvVehicle(BaseForModels):
     """Inv Vehicle Model."""
@@ -21,7 +23,7 @@ class InvVehicle(BaseForModels):
     db_update_user = Column(String(255), nullable=True)
     dealer_integration_partner_id = Column(Integer, ForeignKey("inv_dealer_integration_partner.id"), nullable=False)
     new_or_used = Column(String(1), nullable=True)
-    metadata_ = Column(JSON, nullable=True)
+    metadata_ = Column("metadata", JSONB)
 
     # Define relationship
     dealer_integration_partner = relationship("InvDealerIntegrationPartner")
