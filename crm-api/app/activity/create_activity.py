@@ -155,6 +155,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Payload to CRM: {dumps(payload)}")
 
             create_on_crm(partner_name=partner_name, payload=payload)
+        
+        if request_product == "chat_ai":
+            #TODO send data to adf assembler
+            pass
 
         return {
             "statusCode": "201",

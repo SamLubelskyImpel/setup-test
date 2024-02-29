@@ -203,6 +203,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Created lead {lead_id}")
 
+        if request_product == 'chat_ai':
+            # send lead_id to adf assembler
+            #TODO Create method to send this data 
+            pass
+
         return {
             "statusCode": "201",
             "body": dumps({"lead_id": lead_id})
