@@ -66,7 +66,7 @@ END $$;
 CREATE TABLE stage.inv_dealer (
     id SERIAL PRIMARY KEY NOT NULL,
     impel_dealer_id VARCHAR(100) NOT NULL,
-    location_name VARCHAR(80) NULL,
+    sfdc_account_id varchar(40) NOT NULL,
     "state" VARCHAR(20) NULL,
     city VARCHAR(40) NULL,
     zip_code VARCHAR(20) NULL,

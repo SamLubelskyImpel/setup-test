@@ -8,6 +8,7 @@ class InvDealer(BaseForModels):
 
     id = Column(Integer, primary_key=True)
     impel_dealer_id = Column(String(100), nullable=False)
+    sfdc_account_id = Column(String(40), nullable=False),
     location_name = Column(String(80), nullable=True)
     state = Column(String(20), nullable=True)
     city = Column(String(40), nullable=True)
