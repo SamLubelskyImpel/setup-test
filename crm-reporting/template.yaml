@@ -213,19 +213,19 @@ Resources:
     Properties:
       TopicName: !Sub crm-reporting-topic-${Environment}
 
-  # SupportSnsSubscription:
-  #   Type: AWS::SNS::Subscription
-  #   Properties:
-  #     Endpoint: !If [IsProd, 'support@impel.io', 'srwoods@impel.ai']
-  #     Protocol: email
-  #     TopicArn: !Ref CRMReportingSnsTopic
+  SupportSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'support@impel.io', 'srwoods@impel.ai']
+      Protocol: email
+      TopicArn: !Ref CRMReportingSnsTopic
 
-  # SupportAISnsSubscription:
-  #   Type: AWS::SNS::Subscription
-  #   Properties:
-  #     Endpoint: !If [IsProd, 'aisupportalerts@impel.io', 'srwoods@impel.ai']
-  #     Protocol: email
-  #     TopicArn: !Ref CRMReportingSnsTopic
+  SupportAISnsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !If [IsProd, 'aisupportalerts@impel.io', 'srwoods@impel.ai']
+      Protocol: email
+      TopicArn: !Ref CRMReportingSnsTopic
 
   CESnsSubscription:
     Type: AWS::SNS::Subscription
