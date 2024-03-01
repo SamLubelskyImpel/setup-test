@@ -135,7 +135,32 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     return extracted_data
 
 
-def extract_lead(root: ET.Element, namespace: dict) -> dict:
+def update_non_internet_leads_config(lead_id: str, crm_dealer_id) -> None:
+    """Updates or creates a configuration file to include a specified non-internet lead for a CRM dealer."""
+    s3_key = f"configurations/reyrey_crm/ignore/{crm_dealer_id}.json"
+    try:
+        logger.info(f"Lead id: {lead_id}")
+        try:
+            response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key)
+            existing_content = response['Body'].read().decode('utf-8')
+            existing_data = json.loads(existing_content)
+            non_internet_leads = set(existing_data.get("non_internet_leads", []))
+        except s3_client.exceptions.NoSuchKey:
+            logger.info(f"No existing data for {crm_dealer_id}, creating a new list.")
+            non_internet_leads = set()
+
+        non_internet_leads.add(lead_id)
+        updated_data = {"non_internet_leads": list(non_internet_leads)}
+        updated_content = json.dumps(updated_data)
+        s3_client.put_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=updated_content)
+        logger.info(f"Successfully updated non internet leads for {crm_dealer_id}.")
+
+    except Exception as e:
+        logger.error(f"Failed to update S3 object. Partner: {SECRET_KEY}, Error: {str(e)}")
+        raise
+
+
+def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def extract_note(notes: list) -> str:
@@ -197,6 +222,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         raise NoCustomerInitiatedLeadException(f"Lead is not customer initiated: {prospect_id}")
 
     if prospect_type != "Internet":
+        update_non_internet_leads_config(prospect_id, crm_dealer_id)
         raise NotInternetLeadException(f"Lead type is not Internet: {prospect_type}")
 
     metadata = {}
@@ -389,7 +415,7 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_dealer_id = get_crm_dealer_id(root, namespace)
         consumer = extract_consumer(root, namespace)
-        lead = extract_lead(root, namespace)
+        lead = extract_lead(root, namespace, crm_dealer_id)
         unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, crm_dealer_id, product_dealer_id, crm_api_key)
 
         # Write new lead to the Unified Layer, using the consumer_id that was just created
