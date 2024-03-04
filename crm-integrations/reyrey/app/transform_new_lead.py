@@ -195,7 +195,7 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         """Map the initial ReyRey status to the Unified Layer status."""
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
+            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{SECRET_KEY.upper()}.json",
         )
         config = json.loads(response["Body"].read())
         status_map = config["initial_status_map"]
