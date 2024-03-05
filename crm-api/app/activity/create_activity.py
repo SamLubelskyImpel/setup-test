@@ -157,7 +157,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             create_on_crm(partner_name=partner_name, payload=payload)
         
         if request_product == "chat_ai":
-            #TODO send data to adf assembler
+            #TODO Create lambda invocation and send lead_id to adf-assembler
             pass
 
         return {

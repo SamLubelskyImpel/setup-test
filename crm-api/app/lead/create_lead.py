@@ -1,8 +1,9 @@
 """Create lead in the shared CRM layer."""
-import logging
 import pytz
-from dateutil import parser
+import boto3
+import logging
 from os import environ
+from dateutil import parser
 from datetime import datetime
 from json import dumps, loads
 from typing import Any, List
@@ -15,12 +16,43 @@ from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 
+ENVIRONMENT = environ.get("ENVIRONMENT")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+s3_client = boto3.client("s3")
+lambda_client = boto3.client("lambda")
 
 salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
                      'phone', 'position_name', 'is_primary']
 
+def get_lambda_arn(partner_name: str) -> Any:
+    """Get lambda ARN from S3."""
+    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    try:
+        s3_object = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )
+        lambda_arn = s3_object.get("adf_assembler_arn")
+    except Exception as e:
+        logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
+        raise
+    return lambda_arn
+
+def invoke_lambda(body: dict, lambda_arn: str) -> Any:
+    """Get lead status from CRM."""
+    response = lambda_client.invoke(
+        FunctionName=lambda_arn,
+        InvocationType="Event",
+        Payload=dumps(body),
+    )
+    logger.info(f"Response from lambda: {response}")
+    return
 
 def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
                  allowed_attrs: List[str], request_product) -> None:
@@ -204,10 +236,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
 
         if request_product == 'chat_ai':
-            # send lead_id to adf assembler
-            #TODO Create method to send this data 
-            pass
-
+            lambda_arn = get_lambda_arn(request_product)
+            if lambda_arn:
+                logger.info(f"Lambda ARN detected for partner {request_product}. Creating adf on lead_id: {lead_id}.")
+                try:
+                    invoke_lambda({"lead_id":lead_id}, lambda_arn)
+                except Exception as e:
+                    logger.error(f"Failed to create adf. {e}")
+            else:
+                logger.warning(f"[crm-api.create_lead] Something is wrong with lambda_arn: {lambda_arn}")
         return {
             "statusCode": "201",
             "body": dumps({"lead_id": lead_id})

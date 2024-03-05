@@ -39,10 +39,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Request product: {request_product} has updated activity {activity_id}")
 
-        if request_product == "chat_ai":
-            #TODO send this data to adf assembler
-            pass
-
         return {
             "statusCode": "200",
             "body": dumps({"message": "Activity updated successfully"})
