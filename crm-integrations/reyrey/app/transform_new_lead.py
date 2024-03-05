@@ -187,10 +187,18 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     def extract_and_process_salesperson_data(root, xpath, role_name, is_primary=False, namespace=None):
         salesperson = root.find(xpath, namespace)
         if salesperson is not None:
-            salesperson_name = salesperson.text
-            first_name = salesperson_name.split(",")[1].strip()
-            last_name = salesperson_name.split(",")[0].strip()
-            crm_salesperson_id = f"{first_name}{last_name}"
+            salesperson_name = salesperson.text.strip()
+
+            try:
+                last_name, first_name = [name.strip() for name in salesperson_name.split(",")]
+                crm_salesperson_id = f"{first_name}{last_name}"
+            except ValueError:
+                logger.warning(f"Salesperson name is not in the correct format: {salesperson_name}")
+
+                # Remove any commas, treat the entire name as the first name for non-standard formats
+                first_name = salesperson_name.replace(",", "").strip()
+                last_name = ""
+                crm_salesperson_id = first_name.replace(" ", "")
 
             return {
                 "crm_salesperson_id": crm_salesperson_id,
