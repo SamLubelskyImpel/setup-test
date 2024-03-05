@@ -48,7 +48,7 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> 
 
 def get_mapped_status(event_id: str, partner_name: str) -> Any:
     """Get mapped lead status from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
     try:
         s3_object = json.loads(
                 s3_client.get_object(
