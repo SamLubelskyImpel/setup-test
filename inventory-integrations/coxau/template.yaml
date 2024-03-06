@@ -48,6 +48,7 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         FTP_SECRET_KEY: COXAU_FTP
+        INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
 
 Resources:
   LambdaRole:
@@ -85,45 +86,117 @@ Resources:
                   - "s3:GetObject"
                   - "s3:ListBucket"
                 Resource:
+                  - !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt DownloadFTPCoxAUQueue.Arn
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-ftp*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-ftp*",
                     ]
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   InvokeFTPCoxAU:
     Type: AWS::Serverless::Function
-    FunctionName: !Sub coxau-inv-${Environment}-InvokeFTPCoxAU
-    CodeUri: app/
-    Handler: invoke_ftp_coxau.lambda_handler
-    Role: !GetAtt LambdaRole.Arn
-    Timeout: 30
-    MemorySize: 128
-    Environment:
-      Variables:
-        DOWNLOAD_QUEUE_URL: !GetAtt DownloadFTPCoxAUQueue.QueueUrl
+    Properties:
+      FunctionName: !Sub coxau-inv-${Environment}-InvokeFTPCoxAU
+      CodeUri: app/
+      Handler: invoke_ftp_coxau.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          DOWNLOAD_QUEUE_URL: !GetAtt DownloadFTPCoxAUQueue.QueueUrl
+  
+  InvokeFTPCoxAUErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub coxau-inv-${Environment}-InvokeFTPCoxAU
+      AlarmDescription: CoxAU FTP Invoke failed to execute
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeFTPCoxAU
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   DownloadFTPCoxAU:
     Type: AWS::Serverless::Function
-    FunctionName: !Sub coxau-inv-${Environment}-DownloadFTPCoxAU
-    CodeUri: app/
-    Handler: download_ftp_coxau.lambda_handler
-    Role: !GetAtt LambdaRole.Arn
-    Timeout: 180
-    MemorySize: 1024
+    Properties:
+      FunctionName: !Sub coxau-inv-${Environment}-DownloadFTPCoxAU
+      CodeUri: app/
+      Handler: download_ftp_coxau.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 180
+      MemorySize: 1024
+  
+  DownloadFTPCoxAUErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub coxau-inv-${Environment}-DownloadFTPCoxAU
+      AlarmDescription: CoxAU FTP Download failed to download and process files
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DownloadFTPCoxAU
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
   
   DownloadFTPCoxAUQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'coxau-inv-${Environment}-DownloadFTPCoxAUQueue'
-      VisibilityTimeout: 300
+      VisibilityTimeout: 60
       MessageRetentionPeriod: 1209600
   
   DownloadFTPCoxAUDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'coxau-inv-${Environment}-DownloadFTPCoxAUDLQ'
-      VisibilityTimeout: 300
+      VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DownloadFTPCoxAUQueue.Arn
@@ -132,14 +205,14 @@ Resources:
   DownloadFTPCoxAUDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "reyrey-${Environment}-DownloadFTPCoxAUDLQ"
+      AlarmName: !Sub 'coxau-inv-${Environment}-DownloadFTPCoxAUDLQ'
       AlarmDescription: There are over 1 unprocessed messages in the CoxAU FTP Download DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt TransformLeadUpdateDeadLetterQueue.QueueName
+          Value: !GetAtt DownloadFTPCoxAUDeadLetterQueue.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -160,16 +233,12 @@ Resources:
   InvokeFTPCoxAUScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Invoke FTP Cox AU every 4 hours"
-      ScheduleExpression: "cron(0 */4 * * ? *)"
+      Description: "Invoke FTP Cox AU every 2 hours"
+      ScheduleExpression: "cron(0 */2 * * ? *)"
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt InvokeFTPCoxAU.Arn
           Id: "invoke_ftp_coxau_scheduled"
-      # InputTransformer:
-      #   InputPathsMap:
-      #     datetime: "$.time"
-      #   InputTemplate: '{"datetime": "${DateTime}"}'
   
   InvokeFTPCoxAUScheduleLambdaPermission:
     Type: AWS::Lambda::Permission
