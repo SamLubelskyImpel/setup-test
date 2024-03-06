@@ -209,6 +209,32 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
 
         return unified_layer_status, metadata
 
+    def extract_and_process_salesperson_data(root, xpath, role_name, is_primary=False, namespace=None):
+        salesperson = root.find(xpath, namespace)
+        if salesperson is not None:
+            salesperson_name = salesperson.text.strip()
+
+            try:
+                last_name, first_name = [name.strip() for name in salesperson_name.split(",")]
+                crm_salesperson_id = f"{first_name}{last_name}"
+            except ValueError:
+                logger.warning(f"Salesperson name is not in the correct format: {salesperson_name}")
+
+                # Remove any commas, treat the entire name as the first name for non-standard formats
+                first_name = salesperson_name.replace(",", "").strip()
+                last_name = ""
+                crm_salesperson_id = first_name.replace(" ", "")
+
+            return {
+                "crm_salesperson_id": crm_salesperson_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "is_primary": is_primary,
+                "position_name": role_name,
+                "email": None,
+                "phone": None,
+            }
+
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = get_text(root, ".//star:InsertedBy", namespace)
@@ -217,6 +243,7 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
     prospect_type = get_text(root, ".//star:ProspectType", namespace)
     provider_name = get_text(root, ".//star:ProviderName", namespace)
     is_ci_lead = get_text(root, ".//star:IsCiLead", namespace)
+    prospect_source_detail = get_text(root, ".//star:ProviderService", namespace)
 
     if is_ci_lead == "false":
         raise NoCustomerInitiatedLeadException(f"Lead is not customer initiated: {prospect_id}")
@@ -238,6 +265,7 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,
         "lead_source": provider_name,
+        "lead_source_detail": prospect_source_detail
     }
 
     # Extract Vehicle of Interest fields
@@ -248,6 +276,10 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
     vehicle_year = get_text(root, ".//star:DesiredVehicle/star:VehicleYear", namespace)
     vehicle_style = get_text(root, ".//star:DesiredVehicle/star:VehicleStyle", namespace)
     stock_type = get_text(root, ".//star:DesiredVehicle/star:StockType", namespace)
+    trade_in_vin = get_text(root, ".//star:PotentialTrade/star:TradeVehicleVin", namespace)
+    trade_in_year = get_text(root, ".//star:PotentialTrade/star:TradeVehicleYear", namespace)
+    trade_in_make = get_text(root, ".//star:PotentialTrade/star:TradeVehicleMake", namespace)
+    trade_in_model = get_text(root, ".//star:PotentialTrade/star:TradeVehicleModel", namespace)
 
     vehicle_of_interest_data = {
         "vin": vin,
@@ -259,6 +291,10 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         "type": vehicle_style,
         "body_style": vehicle_style,
         "condition": stock_type,
+        "trade_in_vin": trade_in_vin,
+        "trade_in_year": trade_in_year,
+        "trade_in_make": trade_in_make,
+        "trade_in_model": trade_in_model
         # "class": None,
         # "mileage": None,
         # "trim": None,
@@ -271,29 +307,22 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         # "vehicle_comments": None,
     }
 
-    # Extract Salesperson fields, primary salesperson format: "Last, First"
-    primary_salesperson = root.find(
-        ".//star:Record/star:Prospect/star:PrimarySalesPerson", namespace
-    )
-    salesperson_data = None
-    if primary_salesperson is not None:
-        primary_salesperson = primary_salesperson.text
-        first_name = primary_salesperson.split(",")[1].strip()
-        last_name = primary_salesperson.split(",")[0].strip()
+    salespersons_data = []
 
-        salesperson_data = {
-            "crm_salesperson_id": f"{last_name}, {first_name}",
-            "first_name": first_name,
-            "last_name": last_name,
-            "is_primary": True,
-            "position_name": "Primary Salesperson",
-            "email": None,
-            "phone": None,
-        }
+    salespersons_roles = [
+        (".//star:Record/star:Prospect/star:PrimarySalesPerson", "Primary Salesperson", True),
+        (".//star:Record/star:Prospect/star:Manager", "Manager"),
+        (".//star:Record/star:Prospect/star:BDCUser", "BDC User"),
+    ]
+
+    for xpath, role_name, *is_primary in salespersons_roles:
+        salesperson_data = extract_and_process_salesperson_data(root, xpath, role_name, bool(is_primary), namespace)
+        if salesperson_data:
+            salespersons_data.append(salesperson_data)
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
-    prospect_data["salespersons"] = [salesperson_data] if salesperson_data else []
+    prospect_data["salespersons"] = salespersons_data if salespersons_data else []
     prospect_data["metadata"] = metadata
 
     return prospect_data
