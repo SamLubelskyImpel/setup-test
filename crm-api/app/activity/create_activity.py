@@ -189,7 +189,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if lambda_arn:
                 logger.info(f"Lambda ARN detected for partner {request_product}. Creating adf on lead_id: {lead_id}.")
                 try:
-                    invoke_lambda({"lead_id":lead_id}, lambda_arn)
+                    invoke_lambda({"lead_id":lead_id, "activity_time":activity_due_ts}, lambda_arn)
                 except Exception as e:
                     logger.error(f"Failed to create adf. {e}")
             else:
