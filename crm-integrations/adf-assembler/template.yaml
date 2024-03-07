@@ -92,16 +92,6 @@ Resources:
                                 - "logs:CreateLogStream"
                                 - "logs:PutLogEvents"
                             Resource: "arn:aws:logs:*:*:*"
-                - PolicyName: LambdaEC2ENIManagement
-                  PolicyDocument:
-                      Version: "2012-10-17"
-                      Statement:
-                          - Effect: "Allow"
-                            Action:
-                                - "ec2:CreateNetworkInterface"
-                                - "ec2:DescribeNetworkInterfaces"
-                                - "ec2:DeleteNetworkInterface"
-                            Resource: "*"
                 - PolicyName: AccessSecretsManager
                   PolicyDocument:
                       Version: "2012-10-17"
@@ -129,11 +119,9 @@ Resources:
                       Statement:
                           - Effect: "Allow"
                             Action:
-                                - "s3:PutObject"
-                                - "s3:DeleteObject"
                                 - "s3:GetObject"
                             Resource:
-                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*" #TODO Find out if adf assembler needs this
                 - PolicyName: SNSPolicy
                   PolicyDocument:
                       Version: "2012-10-17"
@@ -182,11 +170,6 @@ Resources:
                 DestinationArn: !GetAtt APILogGroup.Arn
                 Format: >-
                     {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-            DefinitionBody:
-                Fn::Transform:
-                    Name: AWS::Include
-                    Parameters:
-                        Location: "./swagger/crm-partner-api-oas-interpolated.yaml"
             GatewayResponses:
                 BAD_REQUEST_PARAMETERS:
                     ResponseTemplates:
