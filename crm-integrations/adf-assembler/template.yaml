@@ -40,10 +40,6 @@ Mappings:
                 - subnet-01044d580678ea63c
                 - subnet-0b29db0aeb6cdabec
                 - subnet-0e28d592f2ca28fb7
-    VpcId:
-        us-east-1:
-            "196800776222": vpc-03417e688cee5bc07
-            "143813444726": vpc-0b28df8980a1905d5
 
 Globals:
     Function:
@@ -61,11 +57,6 @@ Globals:
                         "crm-api.impel.io",
                         "crm-api-test.testenv.impel.io",
                     ]
-        VpcConfig:
-            SecurityGroupIds:
-                - !Ref SecurityGroup
-            SubnetIds:
-                !FindInMap [Subnets, !Ref "AWS::Region", !Ref "AWS::AccountId"]
 
 Resources:
 
