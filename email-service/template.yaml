@@ -27,12 +27,12 @@ Globals:
         LOGLEVEL: INFO
         
 Resources:
-  EmailIdentity:
+  CrmAdfEmailIdentity:
     Type: AWS::SES::EmailIdentity
     Properties:
       EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
       
-  EmailDeliveryFailureEventDestination:
+  EmailDeliveryEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
     Properties:
       ConfigurationSetName: !Sub 'email-service-delivery-failure-${Environment}'
@@ -42,13 +42,21 @@ Resources:
         MatchingEventTypes:
           - bounce
           - reject 
+          - send
+          - complaint
+          - delivery
+          - open
+          - click
+          - renderingFailure
+          - deliveryDelay
+          - subscription
         SnsDestination:
-          TopicARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:email-service-delivery-failure-${Environment}'
+          TopicARN: !Ref EmailServiceDeliveryTopic
           
-  EmailServiceDeliveryFailureTopic:
+  EmailServiceDeliveryTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub email-service-delivery-failure-${Environment}
+      TopicName: !Sub email-service-delivery-${Environment}
       
   EmailServiceDeliveryFailureQueue:
     Type: AWS::SQS::Queue
@@ -67,16 +75,17 @@ Resources:
             Resource: !GetAtt EmailServiceDeliveryFailureQueue.Arn
             Condition:
               ArnEquals:
-                aws:SourceArn: !Ref EmailServiceDeliveryFailureTopic
+                aws:SourceArn: !Ref EmailServiceDeliveryTopic
       Queues:
         - !GetAtt EmailServiceDeliveryFailureQueue.Arn
         
-  EmailServiceDeliveryFailureTopicSubscription:
+  EmailServiceDeliveryFailureSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs
-      TopicArn: !Ref EmailServiceDeliveryFailureTopic
+      TopicArn: !Ref EmailServiceDeliveryTopic
       Endpoint: !GetAtt EmailServiceDeliveryFailureQueue.Arn
+      # TODO filter only bounce and reject events
       
   EmailServiceDeliveryFailureAlarm:
     Type: AWS::CloudWatch::Alarm

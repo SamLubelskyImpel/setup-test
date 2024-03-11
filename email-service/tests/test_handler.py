@@ -15,7 +15,9 @@ def test_handler(mock_ses):
     s3.put_object(Bucket='test-bucket', Key='test-key', Body=json.dumps({
         'recipients': ['to1@email.com', 'to2@email.com'],
         'subject': 'Test Subject',
-        'body': 'Test Body'
+        'body': 'Test Body',
+        'from_address': 'sender@host.com',
+        'reply_to': ['replyto@host.com']
     }))
     
     lambda_handler({ 'Records': [{
@@ -25,8 +27,9 @@ def test_handler(mock_ses):
         }
     }]}, None)
     
-    assert mock_ses.called_once_with(
-        Source='test-source',
+    mock_ses.assert_called_once_with(
+        Source='sender@host.com',
         Destination={'ToAddresses': ['to1@email.com', 'to2@email.com']},
-        Message={'Subject': {'Data': 'Test Subject'}, 'Body': {'Text': {'Data': 'Test Body'}}}
+        Message={'Subject': {'Data': 'Test Subject'}, 'Body': {'Text': {'Data': 'Test Body'}}},
+        ReplyToAddresses=['replyto@host.com']
     )

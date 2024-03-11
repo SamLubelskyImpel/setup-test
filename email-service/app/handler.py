@@ -19,8 +19,9 @@ def lambda_handler(event, context):
         bucket, key = record['s3']['bucket']['name'], record['s3']['object']['key']
         obj = json.loads(S3.get_object(Bucket=bucket, Key=key).get('Body').read().decode('utf-8'))
         SES.send_email(
-            Source=SES_SOURCE,
-            Destination={'ToAddresses': [obj['recipients']]},
-            Message={'Subject': {'Data': obj['subject']}, 'Body': {'Text': {'Data': obj['body']}}}
+            Source=obj['from_address'],
+            Destination={'ToAddresses': obj['recipients']},
+            Message={'Subject': {'Data': obj['subject']}, 'Body': {'Text': {'Data': obj['body']}}},
+            ReplyToAddresses=obj.get('reply_to', [])
         )
         
