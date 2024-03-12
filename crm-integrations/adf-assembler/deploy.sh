@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the crm api.
+    Deploy the adf assembler.
     Usage:
      ./deploy.sh <parameters>
     Options:
