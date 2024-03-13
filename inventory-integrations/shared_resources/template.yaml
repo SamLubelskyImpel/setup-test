@@ -47,6 +47,8 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        MERCH_FTP_KEY: MERCH_UPLOAD_FTP
+        AI_FTP_KEY: AI_UPLOAD_FTP
 
 Resources:
   InventoryIntegrationsBucket:
@@ -97,3 +99,137 @@ Resources:
               aws:SourceArn: !Sub 'arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}'
       Topics:
         - Ref: InventoryS3ToSNSTopic
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                - !GetAtt DirectUploadQueue.Arn
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-ftp*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-ftp*",
+                    ]
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
+  DirectUploadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueue'
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
+        maxReceiveCount: 5
+  
+  DirectUploadDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueueDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+
+  DirectUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub shared-inv-${Environment}-DirectUpload
+      CodeUri: app/
+      Handler: direct_upload.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+  
+  DirectUploadEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt DirectUploadQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt DirectUploadFunction.Arn
+  
+  DirectUploadTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref InventoryS3ToSNSTopic
+      Endpoint: !GetAtt DirectUploadQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  DirectUploadQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref DirectUploadQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: DirectUploadQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt DirectUploadQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
