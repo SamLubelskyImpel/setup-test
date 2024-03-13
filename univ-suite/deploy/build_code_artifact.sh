@@ -53,14 +53,14 @@ deployment_id="$commit-$(date -u +%Y%m%d%H%M%S)"
 tmptar=$(mktemp --suffix=.tar)
 tmpcodedir=$(mktemp -d)
 mkdir $tmpcodedir/app
-tmpconfig="$tmpcodedir/app/uiapp.env"  # This is the file that will store the app's runtime environment variables.
+tmpconfig="$tmpcodedir/app/uiapp.env"  # This is the file that will store the apps runtime environment variables.
 trap 'rm --preserve-root --one-file-system -rf "$tmptar"' EXIT  # Clean up on exit, as safely as possible.
 
 cd $tmpcodedir
 ln -s "$HOME/universal_integrations/univ-suite/dms_upload_api" ./app
 ln -s ./app/dms_upload_api/appspec.yml .  # appspec.yaml MUST be at the root of the artifact.
 cp -r "$HOME/universal_integrations/univ-suite/deploy/dms_upload_api/bootstrap/codedeploy" .  # Copy the general codedeploy scripts.
-\cp -r "$HOME/universal_integrations/univ-suite/dms_upload_api/bootstrap/codedeploy" .  # Now copy the app's codedeploy scripts. Many shells force interactive cp; using \cp circumvents this.
+\cp -r "$HOME/universal_integrations/univ-suite/dms_upload_api/bootstrap/codedeploy" .  # Now copy the apps codedeploy scripts. Many shells force interactive cp; using \cp circumvents this.
 
 files=(
 	.gitignore
@@ -86,7 +86,10 @@ EOF
 
 
 # Finally, tar the package.
-tar -chf $tmptar --exclude-backups --exclude-vcs-ignores --exclude=.gitignore --exclude='__pycache__' --exclude='bootstrap' --exclude=template.yaml .
+# tar -chf $tmptar --exclude-backups --exclude-vcs-ignores --exclude=.gitignore --exclude='__pycache__' --exclude='bootstrap' --exclude='venv' --exclude='env' --exclude=template.yaml .
+
+tar -chf $tmptar --exclude-backups --exclude-vcs-ignores -X "$HOME/universal_integrations/univ-suite/deploy/exclude_file.txt" .
+
 
 s3_uri="s3://$bucket/$aws_account/$env-$app-$deployment_id-code.tar.gz"
 gzip --stdout $tmptar | aws --region $region --profile $profile s3 cp - "$s3_uri"  --acl bucket-owner-full-control
