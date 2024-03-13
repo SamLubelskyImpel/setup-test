@@ -1,0 +1,5 @@
+requests
+urllib3<2
+aws-lambda-powertools==2.26.0
+pandas==2.0.3
+psycopg2-binary==2.9.9

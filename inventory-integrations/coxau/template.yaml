@@ -45,10 +45,44 @@ Globals:
       Variables:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
         ENVIRONMENT: !Ref Environment
+        REGION: !Sub '${AWS::Region}'
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+    VpcConfig:
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: Permit traffic from the coxau integration service
+      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      SecurityGroupEgress:
+        - Description: AllowAll
+          CidrIp: 0.0.0.0/0
+          IpProtocol: '-1'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Product
+          Value: coxau-integration
+
+  RDSInboundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "inventory integration rds access"
+      GroupId: !If [ IsProd,
+                      'sg-00e12bc4c116eb820',
+                      'sg-00b911ee260ce5153'
+                    ]
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -87,6 +121,120 @@ Resources:
                   - !If [
                       IsProd,
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
                     ]
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource: 
+                  - !GetAtt CoxAuFormatINVQueue.Arn
+                  - !GetAtt CoxAuFormatINVDLQ.Arn
+        - PolicyName: SecretsManagerPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowGetDBInfo
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: 
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                    ]
+        - PolicyName: LambdaVPCAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: "*"
 
+  CoxAuFormatINVQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: CoxAuFormatINVDLQ
+    Properties:
+      QueueName: CoxAuFormatINVQueue
+      VisibilityTimeout: 300
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt CoxAuFormatINVDLQ.Arn
+          maxReceiveCount: 3
+
+  CoxAuFormatINVDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: CoxAuFormatINVDLQ
+
+  CoxAuFormatINVDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: CoxAuFormatINVDLQAlarm
+      AlarmDescription: There are messages in the CoxAuFormatINVDLQAlarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CoxAuFormatINVDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  # CoxAuFormatINVQueueSubscription:
+  #     Type: AWS::SNS::Subscription
+  #     Properties:
+  #       TopicArn: arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-us-east-1-dramirez-ce-1314
+  #       Protocol: sqs
+  #       RawMessageDelivery: true
+  #       Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
+  #       FilterPolicyScope: MessageBody
+  #       FilterPolicy:
+  #         '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  CoxAuFormatINVQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-us-east-1-dramirez-ce-1314
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        s3:
+          object:
+            key:
+              prefix: ["raw/"]
+        eventName:
+          prefix: ["ObjectCreated:"]
+
+  CoxAuFormatINVInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Transform and upload raw cox australia file to S3.
+      Handler: format_coxau.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          INV_QUEUE_URL: !Ref CoxAuFormatINVQueue
+          COXAU_DATA_BUCKET: !Sub 'inventory-integrations-${AWS::Region}-${Environment}'
+      Timeout: 900
+      MemorySize: 1024
+      Events:
+        CoxAuFormatINVTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt CoxAuFormatINVQueue.Arn
+            BatchSize: 10 # Adjust this based on the expected throughput and processing capabilities
