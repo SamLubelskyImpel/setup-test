@@ -173,7 +173,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-TransformNewLeadDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   TransformNewLeadDLQAlarm:
@@ -268,7 +268,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-TransformLeadUpdateDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
   TransformLeadUpdateDLQAlarm:
@@ -345,7 +345,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "reyrey-${Environment}-SendActivityDLQ"
-      MessageRetentionPeriod: 604800
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   SendActivityEventMapping:

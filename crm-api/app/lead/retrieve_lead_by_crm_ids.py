@@ -106,6 +106,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "condition": vehicle.condition,
                 "odometer_units": vehicle.odometer_units,
                 "vehicle_comments": vehicle.vehicle_comments,
+                "trade_in_vin": vehicle.trade_in_vin,
+                "trade_in_year": vehicle.trade_in_year,
+                "trade_in_make": vehicle.trade_in_make,
+                "trade_in_model": vehicle.trade_in_model,
                 "db_creation_date": vehicle.db_creation_date
             }
             vehicles.append(vehicle_record)
@@ -119,6 +123,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_comment": lead.comment,
             "lead_origin": lead.origin_channel,
             "lead_source": lead.source_channel,
+            "lead_source_detail": lead.source_detail,
             "vehicles_of_interest": vehicles,
             "lead_ts": lead.lead_ts,
             "db_creation_date": lead.db_creation_date

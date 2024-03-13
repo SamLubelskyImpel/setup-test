@@ -139,19 +139,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  next_fetch_key:
-                    type: string
-                  repair_orders:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/RepairOrderResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                "$ref": "#/components/schemas/RepairOrderResponse"
         '400':
           description: Bad Request.
         '401':
@@ -264,19 +252,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  next_fetch_key:
-                    type: string
-                  vehicle_sales:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/VehicleSaleResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                "$ref": "#/components/schemas/VehicleSaleResponse"
         '400':
           description: Bad Request.
         '401':
@@ -342,19 +318,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  next_fetch_key:
-                    type: string
-                  dealers:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/DealerResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                "$ref": "#/components/schemas/DealerResponse"
         '400':
           description: Bad Request.
         '401':
@@ -483,19 +447,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  next_fetch_key:
-                    type: string
-                  appointments:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/AppointmentResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                "$ref": "#/components/schemas/AppointmentResponse"
         '400':
           description: Bad Request.
         '401':
@@ -547,6 +499,8 @@ components:
                     type: array
                     items:
                       $ref: '#/components/schemas/OpCode'
+        has_next_page:
+          type: boolean
     RepairOrderResponse:
       type: object
       properties:
@@ -583,6 +537,8 @@ components:
                     type: array
                     items:
                       $ref: '#/components/schemas/OpCode'
+        has_next_page:
+          type: boolean
     VehicleSaleResponse:
       type: object
       properties:
