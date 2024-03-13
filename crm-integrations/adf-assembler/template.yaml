@@ -111,8 +111,9 @@ Resources:
                           - Effect: "Allow"
                             Action:
                                 - "s3:GetObject"
+                                - "s3:PutObject"
                             Resource:
-                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*" #TODO Find out if adf assembler needs this
+                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
                 - PolicyName: SNSPolicy
                   PolicyDocument:
                       Version: "2012-10-17"
