@@ -32,12 +32,16 @@ Resources:
     Properties:
       EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
       
-  EmailDeliveryEventDestination:
+  EmailServiceConfigSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Sub 'email-service-config-${Environment}'
+      
+  EmailServiceEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
     Properties:
-      ConfigurationSetName: !Sub 'email-service-delivery-failure-${Environment}'
+      ConfigurationSetName: !Ref EmailServiceConfigSet
       EventDestination:
-        Name: Bounce
         Enabled: true
         MatchingEventTypes:
           - bounce
@@ -77,7 +81,7 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !Ref EmailServiceDeliveryTopic
       Queues:
-        - !GetAtt EmailServiceDeliveryFailureQueue.Arn
+        - !Ref EmailServiceDeliveryFailureQueue
         
   EmailServiceDeliveryFailureSubscription:
     Type: AWS::SNS::Subscription
@@ -85,7 +89,10 @@ Resources:
       Protocol: sqs
       TopicArn: !Ref EmailServiceDeliveryTopic
       Endpoint: !GetAtt EmailServiceDeliveryFailureQueue.Arn
-      # TODO filter only bounce and reject events
+      FilterPolicy:
+        'Message.eventType':
+          - 'Bounce'
+          - 'Reject'
       
   EmailServiceDeliveryFailureAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -131,6 +138,12 @@ Resources:
               - s3:GetObject
               - s3:ListBucket
             Resource: !Sub 'arn:aws:s3:::email-service-store-${Environment}/*'
+          - Effect: Allow
+            Action:
+              - ses:SendEmail
+            Resource: 
+              - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*
+              - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/*
       
   EmailServiceLambda:
     Type: AWS::Serverless::Function
@@ -151,6 +164,9 @@ Resources:
         TargetArn: !GetAtt EmailServiceDLQ.Arn
       Policies:
         - !Ref EmailServiceExecutionPolicy
+      Environment:
+        Variables:
+          CONFIG_SET: !Ref EmailServiceConfigSet
             
   EmailServiceDLQ:
     Type: AWS::SQS::Queue
