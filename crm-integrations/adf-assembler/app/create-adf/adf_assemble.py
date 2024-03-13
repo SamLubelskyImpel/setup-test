@@ -1,13 +1,16 @@
 """Create lead in the shared CRM layer."""
-
 import logging
 from os import environ
+from typing import Any
+from boto3 import client
 from json import dumps, loads
-from typing import Any, List
 from api_wrapper import ApiWrapper
 from adf_samples import STANDARD_ADF_FORMAT, APPOINTMENT_ADF
 from datetime import datetime
 
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
+s3_client = client("s3")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -16,7 +19,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
         body = loads(event["body"])
-        logger.info(f"Body: {body}")  # Delete after testing
+        logger.info(f"Body: {body}")
 
         api_wrapper = ApiWrapper()
         lead_data = api_wrapper.get_lead(body.get("lead_id"))
@@ -48,6 +51,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             vendor_full_name=lead_data.get("dealer_name"),
         )
         logger.log(f"[adf_assembler] adf file: \n{formatted_adf}")
+
+        s3_key = f"adf/chat_ai/{body.get("lead_id")}_{datetime.now()}.json"
+
+        s3_client.put_object(
+            Body=dumps({"adf_file":formatted_adf}),
+            Bucket=BUCKET,
+            Key=s3_key,
+        )
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         return {

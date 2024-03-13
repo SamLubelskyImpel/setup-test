@@ -1,4 +1,4 @@
-"""Authorize requests to the reyrey crm api gateway."""
+"""Authorize requests to the ADF assembler."""
 import json
 import logging
 import os
@@ -47,7 +47,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/crm-partner-api"
+            SecretId=f"{'prod' if is_prod else 'test'}/crm-integrations"
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":

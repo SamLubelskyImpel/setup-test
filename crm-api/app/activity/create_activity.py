@@ -14,7 +14,6 @@ from crm_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
@@ -29,11 +28,11 @@ class ValidationError(Exception):
 
 def get_lambda_arn(partner_name: str) -> Any:
     """Get lambda ARN from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/{ENVIRONMENT}_GENERAL.json"
     try:
         s3_object = loads(
                 s3_client.get_object(
-                    Bucket=BUCKET,
+                    Bucket=INTEGRATIONS_BUCKET,
                     Key=s3_key
                 )['Body'].read().decode('utf-8')
             )
@@ -44,7 +43,7 @@ def get_lambda_arn(partner_name: str) -> Any:
     return lambda_arn
 
 def invoke_lambda(body: dict, lambda_arn: str) -> Any:
-    """Get lead status from CRM."""
+    """Create ADF data."""
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
         InvocationType="Event",
