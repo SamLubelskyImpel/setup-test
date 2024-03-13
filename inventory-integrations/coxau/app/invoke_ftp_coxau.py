@@ -67,7 +67,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         current_time = datetime.now(timezone.utc)
-        last_modified_time = current_time - timedelta(minutes=150)  # 2.5 hours ago
+        last_modified_time = current_time - timedelta(minutes=75)  # 1.25 hours ago
         logger.info(f"Checking for files modified since {last_modified_time.isoformat()}")
 
         hostname, username, password = get_ftp_secrets("inventory-integrations-ftp", SECRET_KEY)

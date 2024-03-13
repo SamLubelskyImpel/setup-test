@@ -233,8 +233,8 @@ Resources:
   InvokeFTPCoxAUScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Invoke FTP Cox AU every 2 hours"
-      ScheduleExpression: "cron(0 */2 * * ? *)"
+      Description: "Invoke FTP Cox AU every hour"
+      ScheduleExpression: "cron(0 */1 * * ? *)"
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt InvokeFTPCoxAU.Arn

@@ -171,7 +171,8 @@ CREATE TABLE stage.inv_vehicle (
 	db_update_user varchar(255) NULL,
     dealer_integration_partner_id INTEGER REFERENCES stage.inv_dealer_integration_partner(id) NOT NULL,
     new_or_used VARCHAR(1) NULL,
-    metadata jsonb NULL
+    metadata jsonb NULL,
+    stock_num VARCHAR NULL
 );
 
 -- Create a trigger on inv_vehicle table that fires on INSERT
