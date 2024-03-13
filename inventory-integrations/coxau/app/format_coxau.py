@@ -7,15 +7,12 @@ import csv
 from io import StringIO
 from aws_lambda_powertools.utilities.data_classes import SQSEvent
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
-from unified_data import upload_unified_json
+from unified_df import upload_unified_json
 from json import dumps, loads
+import re
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
-
-ENVIRONMENT = os.environ.get("ENVIRONMENT")
-INTEGRATIONS_BUCKET = os.environ.get("INTEGRATIONS_BUCKET")
-
 s3_client = boto3.client('s3')
 
 
@@ -31,7 +28,6 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
     Returns:
         list: A list of dictionaries, where each dictionary is an entry ready to be converted to JSON.
     """
-    
     csv_file = StringIO(csv_content)
     reader = csv.DictReader(csv_file)
     entries = []
@@ -43,8 +39,6 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
             entry[table] = {}
             for impel_field, cox_au_field in table_mapping.items():
                 entry[table][impel_field] = row.get(cox_au_field, None)
-
-        # Call a function to perform any additional processing on the entry
         entry = process_entry(entry, row, s3_uri)
         entries.append(entry)
     return entries
@@ -70,20 +64,27 @@ def process_entry(entry, row, source_s3_uri):
     metadata = dumps(source_s3_uri)
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
+        entry['inv_inventory']['region'] = 'AU'
+        entry['inv_inventory']['on_lot'] = 'True'
+
+
+    # sample file name: raw/coxau/2024/03/06/22/13728_example3_22:23:00.csv
+    # Extract the timestamp from the S3 URI using a regular expression
+    # timestamp_match = re.search(r'(\d{4})/(\d{2})/(\d{2})/(\d{2})/.*_(\d{2}:\d{2}:\d{2})\.csv', source_s3_uri)
+    # if timestamp_match:
+    #     # Format the timestamp in ISO 8601 format
+    #     received_datetime = f"{timestamp_match.group(1)}-{timestamp_match.group(2)}-{timestamp_match.group(3)}T{timestamp_match.group(4)}:{timestamp_match.group(5)}"
+
+    #     # Update the 'received_datetime' field in the 'inv_inventory' part of the entry
+    #     if 'inv_inventory' in entry:
+    #         entry['inv_inventory']['received_datetime'] = received_datetime
         
     return entry
-
-def upload_to_s3(bucket_name, json_data, prefix):
-    """Create the S3 key for the JSON file and upload it."""
-    now = datetime.utcnow()
-    json_key = f"{prefix}/{now.strftime('%Y/%m/%d')}/transformed_data.json"
-    s3_client.put_object(Bucket=bucket_name, Key=json_key, Body=json.dumps(json_data))
-    logger.info(f'Uploaded transformed JSON to {bucket_name}/{json_key}')
 
 def record_handler(record):
     """Process each record in the batch."""
     mappings = {
-        "vehicle": {
+        "inv_vehicle": {
             "vin": "VIN",
             "oem_name": "Make",
             "type": "Body",
@@ -93,12 +94,10 @@ def record_handler(record):
             "year": "ManuYear",
             "stock_num": "StockNo",
         },
-        "dealer_integration_partner": {
-            "provider_id": "DealerID",
+        "inv_dealer_integration_partner": {
+            "provider_dealer_id": "DealerID",
         },
-        # WIP
         "inv_inventory": {
-            "id": "DealerID",
             "list_price": "AdvertisedPrice",
             "fuel_type": "FuelType",
             "exterior_color": "BodyColour",
@@ -112,14 +111,12 @@ def record_handler(record):
             "cylinders": "Cylinders",
             "body_style": "Body",
             "series": "Series",  
-            "on_lot": "", # True if in latest feed, else False
             "vin": "VIN",
             "interior_material": "TrimColour",
             "source_data_drive_train": "DriveType",
-            "region": "AU",
             "trim": "TrimColour",
             "source_data_interior_material_description": "Badge",
-            "received_datetime": "", #timestamp in uploaded filename
+            # "received_datetime": "", #timestamp in uploaded filename
         },
     }
     try:

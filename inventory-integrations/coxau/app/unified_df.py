@@ -8,10 +8,10 @@ from rds_instance import RDSInstance
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 REGION = environ.get("REGION", "us-east-1")
 IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
+INVENTORY_BUCKET = f"inventory-integrations-{REGION}-{'prod' if IS_PROD else ENVIRONMENT}"
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
@@ -26,6 +26,11 @@ IGNORE_POSSIBLE_COLUMNS = [
     "vehicle_id",
     "vehicle_sale_id",
     "db_creation_date",
+    "db_update_date",
+    "dealer_id",
+    "source_data_transmission_speed",
+    "db_update_user",
+
 ]
 
 
@@ -33,7 +38,6 @@ def validate_unified_df_columns(df):
     """Validate unified DF format."""
     rds_instance = RDSInstance(IS_PROD)
     unified_column_names = rds_instance.get_unified_column_names()
-    logger.info(unified_column_names)
     df_table_names = set()
     df_col_names = set()
     for col in df.columns:
@@ -53,7 +57,7 @@ def validate_unified_df_columns(df):
             raise RuntimeError(
                 f"DF column {df_col} not found in database {unified_column_names}"
             )
-    return 
+
     possible_columns = set()
     for df_table_name in df_table_names:
         for unified_column_name in unified_column_names:
@@ -91,17 +95,16 @@ def upload_unified_json(json_list, source_s3_uri):
     upload_month = source_s3_uri.split("/")[3]
     upload_date = source_s3_uri.split("/")[4]
     df = convert_unified_df(json_list)
+    logger.info(df.head().to_json(orient="records", lines=True))
     if len(df) > 0:
         validate_unified_df_columns(df)
-        return
         json_str = df.to_json(orient="records")
         original_file = source_s3_uri.split("/")[-1].split(".")[0]
         parquet_name = f"{original_file}_{str(uuid4())}.json"
-        # dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
-        partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
+        partition_path = f"{upload_year}/{upload_month}/{upload_date}"
         s3_key = f"unified/coxau/{partition_path}/{parquet_name}"
         s3_client.put_object(
-            Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
+            Bucket=INVENTORY_BUCKET, Key=s3_key, Body=json_str
         )
         logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
     else:
