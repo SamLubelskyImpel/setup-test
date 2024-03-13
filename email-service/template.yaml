@@ -61,6 +61,30 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub email-service-delivery-${Environment}
+  
+  EmailServiceDeliveryMonitoringPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EmailServiceDeliveryMonitoringLambda
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref EmailServiceDeliveryTopic
+      
+  EmailServiceDeliveryMonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: monitor.lambda_handler
+      CodeUri: app/
+      Description: Email Service Delivery Monitoring Lambda
+      FunctionName: !Sub 'email-service-delivery-monitoring-${Environment}'
+      Timeout: 30
+      
+  EmailServiceDeliveryMonitoringSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref EmailServiceDeliveryTopic
+      Endpoint: !GetAtt EmailServiceDeliveryMonitoringLambda.Arn
       
   EmailServiceDeliveryFailureQueue:
     Type: AWS::SQS::Queue
