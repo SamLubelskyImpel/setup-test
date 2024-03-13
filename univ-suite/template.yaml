@@ -89,7 +89,7 @@ Resources:
             Bucket: !Ref DeploymentBucket
             Key: !Ref CodeArtifactKey
             BundleType: tgz
-      DeploymentConfigName: !If [ IsProd, CodeDeployDefault.HalfAtATime, CodeDeployDefault.AllAtOnce ]
+      DeploymentConfigName: !If [ IsProd, CodeDeployDefault.AllAtOnce, CodeDeployDefault.AllAtOnce ]
       DeploymentStyle:
         DeploymentType: IN_PLACE
         # DeploymentOption: WITH_TRAFFIC_CONTROL
