@@ -162,7 +162,7 @@ Resources:
     DependsOn: CoxAuFormatINVDLQ
     Properties:
       QueueName: CoxAuFormatINVQueue
-      VisibilityTimeout: 300
+      VisibilityTimeout: 900
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt CoxAuFormatINVDLQ.Arn
           maxReceiveCount: 3

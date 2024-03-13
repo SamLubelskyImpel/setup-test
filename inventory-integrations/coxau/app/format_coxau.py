@@ -68,8 +68,8 @@ def process_entry(entry, row, source_s3_uri):
     #     "s3_url": s3_uri,
     # }
     metadata = dumps(source_s3_uri)
-    if 'inventory' in entry:
-        entry['Inventory']['metadata'] = metadata
+    if 'inv_inventory' in entry:
+        entry['inv_inventory']['metadata'] = metadata
         
     return entry
 
@@ -97,7 +97,7 @@ def record_handler(record):
             "provider_id": "DealerID",
         },
         # WIP
-        "inventory": {
+        "inv_inventory": {
             "id": "DealerID",
             "list_price": "AdvertisedPrice",
             "fuel_type": "FuelType",
