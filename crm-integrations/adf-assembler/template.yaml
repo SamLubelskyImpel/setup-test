@@ -50,7 +50,13 @@ Globals:
                 ENVIRONMENT: !Ref Environment
                 LOGLEVEL: INFO
                 SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-                INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+                INTEGRATIONS_BUCKET: 
+                    !If [
+                        IsProd,
+                        "crm-integrations-prod",
+                        "crm-integrations-test",
+                    ]
+                UPLOAD_SECRET_KEY: "impel"
                 CRM_API_DOMAIN:
                     !If [
                         IsProd,
@@ -112,7 +118,7 @@ Resources:
                                 - "s3:GetObject"
                                 - "s3:PutObject"
                             Resource:
-                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                                - !Sub "arn:aws:s3:::crm-integrations-test*" #TODO Change this to Environment
                 - PolicyName: SNSPolicy
                   PolicyDocument:
                       Version: "2012-10-17"
@@ -146,6 +152,7 @@ Resources:
                 DefaultAuthorizer: DefaultAuth
                 Authorizers:
                     DefaultAuth:
+                        FunctionPayloadType: REQUEST
                         FunctionArn: !GetAtt Authorizer.Arn
                         Identity:
                             Headers:
