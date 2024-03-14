@@ -216,6 +216,9 @@ def record_handler(record: SQSRecord) -> None:
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
+        if parsed_lead["lead"]["lead_origin"] != "Internet":
+            logger.warning(f"Lead type is not Internet: {parsed_lead['lead']['lead_origin']}. Ignoring lead.")
+            return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
