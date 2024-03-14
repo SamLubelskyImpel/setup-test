@@ -1,0 +1,222 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Unified DMS Email Service
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+  
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+        
+Resources:
+  CrmAdfEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
+      
+  EmailServiceConfigSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Sub 'email-service-config-${Environment}'
+      
+  EmailServiceEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Properties:
+      ConfigurationSetName: !Ref EmailServiceConfigSet
+      EventDestination:
+        Enabled: true
+        MatchingEventTypes:
+          - bounce
+          - reject 
+          - send
+          - complaint
+          - delivery
+          - open
+          - click
+          - renderingFailure
+          - deliveryDelay
+          - subscription
+        SnsDestination:
+          TopicARN: !Ref EmailServiceDeliveryTopic
+          
+  EmailServiceDeliveryTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub email-service-delivery-${Environment}
+  
+  EmailServiceDeliveryMonitoringPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EmailServiceDeliveryMonitoringLambda
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref EmailServiceDeliveryTopic
+      
+  EmailServiceDeliveryMonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: monitor.lambda_handler
+      CodeUri: app/
+      Description: Email Service Delivery Monitoring Lambda
+      FunctionName: !Sub 'email-service-delivery-monitoring-${Environment}'
+      Timeout: 30
+      
+  EmailServiceDeliveryMonitoringSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref EmailServiceDeliveryTopic
+      Endpoint: !GetAtt EmailServiceDeliveryMonitoringLambda.Arn
+      
+  EmailServiceDeliveryFailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub email-service-delivery-failure-${Environment}
+      
+  EmailServiceDeliveryFailureQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt EmailServiceDeliveryFailureQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref EmailServiceDeliveryTopic
+      Queues:
+        - !Ref EmailServiceDeliveryFailureQueue
+        
+  EmailServiceDeliveryFailureSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref EmailServiceDeliveryTopic
+      Endpoint: !GetAtt EmailServiceDeliveryFailureQueue.Arn
+      FilterPolicy:
+        'Message.eventType':
+          - 'Bounce'
+          - 'Reject'
+      
+  EmailServiceDeliveryFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Email Service Delivery Failure Alarm
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EmailServiceDeliveryFailureQueue.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+      ActionsEnabled: !If [ IsProd, true, false ]
+        
+  EmailServiceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub email-service-store-${Environment}
+      
+  EmailServiceLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref EmailServiceLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt EmailServiceBucket.Arn
+      
+  EmailServiceExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: !Sub 'Policy for email service granting access to S3'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource: !Sub 'arn:aws:s3:::email-service-store-${Environment}/*'
+          - Effect: Allow
+            Action:
+              - ses:SendEmail
+            Resource: 
+              - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*
+              - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/*
+      
+  EmailServiceLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.lambda_handler
+      CodeUri: app/
+      Description: Email Service Lambda
+      FunctionName: !Sub 'email-service-handler-${Environment}'
+      Timeout: 30
+      Events:
+        S3Bucket:
+          Type: S3
+          Properties:
+            Bucket: !Ref EmailServiceBucket
+            Events: 's3:ObjectCreated:*'
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt EmailServiceDLQ.Arn
+      Policies:
+        - !Ref EmailServiceExecutionPolicy
+      Environment:
+        Variables:
+          CONFIG_SET: !Ref EmailServiceConfigSet
+            
+  EmailServiceDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub email-service-dlq-${Environment}
+      
+  EmailServiceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Email Service Error Alarm
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EmailServiceDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+      ActionsEnabled: !If [ IsProd, true, false ]
+            
+      
+  
+          
+
