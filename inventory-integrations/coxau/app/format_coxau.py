@@ -37,11 +37,11 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
             entry[table] = {}
             for impel_field, cox_au_field in table_mapping.items():
                 entry[table][impel_field] = row.get(cox_au_field, None)
-        entry = process_entry(entry, row, s3_uri)
+        entry = process_entry(entry, s3_uri)
         entries.append(entry)
     return entries
 
-def process_entry(entry, row, source_s3_uri):
+def process_entry(entry, source_s3_uri):
     """
     Process and possibly modify an entry before it's added to the final list.
 
