@@ -60,16 +60,24 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         s3_key = f"email-service-store-{ENVIRONMENT}/chatai/{partner_id}_{body.get("lead_id")}_{current_time}.json"
 
-        integration_type = loads(
+        s3_object = loads(
                 s3_client.get_object(
                     Bucket=BUCKET,
                     Key=f"configurations/{ENVIRONMENT}_{partner_id}.json"
                 )['Body'].read().decode('utf-8')
-            ).get("adf_integration_type")
+            )
+        recipients = s3_object.get("recipients")
+        integration_type = s3_object.get("adf_integration_type")
+
+
         if integration_type == "EMAIL":
             s3_client.put_object(
                 Body=dumps({
-                    "adf_file":formatted_adf
+                        "recipients": recipients,
+                        "subject": "Lead ADF From Impel",
+                        "body": formatted_adf,
+                        "from_address": "crm.adf@impel.ai",
+                        "reply_to": []
                     }),
                 Bucket=BUCKET,
                 Key=s3_key,
