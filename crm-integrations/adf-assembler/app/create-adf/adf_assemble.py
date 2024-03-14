@@ -9,6 +9,7 @@ from adf_samples import STANDARD_ADF_FORMAT, APPOINTMENT_ADF
 from datetime import datetime
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
+ENVIRONMENT = environ.get("ENV", "test")
 
 s3_client = client("s3")
 logger = logging.getLogger()
@@ -52,13 +53,27 @@ def lambda_handler(event: Any, context: Any) -> Any:
         )
         logger.log(f"[adf_assembler] adf file: \n{formatted_adf}")
 
-        s3_key = f"adf/chat_ai/{body.get("lead_id")}_{datetime.now()}.json"
+        partner_id = lead_data.get("integration_partner_name")
+        current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        s3_client.put_object(
-            Body=dumps({"adf_file":formatted_adf}),
-            Bucket=BUCKET,
-            Key=s3_key,
-        )
+        logger.log(f"Partner ID: {partner_id} \nCurrent date: {current_time}")
+
+        s3_key = f"email-service-store-{ENVIRONMENT}/chatai/{partner_id}_{body.get("lead_id")}_{current_time}.json"
+
+        integration_type = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=f"configurations/{ENVIRONMENT}_{partner_id}.json"
+                )['Body'].read().decode('utf-8')
+            ).get("adf_integration_type")
+        if integration_type == "EMAIL":
+            s3_client.put_object(
+                Body=dumps({
+                    "adf_file":formatted_adf
+                    }),
+                Bucket=BUCKET,
+                Key=s3_key,
+            )
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         return {
