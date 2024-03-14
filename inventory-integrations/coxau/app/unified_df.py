@@ -28,7 +28,6 @@ IGNORE_POSSIBLE_COLUMNS = [
     "db_creation_date",
     "db_update_date",
     "dealer_id",
-    "source_data_transmission_speed",
     "db_update_user",
 
 ]

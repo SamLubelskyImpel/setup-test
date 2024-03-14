@@ -93,8 +93,8 @@ def record_handler(record):
             "vin": "VIN",
             "interior_material": "TrimColour",
             "source_data_drive_train": "DriveType",
-            "trim": "TrimColour",
-            "source_data_interior_material_description": "Badge",
+            "trim": "Badge",
+            "source_data_interior_material_description": "TrimColour",
             # "received_datetime": "", #timestamp in uploaded filename
         },
     }
