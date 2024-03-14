@@ -99,10 +99,10 @@ def upload_unified_json(json_list, source_s3_uri):
     if len(df) > 0:
         validate_unified_df_columns(df)
         json_str = df.to_json(orient="records")
-        original_file = source_s3_uri.split("/")[-1].split(".")[0]
-        parquet_name = f"{original_file}_{str(uuid4())}.json"
+        original_file = source_s3_uri.split("/")[-1]
+        new_file = original_file.replace(".csv", ".json")
         partition_path = f"{upload_year}/{upload_month}/{upload_date}"
-        s3_key = f"unified/coxau/{partition_path}/{parquet_name}"
+        s3_key = f"unified/coxau/{partition_path}/{new_file}"
         s3_client.put_object(
             Bucket=INVENTORY_BUCKET, Key=s3_key, Body=json_str
         )

@@ -123,6 +123,10 @@ Resources:
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
                     ]
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -159,19 +163,21 @@ Resources:
 
   CoxAuFormatINVQueue:
     Type: AWS::SQS::Queue
-    DependsOn: CoxAuFormatINVDLQ
     Properties:
       QueueName: CoxAuFormatINVQueue
+      MessageRetentionPeriod: 1209600
       VisibilityTimeout: 900
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt CoxAuFormatINVDLQ.Arn
-          maxReceiveCount: 3
+          maxReceiveCount: 5
 
   CoxAuFormatINVDLQ:
     Type: AWS::SQS::Queue
     Properties:
+      VisibilityTimeout: 10
       QueueName: CoxAuFormatINVDLQ
-
+      MessageRetentionPeriod: 1209600
+ 
   CoxAuFormatINVDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -194,30 +200,51 @@ Resources:
       TreatMissingData: notBreaching
 
   # CoxAuFormatINVQueueSubscription:
-  #     Type: AWS::SNS::Subscription
-  #     Properties:
-  #       TopicArn: arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-us-east-1-dramirez-ce-1314
-  #       Protocol: sqs
-  #       RawMessageDelivery: true
-  #       Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
-  #       FilterPolicyScope: MessageBody
-  #       FilterPolicy:
-  #         '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
-  CoxAuFormatINVQueueSubscription:
-    Type: AWS::SNS::Subscription
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     TopicArn: "arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-us-east-1-dramirez-ce-1314"
+  #     Protocol: sqs
+  #     RawMessageDelivery: true
+  #     Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
+  #     FilterPolicyScope: MessageBody
+  #     FilterPolicy:
+  #       s3:
+  #         object:
+  #           key:
+  #             prefix: ["raw/"]
+  #       eventName:
+  #         prefix: ["ObjectCreated:"]
+
+  CoxAuFormatINVTopicSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        RawMessageDelivery: true
+        TopicArn: !Sub "arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+        Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
+        FilterPolicyScope: MessageBody
+        FilterPolicy:
+          '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  CoxAuFormatINVQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
     Properties:
-      TopicArn: arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-us-east-1-dramirez-ce-1314
-      Protocol: sqs
-      RawMessageDelivery: true
-      Endpoint: !GetAtt CoxAuFormatINVQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        s3:
-          object:
-            key:
-              prefix: ["raw/"]
-        eventName:
-          prefix: ["ObjectCreated:"]
+      Queues:
+        - !Ref CoxAuFormatINVQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: CoxAuFormatINVQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt CoxAuFormatINVQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Sub "arn:aws:sns:us-east-1:143813444726:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
 
   CoxAuFormatINVInsertFunction:
     Type: AWS::Serverless::Function
@@ -232,9 +259,11 @@ Resources:
           COXAU_DATA_BUCKET: !Sub 'inventory-integrations-${AWS::Region}-${Environment}'
       Timeout: 900
       MemorySize: 1024
-      Events:
-        CoxAuFormatINVTrigger:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt CoxAuFormatINVQueue.Arn
-            BatchSize: 10 # Adjust this based on the expected throughput and processing capabilities
+
+  CoxAuFormatINVEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt CoxAuFormatINVQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt CoxAuFormatINVInsertFunction.Arn

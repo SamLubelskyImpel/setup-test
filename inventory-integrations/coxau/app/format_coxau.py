@@ -2,14 +2,12 @@ import json
 import logging
 import os
 import boto3
-from datetime import datetime
 import csv
 from io import StringIO
 from aws_lambda_powertools.utilities.data_classes import SQSEvent
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
 from unified_df import upload_unified_json
 from json import dumps, loads
-import re
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -54,31 +52,12 @@ def process_entry(entry, row, source_s3_uri):
     Returns:
         dict: The processed entry.
     """
-    # db_metadata = {
-    #     "Region": REGION,
-    #     "PartitionYear": source_s3_uri.split("/")[2],
-    #     "PartitionMonth": source_s3_uri.split("/")[3],
-    #     "PartitionDate": source_s3_uri.split("/")[4],
-    #     "s3_url": s3_uri,
-    # }
     metadata = dumps(source_s3_uri)
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
         entry['inv_inventory']['region'] = 'AU'
         entry['inv_inventory']['on_lot'] = 'True'
 
-
-    # sample file name: raw/coxau/2024/03/06/22/13728_example3_22:23:00.csv
-    # Extract the timestamp from the S3 URI using a regular expression
-    # timestamp_match = re.search(r'(\d{4})/(\d{2})/(\d{2})/(\d{2})/.*_(\d{2}:\d{2}:\d{2})\.csv', source_s3_uri)
-    # if timestamp_match:
-    #     # Format the timestamp in ISO 8601 format
-    #     received_datetime = f"{timestamp_match.group(1)}-{timestamp_match.group(2)}-{timestamp_match.group(3)}T{timestamp_match.group(4)}:{timestamp_match.group(5)}"
-
-    #     # Update the 'received_datetime' field in the 'inv_inventory' part of the entry
-    #     if 'inv_inventory' in entry:
-    #         entry['inv_inventory']['received_datetime'] = received_datetime
-        
     return entry
 
 def record_handler(record):
@@ -122,8 +101,10 @@ def record_handler(record):
     try:
         body = json.loads(record.body)
         logger.info(body)
-        bucket_name = body['bucket']
-        file_key = body['key']
+        bucket_name = body['Records'][0]['s3']['bucket']['name']
+        file_key = body['Records'][0]['s3']['object']['key']
+        logger.info(f"Processing file: {file_key}")
+        logger.info(f"bucket_name: {bucket_name}")
         csv_object = s3_client.get_object(Bucket=bucket_name, Key=file_key)
         csv_content = csv_object['Body'].read().decode('utf-8')
         entries = transform_csv_to_entries(csv_content, mappings, file_key)
