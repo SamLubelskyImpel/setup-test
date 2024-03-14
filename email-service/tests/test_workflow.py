@@ -1,3 +1,11 @@
+'''
+Run this test to verify that the email service is working as expected.
+AWS_PROFILE=unified-test ENV={YOUR_ENV} EMAIL={YOUR_VERIFIED_EMAIL} pytest
+
+Note that you need to deploy the email service before running this test.
+YOUR_ENV and YOUR_VERIFIED_EMAIL should be the same as the ones you used in the deployment.
+'''
+
 import os
 import boto3
 import json
