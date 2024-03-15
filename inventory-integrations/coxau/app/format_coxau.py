@@ -55,7 +55,7 @@ def process_entry(entry, source_s3_uri):
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
         entry['inv_inventory']['region'] = 'AU'
-        entry['inv_inventory']['on_lot'] = 'True'
+        entry['inv_inventory']['on_lot'] = True
 
     return entry
 
