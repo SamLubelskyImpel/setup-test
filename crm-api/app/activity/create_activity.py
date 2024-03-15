@@ -40,8 +40,9 @@ def make_adf_assembler_request(data: Any):
             url=f"{ADF_ASSEMBLER_URL}/create_adf",
             data=dumps(data),
             headers={
-                "x_api_key": CRM_API_SECRET_KEY,
-                "partner_id": secret_data["api_key"],
+                "x_api_key": secret_data["api_key"],
+                "partner_id": CRM_API_SECRET_KEY,
+                'Content-Type': 'application/json'
             }
         )
 
@@ -177,7 +178,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             create_on_crm(partner_name=partner_name, payload=payload)
         
-        if request_product == "chat_ai":
+        if request_product == "chat_ai" and activity_type == "appointment":
             make_adf_assembler_request({"lead_id":lead_id, "activity_time":activity_due_ts})
             
         return {

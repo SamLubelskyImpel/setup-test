@@ -5,7 +5,7 @@ from boto3 import client
 from json import dumps, loads
 from datetime import datetime
 from api_wrapper import ApiWrapper
-from adf_samples import STANDARD_ADF_FORMAT, APPOINTMENT_ADF
+from adf_template import STANDARD_ADF_FORMAT, APPOINTMENT_ADF
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENV", "test")
@@ -32,14 +32,20 @@ def assemble_adf(body, lead_data):
 
     vehicles_of_interest = lead_data.get("vehicles_of_interest", [{}])[0]
 
+    contacts = ""
+
+    if lead_data.get("phone"):
+        contacts += f"<phone>{lead_data.get('phone')}</phone>\n"
+    if lead_data.get("email"):
+        contacts += f"<email>{lead_data.get('email')}</email>"
+
     return STANDARD_ADF_FORMAT.format(
         request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
         year=vehicles_of_interest.get("year"),
         make=vehicles_of_interest.get("make"),
         model=vehicles_of_interest.get("model"),
         full_name=full_name,
-        phone=lead_data.get("phone"),
-        email=lead_data.get("email"),
+        contact_type=contacts,
         appointment=appointment,
         vendor_full_name=lead_data.get("dealer_name"),
     )
