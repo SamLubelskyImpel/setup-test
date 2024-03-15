@@ -23,7 +23,7 @@ IGNORE_POSSIBLE_COLUMNS = [
     "id",
     "consumer_id",
     "dealer_integration_partner_id",
-    "vehicle_sale_id",
+    "vehicle_id",
     "db_creation_date",
     "db_update_date",
     "dealer_id",
