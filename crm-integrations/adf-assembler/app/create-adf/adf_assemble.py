@@ -61,7 +61,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         logger.info(f"Partner ID: {partner_id}")
 
-        s3_key = f"email-service-store-{ENVIRONMENT}/chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
+        s3_key = f"chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
 
         logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_id}.json \n Bucket: {BUCKET}")
 
@@ -87,7 +87,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             )
             s3_client.put_object(
                 Body=s3_body,
-                Bucket=BUCKET,
+                Bucket=f"email-service-store-{ENVIRONMENT}",
                 Key=s3_key,
             )
             return {
