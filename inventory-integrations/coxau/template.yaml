@@ -238,7 +238,7 @@ Resources:
       Handler: format_coxau.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 900
+      Timeout: 60
       MemorySize: 1024
 
   CoxAuFormatINVEventMapping:
