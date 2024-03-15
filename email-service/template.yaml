@@ -78,6 +78,15 @@ Resources:
       Description: Email Service Delivery Monitoring Lambda
       FunctionName: !Sub 'email-service-delivery-monitoring-${Environment}'
       Timeout: 30
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt EmailServiceDeliveryFailureQueue.Arn
+      Environment:
+        Variables:
+          FAILURE_QUEUE: !Ref EmailServiceDeliveryFailureQueue
       
   EmailServiceDeliveryMonitoringSubscription:
     Type: AWS::SNS::Subscription
@@ -90,33 +99,6 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub email-service-delivery-failure-${Environment}
-      
-  EmailServiceDeliveryFailureQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action: 'sqs:SendMessage'
-            Resource: !GetAtt EmailServiceDeliveryFailureQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !Ref EmailServiceDeliveryTopic
-      Queues:
-        - !Ref EmailServiceDeliveryFailureQueue
-        
-  EmailServiceDeliveryFailureSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Protocol: sqs
-      TopicArn: !Ref EmailServiceDeliveryTopic
-      Endpoint: !GetAtt EmailServiceDeliveryFailureQueue.Arn
-      FilterPolicy:
-        'Message.eventType':
-          - 'Bounce'
-          - 'Reject'
       
   EmailServiceDeliveryFailureAlarm:
     Type: AWS::CloudWatch::Alarm
