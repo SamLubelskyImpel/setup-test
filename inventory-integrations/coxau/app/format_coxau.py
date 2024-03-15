@@ -4,10 +4,9 @@ import os
 import boto3
 import csv
 from io import StringIO
-from aws_lambda_powertools.utilities.data_classes import SQSEvent
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
 from unified_df import upload_unified_json
-from json import dumps, loads
+from json import dumps
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -100,11 +99,8 @@ def record_handler(record):
     }
     try:
         body = json.loads(record.body)
-        logger.info(body)
         bucket_name = body['Records'][0]['s3']['bucket']['name']
         file_key = body['Records'][0]['s3']['object']['key']
-        logger.info(f"Processing file: {file_key}")
-        logger.info(f"bucket_name: {bucket_name}")
         csv_object = s3_client.get_object(Bucket=bucket_name, Key=file_key)
         csv_content = csv_object['Body'].read().decode('utf-8')
         entries = transform_csv_to_entries(csv_content, mappings, file_key)

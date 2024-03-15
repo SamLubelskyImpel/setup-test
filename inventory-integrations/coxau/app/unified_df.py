@@ -8,14 +8,14 @@ from rds_instance import RDSInstance
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
-REGION = environ.get("REGION", "us-east-1")
-IS_PROD = ENVIRONMENT == "prod"
-INVENTORY_BUCKET = f"inventory-integrations-{REGION}-{'prod' if IS_PROD else ENVIRONMENT}"
+
+IS_PROD = environ.get("IS_PROD") == "1"
+INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
+
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
-MANY_TO_X_TABLES = ["op_codes", "service_contracts"]
+MANY_TO_X_TABLES = []
 # Ignore tables we don't insert into
 IGNORE_POSSIBLE_TABLES = ["dealer_integration_partner"]
 # Ignore columns we don't insert into (id, fk, audit columns)
@@ -23,13 +23,11 @@ IGNORE_POSSIBLE_COLUMNS = [
     "id",
     "consumer_id",
     "dealer_integration_partner_id",
-    "vehicle_id",
     "vehicle_sale_id",
     "db_creation_date",
     "db_update_date",
     "dealer_id",
     "db_update_user",
-
 ]
 
 
@@ -94,7 +92,6 @@ def upload_unified_json(json_list, source_s3_uri):
     upload_month = source_s3_uri.split("/")[3]
     upload_date = source_s3_uri.split("/")[4]
     df = convert_unified_df(json_list)
-    logger.info(df.head().to_json(orient="records", lines=True))
     if len(df) > 0:
         validate_unified_df_columns(df)
         json_str = df.to_json(orient="records")
