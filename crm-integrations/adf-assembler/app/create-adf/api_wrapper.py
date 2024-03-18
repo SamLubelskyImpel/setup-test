@@ -134,6 +134,7 @@ class ApiWrapper:
             self.vendor = self.create_adf(dealer, "vendor")
             
             return self.adf_file.format(
+                lead_id=lead_id,
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 vehicle=self.vehicle,
                 customer=self.customer,

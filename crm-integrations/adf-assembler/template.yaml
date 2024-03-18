@@ -118,7 +118,7 @@ Resources:
                                 - "s3:GetObject"
                                 - "s3:PutObject"
                             Resource:
-                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                                - !Sub "arn:aws:s3:::crm-integrations-test*"
                 - PolicyName: SNSPolicy
                   PolicyDocument:
                       Version: "2012-10-17"

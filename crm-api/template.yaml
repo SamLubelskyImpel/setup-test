@@ -53,9 +53,9 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-test"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        ADF_ASSEMBLER_URL: "https://7zbmpjdw22.execute-api.us-east-1.amazonaws.com/Stage"
+        ADF_ASSEMBLER_URL: "https://gtvxa1wv0k.execute-api.us-east-1.amazonaws.com/Stage"
         CRM_API_SECRET_KEY: "test"
     VpcConfig:
       SecurityGroupIds:
@@ -152,7 +152,7 @@ Resources:
                 Action:
                   - "s3:GetObject"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/configurations*"
+                - !Sub "arn:aws:s3:::crm-integrations-test/configurations*"
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"

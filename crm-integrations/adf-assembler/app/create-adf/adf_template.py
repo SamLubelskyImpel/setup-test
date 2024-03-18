@@ -3,6 +3,7 @@ BASE_ADF_TEMPLATE = """
 <?XML VERSION "1.0"?>
 <adf>
 	<prospect>
+        <id sequence=1 source="Impel">{lead_id}</id>
 		<requestdate>{request_date}</requestdate>
 		<vehicle>
 			{vehicle}
