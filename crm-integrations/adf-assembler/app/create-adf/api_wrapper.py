@@ -41,7 +41,7 @@ class ApiWrapper:
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
         )
         secret_data = loads(secret["SecretString"])
-        return secret_data[CRM_API_SECRET_KEY]["api_key"]
+        return loads(secret_data[self.partner_id])["api_key"]
 
     def create_color_combination(self, color_data):
         """Create color combination data for ADF."""
