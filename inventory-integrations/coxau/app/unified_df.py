@@ -15,7 +15,7 @@ INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
-MANY_TO_X_TABLES = []
+MANY_TO_X_TABLES = ["inv_options"]
 # Ignore tables we don't insert into
 IGNORE_POSSIBLE_TABLES = ["dealer_integration_partner"]
 # Ignore columns we don't insert into (id, fk, audit columns)
@@ -41,6 +41,7 @@ def validate_unified_df_columns(df):
         df_table = str(col).split("|")[0]
         df_table_names.add(df_table)
         if df_table in MANY_TO_X_TABLES:
+            logger.info('hi dayan')
             for array in df[col]:
                 for struct in array:
                     for key in struct:
@@ -92,6 +93,7 @@ def upload_unified_json(json_list, source_s3_uri):
     upload_month = source_s3_uri.split("/")[3]
     upload_date = source_s3_uri.split("/")[4]
     df = convert_unified_df(json_list)
+    logger.info(df.head().to_json(orient="records", lines=True))
     if len(df) > 0:
         validate_unified_df_columns(df)
         json_str = df.to_json(orient="records")
