@@ -1,22 +1,17 @@
-STANDARD_ADF_FORMAT = """
+BASE_ADF_TEMPLATE = """
 <?ADF VERSION "1.0"?>
 <?XML VERSION "1.0"?>
 <adf>
 	<prospect>
 		<requestdate>{request_date}</requestdate>
 		<vehicle>
-			<year>{year}</year>
-			<make>{make}</make>
-			<model>{model}</model>
+			{vehicle}
 		</vehicle>
 		<customer>
-			<contact>
-				<name part="full">{full_name}</name>
-				{contact_type}
-			</contact>
+			{customer}
 		</customer>
-        {appointment}
 		<vendor>
+			{vendor}
 			<contact>
 				<name part="full">{vendor_full_name}</name>
 			</contact>
@@ -25,8 +20,23 @@ STANDARD_ADF_FORMAT = """
 </adf>
 """
 
-APPOINTMENT_ADF = """
-<comment>
-	{activity_time}
-</comment>
-"""
+LEAD_DATA_TO_ADF_MAPPER = {
+    "year": "year",
+    "make": "make",
+    "model": "model",
+    "address": "address",
+    "city": "city",
+    "country": "country",
+    "email": "email",
+    "phone": "phone",
+    "postal_code": "postalcode",
+    "comment": "comment",
+    "status": "status",
+    "body_style": "bodystyle",
+    "condition": "condition",
+    "odometer_units": "PARAMETERS",
+    "price": "PARAMETERS",
+    "stock_num": "stock",
+    "trim": "trim",
+    "vin": "vin",
+}

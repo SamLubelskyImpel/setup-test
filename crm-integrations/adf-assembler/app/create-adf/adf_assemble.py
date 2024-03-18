@@ -5,7 +5,6 @@ from boto3 import client
 from json import dumps, loads
 from datetime import datetime
 from api_wrapper import ApiWrapper
-from adf_template import STANDARD_ADF_FORMAT, APPOINTMENT_ADF
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENV", "test")
@@ -14,56 +13,15 @@ s3_client = client("s3")
 logger = logging.getLogger()
 logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
 
-
-def assemble_adf(body, lead_data):
-    full_name = " ".join(
-        filter(
-            None,
-            (lead_data.get(x) for x in ("first_name", "middle_name", "last_name")),
-        )
-    )
-
-    appointment = ""
-    appt_time = body.get("activity_time")
-    if appt_time:
-        appointment = APPOINTMENT_ADF.format(
-            activity_time=datetime.strptime(appt_time, "%Y-%m-%dT%H:%M:%SZ")
-        )
-
-    vehicles_of_interest = lead_data.get("vehicles_of_interest", [{}])[0]
-
-    contacts = ""
-
-    if lead_data.get("phone"):
-        contacts += f"<phone>{lead_data.get('phone')}</phone>\n"
-    if lead_data.get("email"):
-        contacts += f"<email>{lead_data.get('email')}</email>"
-
-    return STANDARD_ADF_FORMAT.format(
-        request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        year=vehicles_of_interest.get("year"),
-        make=vehicles_of_interest.get("make"),
-        model=vehicles_of_interest.get("model"),
-        full_name=full_name,
-        contact_type=contacts,
-        appointment=appointment,
-        vendor_full_name=lead_data.get("dealer_name"),
-    )
-
-
 def lambda_handler(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
         body = loads(event["body"]) if event.get("body") else event
 
         api_wrapper = ApiWrapper()
-        lead_data = api_wrapper.get_lead(body.get("lead_id"))
-        logger.info(f"[adf_assembler] data from lead_id: \n{lead_data}")
-
-        formatted_adf = assemble_adf(body, lead_data)
+        formatted_adf, partner_id = api_wrapper.get_lead(body.get("lead_id"))
         logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
 
-        partner_id = lead_data.get("integration_partner_name")
         current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         logger.info(f"Partner ID: {partner_id}")
 
