@@ -31,22 +31,14 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
 
     for row in reader:
         entry = {}
-        options = []  # List to store all option descriptions
+        options = [] 
 
         for table, table_mapping in mapping.items():
-    #         entry[table] = {}
-    #         for impel_field, cox_au_field in table_mapping.items():
-    #             entry[table][impel_field] = row.get(cox_au_field, None)
-
-    #     entry = process_entry(entry, s3_uri)
-    #     entries.append(entry)
-    # return entries
             if table != "inv_options.inv_options":  # Handle options separately
                 entry[table] = {}
                 for impel_field, cox_au_field in table_mapping.items():
                     entry[table][impel_field] = row.get(cox_au_field, None)
             else:
-                # Process OptionDescription into a list of option dicts
                 option_descriptions = row.get('OptionDescription', '').split('|')
                 options = [{"inv_option|option_description": desc.strip(), "inv_option|is_priority": False}
                            for desc in option_descriptions if desc.strip()]
@@ -75,8 +67,6 @@ def process_entry(entry, source_s3_uri, options):
 
     if options:
         entry['inv_options.inv_options'] = options
-    # if 'inv_option' in entry:
-    #     entry['inv_option']['is_priority'] = False
     return entry
 
 def record_handler(record):
