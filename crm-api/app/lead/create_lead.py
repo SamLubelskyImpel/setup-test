@@ -1,4 +1,5 @@
 """Create lead in the shared CRM layer."""
+
 import pytz
 import boto3
 import logging
@@ -17,21 +18,33 @@ from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ADF_ASSEMBLER_URL = environ.get("ADF_ASSEMBLER_URL")
 CRM_API_SECRET_KEY = environ.get("CRM_API_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
-salesperson_attrs = ['dealer_integration_partner_id', 'crm_salesperson_id', 'first_name', 'last_name', 'email',
-                     'phone', 'position_name', 'is_primary']
+salesperson_attrs = [
+    "dealer_integration_partner_id",
+    "crm_salesperson_id",
+    "first_name",
+    "last_name",
+    "email",
+    "phone",
+    "position_name",
+    "is_primary",
+]
 
-def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
-                 allowed_attrs: List[str], request_product) -> None:
+
+def update_attrs(
+    db_object: Any,
+    data: Any,
+    dealer_partner_id: str,
+    allowed_attrs: List[str],
+    request_product,
+) -> None:
     """Update attributes of a database object."""
     combined_data = {"dealer_integration_partner_id": dealer_partner_id, **data}
 
@@ -43,9 +56,11 @@ def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
 def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
     """Get the timezone of the dealer."""
     with DBSession() as session:
-        dealer_timezone = session.query(Dealer.metadata_['timezone']).filter(
-            Dealer.id == dealer_integration_partner_id
-        ).first()
+        dealer_timezone = (
+            session.query(Dealer.metadata_["timezone"])
+            .filter(Dealer.id == dealer_integration_partner_id)
+            .first()
+        )
 
         timezone = dealer_timezone[0] if dealer_timezone else "UTC"
         logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
@@ -62,7 +77,10 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
         parsed_ts = parser.parse(input_ts)
 
         # Check if the timestamp is already in UTC (ends with 'Z')
-        if parsed_ts.tzinfo is not None and parsed_ts.tzinfo.utcoffset(parsed_ts) is not None:
+        if (
+            parsed_ts.tzinfo is not None
+            and parsed_ts.tzinfo.utcoffset(parsed_ts) is not None
+        ):
             # Timestamp is either UTC or has an offset; return in ISO format
             return parsed_ts.isoformat()
 
@@ -78,27 +96,31 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
             return parsed_ts.isoformat()
 
     except Exception as e:
-        logger.info(f"Error processing timestamp: {input_ts}, Dealer timezone: {dealer_timezone}. Error: {e}")
+        logger.info(
+            f"Error processing timestamp: {input_ts}, Dealer timezone: {dealer_timezone}. Error: {e}"
+        )
         return None
 
+
 def make_adf_assembler_request(data: Any):
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
-        )
-        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
-        secret_data = loads(secret)
+    secret = secret_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+    )
+    secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
+    secret_data = loads(secret)
 
-        response = post(
-            url=f"{ADF_ASSEMBLER_URL}/create_adf",
-            data=dumps(data),
-            headers={
-                "x_api_key": secret_data["api_key"],
-                "partner_id": CRM_API_SECRET_KEY,
-                'Content-Type': 'application/json'
-            }
-        )
+    response = post(
+        url=f"{ADF_ASSEMBLER_URL}/create_adf",
+        data=dumps(data),
+        headers={
+            "x_api_key": secret_data["api_key"],
+            "partner_id": CRM_API_SECRET_KEY,
+            "Content-Type": "application/json",
+        },
+    )
 
-        logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
+    logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
+
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
@@ -110,20 +132,22 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts=body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
-            consumer = session.query(
-                Consumer
-            ).filter(
-                Consumer.id == consumer_id
-            ).first()
+            consumer = (
+                session.query(Consumer).filter(Consumer.id == consumer_id).first()
+            )
 
             if not consumer:
                 logger.error(f"Consumer {consumer_id} not found")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Consumer {consumer_id} not found. Lead failed to be created."})
+                    "body": dumps(
+                        {
+                            "error": f"Consumer {consumer_id} not found. Lead failed to be created."
+                        }
+                    ),
                 }
 
             dealer_integration_partner_id = consumer.dealer_integration_partner_id
@@ -135,18 +159,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             # Query for existing lead
             if crm_lead_id:
-                lead_db = session.query(
-                    Lead
-                ).filter(
-                    Lead.consumer_id == consumer_id,
-                    Lead.crm_lead_id == crm_lead_id
-                ).first()
+                lead_db = (
+                    session.query(Lead)
+                    .filter(
+                        Lead.consumer_id == consumer_id, Lead.crm_lead_id == crm_lead_id
+                    )
+                    .first()
+                )
 
                 if lead_db:
                     logger.error(f"Lead {crm_lead_id} already exists")
                     return {
                         "statusCode": 409,
-                        "body": dumps({"error": f"Lead with CRM ID {crm_lead_id} already exists for consumer {consumer_id}. lead_id: {lead_db.id}"})
+                        "body": dumps(
+                            {
+                                "error": f"Lead with CRM ID {crm_lead_id} already exists for consumer {consumer_id}. lead_id: {lead_db.id}"
+                            }
+                        ),
                     }
 
             # Create lead
@@ -194,7 +223,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     trade_in_vin=vehicle.get("trade_in_vin"),
                     trade_in_year=vehicle.get("trade_in_year"),
                     trade_in_make=vehicle.get("trade_in_make"),
-                    trade_in_model=vehicle.get("trade_in_model")
+                    trade_in_model=vehicle.get("trade_in_model"),
                 )
                 lead.vehicles.append(vehicle)
 
@@ -207,15 +236,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     # Query for existing salesperson
                     salesperson_db = None
                     if crm_salesperson_id:
-                        salesperson_db = session.query(Salesperson).filter(
-                            Salesperson.crm_salesperson_id == crm_salesperson_id,
-                            Salesperson.dealer_integration_partner_id == dealer_partner_id
-                        ).first()
+                        salesperson_db = (
+                            session.query(Salesperson)
+                            .filter(
+                                Salesperson.crm_salesperson_id == crm_salesperson_id,
+                                Salesperson.dealer_integration_partner_id
+                                == dealer_partner_id,
+                            )
+                            .first()
+                        )
 
                     if not salesperson_db:
                         salesperson_db = Salesperson()
 
-                    update_attrs(salesperson_db, salesperson, dealer_partner_id, salesperson_attrs, request_product)
+                    update_attrs(
+                        salesperson_db,
+                        salesperson,
+                        dealer_partner_id,
+                        salesperson_attrs,
+                        request_product,
+                    )
 
                     if not salesperson_db.id:
                         session.add(salesperson_db)
@@ -225,7 +265,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     lead_salesperson = Lead_Salesperson(
                         lead_id=lead.id,
                         salesperson_id=salesperson_db.id,
-                        is_primary=salesperson.get("is_primary", False)
+                        is_primary=salesperson.get("is_primary", False),
                     )
                     session.add(lead_salesperson)
 
@@ -234,16 +274,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Created lead {lead_id}")
 
-        if request_product == 'chat_ai':
-            make_adf_assembler_request({"lead_id":lead_id})
-        return {
-            "statusCode": "201",
-            "body": dumps({"lead_id": lead_id})
-        }
+        if request_product == "chat_ai":
+            make_adf_assembler_request({"lead_id": lead_id})
+        return {"statusCode": "201", "body": dumps({"lead_id": lead_id})}
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         return {
             "statusCode": 500,
-            "body": dumps({"error": "An error occurred while processing the request."})
+            "body": dumps({"error": "An error occurred while processing the request."}),
         }

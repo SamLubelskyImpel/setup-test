@@ -4,10 +4,10 @@ from typing import Any
 from boto3 import client
 from json import dumps, loads
 from datetime import datetime
-from api_wrapper import ApiWrapper
+from adf_creation_class import AdfCreation
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
-ENVIRONMENT = environ.get("ENV", "test")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 s3_client = client("s3")
 logger = logging.getLogger()
@@ -18,14 +18,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
         body = loads(event["body"]) if event.get("body") else event
 
-        api_wrapper = ApiWrapper()
-        formatted_adf, partner_id = api_wrapper.get_lead(body.get("lead_id"))
+        api_wrapper = AdfCreation()
+        formatted_adf, partner_id = api_wrapper.create_adf_data(body.get("lead_id"))
         logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
 
         current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         logger.info(f"Partner ID: {partner_id}")
 
-        s3_key = f"email-service-store-test/chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
+        s3_key = f"chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
 
         logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_id}.json \n Bucket: {BUCKET}")
 
@@ -34,12 +34,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_{partner_id}.json"
             )["Body"].read().decode("utf-8")
         )
-        recipients = s3_object.get("recipients")
+
         integration_type = s3_object.get("adf_integration_type")
 
-        logger.info(f"recipients: {recipients} \n integration_type: {integration_type}")
 
         if integration_type == "EMAIL":
+            recipients = s3_object.get("recipients")
+
+
+            logger.info(f"recipients: {recipients} \n integration_type: {integration_type}")
+
             s3_body = dumps(
                 {
                     "recipients": recipients,
@@ -51,13 +55,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
             )
             s3_client.put_object(
                 Body=s3_body,
-                Bucket=f"crm-integrations-test",
+                Bucket=f"email-service-store-{ENVIRONMENT}",
                 Key=s3_key,
             )
             return {
                 "statusCode": 200,
                 "body": dumps({"message": "Adf file was successfully created."})
             }
+        
+
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         return {

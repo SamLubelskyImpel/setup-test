@@ -61,7 +61,7 @@ elif [[ $config_env == "test" ]]; then
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"test\" DomainSuffix=\"-test\""
 else
-  env="$user-CE-1324"
+  env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
     --stack-name "crm-api-$env" \
