@@ -180,7 +180,7 @@ def record_handler(record: SQSRecord) -> None:
         if not ftp_data:
             logger.error(f"No FTP data found for dealer: {impel_dealer_id}")
             raise
-        merch_dealer_id, ai_dealer_id, is_active_merch, is_active_ai = ftp_data[0]
+        merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = ftp_data[0]
 
         # Create temp file
         temp_dir = tempfile.TemporaryDirectory()
@@ -190,13 +190,13 @@ def record_handler(record: SQSRecord) -> None:
         upload_to_s3(csv_file_path, f"{impel_dealer_id}.csv", integration)
 
         # Upload to FTP
-        if is_active_merch:
+        if merch_is_active:
             logger.info(f"Uploading to Merch FTP: {merch_dealer_id}")
             proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, merch_dealer_id, MERCH_FTP_KEY)
 
-        # elif is_active_ai:
-        #     logger.info(f"Uploading to AI FTP: {ai_dealer_id}")
-        #     proccess_and_upload_to_ftp(icc_formatted_inventory, impel_dealer_id, ai_dealer_id, AI_FTP_KEY)
+        # elif salesai_is_active:
+        #     logger.info(f"Uploading to Sales AI FTP: {salesai_dealer_id}")
+        #     proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, salesai_dealer_id, AI_FTP_KEY)
         else:
             logger.error(f"No active FTP found for dealer: {impel_dealer_id}")
             raise

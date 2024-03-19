@@ -53,7 +53,7 @@ class RDSInstance:
     def select_db_dealer_ftp_details(self, impel_dealer_id):
         """Get the db dealer id for the given dms id."""
         db_dealer_ftp_details_query = f"""
-            select iv.merch_dealer_id, iv.ai_dealer_id, iv.is_active_merch, iv.is_active_ai
+            select iv.merch_dealer_id, iv.salesai_dealer_id, iv.merch_is_active, iv.salesai_is_active
             from {self.schema}.inv_dealer iv
             where iv.impel_dealer_id = '{impel_dealer_id}'"""
         results = self.execute_rds(db_dealer_ftp_details_query)
