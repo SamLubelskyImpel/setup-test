@@ -18,8 +18,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
         body = loads(event["body"]) if event.get("body") else event
 
-        api_wrapper = AdfCreation()
-        formatted_adf, partner_id = api_wrapper.create_adf_data(body.get("lead_id"))
+        adf_creation = AdfCreation()
+        formatted_adf, partner_id = adf_creation.create_adf_data(body.get("lead_id"), body.get("activity_time", ""))
         logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
 
         current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -62,7 +62,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "statusCode": 200,
                 "body": dumps({"message": "Adf file was successfully created."})
             }
-        
+        else:
+            logger.info(f"Unsupported integration type: {integration_type}")
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
