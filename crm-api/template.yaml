@@ -55,6 +55,8 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        ADF_ASSEMBLER_URL: "https://gtvxa1wv0k.execute-api.us-east-1.amazonaws.com/Stage"  #TODO change after end-to-end testing
+        CRM_API_SECRET_KEY: "test"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -112,6 +114,15 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
+                    ]
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:

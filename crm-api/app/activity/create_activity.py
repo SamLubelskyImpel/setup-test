@@ -2,6 +2,7 @@
 
 import logging
 from os import environ
+from requests import post
 from json import dumps, loads
 from typing import Any
 import boto3
@@ -17,14 +18,35 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+ADF_ASSEMBLER_URL = environ.get("ADF_ASSEMBLER_URL")
+CRM_API_SECRET_KEY = environ.get("CRM_API_SECRET_KEY")
 
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
-
+secret_client = boto3.client("secretsmanager")
 
 class ValidationError(Exception):
     pass
 
+
+def make_adf_assembler_request(data: Any):
+        secret = secret_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        )
+        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
+        secret_data = loads(secret)
+
+        response = post(
+            url=f"{ADF_ASSEMBLER_URL}/create_adf",
+            data=dumps(data),
+            headers={
+                "x_api_key": secret_data["api_key"],
+                "partner_id": CRM_API_SECRET_KEY,
+                'Content-Type': 'application/json'
+            }
+        )
+
+        logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
 
 def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
     """Validate activity body."""
@@ -155,7 +177,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Payload to CRM: {dumps(payload)}")
 
             create_on_crm(partner_name=partner_name, payload=payload)
-
+        
+        if request_product == "chat_ai" and activity_type == "appointment":
+            make_adf_assembler_request({"lead_id":lead_id, "activity_time":activity_due_ts})
+            
         return {
             "statusCode": "201",
             "body": dumps({"activity_id": activity_id})
