@@ -171,6 +171,16 @@ Resources:
           deadLetterTargetArn: !GetAtt CoxAuFormatINVDLQ.Arn
           maxReceiveCount: 5
 
+  CoxAuUnifiedINVQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-unifiedQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt CoxAuUnifiedINVDLQ.Arn
+          maxReceiveCount: 5
+          
   CoxAuFormatINVDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -178,7 +188,16 @@ Resources:
       VisibilityTimeout: 10
       QueueName: CoxAuFormatINVDLQ
       MessageRetentionPeriod: 1209600
- 
+
+  CoxAuUnifiedINVDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-unifiedQueueDLQ'
+      VisibilityTimeout: 10
+      QueueName: CoxAuUnifiedINVDLQ
+      MessageRetentionPeriod: 1209600
+
+#  THIS NEEDS TO BE REVIEWED SO THAT WE DONT HAVE TO DUPOLICATE THE CODE
   CoxAuFormatINVDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -210,6 +229,17 @@ Resources:
         FilterPolicyScope: MessageBody
         FilterPolicy:
           '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  CoxAuUnifiedINVTopicSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        RawMessageDelivery: true
+        TopicArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+        Endpoint: !GetAtt CoxAuUnifiedINVQueue.Arn
+        FilterPolicyScope: MessageBody
+        FilterPolicy:
+          '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
  
   CoxAuFormatINVQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -230,12 +260,44 @@ Resources:
               Condition:
                   ArnEquals:
                       aws:SourceArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+
+  CoxAuUnifiedINVQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref CoxAuUnifiedINVQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: CoxAuUnifiedINVQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt CoxAuUnifiedINVQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+
   CoxAuFormatINVInsertFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "coxau-inv-${Environment}-formatCoxAu"
       Description: Transform and upload raw cox australia file to S3.
       Handler: format_coxau.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+
+  CoxAuUnifiedINVInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "coxau-inv-${Environment}-unifiedCoxAu"
+      Description: Load s3 data from s3 to DMS Database.
+      Handler: insert_coxau.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
       Timeout: 60
@@ -248,3 +310,12 @@ Resources:
       EventSourceArn: !GetAtt CoxAuFormatINVQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt CoxAuFormatINVInsertFunction.Arn
+
+
+  CoxAuUnifiedINVEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt CoxAuUnifiedINVQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt CoxAuUnifiedINVInsertFunction.Arn
