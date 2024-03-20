@@ -30,7 +30,7 @@ Resources:
   CrmAdfEmailIdentity:
     Type: AWS::SES::EmailIdentity
     Properties:
-      EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
+      EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', 'lesakia@impel.ai' ]
       
   EmailServiceConfigSet:
     Type: AWS::SES::ConfigurationSet
