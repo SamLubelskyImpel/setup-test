@@ -26,8 +26,16 @@ s3_client = boto3.client("s3")
 sm_client = boto3.client("secretsmanager")
 
 
-def proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, product_dealer_id, secret_key) -> None:
+def proccess_and_upload_to_ftp(icc_formatted_inventory, product_dealer_id, secret_key) -> None:
     """Upload to ftp server."""
+    # Set DealerId to match product expected DealerId
+    icc_formatted_inventory["DealerId"] = product_dealer_id
+
+    # Create temp file
+    temp_dir = tempfile.TemporaryDirectory()
+    csv_file_path = temp_dir.name + f'/{product_dealer_id}.csv'
+    icc_formatted_inventory.to_csv(csv_file_path, index=False)
+
     # Upload to FTP
     hostname, username, password = get_ftp_secrets("inventory-integrations-ftp", secret_key)
     prefix = '' if ENVIRONMENT == 'prod' else 'deleteme_'
@@ -39,6 +47,8 @@ def proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, product_d
             ftp.storbinary(f'STOR {filename}', file)
 
     logger.info(f"Uploaded {csv_file_path} as {filename} to {hostname}.")
+
+    temp_dir.cleanup()
     return
 
 
@@ -182,26 +192,24 @@ def record_handler(record: SQSRecord) -> None:
             raise
         merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = ftp_data[0]
 
-        # Create temp file
+        # Save ICC formatted inventory to S3
         temp_dir = tempfile.TemporaryDirectory()
         csv_file_path = temp_dir.name + f'/{impel_dealer_id}.csv'
         icc_formatted_inventory.to_csv(csv_file_path, index=False)
-
         upload_to_s3(csv_file_path, f"{impel_dealer_id}.csv", integration)
+        temp_dir.cleanup()
 
-        # Upload to FTP
+        # Upload to product FTP
         if merch_is_active:
             logger.info(f"Uploading to Merch FTP: {merch_dealer_id}")
-            proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, merch_dealer_id, MERCH_FTP_KEY)
+            proccess_and_upload_to_ftp(icc_formatted_inventory, merch_dealer_id, MERCH_FTP_KEY)
 
         # elif salesai_is_active:
         #     logger.info(f"Uploading to Sales AI FTP: {salesai_dealer_id}")
-        #     proccess_and_upload_to_ftp(icc_formatted_inventory, csv_file_path, salesai_dealer_id, AI_FTP_KEY)
+        #     proccess_and_upload_to_ftp(icc_formatted_inventory, salesai_dealer_id, AI_FTP_KEY)
         else:
             logger.error(f"No active FTP found for dealer: {impel_dealer_id}")
             raise
-
-        temp_dir.cleanup()
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
