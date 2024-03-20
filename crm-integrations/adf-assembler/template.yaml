@@ -50,6 +50,12 @@ Globals:
                         "crm-integrations-prod",
                         "crm-integrations-test",
                     ]
+                ADF_SENDER_EMAIL_ADDRESS: 
+                    !If [
+                        IsProd,
+                        "crm.adf@impel.ai",
+                        "lesakia@impel.ai",
+                    ]
                 UPLOAD_SECRET_KEY: "impel"
                 CRM_API_DOMAIN:
                     !If [

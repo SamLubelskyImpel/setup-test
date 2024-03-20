@@ -8,6 +8,7 @@ from adf_creation_class import AdfCreation
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+ADF_SENDER_EMAIL_ADDRESS = environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
 
 s3_client = client("s3")
 logger = logging.getLogger()
@@ -22,7 +23,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         formatted_adf, partner_id = adf_creation.create_adf_data(body.get("lead_id"), body.get("activity_time", ""))
         logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
 
-        current_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        current_time = datetime.now().strftime("%Y_%m_%dT%H-%M-%SZ")
         logger.info(f"Partner ID: {partner_id}")
 
         s3_key = f"chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
@@ -49,7 +50,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "recipients": recipients,
                     "subject": "Lead ADF From Impel",
                     "body": formatted_adf,
-                    "from_address": "crm.adf@impel.ai",
+                    "from_address": ADF_SENDER_EMAIL_ADDRESS,
                     "reply_to": [],
                 }
             )
