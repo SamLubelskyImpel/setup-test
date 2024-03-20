@@ -116,6 +116,7 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             for icc_field, unified_field in field_mappings.items():
                 row.append(entry.get(unified_field))
 
+            # Process equipment and options
             equipment_list = entry.get("inv_equipments|inv_equipments", [])
             standard_equipment = []
             optional_equipment = []

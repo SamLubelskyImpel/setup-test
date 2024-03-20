@@ -264,6 +264,7 @@ Resources:
       Handler: direct_upload.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Timeout: 60
+      MemorySize: 1024
       Environment:
         Variables:
           INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
