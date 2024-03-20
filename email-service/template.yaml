@@ -143,7 +143,7 @@ Resources:
             Action:
               - s3:GetObject
               - s3:ListBucket
-            Resource: !Sub 'arn:aws:s3:::email-service-store-${Environment}/*'
+            Resource: !Sub 'arn:aws:s3:::email-service-store-${Environment}*'
           - Effect: Allow
             Action:
               - ses:SendEmail
