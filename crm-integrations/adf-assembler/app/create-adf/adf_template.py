@@ -17,6 +17,25 @@ BASE_ADF_TEMPLATE = """
 				<name part="full">{vendor_full_name}</name>
 			</contact>
 		</vendor>
+        <provider>
+            <name part="full">Impel-Chat</name>
+            <service>Omnichannel Experience Platform for Dealerships</service>
+            <url>https://www.impel.ai</url>
+            <email>support@impel.ai</email>
+            <phone>+1 844-384-6735</phone>
+            <contact primarycontact="1">
+                <name part="full">Support</name>
+                <email>support@impel.ai</email>
+                <phone type="voice" time="day">1 844-384-6735</phone>
+                <address>
+                <street line="1">344 S Warren St #200</street>
+                <city>Syracuse</city>
+                <regioncode>NY</regioncode>
+                <postalcode>13202</postalcode>
+                <country>US</country>
+                </address>
+            </contact>
+        </provider>
 	</prospect>
 </adf>
 """
