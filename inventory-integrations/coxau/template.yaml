@@ -136,6 +136,8 @@ Resources:
                 Resource: 
                   - !GetAtt CoxAuFormatINVQueue.Arn
                   - !GetAtt CoxAuFormatINVDLQ.Arn
+                  - !GetAtt CoxAuUnifiedINVQueue.Arn
+                  - !GetAtt CoxAuUnifiedINVDLQ.Arn         
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -186,7 +188,6 @@ Resources:
     Properties:
       QueueName: !Sub 'coxau-inv-${Environment}-formatQueueDLQ'
       VisibilityTimeout: 10
-      QueueName: CoxAuFormatINVDLQ
       MessageRetentionPeriod: 1209600
 
   CoxAuUnifiedINVDLQ:

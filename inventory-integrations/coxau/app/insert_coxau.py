@@ -1,219 +1,148 @@
+import os
+import json
 import logging
-import re
 import urllib.parse
-from io import BytesIO
-from json import loads
-from os import environ
-
 import boto3
 import pandas as pd
-from eventbridge import notify_event_bus
 from rds_instance import RDSInstance
+from psycopg2.extras import execute_values
+from json import loads
+from io import BytesIO
 
+
+# Setup logging
 logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-IS_PROD = ENVIRONMENT == "prod"
-s3_client = boto3.client("s3")
+logger.setLevel(logging.INFO)
+
+# Initialize AWS services
+s3_client = boto3.client('s3')
+
+# Environment variables
+ENVIRONMENT = os.environ['ENVIRONMENT']
+IS_PROD = ENVIRONMENT == 'prod'
+
+# RDSInstance initialization
+rds_instance = RDSInstance(IS_PROD)
 
 
-def insert_appointment_parquet(key, df):
-    """Insert to appointment table and linked tables."""
-    integration = key.split("/")[2]
-    if len(df) == 0:
-        logger.info(f"No rows for {key}")
-        return
-    rds = RDSInstance(IS_PROD, integration)
-    dms_id = re.search(r"dms_id=(.*?)/PartitionYear", key).group(1)
-    db_dealer_integration_partner_ids = rds.select_db_dealer_integration_partner_ids(
-        dms_id
-    )
+def extract_vehicle_data(json_data):
+    vehicle_data = {
+        'vin': json_data['inv_vehicle|vin'],
+        'oem_name': json_data['inv_vehicle|oem_name'],
+        'type': json_data['inv_vehicle|type'],
+        'mileage': json_data['inv_vehicle|mileage'],
+        'make': json_data['inv_vehicle|make'],
+        'model': json_data['inv_vehicle|model'],
+        'year': json_data['inv_vehicle|year'],
+        'vehicle_class': json_data['inv_vehicle|vehicle_class'],
+        'stock_num': json_data['inv_vehicle|stock_num'],
+        'new_or_used': json_data['inv_vehicle|new_or_used'],
+    }
+    return vehicle_data
 
-    if not db_dealer_integration_partner_ids:
-        raise RuntimeError(f"Unable to find any reyrey dealers with id {dms_id}")
+def extract_inventory_data(json_data):
+    inventory_data = {
+        'list_price': json_data['inv_inventory|list_price'],
+        'fuel_type': json_data['inv_inventory|fuel_type'],
+        'exterior_color': json_data['inv_inventory|exterior_color'],
+        'interior_color': json_data['inv_inventory|interior_color'],
+        'doors': json_data['inv_inventory|doors'],
+        'seats': json_data['inv_inventory|seats'],
+        'transmission': json_data['inv_inventory|transmission'],
+        'drive_train': json_data['inv_inventory|drive_train'],
+        'cylinders': json_data['inv_inventory|cylinders'],
+        'body_style': json_data['inv_inventory|body_style'],
+        'series': json_data['inv_inventory|series'],
+        'vin': json_data['inv_inventory|vin'],
+        'interior_material': json_data['inv_inventory|interior_material'],
+        'trim': json_data['inv_inventory|trim'],
+        'factory_certified': json_data['inv_inventory|factory_certified'],
+        'region': json_data['inv_inventory|region'],
+        'on_lot': json_data['inv_inventory|on_lot'],
+    }
+    return inventory_data
 
-    # Insert the same data for every dealer who shares the dms_id
-    for db_dealer_integration_partner_id in db_dealer_integration_partner_ids:
-        logger.info(f"Inserting appointments for {db_dealer_integration_partner_id}")
-        df["consumer|dealer_integration_partner_id"] = db_dealer_integration_partner_id
-        df["vehicle|dealer_integration_partner_id"] = db_dealer_integration_partner_id
-        df[
-            "appointment|dealer_integration_partner_id"
-        ] = db_dealer_integration_partner_id
-        df["op_code|dealer_integration_partner_id"] = db_dealer_integration_partner_id
+def extract_option_data(option_json):
+    option_data = {
+        'option_description': option_json.get('inv_option|option_description', ''),
+        'is_priority': option_json.get('inv_option|is_priority', False)
+    }
+    return option_data
 
-        # Unique dealer_integration_partner_id, appointment_no SQL can't insert duplicates
-        appointment_unique_constraint = [
-            "appointment|dealer_integration_partner_id",
-            "appointment|appointment_no",
-        ]
-        df = df.drop_duplicates(
-            subset=appointment_unique_constraint, keep="first"
-        ).reset_index(drop=True)
+def extract_equipment_data(equipment_json):
+    equipment_data = {
+        'equipment_description': equipment_json.get('inv_equipment|equipment_description', ''),
+        'is_optional': equipment_json.get('inv_equipment|is_optional', False)
+    }
+    return equipment_data
 
-        inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
-        df["appointment|consumer_id"] = inserted_consumer_ids
-
-        inserted_vehicle_ids = rds.insert_table_from_df(df, "vehicle")
-        df["appointment|vehicle_id"] = inserted_vehicle_ids
-
-        appointment_columns = [
-            x.split("|")[1] for x in list(df.columns) if x.startswith("appointment|")
-        ]
-        additional_appointment_query = f"""
-            ON CONFLICT ON CONSTRAINT unique_appointment DO UPDATE
-            SET {', '.join([
-                f'{x} = CASE WHEN appointment.appointment_update_ts IS NULL OR appointment.appointment_update_ts < EXCLUDED.appointment_update_ts THEN EXCLUDED.{x} ELSE appointment.{x} END'
-                if x != 'appointment_create_ts' else f'{x} = appointment.{x}'
-                for x in appointment_columns
-            ])}
-        """
-        inserted_appointment_ids = rds.insert_table_from_df(
-            df,
-            "appointment",
-            additional_query=additional_appointment_query,
-        )
-
-        if "op_codes|op_codes" in list(df.columns):
-            df["op_code_appointment|appointment_id"] = inserted_appointment_ids
-            # Explode op_codes arrays of dict such that each row contains op_code data
-            op_code_df = df.explode("op_codes|op_codes").reset_index(drop=True)
-            op_code_df = op_code_df.dropna(subset=["op_codes|op_codes"]).reset_index(
-                drop=True
-            )
-            op_code_split_df = pd.DataFrame(op_code_df["op_codes|op_codes"].tolist())
-            op_code_df = pd.concat([op_code_df, op_code_split_df], axis=1)
-            op_code_df.drop(columns=["op_codes|op_codes"], inplace=True)
-            if len(op_code_df) == 0:
-                return
-
-            # Insert only unique op codes to avoid insertion error
-            op_code_df_columns = [
-                x.split("|")[1] for x in op_code_df.columns if x.startswith("op_code|")
-            ]
-            additional_op_code_query = f"""ON CONFLICT ON CONSTRAINT unique_op_code DO UPDATE
-                    SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, op_code.{x})' for x in op_code_df_columns])}"""
-            op_code_df_dedupped = op_code_df.copy()
-            op_code_unique_constraint = [
-                "op_code|op_code",
-                "op_code|op_code_desc",
-                "op_code|dealer_integration_partner_id",
-            ]
-            op_code_df_dedupped = op_code_df_dedupped.drop_duplicates(
-                subset=op_code_unique_constraint, keep="first"
-            ).reset_index(drop=True)
-            inserted_op_code_ids = rds.insert_table_from_df(
-                op_code_df_dedupped,
-                "op_code",
-                additional_query=additional_op_code_query,
-            )
-            op_code_df_dedupped[
-                "op_code_appointment|op_code_id"
-            ] = inserted_op_code_ids
-
-            # Add op_code_appointment|op_code_id to all of the op codes where they match
-            op_code_df_columns_full_name = [
-                x for x in op_code_df.columns if x.startswith("op_code|")
-            ]
-            op_code_df = op_code_df.merge(
-                op_code_df_dedupped[
-                    op_code_df_columns_full_name + ["op_code_appointment|op_code_id"]
-                ],
-                on=op_code_df_columns_full_name,
-                how="left",
-            )
-
-            missing_op_code_id = (
-                op_code_df["op_code_appointment|op_code_id"].isna().any()
-            )
-            if missing_op_code_id:
-                raise RuntimeError(
-                    "Some op codes missing op_code_appointment|op_code_id after inserting and merging"
-                )
-
-            rds.insert_table_from_df(op_code_df, "op_code_appointment", additional_query="ON CONFLICT ON CONSTRAINT unique_op_code_appointment DO NOTHING", expect_all_inserted=False)
-
-        service_contracts_columns = [
-            x.split("|")[1] for x in df.columns if x.startswith("service_contracts|")
-        ]
-
-        if service_contracts_columns:
-            df["service_contracts|appointment_id"] = inserted_appointment_ids
-
-            df[
-                "service_contracts|dealer_integration_partner_id"
-            ] = db_dealer_integration_partner_id
-
-            service_contracts_df = df.explode(
-                "service_contracts|service_contracts"
-            ).reset_index(drop=True)
-
-            service_contracts_df = service_contracts_df.dropna(
-                subset=["service_contracts|service_contracts"]
-            ).reset_index(drop=True)
-
-            service_contracts_split_df = pd.DataFrame(
-                service_contracts_df["service_contracts|service_contracts"].tolist()
-            )
-
-            service_contracts_df = pd.concat(
-                [service_contracts_df, service_contracts_split_df], axis=1
-            )
-
-            service_contracts_df.drop(
-                columns=["service_contracts|service_contracts"], inplace=True
-            )
-
-            if len(service_contracts_df) == 0:
-                return
-
-            rds.insert_table_from_df(service_contracts_df, "service_contracts", additional_query="ON CONFLICT ON CONSTRAINT unique_service_contracts DO NOTHING", expect_all_inserted=False)
-
-        notification_message = {
-            "impel_integration_partner_id": integration,
-            "dealer_integration_partner_id": db_dealer_integration_partner_id,
-            "dms_id": dms_id,
-            "table_inserted": "appointment",
-            "ids_inserted": inserted_appointment_ids,
-        }
-
-        notify_event_bus(notification_message)
-        logger.info(f"Notify {notification_message}")
-
-
-def lambda_handler(event: dict, context: dict):
-    """Insert unified appointment records into the DMS database."""
+def process_and_upload_data(bucket, key):
     try:
-        for record in event["Records"]:
+        decoded_key = urllib.parse.unquote_plus(key)
+        s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
+        # json_data = json.load(BytesIO(s3_obj["Body"].read()))
+        json_data_list = json.load(BytesIO(s3_obj["Body"].read()))
+        
+        for json_data in json_data_list:
+            # Retrieve dealer_integration_partner_id
+            provider_dealer_id = json_data.get("inv_dealer_integration_partner|provider_dealer_id")
+            if provider_dealer_id is None:
+                logger.warning(f"No provider dealer ID found for {decoded_key}, skipping.")
+                continue  
+            
+            dealer_integration_partner_id = rds_instance.find_dealer_integration_partner_id(provider_dealer_id)
+            if dealer_integration_partner_id is None:
+                logger.warning(f"No dealer integration partner ID found for provider dealer ID: {provider_dealer_id}, skipping.")
+                continue 
+
+            # Insert vehicle data
+            vehicle_data = extract_vehicle_data(json_data)
+            vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
+            vehicle_id = rds_instance.insert_vehicle(vehicle_data)
+
+            # Insert inventory data
+            inventory_data = extract_inventory_data(json_data)
+            inventory_data['vehicle_id'] = vehicle_id
+            inventory_data['dealer_integration_partner_id'] = dealer_integration_partner_id
+            inventory_id = rds_instance.insert_inventory_item(inventory_data)
+
+            # Insert equipment data and link to inventory
+            equipment_ids = []
+            for equipment_json in json_data['inv_equipments|inv_equipments']:
+                equipment_data = extract_equipment_data(equipment_json)
+                equipment_id = rds_instance.insert_equipment(equipment_data)
+                equipment_ids.append(equipment_id)
+            rds_instance.link_equipment_to_inventory(inventory_id, equipment_ids)
+
+            # Insert options data and link to inventory
+            option_ids = []
+            for option_json in json_data['inv_options|inv_options']:
+                option_data = extract_option_data(option_json)
+                option_id = rds_instance.insert_option(option_data)
+                option_ids.append(option_id)
+            rds_instance.link_option_to_inventory(inventory_id, option_ids)
+
+            logger.info(f"Data processing and upload completed for {decoded_key}")
+
+    except Exception as e:
+        logger.error(f"Failed to process and upload data for {key}", exc_info=True)
+        raise
+
+
+def lambda_handler(event, context):
+    """
+    Lambda function handler to process SQS messages and upload JSON data to RDS.
+    """
+    try:
+        for record in event['Records']:
             message = loads(record["body"])
-            logger.info(f"Message of {message}")
-            logger.info('hi dev dayan')
-            return
+            logger.info(f"Received message: {message}")
+            
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
+                process_and_upload_data(bucket, key)
 
-                decoded_key = urllib.parse.unquote(key)
-                logger.info(f"Parsing {decoded_key}")
-
-                # Pyspark auto generates temp files when writing to s3, ignore these files.
-                if (
-                    decoded_key.endswith(".parquet")
-                    and decoded_key.split("/")[3] != "_temporary"
-                ):
-                    continue
-
-                s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-
-                if decoded_key.endswith(".parquet"):
-                    df = pd.read_parquet(BytesIO(s3_obj["Body"].read()))
-                elif decoded_key.endswith(".json"):
-                    df = pd.read_json(BytesIO(s3_obj["Body"].read()), dtype=False)
-                else:
-                    logger.info(f"Ignore temp pyspark file {decoded_key}")
-                    continue
-
-                insert_appointment_parquet(decoded_key, df)
     except Exception as e:
-        logger.exception("Error inserting appointment DMS records")
-        raise e
+        logger.exception("Error in Lambda handler")
+        raise
