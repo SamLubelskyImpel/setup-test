@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import boto3
 from typing import Any
-from utils import get_sftp_secrets, connect_sftp_server, get_file_modification_time
+from utils import get_sftp_secrets, connect_sftp_server
 from rds_instance import RDSInstance
 
 ENVIRONMENT = environ["ENVIRONMENT"]
@@ -29,6 +29,13 @@ def send_to_download_queue(message):
         raise e
 
 
+def get_file_modification_time(sftp, file_name):
+    """Get the modification time of a file on the SFTP server."""
+    attrs = sftp.stat(file_name)
+    modification_time = datetime.fromtimestamp(attrs.st_mtime, tz=timezone.utc)
+    return modification_time
+
+
 def list_and_filer(sftp, folder_name, active_dealers, last_modified_time):
     """List and filter files in the folder."""
     files = sftp.listdir(folder_name)
@@ -38,9 +45,11 @@ def list_and_filer(sftp, folder_name, active_dealers, last_modified_time):
     to_download = []
     for file in files:
         try:
-            file_name = file.split(".csv")[0]
-        except IndexError:
-            logger.exception(f"Invalid file name: {file}")
+            file_name, extension = file.rsplit('.', 1)
+            if extension != "csv":
+                raise
+        except Exception:
+            logger.warning(f"Invalid file name: {file}")
             to_ignore.append(file)
             continue
 
@@ -75,6 +84,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         rds_instance = RDSInstance()
         active_dealers = rds_instance.select_db_active_dealer_partners("coxau")
+        active_dealers = [dealer[0] for dealer in active_dealers]
+        logger.info(f"Active dealers: {active_dealers}")
 
         hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)
         sftp_conn = connect_sftp_server(hostname, port, username, password)

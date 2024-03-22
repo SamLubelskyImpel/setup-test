@@ -11,7 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from utils import get_sftp_secrets, connect_sftp_server, get_file_modification_time
+from utils import get_sftp_secrets, connect_sftp_server
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
@@ -76,7 +76,7 @@ def record_handler(record: SQSRecord) -> Any:
         # Process files one by one
         for file in files:
             remote_file_path = file["file_name"]
-            modification_time = datetime.fromisoformat(file["modification_time"])
+            modification_time = datetime.strptime(file["modification_time"], '%Y-%m-%dT%H:%M:%SZ')
 
             # Create a temporary directory to download the file
             with tempfile.TemporaryDirectory() as temp_dir:

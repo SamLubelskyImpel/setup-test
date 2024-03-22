@@ -27,10 +27,3 @@ def connect_sftp_server(hostname, port, username, password):
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
-
-
-def get_file_modification_time(sftp, file_name):
-    """Get the modification time of a file on the SFTP server."""
-    attrs = sftp.stat(file_name)
-    modification_time = datetime.fromtimestamp(attrs.st_mtime, tz=timezone.utc)
-    return modification_time

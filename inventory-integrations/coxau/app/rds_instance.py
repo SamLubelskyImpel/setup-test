@@ -53,12 +53,9 @@ class RDSInstance:
         db_active_dealer_partners_query = f"""
             select idip.provider_dealer_id
             from {self.schema}.inv_dealer_integration_partner idip
-            where idip.integration_partner_name = '{integration_partner_name}' and idip.is_active = true
+            join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
+            where iip.impel_integration_partner_id = '{integration_partner_name}' and idip.is_active = true
         """
-        # db_dealer_ftp_details_query = f"""
-        #     select iv.merch_dealer_id, iv.salesai_dealer_id, iv.merch_is_active, iv.salesai_is_active
-        #     from {self.schema}.inv_dealer iv
-        #     where iv.impel_dealer_id = '{impel_dealer_id}'"""
         results = self.execute_rds(db_active_dealer_partners_query)
         db_dealer_ftp_details = results.fetchall()
         if not results:
