@@ -19,7 +19,7 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "tekion-integration-test"
+stack_name = "sidekick-integration-test"
 parameter_overrides = "Environment=\"test\""
 
 [prod.deploy.parameters]
@@ -27,7 +27,7 @@ profile = "unified-prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
-stack_name = "tekion-integration-prod"
+stack_name = "sidekick-integration-prod"
 parameter_overrides = """\
     Environment=\"prod\"\
 """

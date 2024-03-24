@@ -1,25 +1,19 @@
-import os
 import boto3
 import logging
+from os import environ
 from json import loads
 from datetime import datetime, timezone
 from ftp_to_s3_extraction import FtpToS3
 
-def setup_logging():
-    log_level = os.environ.get("LOGLEVEL", "INFO").upper()
-    logging.basicConfig(level=log_level)
-    logger = logging.getLogger(__name__)
-    return logger
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-logger = setup_logging()
-
-AWS_PROFILE = os.environ["AWS_PROFILE"]
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "stage")
+ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = f"integrations-us-east-1-{'prod' if ENVIRONMENT == 'prod' else 'test'}"
 
 def get_ftp_credentials():
     """Get FTP credentials from Secrets Manager with error handling."""
-    secret_id = f"{'prod' if AWS_PROFILE == 'unified-prod' else 'test'}/TekionFTP"
+    secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/SidekickFTP"
     try:
         secret = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)
         return loads(secret["SecretString"])
@@ -35,22 +29,21 @@ def parse_data(sqs_message_data):
     """Parse and handle SQS message."""
     logger.info("Processing SQS message: %s", sqs_message_data)
     secrets = get_ftp_credentials()
-    ftp_session = FtpToS3(aws_profile=AWS_PROFILE, **secrets)
+    ftp_session = FtpToS3(**secrets)
 
-    dealer_id = sqs_message_data["dealer_id"].split("-")[0]
+    parent_store, child_store = sqs_message_data["dealer_id"].split("-")
+
     end_dt = parse_date(sqs_message_data.get("end_dt_str"))
     date_path = end_dt.strftime("%Y/%m/%d")
     
-    filename = f"Sidekick-{dealer_id}-{end_dt.strftime('%Y-%m-%d')}.csv"
-    local_file_path = f"file-id-{dealer_id}.csv"
-    remote_directory = f"{dealer_id}/{date_path}"
+    filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y-%m-%d')}.csv"
 
-    ftp_session.transfer_csv_from_ftp_to_s3(
+    ftp_session.transfer_file_from_ftp_to_s3(
         filename=filename,
-        local_file_path=local_file_path,
         bucket_name=INTEGRATIONS_BUCKET,
-        remote_directory=remote_directory,
-        dealer_id=dealer_id,
+        date_path=date_path,
+        parent_store=parent_store,
+        child_store=child_store,
     )
 
 def lambda_handler(event, context):
