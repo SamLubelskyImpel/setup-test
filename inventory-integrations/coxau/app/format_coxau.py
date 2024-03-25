@@ -3,8 +3,10 @@ import logging
 import os
 import boto3
 import csv
+import re
 from io import StringIO
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
+import urllib.parse
 from unified_df import upload_unified_json
 from json import dumps
 
@@ -39,7 +41,8 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
                 for impel_field, cox_au_field in table_mapping.items():
                     entry[table][impel_field] = row.get(cox_au_field, None)
             else:
-                option_descriptions = row.get('OptionDescription', '').split('|')
+                 # Split the RedbookCode string on pipe delimiter and skip the first entry
+                option_descriptions = row.get('RedbookCode', '').split('|')[1:]  # Skip the Redbook code itself
                 options = [{"inv_option|option_description": desc.strip(), "inv_option|is_priority": False}
                            for desc in option_descriptions if desc.strip()]
 
@@ -59,11 +62,21 @@ def process_entry(entry, source_s3_uri, options):
     Returns:
         dict: The processed entry.
     """
+    # Assumes the filename is the last part of the source_s3_uri after a slash (/)
+    filename = source_s3_uri.split('/')[-1]
+    datetime_match = re.search(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z', filename)
+    if datetime_match:
+        received_datetime = datetime_match.group(0)
+    else:
+        #  We need to ensure that we always have a datetime since the load layer depends on it.
+        received_datetime = "Unknown"
+
     metadata = dumps(source_s3_uri)
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
         entry['inv_inventory']['region'] = 'AU'
         entry['inv_inventory']['on_lot'] = True
+        entry['inv_inventory']['received_datetime'] = received_datetime
 
     if options:
         entry['inv_options.inv_options'] = options
@@ -104,20 +117,20 @@ def record_handler(record):
             "source_data_drive_train": "DriveType",
             "trim": "Badge",
             "source_data_interior_material_description": "TrimColour",
-            # "received_datetime": "", #timestamp in uploaded filename
         },
         "inv_options.inv_options": {
-            "option_description": "OptionDescription",
+            "option_description": "RedbookCode",
         },
     }
     try:
         body = json.loads(record.body)
         bucket_name = body['Records'][0]['s3']['bucket']['name']
         file_key = body['Records'][0]['s3']['object']['key']
-        csv_object = s3_client.get_object(Bucket=bucket_name, Key=file_key)
+        decoded_key = urllib.parse.unquote(file_key)
+        csv_object = s3_client.get_object(Bucket=bucket_name, Key=decoded_key)
         csv_content = csv_object['Body'].read().decode('utf-8')
-        entries = transform_csv_to_entries(csv_content, mappings, file_key)
-        upload_unified_json(entries, file_key)
+        entries = transform_csv_to_entries(csv_content, mappings, decoded_key)
+        upload_unified_json(entries, decoded_key)
     except Exception as e:
         logger.error(f"Error transforming csv to json - {record}: {e}")
         raise
