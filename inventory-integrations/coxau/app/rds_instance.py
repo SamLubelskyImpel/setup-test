@@ -62,3 +62,27 @@ class RDSInstance:
             return []
         else:
             return db_dealer_ftp_details
+
+    def get_table_names(self):
+        """Get a list of table names in the database."""
+        query = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.schema}'"
+        results = self.execute_rds(query)
+        table_names = [row[0] for row in results.fetchall()]
+        return table_names
+
+    def get_table_column_names(self, table_name):
+        """Get a list of column names in the given database table."""
+        query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'"
+        results = self.execute_rds(query)
+        column_names = [row[0] for row in results.fetchall()]
+        return column_names
+
+    def get_unified_column_names(self):
+        """Get a list of column names from all database tables in unified format."""
+        unified_column_names = []
+        tables = self.get_table_names()
+        for table in tables:
+            columns = self.get_table_column_names(table)
+            for column in columns:
+                unified_column_names.append(f"{table}|{column}")
+        return unified_column_names

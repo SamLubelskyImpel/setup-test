@@ -45,6 +45,7 @@ Globals:
       Variables:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
         ENVIRONMENT: !Ref Environment
+        REGION: !Sub '${AWS::Region}'
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         SFTP_SECRET_KEY: COXAU_SFTP
@@ -119,7 +120,11 @@ Resources:
                   - "s3:GetObject"
                   - "s3:ListBucket"
                 Resource:
-                  - !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+                    ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -130,34 +135,29 @@ Resources:
                   - "sqs:ReceiveMessage"
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
-                Resource:
-                - !GetAtt DownloadSFTPCoxAUQueue.Arn
-        - PolicyName: AccessSecretsManager
+                Resource: 
+                  - !GetAtt CoxAuFormatINVQueue.Arn
+                  - !GetAtt CoxAuFormatINVDLQ.Arn
+                  - !GetAtt DownloadSFTPFilesQueue.Arn
+        - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: Allow
+              - Sid: AllowGetDBInfo
+                Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource:
+                Resource: 
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                    ]
                   - !If [
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
                     ]
-                  - !If [ IsProd,
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                      ]
-        - PolicyName: SNSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "sns:Publish"
-                Resource:
-                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -168,11 +168,20 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
-  InvokeSFTPCoxAU:
+  InvokeSFTPFiles:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub coxau-inv-${Environment}-InvokeSFTPCoxAU
+      FunctionName: !Sub coxau-inv-${Environment}-InvokeSFTPFiles
       CodeUri: app/
       Handler: invoke_sftp_coxau.lambda_handler
       Role: !GetAtt LambdaRole.Arn
@@ -180,18 +189,18 @@ Resources:
       MemorySize: 128
       Environment:
         Variables:
-          DOWNLOAD_QUEUE_URL: !GetAtt DownloadSFTPCoxAUQueue.QueueUrl
+          DOWNLOAD_QUEUE_URL: !GetAtt DownloadSFTPFilesQueue.QueueUrl
 
-  InvokeSFTPCoxAULogGroup:
+  InvokeSFTPFilesLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-InvokeSFTPCoxAU'
+      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-InvokeSFTPFiles'
       RetentionInDays: 60
   
-  InvokeSFTPCoxAUErrorAlarm:
+  InvokeSFTPFilesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub coxau-inv-${Environment}-InvokeSFTPCoxAU
+      AlarmName: !Sub coxau-inv-${Environment}-InvokeSFTPFiles
       AlarmDescription: CoxAU SFTP Invoke failed to execute
       ActionsEnabled: true
       AlarmActions:
@@ -199,7 +208,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref InvokeSFTPCoxAU
+          Value: !Ref InvokeSFTPFiles
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -208,26 +217,26 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  DownloadSFTPCoxAU:
+  DownloadSFTPFiles:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub coxau-inv-${Environment}-DownloadSFTPCoxAU
+      FunctionName: !Sub coxau-inv-${Environment}-DownloadSFTPFiles
       CodeUri: app/
       Handler: download_sftp_coxau.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Timeout: 60
       MemorySize: 1024
 
-  DownloadSFTPCoxAULogGroup:
+  DownloadSFTPFilesLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-DownloadSFTPCoxAU'
+      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-DownloadSFTPFiles'
       RetentionInDays: 60
   
-  DownloadSFTPCoxAUErrorAlarm:
+  DownloadSFTPFilesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub coxau-inv-${Environment}-DownloadSFTPCoxAU
+      AlarmName: !Sub coxau-inv-${Environment}-DownloadSFTPFiles
       AlarmDescription: CoxAU SFTP Download failed to download and process files
       ActionsEnabled: true
       AlarmActions:
@@ -235,7 +244,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref DownloadSFTPCoxAU
+          Value: !Ref DownloadSFTPFiles
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -244,34 +253,34 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
   
-  DownloadSFTPCoxAUDeadLetterQueue:
+  DownloadSFTPFilesDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'coxau-inv-${Environment}-DownloadSFTPCoxAUDLQ'
+      QueueName: !Sub 'coxau-inv-${Environment}-DownloadSFTPFilesDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
   
-  DownloadSFTPCoxAUQueue:
+  DownloadSFTPFilesQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'coxau-inv-${Environment}-DownloadSFTPCoxAUQueue'
+      QueueName: !Sub 'coxau-inv-${Environment}-DownloadSFTPQueue'
       VisibilityTimeout: 60
       MessageRetentionPeriod: 1209600
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DownloadSFTPCoxAUDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt DownloadSFTPFilesDeadLetterQueue.Arn
         maxReceiveCount: 3
 
-  DownloadSFTPCoxAUDLQAlarm:
+  DownloadSFTPFilesDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub 'coxau-inv-${Environment}-DownloadSFTPCoxAUDLQ'
+      AlarmName: !Sub 'coxau-inv-${Environment}-DownloadSFTPFilesDLQ'
       AlarmDescription: There are over 1 unprocessed messages in the CoxAU SFTP Download DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt DownloadSFTPCoxAUDeadLetterQueue.QueueName
+          Value: !GetAtt DownloadSFTPFilesDeadLetterQueue.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -281,28 +290,122 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
   
-  DownloadSFTPCoxAUEventMapping:
+  DownloadSFTPFilesEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 1
-      EventSourceArn: !GetAtt DownloadSFTPCoxAUQueue.Arn
+      EventSourceArn: !GetAtt DownloadSFTPFilesQueue.Arn
       MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt DownloadSFTPCoxAU.Arn
+      FunctionName: !GetAtt DownloadSFTPFiles.Arn
 
-  InvokeSFTPCoxAUScheduleRule:
+  InvokeSFTPFilesCoxAUScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Description: "Invoke SFTP Cox AU every hour"
       ScheduleExpression: "cron(0 */1 * * ? *)"
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
-        - Arn: !GetAtt InvokeSFTPCoxAU.Arn
+        - Arn: !GetAtt InvokeSFTPFilesCoxAU.Arn
           Id: "invoke_sftp_coxau_scheduled"
   
-  InvokeSFTPCoxAUScheduleLambdaPermission:
+  InvokeSFTPFilesScheduleLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt InvokeSFTPCoxAU.Arn
+      FunctionName: !GetAtt InvokeSFTPFiles.Arn
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt InvokeSFTPCoxAUScheduleRule.Arn
+      SourceArn: !GetAtt InvokeSFTPFilesScheduleRule.Arn
+  
+  FormatINVInsertQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-FormatINVInsertQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt FormatINVInsertDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+  FormatINVInsertDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-FormatINVInsertDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+ 
+  FormatINVInsertDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub coxau-inv-${Environment}-FormatINVInsertDLQ
+      AlarmDescription: There are messages in the FormatINVInsertDLQ Alarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt FormatINVInsertDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  CoxAuFormatINVTopicSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        RawMessageDelivery: true
+        TopicArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+        Endpoint: !GetAtt FormatINVInsertQueue.Arn
+        FilterPolicyScope: MessageBody
+        FilterPolicy:
+          '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+ 
+  FormatINVInsertQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref FormatINVInsertQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: FormatINVInsertQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt FormatINVInsertQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+  
+  FormatINVInsert:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "coxau-inv-${Environment}-FormatINVInsert"
+      Description: Transform and upload raw cox australia file to S3.
+      Handler: format_coxau.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+
+  FormatINVInsertLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-FormatINVInsert'
+      RetentionInDays: 60
+
+  FormatINVInsertEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt FormatINVInsertQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt FormatINVInsert.Arn
