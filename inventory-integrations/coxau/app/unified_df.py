@@ -30,7 +30,6 @@ IGNORE_POSSIBLE_COLUMNS = [
     "db_update_user",
 ]
 
-
 def validate_unified_df_columns(df):
     """Validate unified DF format."""
     rds_instance = RDSInstance(IS_PROD)
@@ -42,9 +41,14 @@ def validate_unified_df_columns(df):
         df_table_names.add(df_table)
         if df_table in MANY_TO_X_TABLES:
             for array in df[col]:
-                for struct in array:
-                    for key in struct:
-                        df_col_names.add(key)
+                # Check if array is a list before iterating
+                if isinstance(array, list):
+                    for struct in array:
+                        for key in struct:
+                            df_col_names.add(key)
+                else:
+                    # Log a warning or handle the unexpected array value appropriately
+                    logger.warning(f"Expected a list for {col}, but got {type(array).__name__}: {array}")
         else:
             df_col_names.add(col)
 
