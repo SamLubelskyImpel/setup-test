@@ -47,8 +47,8 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        MERCH_FTP_KEY: MERCH_UPLOAD_FTP
-        AI_FTP_KEY: AI_UPLOAD_FTP
+        MERCH_SFTP_KEY: MERCH_SFTP
+        SALESAI_SFTP_KEY: SALESAI_SFTP
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -191,8 +191,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-ftp*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-ftp*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
                     ]
                   - !If [
                       IsProd,
@@ -240,7 +240,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
-      AlarmDescription: There are over 1 unprocessed messages in the Direct FTP Upload DLQ
+      AlarmDescription: There are over 1 unprocessed messages in the Direct SFTP Upload DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -273,7 +273,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub shared-inv-${Environment}-DirectUpload
-      AlarmDescription: Direct FTP Upload failed to execute
+      AlarmDescription: Direct SFTP Upload failed to execute
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'

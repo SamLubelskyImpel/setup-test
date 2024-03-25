@@ -6,7 +6,8 @@ import logging
 import pandas as pd
 from datetime import datetime
 import tempfile
-from ftplib import FTP
+import paramiko
+from io import BytesIO
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -17,8 +18,8 @@ from rds_instance import RDSInstance
 
 ENVIRONMENT = environ["ENVIRONMENT"]
 INVENTORY_BUCKET = environ["INVENTORY_BUCKET"]
-MERCH_FTP_KEY = environ["MERCH_FTP_KEY"]
-AI_FTP_KEY = environ["AI_FTP_KEY"]
+MERCH_SFTP_KEY = environ["MERCH_SFTP_KEY"]
+SALESAI_SFTP_KEY = environ["SALESAI_SFTP_KEY"]
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -26,47 +27,49 @@ s3_client = boto3.client("s3")
 sm_client = boto3.client("secretsmanager")
 
 
-def proccess_and_upload_to_ftp(icc_formatted_inventory, product_dealer_id, secret_key) -> None:
+def proccess_and_upload_to_sftp(icc_formatted_inventory, product_dealer_id, secret_key) -> None:
     """Upload to ftp server."""
     # Set DealerId to match product expected DealerId
     icc_formatted_inventory["DealerId"] = product_dealer_id
 
-    # Create temp file
-    temp_dir = tempfile.TemporaryDirectory()
-    csv_file_path = temp_dir.name + f'/{product_dealer_id}.csv'
-    icc_formatted_inventory.to_csv(csv_file_path, index=False)
+    csv_content = icc_formatted_inventory.to_csv(index=False)
 
-    # Upload to FTP
-    hostname, username, password = get_ftp_secrets("inventory-integrations-ftp", secret_key)
+    # Upload to SFTP
+    hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", secret_key)
     prefix = '' if ENVIRONMENT == 'prod' else 'deleteme_'
     filename = f"{prefix}{product_dealer_id}.csv"
-    with FTP(hostname) as ftp:
-        ftp.login(username, password)
 
-        with open(csv_file_path, 'rb') as file:
-            ftp.storbinary(f'STOR {filename}', file)
+    with connect_sftp_server(hostname, port, username, password) as sftp:
+        csv_file_like = BytesIO(csv_content.encode())
+        sftp.putfo(csv_file_like, filename)
 
-    logger.info(f"Uploaded {csv_file_path} as {filename} to {hostname}.")
-
-    temp_dir.cleanup()
-    return
+    logger.info(f"File {filename} uploaded to SFTP")
 
 
-def upload_to_s3(local_filename, filename, integration):
+def connect_sftp_server(hostname, port, username, password):
+    """Connect to SFTP server and return the connection."""
+    transport = paramiko.Transport((hostname, port))
+    transport.connect(username=username, password=password)
+    sftp = paramiko.SFTPClient.from_transport(transport)
+    return sftp
+
+
+def upload_to_s3(csv_content, filename, integration):
     """Upload files to S3."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.utcnow().strftime(format_string)
 
     s3_key = f"icc/{integration}/{date_key}/{filename}"
-    s3_client.upload_file(
-        Filename=local_filename,
+    s3_client.put_object(
         Bucket=INVENTORY_BUCKET,
-        Key=s3_key
+        Key=s3_key,
+        Body=csv_content
     )
     logger.info(f"File {s3_key} uploaded to S3")
 
 
 def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
+    """Convert unified inventory to ICC format."""
     field_mappings = {
         "DealerId": "inv_dealer_integration_partner|provider_dealer_id",
 
@@ -108,45 +111,45 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "FactoryCertified": "inv_inventory|factory_certified",  # C if True, else null
     }
     rows = []
-    inventory_columns = list(field_mappings.keys()) + ["StandardEquipment", "OptionalEquipment", "OptionDescription", "PriorityOptions"]
-
     for entry in unified_inventory:
         try:
-            row = []
+            row = {}
             for icc_field, unified_field in field_mappings.items():
-                row.append(entry.get(unified_field))
+                row[icc_field] = entry.get(unified_field)
 
             # Process equipment and options
             equipment_list = entry.get("inv_equipments|inv_equipments", [])
             standard_equipment = []
             optional_equipment = []
-            for equipment in equipment_list:
-                if equipment.get("inv_equipment|is_optional"):
-                    optional_equipment.append(equipment.get("inv_equipment|equipment_description"))
-                else:
-                    standard_equipment.append(equipment.get("inv_equipment|equipment_description"))
+            if equipment_list:
+                for equipment in equipment_list:
+                    if equipment.get("inv_equipment|is_optional"):
+                        optional_equipment.append(equipment.get("inv_equipment|equipment_description"))
+                    else:
+                        standard_equipment.append(equipment.get("inv_equipment|equipment_description"))
 
-            row.append("|".join(standard_equipment))
-            row.append("|".join(optional_equipment))
+                row["StandardEquipment"] = "|".join(standard_equipment)
+                row["OptionalEquipment"] = "|".join(optional_equipment)
 
             options_list = entry.get("inv_options|inv_options", [])
             option_description = []
             priority_options = []
-            for option in options_list:
-                if option.get("inv_option|is_priority"):
-                    priority_options.append(option.get("inv_option|option_description"))
-                else:
-                    option_description.append(option.get("inv_option|option_description"))
+            if options_list:
+                for option in options_list:
+                    if option.get("inv_option|is_priority"):
+                        priority_options.append(option.get("inv_option|option_description"))
+                    else:
+                        option_description.append(option.get("inv_option|option_description"))
 
-            row.append("|".join(option_description))
-            row.append("|".join(priority_options))
+                row["OptionDescription"] = "|".join(option_description)
+                row["PriorityOptions"] = "|".join(priority_options)
 
             rows.append(row)
-        except Exception as e:
-            logger.error(f"Error processing row: {entry} - {e}")
-            raise Exception(f"Error converting unified format to ICC - {e}")
+        except Exception:
+            logger.exception(f"Error processing row: {entry}")
+            raise Exception("Error converting unified format to ICC")
 
-    icc_formatted_inventory = pd.DataFrame(rows, columns=inventory_columns)
+    icc_formatted_inventory = pd.DataFrame(rows)
 
     # Set FactoryCertified to C if True, else null
     icc_formatted_inventory["FactoryCertified"] = icc_formatted_inventory["FactoryCertified"].apply(lambda x: "C" if x else None)
@@ -154,15 +157,15 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
     return icc_formatted_inventory
 
 
-def get_ftp_secrets(secret_name: Any, secret_key: Any) -> Any:
-    """Get FTP secret from Secrets Manager."""
+def get_sftp_secrets(secret_name: Any, secret_key: Any) -> Any:
+    """Get SFTP secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
     secret = loads(secret["SecretString"])[str(secret_key)]
     secret_data = loads(secret)
 
-    return secret_data["hostname"], secret_data["username"], secret_data["password"]
+    return secret_data["hostname"], secret_data["port"], secret_data["username"], secret_data["password"]
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -184,9 +187,9 @@ def record_handler(record: SQSRecord) -> None:
         icc_formatted_inventory = convert_unified_to_icc(content)
         logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
 
-        # Query RDS database for dealer FTP info for merch and AI
+        # Query RDS database for dealer SFTP info for merch and AI
         rds_instance_obj = RDSInstance()
-        ftp_data = rds_instance_obj.select_db_dealer_ftp_details(impel_dealer_id)
+        ftp_data = rds_instance_obj.select_db_dealer_sftp_details(impel_dealer_id)
         logger.info(f"Dealer FTP details: {ftp_data}")
         if not ftp_data:
             logger.error(f"No FTP data found for dealer: {impel_dealer_id}")
@@ -194,26 +197,32 @@ def record_handler(record: SQSRecord) -> None:
         merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = ftp_data[0]
 
         # Save ICC formatted inventory to S3
-        temp_dir = tempfile.TemporaryDirectory()
-        csv_file_path = temp_dir.name + f'/{impel_dealer_id}.csv'
-        icc_formatted_inventory.to_csv(csv_file_path, index=False)
-        upload_to_s3(csv_file_path, f"{impel_dealer_id}.csv", integration)
-        temp_dir.cleanup()
+        csv_content = icc_formatted_inventory.to_csv(index=False)
+        with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
+            temp_file.write(csv_content)
+            temp_file.seek(0)
+
+            # Read CSV content from the temporary file and convert it to bytes
+            with open(temp_file.name, 'rb') as file:
+                csv_bytes = BytesIO(file.read())
+
+            upload_to_s3(csv_bytes, f"{impel_dealer_id}.csv", integration)
 
         # Upload to product FTP
         if merch_is_active:
-            logger.info(f"Uploading to Merch FTP: {merch_dealer_id}")
-            proccess_and_upload_to_ftp(icc_formatted_inventory, merch_dealer_id, MERCH_FTP_KEY)
+            logger.info(f"Uploading to Merch SFTP: {merch_dealer_id}")
+            proccess_and_upload_to_sftp(icc_formatted_inventory, merch_dealer_id, MERCH_SFTP_KEY)
 
-        # elif salesai_is_active:
-        #     logger.info(f"Uploading to Sales AI FTP: {salesai_dealer_id}")
-        #     proccess_and_upload_to_ftp(icc_formatted_inventory, salesai_dealer_id, AI_FTP_KEY)
-        else:
+        if salesai_is_active:
+            logger.info(f"Uploading to Sales AI SFTP: {salesai_dealer_id}")
+            proccess_and_upload_to_sftp(icc_formatted_inventory, salesai_dealer_id, SALESAI_SFTP_KEY)
+
+        if not merch_is_active and not salesai_is_active:
             logger.error(f"No active FTP found for dealer: {impel_dealer_id}")
             raise
 
-    except Exception as e:
-        logger.error(f"Error processing record: {e}")
+    except Exception:
+        logger.exception("Error processing record")
         raise
 
 
