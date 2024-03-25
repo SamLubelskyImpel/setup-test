@@ -43,14 +43,15 @@ def upload_to_s3(local_filename, filename, modification_time):
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.utcnow().strftime(format_string)
     base_name, extension = filename.rsplit('.', 1)
+    s3_file_name = f"{base_name}_{modification_time}.{extension}"
 
-    s3_key = f"raw/coxau/{date_key}/{base_name}_{modification_time}.{extension}"
+    s3_key = f"raw/coxau/{date_key}/{s3_file_name}"
     s3_client.upload_file(
         Filename=local_filename,
         Bucket=INVENTORY_BUCKET,
         Key=s3_key
     )
-    logger.info(f"File {filename} uploaded to S3.")
+    logger.info(f"File {s3_file_name} uploaded to S3.")
 
 
 def record_handler(record: SQSRecord) -> Any:
@@ -76,7 +77,7 @@ def record_handler(record: SQSRecord) -> Any:
         # Process files one by one
         for file in files:
             remote_file_path = file["file_name"]
-            modification_time = datetime.strptime(file["modification_time"], '%Y-%m-%dT%H:%M:%SZ')
+            modification_time = file["modification_time"]
 
             # Create a temporary directory to download the file
             with tempfile.TemporaryDirectory() as temp_dir:
