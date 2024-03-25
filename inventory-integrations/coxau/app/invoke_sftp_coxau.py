@@ -36,7 +36,7 @@ def get_file_modification_time(sftp, file_name):
     return modification_time
 
 
-def list_and_filer(sftp, folder_name, active_dealers, last_modified_time):
+def list_and_filter(sftp, folder_name, active_dealers, last_modified_time):
     """List and filter files in the folder."""
     files = sftp.listdir(folder_name)
     logger.info(f"Files in the folder: {files}")
@@ -92,7 +92,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         # List files in the folder
         folder_name = "coxau/"
-        files = list_and_filer(sftp_conn, folder_name, active_dealers, last_modified_time)
+        files = list_and_filter(sftp_conn, folder_name, active_dealers, last_modified_time)
 
         sftp_conn.close()
 
