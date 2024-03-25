@@ -28,7 +28,7 @@ sm_client = boto3.client("secretsmanager")
 
 
 def proccess_and_upload_to_sftp(icc_formatted_inventory, product_dealer_id, secret_key) -> None:
-    """Upload to ftp server."""
+    """Upload to sftp server."""
     # Set DealerId to match product expected DealerId
     icc_formatted_inventory["DealerId"] = product_dealer_id
 
@@ -175,10 +175,10 @@ def record_handler(record: SQSRecord) -> None:
         body = loads(record['body'])
         bucket = body["Records"][0]["s3"]["bucket"]["name"]
         key = body["Records"][0]["s3"]["object"]["key"]
-        impel_dealer_id = key.split('/')[-1].split('.')[0]
+        provider_dealer_id = key.split('/')[-1].split('.')[0]
         integration = key.split('/')[1]
 
-        logger.info(f"Impel dealer id: {impel_dealer_id}")
+        logger.info(f"Provider dealer id: {provider_dealer_id}")
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = loads(response['Body'].read())
@@ -189,12 +189,12 @@ def record_handler(record: SQSRecord) -> None:
 
         # Query RDS database for dealer SFTP info for merch and AI
         rds_instance_obj = RDSInstance()
-        ftp_data = rds_instance_obj.select_db_dealer_sftp_details(impel_dealer_id)
-        logger.info(f"Dealer FTP details: {ftp_data}")
-        if not ftp_data:
-            logger.error(f"No FTP data found for dealer: {impel_dealer_id}")
+        sftp_data = rds_instance_obj.select_db_dealer_sftp_details(provider_dealer_id)
+        logger.info(f"Dealer SFTP details: {sftp_data}")
+        if not sftp_data:
+            logger.error(f"No SFTP data found for dealer: {provider_dealer_id}")
             raise
-        merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = ftp_data[0]
+        merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = sftp_data[0]
 
         # Save ICC formatted inventory to S3
         csv_content = icc_formatted_inventory.to_csv(index=False)
@@ -206,9 +206,9 @@ def record_handler(record: SQSRecord) -> None:
             with open(temp_file.name, 'rb') as file:
                 csv_bytes = BytesIO(file.read())
 
-            upload_to_s3(csv_bytes, f"{impel_dealer_id}.csv", integration)
+            upload_to_s3(csv_bytes, f"{provider_dealer_id}.csv", integration)
 
-        # Upload to product FTP
+        # Upload to product SFTP
         if merch_is_active:
             logger.info(f"Uploading to Merch SFTP: {merch_dealer_id}")
             proccess_and_upload_to_sftp(icc_formatted_inventory, merch_dealer_id, MERCH_SFTP_KEY)
@@ -218,7 +218,7 @@ def record_handler(record: SQSRecord) -> None:
             proccess_and_upload_to_sftp(icc_formatted_inventory, salesai_dealer_id, SALESAI_SFTP_KEY)
 
         if not merch_is_active and not salesai_is_active:
-            logger.error(f"No active FTP found for dealer: {impel_dealer_id}")
+            logger.error(f"No active SFTP found for dealer: {provider_dealer_id}")
             raise
 
     except Exception:
@@ -227,7 +227,7 @@ def record_handler(record: SQSRecord) -> None:
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """Convert to ICC format and syndication to product FTPs."""
+    """Convert to ICC format and syndication to product SFTPs."""
     logger.info(f"Event: {event}")
 
     try:
