@@ -252,7 +252,8 @@ CREATE TABLE stage.inv_inventory (
     engine VARCHAR(255) NULL,
     engine_displacement VARCHAR(255) NULL,
     factory_certified BOOLEAN NULL,
-    metadata jsonb NULL
+    metadata jsonb NULL,
+    received_datetime timestamptz NULL
 );
 
 -- Create a trigger on inv_inventory table that fires on INSERT
