@@ -1,18 +1,15 @@
-import logging
-from os import environ
-from uuid import uuid4
-
 import boto3
+import logging
+from datetime import datetime
+from os import environ
 import pandas as pd
 from rds_instance import RDSInstance
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-IS_PROD = environ.get("IS_PROD") == "1"
-INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
-
 s3_client = boto3.client("s3")
+
+INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
 MANY_TO_X_TABLES = ["inv_options"]
@@ -30,9 +27,10 @@ IGNORE_POSSIBLE_COLUMNS = [
     "db_update_user",
 ]
 
+
 def validate_unified_df_columns(df):
     """Validate unified DF format."""
-    rds_instance = RDSInstance(IS_PROD)
+    rds_instance = RDSInstance()
     unified_column_names = rds_instance.get_unified_column_names()
     df_table_names = set()
     df_col_names = set()
@@ -90,22 +88,21 @@ def convert_unified_df(json_list):
     return df
 
 
-def upload_unified_json(json_list, source_s3_uri):
+def upload_unified_json(json_list, provider_dealer_id):
     """Upload dataframe to unified s3 path for insertion."""
-    upload_year = source_s3_uri.split("/")[2]
-    upload_month = source_s3_uri.split("/")[3]
-    upload_date = source_s3_uri.split("/")[4]
+    format_string = '%Y/%m/%d/%H'
+    date_key = datetime.utcnow().strftime(format_string)
+    s3_key = f"unified/coxau/{date_key}/{provider_dealer_id}.json"
+
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)
-        json_str = df.to_json(orient="records")
-        original_file = source_s3_uri.split("/")[-1]
-        new_file = original_file.replace(".csv", ".json")
-        partition_path = f"{upload_year}/{upload_month}/{upload_date}"
-        s3_key = f"unified/coxau/{partition_path}/{new_file}"
+
         s3_client.put_object(
-            Bucket=INVENTORY_BUCKET, Key=s3_key, Body=json_str
+            Bucket=INVENTORY_BUCKET,
+            Key=s3_key,
+            Body=df.to_json(orient="records")
         )
-        logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
+        logger.info(f"Uploaded {len(df)} rows for {provider_dealer_id} to {s3_key}")
     else:
-        logger.info(f"No data uploaded for {source_s3_uri}")
+        logger.info(f"No data uploaded for {provider_dealer_id}")

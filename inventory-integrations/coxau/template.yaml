@@ -136,8 +136,8 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource: 
-                  - !GetAtt CoxAuFormatINVQueue.Arn
-                  - !GetAtt CoxAuFormatINVDLQ.Arn
+                  - !GetAtt FormatINVInsertQueue.Arn
+                  - !GetAtt FormatINVInsertDeadLetterQueue.Arn
                   - !GetAtt DownloadSFTPFilesQueue.Arn
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
@@ -186,7 +186,7 @@ Resources:
       Handler: invoke_sftp_coxau.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Timeout: 30
-      MemorySize: 128
+      MemorySize: 512
       Environment:
         Variables:
           DOWNLOAD_QUEUE_URL: !GetAtt DownloadSFTPFilesQueue.QueueUrl
@@ -298,14 +298,14 @@ Resources:
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt DownloadSFTPFiles.Arn
 
-  InvokeSFTPFilesCoxAUScheduleRule:
+  InvokeSFTPFilesScheduleRule:
     Type: AWS::Events::Rule
     Properties:
       Description: "Invoke SFTP Cox AU every hour"
       ScheduleExpression: "cron(0 */1 * * ? *)"
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
-        - Arn: !GetAtt InvokeSFTPFilesCoxAU.Arn
+        - Arn: !GetAtt InvokeSFTPFiles.Arn
           Id: "invoke_sftp_coxau_scheduled"
   
   InvokeSFTPFilesScheduleLambdaPermission:
@@ -355,15 +355,15 @@ Resources:
       TreatMissingData: notBreaching
 
   CoxAuFormatINVTopicSubscription:
-      Type: AWS::SNS::Subscription
-      Properties:
-        Protocol: sqs
-        RawMessageDelivery: true
-        TopicArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
-        Endpoint: !GetAtt FormatINVInsertQueue.Arn
-        FilterPolicyScope: MessageBody
-        FilterPolicy:
-          '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
+      Endpoint: !GetAtt FormatINVInsertQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
  
   FormatINVInsertQueuePolicy:
     Type: AWS::SQS::QueuePolicy

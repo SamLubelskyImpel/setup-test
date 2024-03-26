@@ -1,7 +1,6 @@
 import logging
 from json import loads
 from os import environ
-
 import boto3
 import psycopg2
 

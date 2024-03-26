@@ -3,7 +3,7 @@ import logging
 import os
 import boto3
 import csv
-import re
+from datetime import datetime
 from io import StringIO
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
 import urllib.parse
@@ -14,15 +14,52 @@ logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client('s3')
 
+FIELD_MAPPINGS = {
+    "inv_vehicle": {
+        "vin": "VIN",
+        "oem_name": "Make",
+        "type": "Body",
+        "mileage": "Odometer",
+        "make": "Make",
+        "model": "Model",
+        "year": "ManuYear",
+        "stock_num": "StockNo",
+    },
+    "inv_dealer_integration_partner": {
+        "provider_dealer_id": "DealerID",
+    },
+    "inv_inventory": {
+        "list_price": "AdvertisedPrice",
+        "fuel_type": "FuelType",
+        "exterior_color": "BodyColour",
+        "interior_color": "TrimColour",
+        "doors": "Doors",
+        "seats": "Seats",
+        "transmission": "Gearbox",
+        "photo_url": "PhotoURL",
+        "comments": "Comments",
+        "drive_train": "DriveType",
+        "cylinders": "Cylinders",
+        "body_style": "Body",
+        "series": "Series",
+        "vin": "VIN",
+        "interior_material": "TrimColour",
+        "source_data_drive_train": "DriveType",
+        "trim": "Badge",
+        "source_data_interior_material_description": "TrimColour",
+    },
+    "inv_options.inv_options": {
+        "option_description": "RedbookCode",
+    },
+}
 
 
-def transform_csv_to_entries(csv_content, mapping, s3_uri):
+def transform_csv_to_entries(csv_content, received_datetime, s3_uri):
     """
     Transform CSV content to a list of JSON-formatted entries.
 
     Args:
         csv_content (str): The contents of a CSV file.
-        mapping (dict): A dictionary defining how CSV column names map to database field names.
 
     Returns:
         list: A list of dictionaries, where each dictionary is an entry ready to be converted to JSON.
@@ -33,25 +70,25 @@ def transform_csv_to_entries(csv_content, mapping, s3_uri):
 
     for row in reader:
         entry = {}
-        options = [] 
+        options = []
 
-        for table, table_mapping in mapping.items():
+        for table, table_mapping in FIELD_MAPPINGS.items():
             if table != "inv_options.inv_options":  # Handle options separately
                 entry[table] = {}
                 for impel_field, cox_au_field in table_mapping.items():
                     entry[table][impel_field] = row.get(cox_au_field, None)
             else:
-                 # Split the RedbookCode string on pipe delimiter and skip the first entry
+                # Split the RedbookCode string on pipe delimiter and skip the first entry
                 option_descriptions = row.get('RedbookCode', '').split('|')[1:]  # Skip the Redbook code itself
                 options = [{"inv_option|option_description": desc.strip(), "inv_option|is_priority": False}
                            for desc in option_descriptions if desc.strip()]
 
-        entry = process_entry(entry, s3_uri, options)
+        entry = process_entry(entry, received_datetime, s3_uri, options)
         entries.append(entry)
     return entries
-    
 
-def process_entry(entry, source_s3_uri, options):
+
+def process_entry(entry, received_datetime, source_s3_uri, options):
     """
     Process and possibly modify an entry before it's added to the final list
 
@@ -62,15 +99,6 @@ def process_entry(entry, source_s3_uri, options):
     Returns:
         dict: The processed entry.
     """
-    # Assumes the filename is the last part of the source_s3_uri after a slash (/)
-    filename = source_s3_uri.split('/')[-1]
-    datetime_match = re.search(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z', filename)
-    if datetime_match:
-        received_datetime = datetime_match.group(0)
-    else:
-        #  We need to ensure that we always have a datetime since the load layer depends on it.
-        received_datetime = "Unknown"
-
     metadata = dumps(source_s3_uri)
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
@@ -78,62 +106,33 @@ def process_entry(entry, source_s3_uri, options):
         entry['inv_inventory']['on_lot'] = True
         entry['inv_inventory']['received_datetime'] = received_datetime
 
-    if options:
-        entry['inv_options.inv_options'] = options
+    entry['inv_options.inv_options'] = options if options else []
     return entry
+
 
 def record_handler(record):
     """Process each record in the batch."""
-    mappings = {
-        "inv_vehicle": {
-            "vin": "VIN",
-            "oem_name": "Make",
-            "type": "Body",
-            "mileage": "Odometer",
-            "make": "Make",
-            "model": "Model",
-            "year": "ManuYear",
-            "stock_num": "StockNo",
-        },
-        "inv_dealer_integration_partner": {
-            "provider_dealer_id": "DealerID",
-        },
-        "inv_inventory": {
-            "list_price": "AdvertisedPrice",
-            "fuel_type": "FuelType",
-            "exterior_color": "BodyColour",
-            "interior_color": "TrimColour",
-            "doors": "Doors",
-            "seats": "Seats",
-            "transmission": "Gearbox",
-            "photo_url": "PhotoURL",
-            "comments": "Comments",
-            "drive_train": "DriveType",
-            "cylinders": "Cylinders",
-            "body_style": "Body",
-            "series": "Series",  
-            "vin": "VIN",
-            "interior_material": "TrimColour",
-            "source_data_drive_train": "DriveType",
-            "trim": "Badge",
-            "source_data_interior_material_description": "TrimColour",
-        },
-        "inv_options.inv_options": {
-            "option_description": "RedbookCode",
-        },
-    }
     try:
         body = json.loads(record.body)
         bucket_name = body['Records'][0]['s3']['bucket']['name']
         file_key = body['Records'][0]['s3']['object']['key']
         decoded_key = urllib.parse.unquote(file_key)
-        csv_object = s3_client.get_object(Bucket=bucket_name, Key=decoded_key)
+
+        csv_object = s3_client.get_object(
+            Bucket=bucket_name,
+            Key=decoded_key
+        )
         csv_content = csv_object['Body'].read().decode('utf-8')
-        entries = transform_csv_to_entries(csv_content, mappings, decoded_key)
-        upload_unified_json(entries, decoded_key)
+        provider_dealer_id, received_time = decoded_key.split('/')[-1].rsplit('.')[0].rsplit('_', 1)
+        received_datetime = datetime.fromtimestamp(int(received_time)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        logger.info(f"Product dealer id: {provider_dealer_id}, Received time: {received_datetime}")
+
+        entries = transform_csv_to_entries(csv_content, received_datetime, decoded_key)
+        upload_unified_json(entries, provider_dealer_id)
     except Exception as e:
         logger.error(f"Error transforming csv to json - {record}: {e}")
         raise
+
 
 def lambda_handler(event, context):
     """Lambda function entry point for processing SQS messages."""

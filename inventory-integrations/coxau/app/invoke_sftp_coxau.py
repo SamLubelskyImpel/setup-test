@@ -65,7 +65,7 @@ def list_and_filter(sftp, folder_name, active_dealers, last_modified_time):
 
         to_download.append({
             "file_name": file,
-            "modification_time": modification_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+            "modification_time": int(modification_time.timestamp())
         })
 
     logger.info(f"Ignoring files: {to_ignore}")
