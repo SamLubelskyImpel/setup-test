@@ -40,7 +40,7 @@ def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
 def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
-        s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+        s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
         queue_url = loads(
             s3_client.get_object(
                 Bucket=INTEGRATIONS_BUCKET,

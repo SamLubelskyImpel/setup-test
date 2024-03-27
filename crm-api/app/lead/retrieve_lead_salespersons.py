@@ -22,7 +22,7 @@ lambda_client = boto3.client("lambda")
 
 def get_lambda_arn(partner_name: str) -> Any:
     """Get lambda ARN from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
     try:
         s3_object = loads(
                 s3_client.get_object(
@@ -84,6 +84,7 @@ def get_salespersons_from_db(lead_id: str) -> Any:
                 Lead_Salesperson,
                 Salesperson.id == Lead_Salesperson.salesperson_id,
             ).filter(Lead_Salesperson.lead_id == lead_id)\
+            .order_by(Lead_Salesperson.is_primary.asc())\
             .all()
 
         for salesperson, is_primary in salespersons_db:

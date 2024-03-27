@@ -54,7 +54,7 @@ def get_dealers(integration_partner_name: str) -> Any:
 
 def send_dealer_event(partner_name: str, dealers: list, start_time: str, end_time: str) -> Any:
     """Send dealer event to invoke data pull."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
     try:
         queue_url = loads(
             s3_client.get_object(

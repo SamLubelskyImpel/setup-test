@@ -48,7 +48,7 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None) -> 
 
 def get_mapped_status(event_id: str, partner_name: str) -> Any:
     """Get mapped lead status from S3."""
-    s3_key = f"configurations/{ENVIRONMENT}_{partner_name.upper()}.json"
+    s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
     try:
         s3_object = json.loads(
                 s3_client.get_object(
@@ -279,6 +279,26 @@ def is_historical_lead(crm_lead_id: str, crm_dealer_id: str) -> bool:
         raise
 
 
+def is_non_internet_lead(crm_lead_id: str, crm_dealer_id: str) -> bool:
+    """Check if the lead is a non-internet lead."""
+    s3_key = f"configurations/reyrey_crm/ignore/{crm_dealer_id}.json"
+    try:
+        s3_object = json.loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )
+        non_internet_leads = s3_object.get("non_internet_leads", [])
+        return crm_lead_id in non_internet_leads
+    except s3_client.exceptions.NoSuchKey:
+        logger.info(f"Non Internet leads data for this dealer_id does not exist: {s3_key}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to check if lead is non-internet. Partner: REYREY_CRM, Error: {str(e)}")
+        raise
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -329,6 +349,10 @@ def record_handler(record: SQSRecord) -> None:
 
         if is_historical_lead(crm_lead_id, crm_dealer_id):
             logger.info(f"CRM Lead ID: {crm_lead_id} is a historical lead. Skipping.")
+            return
+
+        if is_non_internet_lead(crm_lead_id, crm_dealer_id):
+            logger.info(f"CRM Lead ID: {crm_lead_id} is a non-internet lead. Skipping.")
             return
 
         crm_consumer_id = identifier.find(".//ns:NameRecId", namespaces=ns)  # type: ignore

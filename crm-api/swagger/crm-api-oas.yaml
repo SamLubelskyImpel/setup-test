@@ -1067,6 +1067,27 @@ components:
             description: Comments about the vehicle
             maxLength: 5000
             example: Has a scratch
+          trade_in_vin:
+            type: string
+            description: VIN of the trade-in vehicle
+            maxLength: 20
+            example: "1HGBH41JXMN109186"
+          trade_in_year:
+            type: number
+            description: The sales model year of the trade-in vehicle
+            minimum: 1800
+            maximum: 3000
+            example: 2021
+          trade_in_make:
+            type: string
+            description: The brand or make of the trade-in vehicle
+            maxLength: 80
+            example: Ford
+          trade_in_model:
+            type: string
+            description: The model name of the trade-in vehicle
+            maxLength: 80
+            example: F-150
     Consumer:
       description: An object containing all information about a person interested in a vehicle
       type: object
@@ -1165,6 +1186,12 @@ components:
           minLength: 1
           maxLength: 100
           example: cars.com
+        lead_source_detail:
+          type: string
+          description: The specific detail about the lead source.
+          minLength: 1
+          maxLength: 100
+          example: "Inventory Leads Website"
         vehicles_of_interest:
           $ref: '#/components/schemas/VehiclesOfInterest'
     Salesperson:

@@ -156,6 +156,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 comment=body["lead_comment"],
                 origin_channel=body["lead_origin"],
                 source_channel=body["lead_source"],
+                source_detail=body.get("lead_source_detail"),
                 crm_lead_id=crm_lead_id,
                 request_product=request_product,
                 lead_ts=lead_ts,
@@ -188,7 +189,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     condition=vehicle.get("condition"),
                     odometer_units=vehicle.get("odometer_units"),
                     vehicle_comments=vehicle.get("vehicle_comments"),
-                    crm_vehicle_id=vehicle.get("crm_vehicle_id")
+                    crm_vehicle_id=vehicle.get("crm_vehicle_id"),
+                    trade_in_vin=vehicle.get("trade_in_vin"),
+                    trade_in_year=vehicle.get("trade_in_year"),
+                    trade_in_make=vehicle.get("trade_in_make"),
+                    trade_in_model=vehicle.get("trade_in_model")
                 )
                 lead.vehicles.append(vehicle)
 

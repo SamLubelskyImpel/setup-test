@@ -76,7 +76,7 @@ def parse_salesperson(lead: dict):
 
 def send_sqs_message(message_body: dict):
     """Send SQS message."""
-    s3_key = f"configurations/{ENVIRONMENT}_DEALERPEAK.json"
+    s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_DEALERPEAK.json"
     try:
         queue_url = loads(
             s3_client.get_object(
