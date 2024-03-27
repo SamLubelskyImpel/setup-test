@@ -25,9 +25,7 @@ def parse_csv_to_entries(df, s3_uri):
     """Format sidekick csv data to unified format."""
     entries = []
     entries_lookup = {}
-    num_rows = len(df)
-    logger.info(f"Number of rows: {num_rows}")
-
+    df.columns = df.columns.str.strip()
     db_metadata = {
         "Region": REGION,
         "PartitionYear": s3_uri.split("/")[4],
@@ -38,7 +36,6 @@ def parse_csv_to_entries(df, s3_uri):
 
     for index, row in df.iterrows():
         repair_order_no = row['RO ID']
-        logger.info(f"Processing repair order {repair_order_no}")
         db_dealer_integration_partner = {}
         db_service_repair_order = {}
         db_vehicle = {}
@@ -77,7 +74,7 @@ def parse_csv_to_entries(df, s3_uri):
             db_consumer["email"] = row.get('Customer Email')
             db_consumer["city"] = row.get('Customer City')
             db_consumer["state"] = row.get('Customer State')
-            db_consumer["postal_code"] = row.get('Customer Zip')
+            db_consumer["postal_code"] = int(pd.to_numeric(row.get('Customer Zip'), errors='coerce')) if pd.notnull(row.get('Customer Zip')) else None
 
             phone_patterns = r'(?P<Cell>Cell:(\d+))?.*?(?P<Home>Home:(\d+))?.*?(?P<Work>Work:(\d+))?'
 
@@ -95,12 +92,13 @@ def parse_csv_to_entries(df, s3_uri):
             db_vehicle["vin"] = row.get('Vehicle VIN')
             db_vehicle["make"] = row.get('Vehicle Make')
             db_vehicle["model"] = row.get('Vehicle Model')
-            year = row.get('Vehicle Year')
+            year = int(pd.to_numeric(row.get('Vehicle Year'), errors='coerce')) if pd.notnull(row.get('Vehicle Year')) else None
             mileage = row.get('Vehicle Mileage')
             db_vehicle["year"] = year
             db_vehicle["mileage"] = mileage
-            current_year = datetime.now().year
-            db_vehicle["new_or_used"] = 'U' if mileage > 3000 and year < current_year else 'N'
+            if mileage and year:
+                current_year = datetime.now().year
+                db_vehicle["new_or_used"] = 'U' if mileage > 3000 and year < current_year else 'N'
 
             # add new opcode
             db_op_code = {

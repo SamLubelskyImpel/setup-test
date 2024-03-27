@@ -86,9 +86,9 @@ def convert_unified_df(json_list):
 
 def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
     """Upload dataframe to unified s3 path for insertion."""
-    upload_year = source_s3_uri.split("/")[2]
-    upload_month = source_s3_uri.split("/")[3]
-    upload_date = source_s3_uri.split("/")[4]
+    upload_year = source_s3_uri.split("/")[4]
+    upload_month = source_s3_uri.split("/")[5]
+    upload_date = source_s3_uri.split("/")[6]
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)
@@ -97,7 +97,7 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
         parquet_name = f"{original_file}_{str(uuid4())}.json"
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
-        s3_key = f"unified/{integration_type}/tekion/{dealer_integration_path}/{partition_path}/{parquet_name}"
+        s3_key = f"unified/{integration_type}/sidekick/{dealer_integration_path}/{partition_path}/{parquet_name}"
         s3_client.put_object(
             Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
         )
