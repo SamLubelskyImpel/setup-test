@@ -198,7 +198,6 @@ Resources:
       QueueName: CoxAuUnifiedINVDLQ
       MessageRetentionPeriod: 1209600
 
-#  THIS NEEDS TO BE REVIEWED SO THAT WE DONT HAVE TO DUPOLICATE THE CODE
   CoxAuFormatINVDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -211,6 +210,27 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt CoxAuFormatINVDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  CoxAuUnifiedINVDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub coxau-inv-${Environment}-unifiedQueueDLQ
+      AlarmDescription: There are messages in the CoxAuUnifiedINVDLQAlarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CoxAuUnifiedINVDLQ.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
