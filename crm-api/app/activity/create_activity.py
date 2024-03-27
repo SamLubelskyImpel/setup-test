@@ -5,6 +5,7 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 import boto3
+import botocore.exceptions
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -52,6 +53,11 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
             MessageBody=dumps(payload)
         )
         logger.info(f"Sent activity {payload['activity_id']} to CRM")
+
+    except botocore.exceptions.ClientError as e:
+        logger.error(f"Error retrieving configuration file for {partner_name}")
+        send_alert_notification(payload['activity_id'], e)
+
     except Exception as e:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)

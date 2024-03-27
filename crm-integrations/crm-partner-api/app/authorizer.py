@@ -1,4 +1,4 @@
-"""Authorize requests to the reyrey crm api gateway."""
+"""Authorize requests to the crm partner api gateway."""
 import json
 import logging
 import os
