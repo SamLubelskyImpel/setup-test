@@ -4,7 +4,6 @@ import logging
 import boto3
 from ftplib import FTP, error_perm, error_temp
 
-# Setup basic logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class FtpToS3:
                 filtered_csv_content = output_string_buffer.getvalue().encode('utf-8')
                 filtered_csv = io.BytesIO(filtered_csv_content)
                 # Ensure the S3 key has a .csv extension
-                s3_key = f"sidekick/{parent_store}/{child_store}/{date_path}/{filename}"
+                s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
 
                 # Upload directly from the filtered buffer to S3
                 self.s3_client.upload_fileobj(

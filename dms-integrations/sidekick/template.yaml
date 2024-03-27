@@ -124,7 +124,7 @@ Resources:
           Properties:
             Description: Start the daily data pull for each sidekick dealer.
             Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 3 * * ? *)
+            Schedule: cron(0 8 * * ? *)
             Input: '{"frequency": "daily"}'
 
   RepairOrderFunction:
@@ -174,3 +174,131 @@ Resources:
           Properties:
             Enabled: True
             Queue: !GetAtt RepairOrderQueue.Arn
+
+  RepairOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: SidekickRepairOrderDLQAlarm
+      AlarmDescription: There are messages in the Sidekick repair order DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt RepairOrderDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+  
+  SidekickFormatRODLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SidekickFormatRODLQ
+
+  SidekickFormatROQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: SidekickFormatRODLQ
+    Properties:
+      QueueName: SidekcikFormatROQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SidekickFormatRODLQ.Arn
+        maxReceiveCount: 5
+
+  SidekickFormatROQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt SidekickFormatROQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"sidekick/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  SidekickFormatROQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SidekickFormatROQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: SidekickFormatROQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt SidekickFormatROQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  SidekickFormatROInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Format Sidekick RO data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: repair_order_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt SidekickFormatROQueue.Arn
+
+  SidekickFormatRODLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub SidekickFormatRODLQ-${Environment}
+      AlarmDescription: Messages are in the Sidekick format RO lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SidekickFormatRODLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching

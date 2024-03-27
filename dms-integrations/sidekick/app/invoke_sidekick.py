@@ -14,7 +14,6 @@ SQS_CLIENT = boto3.client("sqs")
 REPAIR_ORDER_QUEUE = environ.get("REPAIR_ORDER_QUEUE")
 
 
-
 def send_to_queue(queue_url, dealer_id, end_dt_str):
     """Call SQS queue to invoke API call for specific dealer."""
     data = {
@@ -31,7 +30,8 @@ def send_to_queue(queue_url, dealer_id, end_dt_str):
 def lambda_handler(event, context):
     """Invoke Scheduled Sidekick."""
     try:
-        end_dt_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        # end_dt_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        end_dt_str = "2024-03-19T00:00:00"
         dms_wrapper = ApiWrapper()
         all_dealer_info = dms_wrapper.get_integration_dealers("sidekick")
         for dealer_info in all_dealer_info:
@@ -42,6 +42,6 @@ def lambda_handler(event, context):
                     end_dt_str,
                 )
     except Exception:
-            logger.exception(f"Error invoking sidekick {event}")
-            raise
+        logger.exception(f"Error invoking sidekick {event}")
+        raise
 
