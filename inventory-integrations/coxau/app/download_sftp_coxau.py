@@ -22,8 +22,12 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
-def download_and_process_file(sftp, remote_file_path, local_folder, modification_time):
+def download_and_process_file(sftp, file, local_folder):
     """Download and process a file from the SFTP server."""
+    provider_dealer_id = file["provider_dealer_id"]
+    remote_file_path = file["file_name"]
+    modification_time = file["modification_time"]
+
     # Change to the local folder where you want to save the file
     os.chdir(local_folder)
 
@@ -33,17 +37,16 @@ def download_and_process_file(sftp, remote_file_path, local_folder, modification
 
     logger.info(f"File {local_file_name} downloaded successfully.")
 
-    upload_to_s3(local_file_name, remote_file_path, modification_time)
+    upload_to_s3(local_file_name, provider_dealer_id, modification_time)
 
     os.remove(local_file_name)
 
 
-def upload_to_s3(local_filename, filename, modification_time):
+def upload_to_s3(local_filename, provider_dealer_id, modification_time):
     """Upload files to S3."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.utcnow().strftime(format_string)
-    base_name, extension = filename.rsplit('.', 1)
-    s3_file_name = f"{base_name}_{modification_time}.{extension}"
+    s3_file_name = f"{provider_dealer_id}_{modification_time}.csv"
 
     s3_key = f"raw/coxau/{date_key}/{s3_file_name}"
     s3_client.upload_file(
@@ -76,13 +79,10 @@ def record_handler(record: SQSRecord) -> Any:
 
         # Process files one by one
         for file in files:
-            remote_file_path = file["file_name"]
-            modification_time = file["modification_time"]
-
             # Create a temporary directory to download the file
             with tempfile.TemporaryDirectory() as temp_dir:
                 # Download and process the file
-                download_and_process_file(sftp_conn, remote_file_path, temp_dir, modification_time)
+                download_and_process_file(sftp_conn, file, temp_dir)
 
         sftp_conn.close()
 

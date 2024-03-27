@@ -41,36 +41,49 @@ def list_and_filter(sftp, folder_name, active_dealers, last_modified_time):
     files = sftp.listdir(folder_name)
     logger.info(f"Files in the folder: {files}")
 
-    to_ignore = []
-    to_download = []
+    # Filename format: {dealer_id}_Inventory_{timestamp}.csv
+    selected_files = {}
     for file in files:
+        # Filter files by active dealers
         try:
+            dealer_id = file.split('_')[0]
             file_name, extension = file.rsplit('.', 1)
             if extension != "csv":
-                raise
+                logger.warning(f"Invalid file extension: {file}")
+                continue
         except Exception:
             logger.warning(f"Invalid file name: {file}")
-            to_ignore.append(file)
             continue
 
-        if file_name not in active_dealers:
-            to_ignore.append(file)
+        if dealer_id not in active_dealers:
             continue
 
+        # Filter files modified before the last_modified_time
         modification_time = get_file_modification_time(sftp, folder_name + file)
         logger.info(f"File {file} was last modified on {modification_time}")
+
         if modification_time < last_modified_time:
-            to_ignore.append(file)
             continue
 
-        to_download.append({
-            "file_name": file,
-            "modification_time": int(modification_time.timestamp())
-        })
+        # Select most recent file for each dealer
+        if dealer_id in selected_files:
+            if selected_files[dealer_id]["modification_time"] < int(modification_time.timestamp()):
+                selected_files[dealer_id] = {
+                    "provider_dealer_id": dealer_id,
+                    "modification_time": int(modification_time.timestamp()),
+                    "file_name": file
+                }
+        else:
+            selected_files[dealer_id] = {
+                "provider_dealer_id": dealer_id,
+                "modification_time": int(modification_time.timestamp()),
+                "file_name": file
+            }
 
-    logger.info(f"Ignoring files: {to_ignore}")
-    logger.info(f"Files to download: {to_download}")
-    return to_download
+    # Extract the selected files from the selected_files dictionary
+    selected_files_list = list(selected_files.values())
+    logger.info(f"Selected files: {selected_files_list}")
+    return selected_files_list
 
 
 def lambda_handler(event: Any, context: Any) -> Any:

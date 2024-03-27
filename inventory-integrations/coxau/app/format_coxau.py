@@ -125,7 +125,7 @@ def record_handler(record):
         csv_content = csv_object['Body'].read().decode('utf-8')
         provider_dealer_id, received_time = decoded_key.split('/')[-1].rsplit('.')[0].rsplit('_', 1)
         received_datetime = datetime.fromtimestamp(int(received_time)).strftime('%Y-%m-%dT%H:%M:%SZ')
-        logger.info(f"Product dealer id: {provider_dealer_id}, Received time: {received_datetime}")
+        logger.info(f"Provider dealer id: {provider_dealer_id}, Received time: {received_datetime}")
 
         entries = transform_csv_to_entries(csv_content, received_datetime, decoded_key)
         upload_unified_json(entries, provider_dealer_id)
