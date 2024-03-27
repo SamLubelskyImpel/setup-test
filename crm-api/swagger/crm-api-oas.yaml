@@ -110,7 +110,7 @@ paths:
                       description: Metadata for a lead
                       type: object
                       additionalProperties: true
-                      example: {"crmLeadStatus": "Active"}
+                      example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
     get:
       operationId: get-leads
       summary: Retrieve a list of all leads for a given dealer id.
