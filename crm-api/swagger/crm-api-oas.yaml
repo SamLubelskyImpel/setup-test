@@ -1177,7 +1177,7 @@ components:
         lead_origin:
           type: string
           description: The first point of contact or channel through which the lead is generated
-          enum: [INTERNET, CALL, WALK-IN, OTHER]
+          enum: [INTERNET, CALL, WALK-IN, THIRD PARTY, OTHER]
           example: "INTERNET"
           maxLength: 50
         lead_source:

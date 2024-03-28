@@ -159,14 +159,24 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {}
             db_salesperson = {}
 
+            lead_origin = item.get('source', {}).get('source', '')
+            if lead_origin not in ['Internet', 'Third Party']:
+                logger.info(f"Skipping lead with origin: {lead_origin}")
+                continue
+
             db_lead["crm_lead_id"] = item.get('leadID', '')
             db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
             db_lead["lead_status"] = item.get('status', {}).get('status', '')
             db_lead["lead_substatus"] = ''
             db_lead["lead_comment"] = item.get('firstNote', {}).get('note', '')
-            db_lead["lead_source"] = item.get('source', {}).get('source', '')
-            db_lead["lead_origin"] = ''
+            db_lead["lead_origin"] = lead_origin.upper()
 
+            provider_name = (
+                item.get('costItem', {}).get('provider', {}).get('provider') or
+                item.get('manufacturer', {}).get('name')
+            )
+
+            db_lead["lead_source"] = provider_name if provider_name else None
             vehicles = item.get('vehiclesOfInterest', [])
             for vehicle in vehicles:
                 is_new = vehicle.get("isNew")
