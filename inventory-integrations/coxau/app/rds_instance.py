@@ -117,23 +117,54 @@ class RDSInstance:
             logger.error(f"Error during database query: {e}")
             raise
 
+    # def update_dealers_other_vehicles(self, dealer_integration_partner_id, current_feed_inventory_ids):
+    #     """Ensure only the latest inventory records for each vehicle associated with the dealer are marked on_lot = true."""
+    #     try:
+    #         with self.rds_connection.cursor() as cursor:
+    #             # Set on_lot to false for older records not related to the latest feed
+    #             update_query = f"""
+    #             UPDATE {self.schema}.inv_inventory
+    #             SET on_lot = FALSE
+    #             WHERE dealer_integration_partner_id = %s
+    #             AND id NOT IN %s
+    #             AND on_lot = TRUE;
+    #             """
+    #             cursor.execute(update_query, (dealer_integration_partner_id, tuple(current_feed_inventory_ids)))
+    #             self.rds_connection.commit()
+
+    #     except Exception as e:
+    #         logger.error(f"Error during the on_lot update for dealer {dealer_integration_partner_id}: {e}")
+    #         self.rds_connection.rollback()
+
     def update_dealers_other_vehicles(self, dealer_integration_partner_id, current_feed_inventory_ids):
-        """Ensure only the latest inventory records for each vehicle associated with the dealer are marked on_lot = true."""
+        """Set on_lot to false for vehicles associated with the dealer not in the current_feed_inventory_ids list, but only if on_lot is currently true."""
         try:
             with self.rds_connection.cursor() as cursor:
-                # Set on_lot to false for older records not related to the latest feed
+                select_query = f"""
+                SELECT id FROM {self.schema}.inv_inventory
+                WHERE dealer_integration_partner_id = %s AND on_lot = TRUE
+                AND id NOT IN %s;
+                """
+                cursor.execute(select_query, (dealer_integration_partner_id, tuple(current_feed_inventory_ids)))
+                records_to_update = cursor.fetchall()
+                records_to_update_ids = [record[0] for record in records_to_update]
+
+                # If there are no records to update, exit early
+                if not records_to_update_ids:
+                    logger.info("No records need updating for on_lot status. Exiting.")
+                    return
+
+                # Step 2: Update those records by setting on_lot to FALSE
                 update_query = f"""
                 UPDATE {self.schema}.inv_inventory
                 SET on_lot = FALSE
-                WHERE dealer_integration_partner_id = %s
-                AND id NOT IN %s
-                AND on_lot = TRUE;
+                WHERE id IN %s;
                 """
-                cursor.execute(update_query, (dealer_integration_partner_id, tuple(current_feed_inventory_ids)))
+                cursor.execute(update_query, (tuple(records_to_update_ids),))
                 self.rds_connection.commit()
-
+        
         except Exception as e:
-            logger.error(f"Error during the on_lot update for dealer {dealer_integration_partner_id}: {e}")
+            logger.error(f"Error updating on_lot status for dealer {dealer_integration_partner_id}: {e}")
             self.rds_connection.rollback()
         
     def check_existing_record(self, table, check_columns, data):
