@@ -122,7 +122,7 @@ def process_and_upload_data(bucket, key):
                     option_ids.append(option_id)
                 rds_instance.link_option_to_inventory(inventory_id, option_ids)
             else:
-                identifier = json_data.get('inv_vehicle|vin', json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
+                identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
                 logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
         
         #  Use dealer_integration_partner_id to update the value of on_lot for vehicles

@@ -117,27 +117,8 @@ class RDSInstance:
             logger.error(f"Error during database query: {e}")
             raise
 
-    # def update_dealers_other_vehicles(self, dealer_integration_partner_id, current_feed_inventory_ids):
-    #     """Ensure only the latest inventory records for each vehicle associated with the dealer are marked on_lot = true."""
-    #     try:
-    #         with self.rds_connection.cursor() as cursor:
-    #             # Set on_lot to false for older records not related to the latest feed
-    #             update_query = f"""
-    #             UPDATE {self.schema}.inv_inventory
-    #             SET on_lot = FALSE
-    #             WHERE dealer_integration_partner_id = %s
-    #             AND id NOT IN %s
-    #             AND on_lot = TRUE;
-    #             """
-    #             cursor.execute(update_query, (dealer_integration_partner_id, tuple(current_feed_inventory_ids)))
-    #             self.rds_connection.commit()
-
-    #     except Exception as e:
-    #         logger.error(f"Error during the on_lot update for dealer {dealer_integration_partner_id}: {e}")
-    #         self.rds_connection.rollback()
-
     def update_dealers_other_vehicles(self, dealer_integration_partner_id, current_feed_inventory_ids):
-        """Set on_lot to false for vehicles associated with the dealer not in the current_feed_inventory_ids list, but only if on_lot is currently true."""
+        """Set the inv_inventory record's on_lot to false for vehicles associated with the dealer not in the current_feed_inventory_ids list, but only if on_lot is currently true."""
         try:
             with self.rds_connection.cursor() as cursor:
                 select_query = f"""
@@ -177,7 +158,7 @@ class RDSInstance:
             cursor.execute(query, values)
             result = cursor.fetchone()
             return result[0] if result else None
-
+ 
     def insert_unique_record(self, table, data, unique_columns):
         """Insert a record if it does not exist, and return its ID."""
         existing_id = self.check_existing_record(table, unique_columns, data)
@@ -197,7 +178,6 @@ class RDSInstance:
         """In effort to not duplicate vehicle records, insert a vehicle record if it doesn't exist based on unique attributes, or return the ID of an existing record."""
         
         unique_columns = ['vin', 'model', 'stock_num'] 
-        # Extract the relevant data for these columns from the vehicle_data
         check_data = {col: vehicle_data.get(col) for col in unique_columns if col in vehicle_data}
 
         existing_vehicle_id = self.check_existing_record(
@@ -211,15 +191,32 @@ class RDSInstance:
         else:
             return self.insert_and_get_id("inv_vehicle", vehicle_data)
 
-
     def insert_inventory_item(self, inventory_data):
-        """Insert an inventory item record and return its ID."""
-        return self.insert_and_get_id("inv_inventory", inventory_data)
+        """Insert an inventory item record if it doesn't exist based on unique attributes, or update the received_datetime if it does."""
+        unique_columns = ['vehicle_id', 'dealer_integration_partner_id']  
+        
+        # Prepare data for checking existing record
+        check_data = {col: inventory_data.get(col) for col in unique_columns if col in inventory_data}
+
+        existing_inventory_id = self.check_existing_record("inv_inventory", list(check_data.keys()), check_data)
+        if existing_inventory_id:
+            update_query = f"""
+            UPDATE {self.schema}.inv_inventory
+            SET received_datetime = %s
+            WHERE id = %s;
+            """
+            with self.rds_connection.cursor() as cursor:
+                cursor.execute(update_query, (inventory_data['received_datetime'], existing_inventory_id))
+                self.rds_connection.commit()
+                logger.info(f"Updated received_datetime for existing inventory record ID: {existing_inventory_id}.")
+            return existing_inventory_id
+        else:
+            return self.insert_and_get_id("inv_inventory", inventory_data)
+
 
     def insert_option(self, option_data):
         """Insert an option record if it does not exist, ensuring no duplicates based on description and priority."""
         try:
-            # Check for an existing option with the same description and priority
             existing_option_id = self.check_existing_record(
                 table="inv_option",
                 check_columns=["option_description", "is_priority"],
@@ -252,5 +249,6 @@ class RDSInstance:
                 with self.rds_connection.cursor() as cursor:
                     cursor.execute(query, (option_id,))
                     result = cursor.fetchone()
-                    option_description, is_priority = result if result else ("N/A", "N/A")
-                    logger.warning(f"Link between inventory ID {inventory_id} and option ID {option_id} already exists, skipping. Option description: '{option_description}', is_priority: {is_priority}")
+                    # uncomment for debugging 
+                    # option_description, is_priority = result if result else ("N/A", "N/A")
+                    # logger.warning(f"Link between inventory ID {inventory_id} and option ID {option_id} already exists, skipping. Option description: '{option_description}', is_priority: {is_priority}")
