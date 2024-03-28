@@ -160,7 +160,7 @@ class AdfCreation:
             raise CRMApiError(f"Error occurred calling CRM API: {e}")
 
 
-    def create_adf_data(self, lead_id, appointment_time=None, add_summary_to_appointment_comment=False):
+    def create_adf_data(self, lead_id, appointment_time=None, add_summary_to_appointment_comment=True):
         """
         Creates ADF data from the given lead ID and appointment time if available.
 
