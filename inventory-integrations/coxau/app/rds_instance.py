@@ -130,7 +130,6 @@ class RDSInstance:
                 AND on_lot = TRUE;
                 """
                 cursor.execute(update_query, (dealer_integration_partner_id, tuple(current_feed_inventory_ids)))
-                updated_rows = cursor.rowcount
                 self.rds_connection.commit()
 
         except Exception as e:
