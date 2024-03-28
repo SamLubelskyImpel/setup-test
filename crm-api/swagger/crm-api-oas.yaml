@@ -176,6 +176,11 @@ paths:
                                     format: date-time
                                     description: The created datetime of the vehicle in the unified CRM layer.
                                     example: "2023-10-16T20:44:12.027184+00:00"
+                        metadata:
+                          description: Metadata for a lead
+                          type: object
+                          additionalProperties: true
+                          example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
                         lead_ts:
                           type: string
                           format: date-time
@@ -264,6 +269,11 @@ paths:
                                   format: date-time
                                   description: The created datetime of the vehicle in the unified CRM layer.
                                   example: "2023-10-16T20:44:12.027184+00:00"
+                      metadata:
+                        description: Metadata for a lead
+                        type: object
+                        additionalProperties: true
+                        example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
                       lead_ts:
                         type: string
                         format: date-time
@@ -329,7 +339,7 @@ paths:
                       description: Metadata for a lead
                       type: object
                       additionalProperties: true
-                      example: {"crmLeadStatus": "Active"}
+                      example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
               
   /leads/{lead_id}/status:
     get:
