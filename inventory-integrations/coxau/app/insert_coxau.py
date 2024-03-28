@@ -104,7 +104,6 @@ def process_and_upload_data(bucket, key):
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
             vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
-            logger.info(vehicle_data)
             vehicle_id = rds_instance.insert_vehicle(vehicle_data)
 
             # Insert inventory data
