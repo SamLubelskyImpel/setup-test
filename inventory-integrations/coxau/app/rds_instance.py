@@ -98,7 +98,6 @@ class RDSInstance:
                 result = cursor.fetchone()
                 # If there's no result, then the database is empty, and the data is new
                 if not result:
-                    logger.info("No existing inventory records found. Incoming data is new.")
                     return True
                 latest_datetime = result[0]
 
@@ -132,7 +131,6 @@ class RDSInstance:
 
                 # If there are no records to update, exit early
                 if not records_to_update_ids:
-                    logger.info("No records need updating for on_lot status. Exiting.")
                     return
 
                 # Step 2: Update those records by setting on_lot to FALSE
@@ -175,40 +173,61 @@ class RDSInstance:
             return result[0] if result else None
 
     def insert_vehicle(self, vehicle_data):
-        """In effort to not duplicate vehicle records, insert a vehicle record if it doesn't exist based on unique attributes, or return the ID of an existing record."""
-        
-        unique_columns = ['vin', 'model', 'stock_num'] 
+        """Insert a vehicle record if it doesn't exist based on unique attributes, or update the existing record if it does."""
+        unique_columns = ['vin', 'model', 'stock_num', 'dealer_integration_partner_id', 'mileage'] 
+        logger.info(vehicle_data)
+
+        # Prepare data for checking existing record
         check_data = {col: vehicle_data.get(col) for col in unique_columns if col in vehicle_data}
 
-        existing_vehicle_id = self.check_existing_record(
-            table="inv_vehicle",
-            check_columns=list(check_data.keys()),
-            data=check_data
-        )
-
+        existing_vehicle_id = self.check_existing_record("inv_vehicle", list(check_data.keys()), check_data)
         if existing_vehicle_id:
+            # Columns to update, excluding unique columns and 'id'
+            update_columns = {'type', 'new_or_used', 'oem_name', 'make', 'year'}
+            set_clause = ', '.join([f"{col} = %s" for col in update_columns if col in vehicle_data])
+            update_query = f"""
+            UPDATE {self.schema}.inv_vehicle
+            SET {set_clause}
+            WHERE id = %s;
+            """
+            update_values = [vehicle_data[col] for col in update_columns if col in vehicle_data]
+            update_values.append(existing_vehicle_id)
+
+            with self.rds_connection.cursor() as cursor:
+                cursor.execute(update_query, update_values)
+                self.rds_connection.commit()
+                # logger.info(f"Updated existing vehicle record ID: {existing_vehicle_id} with new data.")
             return existing_vehicle_id
         else:
             return self.insert_and_get_id("inv_vehicle", vehicle_data)
 
-    def insert_inventory_item(self, inventory_data):
-        """Insert an inventory item record if it doesn't exist based on unique attributes, or update the received_datetime if it does."""
-        unique_columns = ['vehicle_id', 'dealer_integration_partner_id']  
-        
-        # Prepare data for checking existing record
-        check_data = {col: inventory_data.get(col) for col in unique_columns if col in inventory_data}
 
+    def insert_inventory_item(self, inventory_data):
+        """Insert an inventory item record if it doesn't exist based on unique attributes, or update the existing record if it does."""
+        unique_columns = ['vehicle_id', 'dealer_integration_partner_id']
+
+        check_data = {col: inventory_data.get(col) for col in unique_columns if col in inventory_data}
         existing_inventory_id = self.check_existing_record("inv_inventory", list(check_data.keys()), check_data)
         if existing_inventory_id:
+            update_columns = {
+                'list_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
+                'seats', 'transmission', 'drive_train', 'cylinders', 'body_style', 
+                'series', 'vin', 'interior_material', 'trim', 'factory_certified', 
+                'region', 'on_lot', 'metadata', 'received_datetime'
+            }
+            set_clause = ', '.join([f"{col} = %s" for col in update_columns if col in inventory_data])
             update_query = f"""
             UPDATE {self.schema}.inv_inventory
-            SET received_datetime = %s
+            SET {set_clause}
             WHERE id = %s;
             """
+            update_values = [inventory_data[col] for col in update_columns if col in inventory_data]
+            update_values.append(existing_inventory_id)
+
             with self.rds_connection.cursor() as cursor:
-                cursor.execute(update_query, (inventory_data['received_datetime'], existing_inventory_id))
+                cursor.execute(update_query, update_values)
                 self.rds_connection.commit()
-                logger.info(f"Updated received_datetime for existing inventory record ID: {existing_inventory_id}.")
+                # logger.info(f"Updated existing inventory record ID: {existing_inventory_id} with new data.")
             return existing_inventory_id
         else:
             return self.insert_and_get_id("inv_inventory", inventory_data)
