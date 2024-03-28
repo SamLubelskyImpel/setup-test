@@ -9,8 +9,6 @@ SNS_TOPIC_ARN = environ.get('SNS_TOPIC_ARN')
 AWS_REGION = environ.get('AWS_REGION')
 ENVIRONMENT = environ.get("ENVIRONMENT")
 
-sm_client = boto3.client("secretsmanager")
-
 
 def send_email_notification(msg: str):
     """Send a notification message to the 'alert_client_engineering' SNS topic."""
