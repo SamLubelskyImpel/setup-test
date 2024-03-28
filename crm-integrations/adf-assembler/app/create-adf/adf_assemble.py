@@ -37,7 +37,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         adf_integration_config = s3_object.get("adf_integration_config", {})
         integration_type = adf_integration_config.get("adf_integration_type")
-        add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", False)
+        add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", True) # default to True
 
         if integration_type == "EMAIL":
             recipients = adf_integration_config.get("recipients")
