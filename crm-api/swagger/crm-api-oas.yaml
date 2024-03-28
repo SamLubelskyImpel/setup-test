@@ -1113,7 +1113,6 @@ components:
           example: Michael
         email:
           type: string
-          format: email
           description: Consumer primary email address
           maxLength: 50
           example: john.doe@example.com
