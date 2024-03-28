@@ -21,6 +21,16 @@ rds_instance = RDSInstance(IS_PROD)
 
 
 def extract_vehicle_data(json_data):
+    # Attempt to get the year and convert it to an integer if possible
+    #  There was an entry whose year was an empty string, so we need to handle this case
+    year_value = json_data.get('inv_vehicle|year')
+    try:
+        # Only attempt the conversion if year_value is not an empty string
+        year = int(year_value) if year_value.strip() else None
+    except (ValueError, TypeError, AttributeError):
+        # Set to None if conversion fails or if year_value is None
+        year = None
+
     vehicle_data = {
         'vin': json_data.get('inv_vehicle|vin', ''),
         'oem_name': json_data.get('inv_vehicle|oem_name', ''),
@@ -28,7 +38,7 @@ def extract_vehicle_data(json_data):
         'mileage': json_data.get('inv_vehicle|mileage', ''),
         'make': json_data.get('inv_vehicle|make', ''),
         'model': json_data.get('inv_vehicle|model', ''),
-        'year': json_data.get('inv_vehicle|year', ''),
+        'year': year,  
         'stock_num': json_data.get('inv_vehicle|stock_num', ''),
         'new_or_used': json_data.get('inv_vehicle|new_or_used', ''),
     }
@@ -70,18 +80,15 @@ def process_and_upload_data(bucket, key):
         decoded_key = urllib.parse.unquote_plus(key)
         s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
         json_data_list = json.load(BytesIO(s3_obj["Body"].read()))
-        
         #  Check if incoming data is older than existing data
         sample_data = json_data_list[0] if json_data_list else None
         if sample_data:
             incoming_received_datetime = sample_data.get('inv_inventory|received_datetime')
-            logger.info(type(incoming_received_datetime))
-            logger.info(incoming_received_datetime)
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
                 return
                 
-        processed_vehicle_ids = []
+        processed_inventory_ids = []
         for json_data in json_data_list:
             # Retrieve dealer_integration_partner_id
             provider_dealer_id = json_data.get("inv_dealer_integration_partner|provider_dealer_id")
@@ -97,15 +104,16 @@ def process_and_upload_data(bucket, key):
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
             vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
+            logger.info(vehicle_data)
             vehicle_id = rds_instance.insert_vehicle(vehicle_data)
-            processed_vehicle_ids.append(vehicle_id)
 
             # Insert inventory data
             inventory_data = extract_inventory_data(json_data)
             inventory_data['vehicle_id'] = vehicle_id
             inventory_data['dealer_integration_partner_id'] = dealer_integration_partner_id
             inventory_id = rds_instance.insert_inventory_item(inventory_data)
-
+            processed_inventory_ids.append(inventory_id)
+            
             # Insert options data
             if json_data.get('inv_options|inv_options'):
                 option_ids = []
@@ -116,11 +124,11 @@ def process_and_upload_data(bucket, key):
                 rds_instance.link_option_to_inventory(inventory_id, option_ids)
             else:
                 identifier = json_data.get('inv_vehicle|vin', json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
-                logger.info(f"Skipping options for record with identifier {identifier} as they do not exist.")
+                logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
         
         #  Use dealer_integration_partner_id to update the value of on_lot for vehicles
         dealer_id = dealer_integration_partner_id
-        rds_instance.update_dealers_other_vehicles(dealer_id, processed_vehicle_ids)
+        rds_instance.update_dealers_other_vehicles(dealer_id, processed_inventory_ids)
         logger.info(f"Data processing and upload completed for {decoded_key}")
 
     except Exception as e:
@@ -133,7 +141,9 @@ def lambda_handler(event, context):
     Lambda function handler to process SQS messages and upload JSON data to RDS.
     """
     try:
+        count = 0
         for record in event['Records']:
+            logger.info(f"Processing record {count}")
             message = loads(record["body"])
             logger.info(f"Received message: {message}")
             
@@ -141,7 +151,7 @@ def lambda_handler(event, context):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 process_and_upload_data(bucket, key)
-
+            count += 1
     except Exception as e:
         logger.exception("Error in Lambda handler")
         raise
