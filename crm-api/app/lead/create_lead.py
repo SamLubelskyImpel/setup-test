@@ -9,6 +9,7 @@ from dateutil import parser
 from datetime import datetime
 from json import dumps, loads
 from typing import Any, List
+
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
@@ -20,10 +21,14 @@ from crm_orm.session_config import DBSession
 ENVIRONMENT = environ.get("ENVIRONMENT")
 ADF_ASSEMBLER_URL = environ.get("ADF_ASSEMBLER_URL")
 CRM_API_SECRET_KEY = environ.get("CRM_API_SECRET_KEY")
+EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 salesperson_attrs = [
@@ -36,6 +41,34 @@ salesperson_attrs = [
     "position_name",
     "is_primary",
 ]
+
+
+def send_notification_to_event_listener(integration_partner_name: str) -> bool:
+    """Check if notification should be sent to the event listener."""
+    response = s3_client.get_object(
+        Bucket=INTEGRATIONS_BUCKET,
+        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+    )
+    config = loads(response["Body"].read())
+    logger.info(f"Config: {config}")
+    notification_partners = config["notification_partners"]
+    if integration_partner_name in notification_partners:
+        return True
+    return False
+
+
+def send_notification_to_event_listener(integration_partner_name: str) -> bool:
+    """Check if notification should be sent to the event listener."""
+    response = s3_client.get_object(
+        Bucket=INTEGRATIONS_BUCKET,
+        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+    )
+    config = loads(response["Body"].read())
+    logger.info(f"Config: {config}")
+    notification_partners = config["notification_partners"]
+    if integration_partner_name in notification_partners:
+        return True
+    return False
 
 
 def update_attrs(
@@ -157,6 +190,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             lead_ts = process_lead_ts(lead_ts, dealer_timezone)
             logger.info(f"Processed timestamp: {lead_ts}")
 
+            integration_partner = consumer.dealer_integration_partner.integration_partner
+
             # Query for existing lead
             if crm_lead_id:
                 lead_db = (
@@ -271,9 +306,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             session.commit()
             lead_id = lead.id
+            integration_partner_name = integration_partner.impel_integration_partner_name
 
         logger.info(f"Created lead {lead_id}")
+        logger.info(f"Integration partner: {integration_partner_name}")
 
+        notify_listener = send_notification_to_event_listener(integration_partner_name)
+
+        if notify_listener:
+            sqs_client = boto3.client('sqs')
+
+            sqs_client.send_message(
+                QueueUrl=EVENT_LISTENER_QUEUE,
+                MessageBody=dumps({"lead_id": lead_id})
+            )
         if request_product == "chat_ai":
             make_adf_assembler_request({"lead_id": lead_id})
         return {"statusCode": "201", "body": dumps({"lead_id": lead_id})}

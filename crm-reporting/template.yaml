@@ -216,7 +216,7 @@ Resources:
   SupportSnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      Endpoint: !If [IsProd, 'support@impel.io', 'srwoods@impel.ai']
+      Endpoint: !If [IsProd, 'supportalerts@impel.ai', 'srwoods@impel.ai']
       Protocol: email
       TopicArn: !Ref CRMReportingSnsTopic
 

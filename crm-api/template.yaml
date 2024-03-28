@@ -57,6 +57,8 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         ADF_ASSEMBLER_URL: "https://vgpzai8gta.execute-api.us-east-1.amazonaws.com/Stage"  #TODO change after end-to-end testing
         CRM_API_SECRET_KEY: "test"
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
+        EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -115,14 +117,14 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
                     ]
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
                   - !If [
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
@@ -167,8 +169,15 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt NotifyEventListenerQueue.Arn
+              - Effect: "Allow"
+                Action:
                   - "sqs:SendMessage"
-                Resource: "*"
+                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -178,6 +187,7 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
@@ -414,6 +424,24 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveLeadActivities:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadActivities"
+      CodeUri: app/lead/
+      Handler: retrieve_lead_activities.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /leads/{lead_id}/activities
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   CreateConsumer:
     Type: AWS::Serverless::Function
     Properties:
@@ -584,6 +612,59 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
+  
+  NotifyEventListener:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-NotifyEventListener"
+      CodeUri: app/notifications/
+      Handler: notify_event_listener.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+  
+  NotifyEventListenerEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 5
+      EventSourceArn: !GetAtt NotifyEventListenerQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt NotifyEventListener.Arn
+
+  NotifyEventListenerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotifyEventListenerDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  NotifyEventListenerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+  
+  NotifyEventListenerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Notification To Event Listener DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt NotifyEventListenerDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   CrmOrmLayer:
     Type: AWS::Serverless::LayerVersion
