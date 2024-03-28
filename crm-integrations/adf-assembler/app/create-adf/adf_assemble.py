@@ -29,18 +29,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
         s3_key = f"chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
 
         logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_id}.json \n Bucket: {BUCKET}")
-
         s3_object = loads(
             s3_client.get_object(
                 Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_{partner_id}.json"
             )["Body"].read().decode("utf-8")
         )
 
-        integration_type = s3_object.get("adf_integration_type")
-
+        adf_integration_config = s3_object.get("adf_integration_config", {})
+        integration_type = adf_integration_config.get("adf_integration_type")
+        add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", False)
 
         if integration_type == "EMAIL":
-            recipients = s3_object.get("recipients")
+            recipients = adf_integration_config.get("recipients")
 
 
             logger.info(f"recipients: {recipients} \n integration_type: {integration_type}")

@@ -1,9 +1,11 @@
 """Create activity."""
 
+import pytz
 import logging
 from os import environ
 from requests import post
 from json import dumps, loads
+from datetime import datetime
 from typing import Any
 import boto3
 
@@ -78,6 +80,20 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)
 
+def convert_utc_to_timezone(input_ts, time_zone, crm_dealer_id) -> str:
+    """Convert UTC timestamp to dealer's local time."""
+    utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+    utc_datetime = pytz.utc.localize(utc_datetime)
+
+    if not time_zone:
+        logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(crm_dealer_id))
+        return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
+    # Get the dealer timezone object, convert UTC datetime to dealer timezone
+    dealer_tz = pytz.timezone(time_zone)
+    dealer_datetime = utc_datetime.astimezone(dealer_tz)
+
+    return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
 def send_alert_notification(activity_id: int, e: Exception) -> None:
     """Send alert notification to CE team."""
@@ -179,7 +195,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             create_on_crm(partner_name=partner_name, payload=payload)
         
         if request_product == "chat_ai" and activity_type == "appointment":
-            make_adf_assembler_request({"lead_id":lead_id, "activity_time":activity_due_ts})
+            # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
+            activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.crm_dealer_id)
+            make_adf_assembler_request({"lead_id":lead_id, "activity_time":activity_due_ts_in_dealer_tz})
             
         return {
             "statusCode": "201",

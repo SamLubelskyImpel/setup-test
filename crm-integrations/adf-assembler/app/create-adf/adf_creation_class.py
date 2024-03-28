@@ -61,6 +61,33 @@ class AdfCreation:
                 </colorcombination>
             """
         return color_combination
+    
+    def _create_comment(self, appointment_time, lead_comment, add_summary_to_appointment_comment):
+        """Create comment for ADF, also check if summary should be added to appointment comment."""
+        comment = lead_comment
+        def _format_appointment_time(appointment_time):
+            # Parse input string into a datetime object
+            dt_obj = datetime.strptime(appointment_time, '%Y-%m-%dT%H:%M:%S')
+            
+            # Format time as 'hh:mm AM/PM'
+            time_str = dt_obj.strftime('%I:%M %p').lstrip('0')
+            
+            # Format date as 'dd-MMM-yyyy'
+            date_str = dt_obj.strftime('%d-%b-%Y').upper()
+            
+            return date_str, time_str
+
+        if not appointment_time:
+            return lead_comment
+        else:
+            date, time = _format_appointment_time(appointment_time)
+
+            comment = f"Please book an appointment for the customer. Here are the appointment Details:\nDate: {date}\nTime: {time}"
+
+            if add_summary_to_appointment_comment:
+                comment += f"\n\n{lead_comment}"
+
+        return comment
 
 
     def _generate_parameter_format(self, key, item, lead_data):
@@ -133,7 +160,7 @@ class AdfCreation:
             raise CRMApiError(f"Error occurred calling CRM API: {e}")
 
 
-    def create_adf_data(self, lead_id, appointment_time=None):
+    def create_adf_data(self, lead_id, appointment_time=None, add_summary_to_appointment_comment=False):
         """
         Creates ADF data from the given lead ID and appointment time if available.
 
@@ -154,7 +181,7 @@ class AdfCreation:
             )
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
-            consumer |= {"comment": appointment_time or lead_comment}
+            consumer |= {"comment": self._create_comment(appointment_time, lead_comment, add_summary_to_appointment_comment)}
             self.customer = self.generate_adf_from_lead_data(consumer, "customer")
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
