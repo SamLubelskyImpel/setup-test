@@ -46,7 +46,7 @@ def list_and_filter(sftp, folder_name, active_dealers, last_modified_time):
     for file in files:
         # Filter files by active dealers
         try:
-            dealer_id = file.split('_')[0]
+            dealer_id = file.split('_Inventory_')[0]
             file_name, extension = file.rsplit('.', 1)
             if extension != "csv":
                 logger.warning(f"Invalid file extension: {file}")

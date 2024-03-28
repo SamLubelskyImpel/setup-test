@@ -14,7 +14,7 @@ INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
 # Many to 1 tables and many to many tables are represented by array of struct columns
 MANY_TO_X_TABLES = ["inv_options"]
 # Ignore tables we don't insert into
-IGNORE_POSSIBLE_TABLES = ["dealer_integration_partner"]
+IGNORE_POSSIBLE_TABLES = ["inv_dealer_integration_partner"]
 # Ignore columns we don't insert into (id, fk, audit columns)
 IGNORE_POSSIBLE_COLUMNS = [
     "id",
@@ -24,7 +24,7 @@ IGNORE_POSSIBLE_COLUMNS = [
     "db_creation_date",
     "db_update_date",
     "dealer_id",
-    "db_update_user",
+    "db_update_role",
 ]
 
 
