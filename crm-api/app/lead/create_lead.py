@@ -19,8 +19,6 @@ from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
-ADF_ASSEMBLER_URL = environ.get("ADF_ASSEMBLER_URL")
-CRM_API_SECRET_KEY = environ.get("CRM_API_SECRET_KEY")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
@@ -137,19 +135,19 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 
 def make_adf_assembler_request(data: Any):
     secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/adf-assembler"
     )
-    secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
-    secret_data = loads(secret)
+    secret = loads(secret["SecretString"])["create_adf"]
+    api_url, api_key = loads(secret).values()
 
     response = post(
-        url=f"{ADF_ASSEMBLER_URL}/create_adf",
+        url=api_url,
         data=dumps(data),
         headers={
-            "x_api_key": secret_data["api_key"],
-            "partner_id": CRM_API_SECRET_KEY,
-            "Content-Type": "application/json",
-        },
+            "x_api_key": api_key,
+            "action_id": "create_adf",
+            'Content-Type': 'application/json'
+        }
     )
 
     logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")

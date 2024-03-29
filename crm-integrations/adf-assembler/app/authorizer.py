@@ -13,25 +13,6 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
 
-def is_endpoint_allowed(method_arn: str, allowed_endpoints: Any) -> bool:
-    """Check if the requested endpoint and method are in the set of allowed endpoints for the partner."""
-    if allowed_endpoints == ["*"]:
-        return True
-
-    arn_parts = method_arn.split(':')[-1].split('/')
-    http_method = arn_parts[2]
-    request_path = '/' + '/'.join(arn_parts[3:])
-
-    for allowed_endpoint in allowed_endpoints:
-        allowed_method, allowed_path = allowed_endpoint.split('/', 1)
-        if http_method != allowed_method:
-            continue
-
-        if match_path(request_path, allowed_path):
-            return True
-    return False
-
-
 def match_path(request_path: str, allowed_path: str) -> bool:
     """Match the request path against the allowed path."""
     request_segments = request_path.strip('/').split('/')
@@ -52,13 +33,13 @@ def match_path(request_path: str, allowed_path: str) -> bool:
 
 
 def _lambda_handler(event: Any, context: Any) -> Any:
-    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
+    """Take in the API_KEY/action_id pair sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
 
     method_arn = event["methodArn"]
 
     headers = {k.lower(): v for k, v in event['headers'].items()}
-    partner_id = headers.get('partner_id')
+    action_id = headers.get('action_id')
     api_key = headers.get('x_api_key')    
 
     SM_CLIENT = boto3.client("secretsmanager")
@@ -72,29 +53,27 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/crm-api"
+            SecretId=f"{'prod' if is_prod else 'test'}/adf-assembler"
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            return {"policyDocument": policy, "principalId": partner_id}
+            return {"policyDocument": policy, "principalId": action_id}
         else:
             raise
     try:
-        secret = json.loads(secret["SecretString"])[str(partner_id)]
+        secret = json.loads(secret["SecretString"])[str(action_id)]
         secret_data = json.loads(secret)
     except KeyError:
-        logger.exception("Invalid partner_id")
+        logger.exception("Invalid action_id")
         raise Exception("Unauthorized")
 
     authorized = api_key == secret_data["api_key"]
-    allowed_endpoints = secret_data.get("endpoints", [])
-    endpoint_allowed = is_endpoint_allowed(method_arn, allowed_endpoints)
 
-    if authorized and endpoint_allowed:
+    if authorized:
         policy["Statement"][0]["Effect"] = "Allow"
-        return {"policyDocument": policy, "principalId": partner_id}
+        return {"policyDocument": policy, "principalId": action_id}
     else:
-        logger.info(f"Access denied for partner_id {partner_id} to endpoint {method_arn}")
+        logger.info(f"Access denied for action_id {action_id}")
         raise Exception("Unauthorized")
 
 

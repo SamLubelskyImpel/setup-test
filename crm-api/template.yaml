@@ -55,8 +55,6 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        ADF_ASSEMBLER_URL: "https://vgpzai8gta.execute-api.us-east-1.amazonaws.com/Stage"  #TODO change after end-to-end testing
-        CRM_API_SECRET_KEY: "test"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
     VpcConfig:
@@ -121,6 +119,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                  ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/adf-assembler*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/adf-assembler*",
                   ]
                   - !If [
                       IsProd,
