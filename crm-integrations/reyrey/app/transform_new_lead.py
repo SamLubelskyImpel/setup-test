@@ -4,13 +4,11 @@ import boto3
 import logging
 import requests
 import json
-import uuid
 import re
 import xml.etree.ElementTree as ET
 from os import environ
-from typing import Any, Dict
+from typing import Any
 from datetime import datetime
-from utils import send_email_notification
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -27,16 +25,12 @@ SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 PARTNER_ID = environ.get("PARTNER_ID")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
-
-class EventListenerError(Exception):
-    pass
 
 class LeadExistsException(Exception):
     pass
@@ -53,30 +47,6 @@ class NotInternetLeadException(Exception):
 class NoCustomerInitiatedLeadException(Exception):
     pass
 
-def send_to_event_listener(lead_id: int, listener_secrets: dict) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=30,
-        )
-        logger.info(f"DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        logger.error(
-            f"Timeout occurred calling DA Event Listener for the lead {lead_id}"
-        )
-    except Exception as e:
-        logger.error(f"Error occurred calling DA Event Listener: {e}")
-        raise EventListenerError
-
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -89,8 +59,8 @@ def get_secret(secret_name: Any, secret_key: Any) -> Any:
     return secret_data
 
 
-def get_text(element, path, namespace):
-    """Get the text of the element, handling 'Null' as None."""
+def get_text(element: Any, path: str, namespace: Any) -> Any:
+    """Get the text of the element if it's present."""
     found_element = element.find(path, namespace)
     if found_element is not None and found_element.text != "Null":
         return found_element.text
@@ -135,7 +105,32 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
     return extracted_data
 
 
-def extract_lead(root: ET.Element, namespace: dict) -> dict:
+def update_non_internet_leads_config(lead_id: str, crm_dealer_id) -> None:
+    """Updates or creates a configuration file to include a specified non-internet lead for a CRM dealer."""
+    s3_key = f"configurations/reyrey_crm/ignore/{crm_dealer_id}.json"
+    try:
+        logger.info(f"Lead id: {lead_id}")
+        try:
+            response = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key)
+            existing_content = response['Body'].read().decode('utf-8')
+            existing_data = json.loads(existing_content)
+            non_internet_leads = set(existing_data.get("non_internet_leads", []))
+        except s3_client.exceptions.NoSuchKey:
+            logger.info(f"No existing data for {crm_dealer_id}, creating a new list.")
+            non_internet_leads = set()
+
+        non_internet_leads.add(lead_id)
+        updated_data = {"non_internet_leads": list(non_internet_leads)}
+        updated_content = json.dumps(updated_data)
+        s3_client.put_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=updated_content)
+        logger.info(f"Successfully updated non internet leads for {crm_dealer_id}.")
+
+    except Exception as e:
+        logger.error(f"Failed to update S3 object. Partner: {SECRET_KEY}, Error: {str(e)}")
+        raise
+
+
+def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
     """Extract lead, vehicle of interest, salesperson data from the XML."""
 
     def extract_note(notes: list) -> str:
@@ -143,7 +138,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         if len(notes) > 0:
             for note in notes:
                 if "Best Time" not in note.text:
-                    return note.text 
+                    return note.text
             # If no note without "Best Time" is found, return first note.
             return notes[0].text
         else:
@@ -170,7 +165,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         """Map the initial ReyRey status to the Unified Layer status."""
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_{SECRET_KEY.upper()}.json",
+            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{SECRET_KEY.upper()}.json",
         )
         config = json.loads(response["Body"].read())
         status_map = config["initial_status_map"]
@@ -184,6 +179,32 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
 
         return unified_layer_status, metadata
 
+    def extract_and_process_salesperson_data(root, xpath, role_name, is_primary=False, namespace=None):
+        salesperson = root.find(xpath, namespace)
+        if salesperson is not None:
+            salesperson_name = salesperson.text.strip()
+
+            try:
+                last_name, first_name = [name.strip() for name in salesperson_name.split(",")]
+                crm_salesperson_id = f"{first_name}{last_name}"
+            except ValueError:
+                logger.warning(f"Salesperson name is not in the correct format: {salesperson_name}")
+
+                # Remove any commas, treat the entire name as the first name for non-standard formats
+                first_name = salesperson_name.replace(",", "").strip()
+                last_name = ""
+                crm_salesperson_id = first_name.replace(" ", "")
+
+            return {
+                "crm_salesperson_id": crm_salesperson_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "is_primary": is_primary,
+                "position_name": role_name,
+                "email": None,
+                "phone": None,
+            }
+
     # Extract Prospect fields
     prospect_id = root.find(".//star:ProspectId", namespace).text
     inserted_by = get_text(root, ".//star:InsertedBy", namespace)
@@ -192,11 +213,13 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     prospect_type = get_text(root, ".//star:ProspectType", namespace)
     provider_name = get_text(root, ".//star:ProviderName", namespace)
     is_ci_lead = get_text(root, ".//star:IsCiLead", namespace)
+    prospect_source_detail = get_text(root, ".//star:ProviderService", namespace)
 
     if is_ci_lead == "false":
         raise NoCustomerInitiatedLeadException(f"Lead is not customer initiated: {prospect_id}")
 
     if prospect_type != "Internet":
+        update_non_internet_leads_config(prospect_id, crm_dealer_id)
         raise NotInternetLeadException(f"Lead type is not Internet: {prospect_type}")
 
     metadata = {}
@@ -212,6 +235,7 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         "lead_comment": prospect_note,
         "lead_origin": prospect_type,
         "lead_source": provider_name,
+        "lead_source_detail": prospect_source_detail
     }
 
     # Extract Vehicle of Interest fields
@@ -222,6 +246,10 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
     vehicle_year = get_text(root, ".//star:DesiredVehicle/star:VehicleYear", namespace)
     vehicle_style = get_text(root, ".//star:DesiredVehicle/star:VehicleStyle", namespace)
     stock_type = get_text(root, ".//star:DesiredVehicle/star:StockType", namespace)
+    trade_in_vin = get_text(root, ".//star:PotentialTrade/star:TradeVehicleVin", namespace)
+    trade_in_year = get_text(root, ".//star:PotentialTrade/star:TradeVehicleYear", namespace)
+    trade_in_make = get_text(root, ".//star:PotentialTrade/star:TradeVehicleMake", namespace)
+    trade_in_model = get_text(root, ".//star:PotentialTrade/star:TradeVehicleModel", namespace)
 
     vehicle_of_interest_data = {
         "vin": vin,
@@ -233,6 +261,10 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         "type": vehicle_style,
         "body_style": vehicle_style,
         "condition": stock_type,
+        "trade_in_vin": trade_in_vin,
+        "trade_in_year": trade_in_year,
+        "trade_in_make": trade_in_make,
+        "trade_in_model": trade_in_model
         # "class": None,
         # "mileage": None,
         # "trim": None,
@@ -245,29 +277,22 @@ def extract_lead(root: ET.Element, namespace: dict) -> dict:
         # "vehicle_comments": None,
     }
 
-    # Extract Salesperson fields, primary salesperson format: "Last, First"
-    primary_salesperson = root.find(
-        ".//star:Record/star:Prospect/star:PrimarySalesPerson", namespace
-    )
-    salesperson_data = None
-    if primary_salesperson is not None:
-        primary_salesperson = primary_salesperson.text
-        first_name = primary_salesperson.split(",")[1].strip()
-        last_name = primary_salesperson.split(",")[0].strip()
+    salespersons_data = []
 
-        salesperson_data = {
-            "crm_salesperson_id": f"{last_name}, {first_name}",
-            "first_name": first_name,
-            "last_name": last_name,
-            "is_primary": True,
-            "position_name": "Primary Salesperson",
-            "email": None,
-            "phone": None,
-        }
+    salespersons_roles = [
+        (".//star:Record/star:Prospect/star:PrimarySalesPerson", "Primary Salesperson", True),
+        (".//star:Record/star:Prospect/star:Manager", "Manager"),
+        (".//star:Record/star:Prospect/star:BDCUser", "BDC User"),
+    ]
+
+    for xpath, role_name, *is_primary in salespersons_roles:
+        salesperson_data = extract_and_process_salesperson_data(root, xpath, role_name, bool(is_primary), namespace)
+        if salesperson_data:
+            salespersons_data.append(salesperson_data)
 
     # Add Vehicle of Interest and Salesperson data to the Prospect data
     prospect_data["vehicles_of_interest"] = [vehicle_of_interest_data]
-    prospect_data["salespersons"] = [salesperson_data] if salesperson_data else []
+    prospect_data["salespersons"] = salespersons_data if salespersons_data else []
     prospect_data["metadata"] = metadata
 
     return prospect_data
@@ -350,6 +375,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
 
 def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product_dealer_id: str) -> Any:
     """Create a new lead in the Unified Layer."""
+    logger.info(f"Lead data to send: {lead}")
     response = requests.post(
         f"https://{CRM_API_DOMAIN}/leads",
         json=lead,
@@ -376,6 +402,7 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split("/")[2]
+
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response["Body"].read()
         xml_data = content
@@ -389,26 +416,13 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_dealer_id = get_crm_dealer_id(root, namespace)
         consumer = extract_consumer(root, namespace)
-        lead = extract_lead(root, namespace)
+        lead = extract_lead(root, namespace, crm_dealer_id)
         unified_crm_consumer_id = create_consumer_in_unified_layer(consumer, lead, root, namespace, crm_dealer_id, product_dealer_id, crm_api_key)
 
-        # Write new lead to the Unified Layer, using the consumer_id that was just created
         lead["consumer_id"] = unified_crm_consumer_id
-        logger.info(f"Lead data to send: {lead}")
 
         unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
-
-        event_listener_secrets = get_secret(
-            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
-        )
-
-        send_to_event_listener(unified_crm_lead_id, event_listener_secrets)
-        logger.info(f"Successfully sent the lead {unified_crm_lead_id} to DA")
-    except EventListenerError:
-        message = f"Error sending the lead {unified_crm_lead_id} to DA"
-        logger.error(message)
-        send_email_notification(message)
-        raise
+        logger.info(f"Lead successfully created: {unified_crm_lead_id}")
     except ConsumerCreationException:
         raise
     except LeadExistsException:

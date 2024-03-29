@@ -110,7 +110,7 @@ paths:
                       description: Metadata for a lead
                       type: object
                       additionalProperties: true
-                      example: {"crmLeadStatus": "Active"}
+                      example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
     get:
       operationId: get-leads
       summary: Retrieve a list of all leads for a given dealer id.
@@ -176,6 +176,11 @@ paths:
                                     format: date-time
                                     description: The created datetime of the vehicle in the unified CRM layer.
                                     example: "2023-10-16T20:44:12.027184+00:00"
+                        metadata:
+                          description: Metadata for a lead
+                          type: object
+                          additionalProperties: true
+                          example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
                         lead_ts:
                           type: string
                           format: date-time
@@ -264,6 +269,11 @@ paths:
                                   format: date-time
                                   description: The created datetime of the vehicle in the unified CRM layer.
                                   example: "2023-10-16T20:44:12.027184+00:00"
+                      metadata:
+                        description: Metadata for a lead
+                        type: object
+                        additionalProperties: true
+                        example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
                       lead_ts:
                         type: string
                         format: date-time
@@ -329,7 +339,7 @@ paths:
                       description: Metadata for a lead
                       type: object
                       additionalProperties: true
-                      example: {"crmLeadStatus": "Active"}
+                      example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
               
   /leads/{lead_id}/status:
     get:
@@ -401,6 +411,42 @@ paths:
           description: Not Found. The lead_id of the request didn't match any existing records on Impel, or the lead does not have an associated salesperson.
         '500':
           "$ref": "#/components/responses/500"
+  /leads/{lead_id}/activities:
+    get:
+      summary: This endpoint returns all existing activites for a given lead ID.
+      #{{RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/leadId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/Activity'
+                    - type: object
+                      properties:
+                        activity_id:
+                          type: number
+                          description: The ID of the activity in the CRM persistence data layer.
+                          example: 123
+                        crm_activity_id:
+                          type: string
+                          description: The ID of the activity in the CRM.
+                          example: "12345"
+                        db_creation_date:
+                          type: string
+                          format: date-time
+                          description: The created datetime of the activity in the unified CRM layer.
+                          example: "2023-10-16T20:44:12.027184+00:00"
+                    
   
   /leads/crm/{crm_lead_id}:
     get:
@@ -1031,6 +1077,27 @@ components:
             description: Comments about the vehicle
             maxLength: 5000
             example: Has a scratch
+          trade_in_vin:
+            type: string
+            description: VIN of the trade-in vehicle
+            maxLength: 20
+            example: "1HGBH41JXMN109186"
+          trade_in_year:
+            type: number
+            description: The sales model year of the trade-in vehicle
+            minimum: 1800
+            maximum: 3000
+            example: 2021
+          trade_in_make:
+            type: string
+            description: The brand or make of the trade-in vehicle
+            maxLength: 80
+            example: Ford
+          trade_in_model:
+            type: string
+            description: The model name of the trade-in vehicle
+            maxLength: 80
+            example: F-150
     Consumer:
       description: An object containing all information about a person interested in a vehicle
       type: object
@@ -1056,7 +1123,6 @@ components:
           example: Michael
         email:
           type: string
-          format: email
           description: Consumer primary email address
           maxLength: 50
           example: john.doe@example.com
@@ -1120,7 +1186,7 @@ components:
         lead_origin:
           type: string
           description: The first point of contact or channel through which the lead is generated
-          enum: [INTERNET, CALL, WALK-IN, OTHER]
+          enum: [INTERNET, CALL, WALK-IN, THIRD PARTY, OTHER]
           example: "INTERNET"
           maxLength: 50
         lead_source:
@@ -1129,6 +1195,12 @@ components:
           minLength: 1
           maxLength: 100
           example: cars.com
+        lead_source_detail:
+          type: string
+          description: The specific detail about the lead source.
+          minLength: 1
+          maxLength: 100
+          example: "Inventory Leads Website"
         vehicles_of_interest:
           $ref: '#/components/schemas/VehiclesOfInterest'
     Salesperson:

@@ -130,6 +130,10 @@ def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, A
             "condition": vehicle.condition,
             "odometer_units": vehicle.odometer_units,
             "vehicle_comments": vehicle.vehicle_comments,
+            "trade_in_vin": vehicle.trade_in_vin,
+            "trade_in_year": vehicle.trade_in_year,
+            "trade_in_make": vehicle.trade_in_make,
+            "trade_in_model": vehicle.trade_in_model,
             "db_creation_date": vehicle.db_creation_date
         }
 
@@ -149,7 +153,9 @@ def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, A
             "lead_comment": lead.comment,
             "lead_origin": lead.origin_channel,
             "lead_source": lead.source_channel,
+            "lead_source_detail": lead.source_detail,
             "vehicles_of_interest": vehicles_of_interest_sorted,
+            "metadata": lead.metadata_,
             "lead_ts": lead.lead_ts,
             "db_creation_date": lead.db_creation_date
         }

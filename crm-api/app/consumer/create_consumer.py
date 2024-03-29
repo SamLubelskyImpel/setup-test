@@ -46,6 +46,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
         crm_consumer_id = body.get("crm_consumer_id", None)
         created_consumer = True
 
+        if not body.get("email") and not body.get("phone"):
+            logger.error("Consumer must have an email or phone number.")
+            return {
+                "statusCode": 400,
+                "body": dumps({"error": "Consumer must have an email or phone number."})
+            }
+
         with DBSession() as session:
             dealer_partner = session.query(DealerIntegrationPartner).\
                 join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\

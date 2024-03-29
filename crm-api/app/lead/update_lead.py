@@ -125,7 +125,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_substatus": "substatus",
             "lead_comment": "comment",
             "lead_origin": "origin_channel",
-            "lead_source": "source_channel"
+            "lead_source": "source_channel",
+            "lead_source_detail": "source_detail",
         }
 
         with DBSession() as session:
@@ -197,7 +198,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     status=vehicle.get("status"),
                     condition=vehicle.get("condition"),
                     odometer_units=vehicle.get("odometer_units"),
-                    vehicle_comments=vehicle.get("vehicle_comments")
+                    vehicle_comments=vehicle.get("vehicle_comments"),
+                    trade_in_vin=vehicle.get("trade_in_vin"),
+                    trade_in_year=vehicle.get("trade_in_year"),
+                    trade_in_make=vehicle.get("trade_in_make"),
+                    trade_in_model=vehicle.get("trade_in_model")
                 )
                 lead.vehicles.append(vehicle)
 

@@ -44,21 +44,49 @@ def get_secret(secret_name, secret_key) -> Any:
     return secret_data
 
 
-def upload_entry_to_db(entry: Dict[str, Any], api_key: str, index: int) -> Any:
-    """Upload entries to the database through CRM API."""
-    url = f'https://{CRM_API_DOMAIN}/upload'
-
-    headers = {
-        'partner_id': UPLOAD_SECRET_KEY,
-        'x_api_key': api_key
-    }
-
-    response = requests.post(url, headers=headers, json=entry)
-    logger.info(f"[THREAD {index}] CRM API responded with status: {response.status_code}")
+def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
+    """Upload consumer to the database through CRM API."""
+    logger.info(f"Consumer data to send: {consumer}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
+        json=consumer,
+        headers={
+            "x_api_key": api_key,
+            "partner_id": UPLOAD_SECRET_KEY,
+        },
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
+    )
     response.raise_for_status()
-    response_data = response.json()
-    lead_id = response_data.get('lead_id')
-    return lead_id
+    unified_crm_consumer_id = response.json().get("consumer_id")
+
+    if not unified_crm_consumer_id:
+        logger.error(f"Error creating consumer: {consumer}")
+        raise Exception(f"Error creating consumer: {consumer}")
+
+    return unified_crm_consumer_id
+
+
+def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
+    """Upload lead to the database through CRM API."""
+    logger.info(f"Lead data to send: {lead}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/leads",
+        json=lead,
+        headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
+    )
+    response.raise_for_status()
+    unified_crm_lead_id = response.json().get("lead_id")
+
+    if not unified_crm_lead_id:
+        logger.error(f"Error creating lead: {lead}")
+        raise Exception(f"Error creating lead: {lead}")
+
+    return unified_crm_lead_id
 
 
 def format_ts(input_ts: str) -> str:
@@ -116,13 +144,10 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
         if communication_preferences:
             db_entity["email_optin_flag"] = communication_preferences.get('email', True)
 
-
-def remove_none_or_empty_entries(d, key=None):
-    """Recursively remove None entries and empty string entries from a dictionary, except for the 'salesperson' key."""
-    if isinstance(d, dict):
-        return {k: remove_none_or_empty_entries(v, k) for k, v in d.items() if (v is not None and v != '') or (key == 'salesperson')}
-    return d
-
+    # Remove None values from db_entity without reassignment
+    keys_to_remove = [key for key, value in db_entity.items() if value is None]
+    for key in keys_to_remove:
+        del db_entity[key]
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format dealerpeak json data to unified format."""
@@ -134,12 +159,24 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {}
             db_salesperson = {}
 
-            db_lead["crm_lead_id"] = item.get('leadID')
-            db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
-            db_lead["lead_status"] = item.get('status', {}).get('status')
-            db_lead["lead_comment"] = item.get('firstNote', {}).get('note')
-            db_lead["lead_source"] = item.get('source', {}).get('source')
+            lead_origin = item.get('source', {}).get('source', '')
+            if lead_origin not in ['Internet', 'Third Party']:
+                logger.info(f"Skipping lead with origin: {lead_origin}")
+                continue
 
+            db_lead["crm_lead_id"] = item.get('leadID', '')
+            db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
+            db_lead["lead_status"] = item.get('status', {}).get('status', '')
+            db_lead["lead_substatus"] = ''
+            db_lead["lead_comment"] = item.get('firstNote', {}).get('note', '')
+            db_lead["lead_origin"] = lead_origin.upper()
+
+            provider_name = (
+                item.get('costItem', {}).get('provider', {}).get('provider') or
+                item.get('manufacturer', {}).get('name')
+            )
+
+            db_lead["lead_source"] = provider_name if provider_name else None
             vehicles = item.get('vehiclesOfInterest', [])
             for vehicle in vehicles:
                 is_new = vehicle.get("isNew")
@@ -162,71 +199,32 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             salesperson = item.get('agent', None)
             extract_contact_information('salesperson', salesperson, db_salesperson)
+            db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
 
             entry = {
                 "product_dealer_id": product_dealer_id,
                 "lead": db_lead,
-                "consumer": db_consumer,
-                "salesperson": db_salesperson,
+                "consumer": db_consumer
             }
 
-            cleaned_entry = remove_none_or_empty_entries(entry)
-            entries.append(cleaned_entry)
-
+            entries.append(entry)
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
         raise
 
 
-def send_to_event_listener(data: Dict[str, Any], listener_secrets: dict, index: int) -> None:
-    """Send notification to DA Event listener."""
-    try:
-        response = requests.post(
-            url=listener_secrets["API_URL"],
-            headers={"Authorization": listener_secrets["API_TOKEN"]},
-            json=data,
-            timeout=3
-        )
-        logger.info(f"[THREAD {index}] DA Event Listener responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    # Event Listener should respond right away, temporarily ignoring timeout errors until DA fix.
-    except requests.exceptions.Timeout:
-        logger.info(f"[THREAD {index}] Ignoring event listener response.")
-    except Exception as e:
-        logger.error(f"[THREAD {index}] Error occurred calling DA Event Listener: {e}")
-        raise EventListenerError
-
-
-def send_alert_notification(e: Exception, lead_id: int) -> None:
-    """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred while sending data to DA Event Listener: {e}",
-        "lead_id": lead_id
-    }
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps(data)}),
-        Subject='Dealerpeak - DA Event Listener Failure Alert',
-        MessageStructure='json'
-    )
-
-
-def post_and_forward_entry(entry: dict, crm_api_key: str, listener_secrets: dict, index: int) -> bool:
+def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
-        lead_id = upload_entry_to_db(entry=entry, api_key=crm_api_key, index=index)
-        data = {
-            "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-        }
-        logger.info(f"[THREAD {index}] Sending data to DA Event Listener: {data}")
-        send_to_event_listener(data=data, listener_secrets=listener_secrets, index=index)
-    except EventListenerError as e:
-        send_alert_notification(e, lead_id)
+        product_dealer_id = entry["product_dealer_id"]
+        consumer = entry["consumer"]
+        lead = entry["lead"]
+        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
+        lead["consumer_id"] = unified_crm_consumer_id
+        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
+        logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
             # Log the 409 error and continue with the next entry
@@ -256,14 +254,13 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Transformed entries: {entries}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        event_listener_secrets = get_secret(secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY)
 
         results = []
         # Process each entry in parallel, each entry takes about 8 seconds to process.
         with ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(post_and_forward_entry,
-                                entry, crm_api_key, event_listener_secrets, idx)
+                executor.submit(post_entry,
+                                entry, crm_api_key, idx)
                 for idx, entry in enumerate(entries)
             ]
             for future in as_completed(futures):
