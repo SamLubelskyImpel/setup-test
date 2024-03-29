@@ -354,7 +354,7 @@ Resources:
       Threshold: 0
       TreatMissingData: notBreaching
 
-  CoxAuFormatINVTopicSubscription:
+  FormatINVTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs

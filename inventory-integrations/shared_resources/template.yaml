@@ -181,6 +181,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                 - !GetAtt DirectUploadQueue.Arn
+                - !GetAtt UnifiedLoadQueue.Arn
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -327,3 +328,91 @@ Resources:
               Condition:
                   ArnEquals:
                       aws:SourceArn: !Ref InventoryS3ToSNSTopic
+
+  UnifiedLoadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
+          maxReceiveCount: 5
+  
+  UnifiedLoadDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+  
+  UnifiedLoadDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadDLQ
+      AlarmDescription: There are messages in the Unified Load DLQ Alarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UnifiedLoadDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  UnifiedLoadTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref InventoryS3ToSNSTopic
+      Endpoint: !GetAtt UnifiedLoadQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  
+  UnifiedLoadQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UnifiedLoadQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UnifiedLoadQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UnifiedLoadQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
+  
+  UnifiedLoadInsert:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "shared-inv-${Environment}-UnifiedLoadInsert"
+      Description: Load unified data from s3 to DMS Database.
+      Handler: insert_coxau.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 900
+      MemorySize: 1024
+  
+  UnifiedLoadEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 5
+      EventSourceArn: !GetAtt UnifiedLoadQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt UnifiedLoadInsert.Arn

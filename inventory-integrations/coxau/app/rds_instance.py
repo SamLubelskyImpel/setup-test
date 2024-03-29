@@ -4,10 +4,11 @@ from os import environ
 import boto3
 import psycopg2
 
-logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 IS_PROD = ENVIRONMENT == "prod"
+
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
