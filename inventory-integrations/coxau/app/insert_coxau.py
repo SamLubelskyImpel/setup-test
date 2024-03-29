@@ -31,6 +31,14 @@ def extract_vehicle_data(json_data):
         # Set to None if conversion fails or if year_value is None
         year = None
 
+    new_or_used_raw = json_data.get('inv_vehicle|new_or_used', '').strip().lower()  
+    if new_or_used_raw == 'new':
+        new_or_used = 'N'
+    elif new_or_used_raw == 'used':
+        new_or_used = 'U'
+    else:
+        new_or_used = ''
+            
     vehicle_data = {
         'vin': json_data.get('inv_vehicle|vin', ''),
         'oem_name': json_data.get('inv_vehicle|oem_name', ''),
@@ -40,7 +48,7 @@ def extract_vehicle_data(json_data):
         'model': json_data.get('inv_vehicle|model', ''),
         'year': year,  
         'stock_num': json_data.get('inv_vehicle|stock_num', ''),
-        'new_or_used': json_data.get('inv_vehicle|new_or_used', ''),
+        'new_or_used': new_or_used,
     }
     return vehicle_data
 

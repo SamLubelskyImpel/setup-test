@@ -175,7 +175,6 @@ class RDSInstance:
     def insert_vehicle(self, vehicle_data):
         """Insert a vehicle record if it doesn't exist based on unique attributes, or update the existing record if it does."""
         unique_columns = ['vin', 'model', 'stock_num', 'dealer_integration_partner_id', 'mileage'] 
-        logger.info(vehicle_data)
 
         # Prepare data for checking existing record
         check_data = {col: vehicle_data.get(col) for col in unique_columns if col in vehicle_data}

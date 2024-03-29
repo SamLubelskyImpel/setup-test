@@ -94,6 +94,7 @@ def record_handler(record):
             "model": "Model",
             "year": "ManuYear",
             "stock_num": "StockNo",
+            "new_or_used": "Condition",
         },
         "inv_dealer_integration_partner": {
             "provider_dealer_id": "DealerID",
