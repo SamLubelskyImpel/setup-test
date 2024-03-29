@@ -205,7 +205,7 @@ Resources:
     Type: AWS::SQS::Queue
     DependsOn: SidekickFormatRODLQ
     Properties:
-      QueueName: SidekcikFormatROQueue
+      QueueName: SidekickFormatROQueue
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SidekickFormatRODLQ.Arn
