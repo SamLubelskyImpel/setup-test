@@ -79,7 +79,13 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
 
 def process_salespersons(response_data, contact_id, new_salesperson):
     """Process salespersons from CRM API response."""
-    new_first_name, new_last_name = new_salesperson.split()
+    try:
+        new_first_name, new_last_name = new_salesperson.split()
+    except ValueError:
+        logger.warning(f"Unexpected salesperson name: {new_salesperson}")
+        new_first_name = new_salesperson.strip().replace(" ", "")
+        new_last_name = ""
+
     logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
 
     for salesperson in response_data:
@@ -89,11 +95,10 @@ def process_salespersons(response_data, contact_id, new_salesperson):
             salesperson['is_primary'] = True
             return response_data
 
-    return [create_or_update_salesperson(new_salesperson, contact_id)]
+    return [create_or_update_salesperson(new_first_name, new_last_name, contact_id)]
 
 
-def create_or_update_salesperson(new_salesperson, contact_id):
-    first_name, last_name = new_salesperson.split()
+def create_or_update_salesperson(first_name, last_name, contact_id):
     return {
         "crm_salesperson_id": contact_id,
         "first_name": first_name,
@@ -167,7 +172,7 @@ def record_handler(record: SQSRecord) -> None:
         if lead_status_timestamp:
             data['metadata']['leadStatusTimestamp'] = lead_status_timestamp
 
-        if contact_id and contact_name:
+        if contact_id:
             salesperson = update_lead_salespersons(contact_id, contact_name, lead_id, crm_api_key)
             data['salespersons'] = salesperson
         else:
