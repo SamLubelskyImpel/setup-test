@@ -334,7 +334,7 @@ Resources:
     Properties:
       QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 60
+      VisibilityTimeout: 300
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
           maxReceiveCount: 5
@@ -406,7 +406,7 @@ Resources:
       Handler: insert_coxau.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 900
+      Timeout: 300
       MemorySize: 1024
   
   UnifiedLoadEventMapping:
