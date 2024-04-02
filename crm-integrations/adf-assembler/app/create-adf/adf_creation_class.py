@@ -1,3 +1,4 @@
+import re
 import boto3
 import logging
 import requests
@@ -106,6 +107,14 @@ class AdfCreation:
                 data=lead_data.get('price')
             )
 
+    def _extract_last_10_digits(input_string):
+        # Use regular expression to find the last 10 digits
+        match = re.search(r'\d{10}$', ''.join(filter(str.isdigit, input_string)))
+        if match:
+            return match.group(0)
+        else:
+            logger.info(f"No 10 digits found in {input_string}")
+            return False
 
     def generate_adf_from_lead_data(self, lead_data: dict, lead_category: str = ""):
         """
@@ -126,6 +135,10 @@ class AdfCreation:
                 mapper_name = self.mapper[key]
                 if mapper_name == "PARAMETERS":
                     category_data += self._generate_parameter_format(key, item, lead_data)
+                elif mapper_name == "phone":
+                    phone = self._extract_last_10_digits(item)
+                    if phone:
+                        category_data += self.formatter.format(name=mapper_name, data=phone)
                 else:
                     category_data += self.formatter.format(name=mapper_name, data=item)
 
