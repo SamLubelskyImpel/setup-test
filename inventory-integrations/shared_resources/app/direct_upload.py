@@ -218,8 +218,7 @@ def record_handler(record: SQSRecord) -> None:
             proccess_and_upload_to_sftp(icc_formatted_inventory, salesai_dealer_id, SALESAI_SFTP_KEY)
 
         if not merch_is_active and not salesai_is_active:
-            logger.error(f"No active SFTP found for dealer: {provider_dealer_id}")
-            raise
+            logger.warning(f"No active SFTP found for dealer: {provider_dealer_id}")
 
     except Exception:
         logger.exception("Error processing record")

@@ -233,7 +233,7 @@ Resources:
   DirectUploadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueueDLQ'
+      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
 
@@ -403,7 +403,7 @@ Resources:
     Properties:
       FunctionName: !Sub "shared-inv-${Environment}-UnifiedLoadInsert"
       Description: Load unified data from s3 to DMS Database.
-      Handler: insert_coxau.lambda_handler
+      Handler: unified_load.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
       Timeout: 300
@@ -416,3 +416,23 @@ Resources:
       EventSourceArn: !GetAtt UnifiedLoadQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt UnifiedLoadInsert.Arn
+  
+  UnifiedLoadInsertErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadInsert
+      AlarmDescription: Inventory database load failed to execute
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref UnifiedLoadInsert
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
