@@ -97,19 +97,19 @@ def process_and_upload_data(bucket, key):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
                 return
 
+        # Retrieve dealer_integration_partner_id
+        provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
+        if provider_dealer_id is None:
+            logger.warning(f"No provider dealer ID found for {decoded_key}, skipping.")
+            return
+
+        dealer_integration_partner_id = rds_instance.find_dealer_integration_partner_id(provider_dealer_id)
+        if dealer_integration_partner_id is None:
+            logger.warning(f"No dealer integration partner ID found for provider dealer ID: {provider_dealer_id}, skipping.")
+            return
+
         processed_inventory_ids = []
         for json_data in json_data_list:
-            # Retrieve dealer_integration_partner_id
-            provider_dealer_id = json_data.get("inv_dealer_integration_partner|provider_dealer_id")
-            if provider_dealer_id is None:
-                logger.warning(f"No provider dealer ID found for {decoded_key}, skipping.")
-                continue
-
-            dealer_integration_partner_id = rds_instance.find_dealer_integration_partner_id(provider_dealer_id)
-            if dealer_integration_partner_id is None:
-                logger.warning(f"No dealer integration partner ID found for provider dealer ID: {provider_dealer_id}, skipping.")
-                continue
-
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
             vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
