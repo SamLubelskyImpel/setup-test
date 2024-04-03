@@ -123,8 +123,8 @@ def parse_lead(product_dealer_id, data):
         crm_lead_id = data["id"]
 
         db_consumer = {
-            "first_name": data["firstName"],
-            "last_name": data["lastName"],
+            "first_name": data.get("firstName"),
+            "last_name": data.get("lastName"),
             "phone": parse_phone_number(data),
             "email": data.get("email"),
             "address": parse_address(data),
