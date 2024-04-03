@@ -27,10 +27,15 @@ Globals:
         LOGLEVEL: INFO
         
 Resources:
+  CrmAdfDomainIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !If [ IsProd, 'impel.ai', '' ]
+
   CrmAdfEmailIdentity:
     Type: AWS::SES::EmailIdentity
     Properties:
-      EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', 'lesakia@impel.ai' ]
+      EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
       
   EmailServiceConfigSet:
     Type: AWS::SES::ConfigurationSet

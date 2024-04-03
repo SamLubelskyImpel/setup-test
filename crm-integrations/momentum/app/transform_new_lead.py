@@ -175,9 +175,15 @@ def parse_lead(product_dealer_id, data):
                 "position_name": "Primary Salesperson",
             }
             if data.get("contactName"):
-                sp_first, sp_last = data["contactName"].split()
-                db_salesperson["first_name"] = sp_first
-                db_salesperson["last_name"] = sp_last
+                try:
+                    sp_first, sp_last = data["contactName"].split()
+                    db_salesperson["first_name"] = sp_first
+                    db_salesperson["last_name"] = sp_last
+                except ValueError:
+                    logger.warning(f"Unexpected salesperson name: {data['contactName']}")
+                    db_salesperson["first_name"] = data["contactName"].strip().replace(" ", "")
+                    db_salesperson["last_name"] = ""
+
         else:
             db_salesperson = {}
             logger.info("No salesperson found in the lead data")
