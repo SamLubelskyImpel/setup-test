@@ -1,6 +1,6 @@
 BASE_ADF_TEMPLATE = """
-<?XML version="1.0" encoding="utf-8"?>
 <?ADF VERSION "1.0"?>
+<?XML version="1.0" encoding="utf-8"?>
 <adf>
 	<prospect>
         <id sequence=1 source="Impel">{lead_id}</id>
