@@ -55,20 +55,6 @@ def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     return False
 
 
-def send_notification_to_event_listener(integration_partner_name: str) -> bool:
-    """Check if notification should be sent to the event listener."""
-    response = s3_client.get_object(
-        Bucket=INTEGRATIONS_BUCKET,
-        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
-    )
-    config = loads(response["Body"].read())
-    logger.info(f"Config: {config}")
-    notification_partners = config["notification_partners"]
-    if integration_partner_name in notification_partners:
-        return True
-    return False
-
-
 def update_attrs(
     db_object: Any,
     data: Any,
@@ -311,15 +297,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         notify_listener = send_notification_to_event_listener(integration_partner_name)
 
-        if notify_listener:
+        # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
+        if request_product == "chat_ai":
+            make_adf_assembler_request({"lead_id": lead_id})
+        elif notify_listener:
             sqs_client = boto3.client('sqs')
 
             sqs_client.send_message(
                 QueueUrl=EVENT_LISTENER_QUEUE,
                 MessageBody=dumps({"lead_id": lead_id})
             )
-        if request_product == "chat_ai":
-            make_adf_assembler_request({"lead_id": lead_id})
+
         return {"statusCode": "201", "body": dumps({"lead_id": lead_id})}
 
     except Exception as e:

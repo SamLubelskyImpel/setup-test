@@ -26,6 +26,7 @@ s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 secret_client = boto3.client("secretsmanager")
 
+
 class ValidationError(Exception):
     pass
 
@@ -48,6 +49,7 @@ def make_adf_assembler_request(data: Any):
     )
 
     logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
+
 
 def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
     """Validate activity body."""
@@ -84,6 +86,7 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)
 
+
 def convert_utc_to_timezone(input_ts, time_zone, crm_dealer_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
     utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
@@ -98,6 +101,7 @@ def convert_utc_to_timezone(input_ts, time_zone, crm_dealer_id) -> str:
     dealer_datetime = utc_datetime.astimezone(dealer_tz)
 
     return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
 
 def send_alert_notification(activity_id: int, e: Exception) -> None:
     """Send alert notification to CE team."""
@@ -196,13 +200,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Payload to CRM: {dumps(payload)}")
 
-            create_on_crm(partner_name=partner_name, payload=payload)
-        
-        if request_product == "chat_ai" and activity_type == "appointment":
-            # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-            activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.crm_dealer_id)
-            make_adf_assembler_request({"lead_id":lead_id, "activity_time":activity_due_ts_in_dealer_tz})
-            
+            # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
+            if request_product == "chat_ai" and activity_type == "appointment":
+                # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
+                activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.crm_dealer_id)
+                make_adf_assembler_request({"lead_id": lead_id, "activity_time": activity_due_ts_in_dealer_tz})
+            else:
+                create_on_crm(partner_name=partner_name, payload=payload)
+
         return {
             "statusCode": "201",
             "body": dumps({"activity_id": activity_id})
