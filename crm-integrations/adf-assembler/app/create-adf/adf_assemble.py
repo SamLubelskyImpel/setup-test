@@ -14,6 +14,7 @@ s3_client = client("s3")
 logger = logging.getLogger()
 logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
 
+
 def lambda_handler(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
@@ -37,11 +38,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         adf_integration_config = s3_object.get("adf_integration_config", {})
         integration_type = adf_integration_config.get("adf_integration_type")
-        add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", True) # default to True
+        add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", True)  # default to True
 
         if integration_type == "EMAIL":
-            recipients = adf_integration_config.get("recipients")
-
+            recipients = body.get("recipients", [])
 
             logger.info(f"recipients: {recipients} \n integration_type: {integration_type}")
 

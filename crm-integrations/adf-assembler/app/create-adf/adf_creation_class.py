@@ -34,6 +34,8 @@ class AdfCreation:
 
         self.vehicle = ""
         self.customer = ""
+        self.customer_contact = ""
+        self.customer_address = ""
         self.vendor = ""
 
     def _get_secrets(self):
@@ -43,6 +45,29 @@ class AdfCreation:
         )
         secret_data = loads(secret["SecretString"])
         return loads(secret_data[self.partner_id])["api_key"]
+
+    def _create_customer(self, customer_data):
+        """Create customer data for ADF."""
+        customer = ""
+        contact = ""
+        address = ""
+
+        name_parts = ("first", "middle", "last")
+        for part in name_parts:
+            name_value = customer_data.get(part + "_name")
+            if name_value:
+                contact += f'<name part="{part}">{name_value}</name>\n'
+
+        for key, item in customer_data.items():
+            # In address section
+            if key in ("address", "city", "country", "postal_code"):
+                address += self.formatter.format(name=self.mapper[key], data=item)
+            if key in ("email", "phone"):
+                contact += self.formatter.format(name=self.mapper[key], data=item)
+            if key in ("comment"):
+                customer += self.formatter.format(name=self.mapper[key], data=item)
+
+        return customer, contact, address
 
     def _create_color_combination(self, color_data):
         """Create color combination data for ADF."""
@@ -62,20 +87,21 @@ class AdfCreation:
                 </colorcombination>
             """
         return color_combination
-    
+
     def _create_comment(self, appointment_time, lead_comment, add_summary_to_appointment_comment):
         """Create comment for ADF, also check if summary should be added to appointment comment."""
         comment = lead_comment
+
         def _format_appointment_time(appointment_time):
             # Parse input string into a datetime object
             dt_obj = datetime.strptime(appointment_time, '%Y-%m-%dT%H:%M:%S')
-            
+
             # Format time as 'hh:mm AM/PM'
             time_str = dt_obj.strftime('%I:%M %p').lstrip('0')
-            
+
             # Format date as 'dd-MMM-yyyy'
             date_str = dt_obj.strftime('%d-%b-%Y').upper()
-            
+
             return date_str, time_str
 
         if not appointment_time:
@@ -90,19 +116,18 @@ class AdfCreation:
 
         return comment
 
-
     def _generate_parameter_format(self, key, item, lead_data):
         """Generate parameter format for ADF."""
         param_formatter = "<{name} {param}>{data}</{name}>\n"
         if key == "odometer_units":
             return param_formatter.format(
-                name="odometer", 
+                name="odometer",
                 param=f'status="unknown" units="{lead_data.get("odometer_units", "miles")}"',
                 data=lead_data.get('mileage')
             )
         if key == "price":
             return param_formatter.format(
-                name="price", 
+                name="price",
                 param='type="quote" currency="USD"',
                 data=lead_data.get('price')
             )
@@ -133,15 +158,14 @@ class AdfCreation:
         category_data += self._create_color_combination(lead_data)
 
         # Additional formatting for customer category
-        if lead_category == "customer":
-            name_parts = ("first", "middle", "last")
-            for part in name_parts:
-                name_value = lead_data.get(part + "_name")
-                if name_value:
-                    category_data += f'<name part="{part}">{name_value}</name>\n'
+        # if lead_category == "customer":
+        #     name_parts = ("first", "middle", "last")
+        #     for part in name_parts:
+        #         name_value = lead_data.get(part + "_name")
+        #         if name_value:
+        #             category_data += f'<name part="{part}">{name_value}</name>\n'
 
         return category_data
-
 
     def call_crm_api(self, url):
         """Call CRM API."""
@@ -159,7 +183,6 @@ class AdfCreation:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occurred calling CRM API: {e}")
 
-
     def create_adf_data(self, lead_id, appointment_time=None, add_summary_to_appointment_comment=True):
         """
         Creates ADF data from the given lead ID and appointment time if available.
@@ -176,22 +199,25 @@ class AdfCreation:
         try:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
             lead_comment = vehicle.get("lead_comment")
+            vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
             self.vehicle = self.generate_adf_from_lead_data(
-                vehicle.get("vehicles_of_interest", [""])[0], "vehicle"
+                vehicle_of_interest, "vehicle"
             )
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
             consumer |= {"comment": self._create_comment(appointment_time, lead_comment, add_summary_to_appointment_comment)}
-            self.customer = self.generate_adf_from_lead_data(consumer, "customer")
+            self.customer, self.customer_contact, self.customer_address = self._create_customer(consumer)
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             self.vendor = self.generate_adf_from_lead_data(dealer, "vendor")
-            
+
             return self.adf_file.format(
                 lead_id=lead_id,
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 vehicle=self.vehicle,
                 customer=self.customer,
+                customer_contact=self.customer_contact,
+                customer_address=self.customer_address,
                 vendor=self.vendor,
                 vendor_full_name=dealer.get("dealer_name"),
             ), dealer.get("integration_partner_name")

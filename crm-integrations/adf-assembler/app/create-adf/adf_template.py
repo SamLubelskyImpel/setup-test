@@ -2,21 +2,27 @@ BASE_ADF_TEMPLATE = """
 <?ADF VERSION "1.0"?>
 <?XML version="1.0" encoding="utf-8"?>
 <adf>
-	<prospect>
+    <prospect>
         <id sequence=1 source="Impel">{lead_id}</id>
-		<requestdate>{request_date}</requestdate>
-		<vehicle>
-			{vehicle}
-		</vehicle>
-		<customer>
-			{customer}
-		</customer>
-		<vendor>
-			{vendor}
-			<contact>
-				<name part="full">{vendor_full_name}</name>
-			</contact>
-		</vendor>
+        <requestdate>{request_date}</requestdate>
+        <vehicle>
+            {vehicle}
+        </vehicle>
+        <customer>
+            <contact>
+                {customer_contact}
+                <address>
+                    {customer_address}
+                </address>
+            </contact>
+            {customer}
+        </customer>
+        <vendor>
+            {vendor}
+            <contact>
+                <name part="full">{vendor_full_name}</name>
+            </contact>
+        </vendor>
         <provider>
             <name part="full">Impel-Chat</name>
             <service>Omnichannel Experience Platform for Dealerships</service>
@@ -36,7 +42,7 @@ BASE_ADF_TEMPLATE = """
                 </address>
             </contact>
         </provider>
-	</prospect>
+    </prospect>
 </adf>
 """
 
@@ -44,13 +50,6 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "year": "year",
     "make": "make",
     "model": "model",
-    "address": "address",
-    "city": "city",
-    "country": "country",
-    "email": "email",
-    "phone": "phone",
-    "postal_code": "postalcode",
-    "comment": "comment",
     "status": "status",
     "body_style": "bodystyle",
     "condition": "condition",
@@ -59,4 +58,11 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "stock_num": "stock",
     "trim": "trim",
     "vin": "vin",
+    "address": "street",
+    "city": "city",
+    "country": "country",
+    "email": "email",
+    "phone": "phone",
+    "postal_code": "postalcode",
+    "comment": "comment",
 }
