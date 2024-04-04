@@ -291,6 +291,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             session.commit()
             lead_id = lead.id
             integration_partner_name = integration_partner.impel_integration_partner_name
+            dealer_partner_id = consumer.dealer_integration_partner_id
+            dealer_metadata = consumer.dealer_integration_partner.metadata_
 
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
@@ -299,7 +301,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
         if request_product == "chat_ai":
-            make_adf_assembler_request({"lead_id": lead_id})
+            if dealer_metadata:
+                adf_recipients = dealer_metadata.get("adf_email_recipients", [])
+            else:
+                logger.warning(f"No metadata found for dealer: {dealer_partner_id}")
+                adf_recipients = []
+
+            make_adf_assembler_request({"lead_id": lead_id, "recipients": adf_recipients})
         elif notify_listener:
             sqs_client = boto3.client('sqs')
 

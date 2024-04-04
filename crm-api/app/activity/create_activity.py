@@ -87,13 +87,13 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
         send_alert_notification(payload['activity_id'], e)
 
 
-def convert_utc_to_timezone(input_ts, time_zone, crm_dealer_id) -> str:
+def convert_utc_to_timezone(input_ts, time_zone, dealer_partner_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
     utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
     utc_datetime = pytz.utc.localize(utc_datetime)
 
     if not time_zone:
-        logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(crm_dealer_id))
+        logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
         return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
     # Get the dealer timezone object, convert UTC datetime to dealer timezone
@@ -172,6 +172,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             dealer_partner = lead.consumer.dealer_integration_partner
             partner_name = dealer_partner.integration_partner.impel_integration_partner_name
+            dealer_partner_metadata = dealer_partner.metadata_
 
             dealer_metadata = dealer_partner.dealer.metadata_
             if dealer_metadata:
@@ -202,9 +203,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
             if request_product == "chat_ai" and activity_type == "appointment":
+                if dealer_partner_metadata:
+                    adf_recipients = dealer_partner_metadata.get("adf_email_recipients", [])
+                else:
+                    logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
+                    adf_recipients = []
                 # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.crm_dealer_id)
-                make_adf_assembler_request({"lead_id": lead_id, "activity_time": activity_due_ts_in_dealer_tz})
+                activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.id)
+                make_adf_assembler_request({
+                    "lead_id": lead_id,
+                    "recipients": adf_recipients,
+                    "activity_time": activity_due_ts_in_dealer_tz}
+                )
             else:
                 create_on_crm(partner_name=partner_name, payload=payload)
 
