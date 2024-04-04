@@ -188,12 +188,12 @@ def parse_lead(product_dealer_id, data):
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
-        if data.get("contactID"):
-            db_salesperson = extract_salesperson(data["contactID"], data.get("contactName"))
-
-        elif data.get("bdcID"):
-            logger.info("No sales rep found. Using BDC rep as salesperson.")
+        if data.get("bdcID"):
             db_salesperson = extract_salesperson(data["bdcID"], data.get("bdcName"), "BDC Rep")
+
+        elif data.get("contactID"):
+            logger.info("No BDC rep found. Using sales rep as salesperson.")
+            db_salesperson = extract_salesperson(data["contactID"], data.get("contactName"))
 
         else:
             db_salesperson = {}
