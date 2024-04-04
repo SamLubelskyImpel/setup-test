@@ -18,7 +18,7 @@ BASE_ADF_TEMPLATE = """
             {customer}
         </customer>
         <vendor>
-            {vendor}
+            <vendorname>Impel</vendorname>
             <contact>
                 <name part="full">{vendor_full_name}</name>
             </contact>
@@ -28,11 +28,11 @@ BASE_ADF_TEMPLATE = """
             <service>Omnichannel Experience Platform for Dealerships</service>
             <url>https://www.impel.ai</url>
             <email>support@impel.ai</email>
-            <phone>+1 844-384-6735</phone>
+            <phone>844-384-6735</phone>
             <contact primarycontact="1">
                 <name part="full">Support</name>
                 <email>support@impel.ai</email>
-                <phone type="voice" time="day">1 844-384-6735</phone>
+                <phone type="voice" time="day">844-384-6735</phone>
                 <address>
                 <street line="1">344 S Warren St #200</street>
                 <city>Syracuse</city>
@@ -64,5 +64,5 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "email": "email",
     "phone": "phone",
     "postal_code": "postalcode",
-    "comment": "comment",
+    "comment": "comments",
 }

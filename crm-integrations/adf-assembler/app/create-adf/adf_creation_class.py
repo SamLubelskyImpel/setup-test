@@ -60,7 +60,9 @@ class AdfCreation:
 
         for key, item in customer_data.items():
             # In address section
-            if key in ("address", "city", "country", "postal_code"):
+            if key == "address":
+                address += f'<street line="1">{item}</street>\n'
+            if key in ("city", "country", "postal_code"):
                 address += self.formatter.format(name=self.mapper[key], data=item)
             if key in ("email", "phone"):
                 contact += self.formatter.format(name=self.mapper[key], data=item)
@@ -157,14 +159,6 @@ class AdfCreation:
         # Add color combination data
         category_data += self._create_color_combination(lead_data)
 
-        # Additional formatting for customer category
-        # if lead_category == "customer":
-        #     name_parts = ("first", "middle", "last")
-        #     for part in name_parts:
-        #         name_value = lead_data.get(part + "_name")
-        #         if name_value:
-        #             category_data += f'<name part="{part}">{name_value}</name>\n'
-
         return category_data
 
     def call_crm_api(self, url):
@@ -200,16 +194,23 @@ class AdfCreation:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
             lead_comment = vehicle.get("lead_comment")
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
-            self.vehicle = self.generate_adf_from_lead_data(
-                vehicle_of_interest, "vehicle"
-            )
+            if not vehicle_of_interest:
+                self.vehicle = "{}{}{}".format(
+                    self.formatter.format(name="year", data=""),
+                    self.formatter.format(name="make", data=""),
+                    self.formatter.format(name="model", data="")
+                )
+            else:
+                self.vehicle = self.generate_adf_from_lead_data(
+                    vehicle_of_interest, "vehicle"
+                )
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
             consumer |= {"comment": self._create_comment(appointment_time, lead_comment, add_summary_to_appointment_comment)}
             self.customer, self.customer_contact, self.customer_address = self._create_customer(consumer)
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
-            self.vendor = self.generate_adf_from_lead_data(dealer, "vendor")
+            # self.vendor = self.generate_adf_from_lead_data(dealer, "vendor")
 
             return self.adf_file.format(
                 lead_id=lead_id,
