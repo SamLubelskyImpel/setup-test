@@ -59,6 +59,7 @@ def extract_inventory_data(json_data):
         'doors': None if not json_data.get('inv_inventory|doors', '').strip() else int(json_data['inv_inventory|doors']),
         'seats': None if not json_data.get('inv_inventory|seats', '').strip() else int(json_data['inv_inventory|seats']),
         'transmission': json_data.get('inv_inventory|transmission', '').strip() or None,
+        'photo_url': json_data.get('inv_inventory|photo_url', '').strip() or None,
         'drive_train': json_data.get('inv_inventory|drive_train', '').strip() or None,
         'cylinders': None if not json_data.get('inv_inventory|cylinders', '').strip() else int(json_data['inv_inventory|cylinders']),
         'body_style': json_data.get('inv_inventory|body_style', '').strip() or None,
