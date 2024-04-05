@@ -88,14 +88,14 @@ def parse_csv_to_entries(df, s3_uri):
                     db_consumer['home_phone'] = re.sub(r'\D', '', str(phone_numbers_extracted.get('Home', '')))
 
                 db_consumer["email_optin_flag"] = True
-                db_consumer["phone_optin_flag"] = True
+                db_consumer["sms_optin_flag"] = True
 
                 # add new vehicle
                 db_vehicle["vin"] = row.get('Vehicle VIN')
                 db_vehicle["make"] = row.get('Vehicle Make')
                 db_vehicle["model"] = row.get('Vehicle Model')
                 year = int(pd.to_numeric(row.get('Vehicle Year'), errors='coerce')) if pd.notnull(row.get('Vehicle Year')) else None
-                mileage = row.get('Vehicle Mileage')
+                mileage = int(pd.to_numeric(row.get('Vehicle Mileage'), errors='coerce')) if pd.notnull(row.get('Vehicle Mileage')) else None
                 db_vehicle["year"] = year
                 db_vehicle["mileage"] = mileage
                 if mileage and year:
