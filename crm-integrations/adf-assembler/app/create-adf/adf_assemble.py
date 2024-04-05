@@ -20,25 +20,30 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Event: {event}")
         body = loads(event["body"]) if event.get("body") else event
 
-        adf_creation = AdfCreation()
-        formatted_adf, partner_id = adf_creation.create_adf_data(body.get("lead_id"), body.get("activity_time", ""))
-        logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
+        partner_name = body.get("partner_name", "")
+        logger.info(f"Partner Name: {partner_name}")
 
         current_time = datetime.now().strftime("%Y_%m_%dT%H-%M-%SZ")
-        logger.info(f"Partner ID: {partner_id}")
+        s3_key = f"chatai/{partner_name}_{body.get('lead_id')}_{current_time}.json"
 
-        s3_key = f"chatai/{partner_id}_{body.get('lead_id')}_{current_time}.json"
-
-        logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_id}.json \n Bucket: {BUCKET}")
+        logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_name}.json \n Bucket: {BUCKET}")
         s3_object = loads(
             s3_client.get_object(
-                Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_{partner_id}.json"
+                Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_{partner_name}.json"
             )["Body"].read().decode("utf-8")
         )
 
         adf_integration_config = s3_object.get("adf_integration_config", {})
-        integration_type = adf_integration_config.get("adf_integration_type")
+        integration_type = adf_integration_config.get("adf_integration_type", "EMAIL")
         add_summary_to_appointment_comment = adf_integration_config.get("add_summary_to_appointment_comment", True)  # default to True
+
+        adf_creation = AdfCreation()
+        formatted_adf = adf_creation.create_adf_data(
+            lead_id=body.get("lead_id"),
+            appointment_time=body.get("activity_time", ""),
+            add_summary_to_appointment_comment=add_summary_to_appointment_comment
+        )
+        logger.info(f"[adf_assembler] adf file: \n{formatted_adf}")
 
         if integration_type == "EMAIL":
             recipients = body.get("recipients", [])

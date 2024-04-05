@@ -213,8 +213,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 make_adf_assembler_request({
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
-                    "activity_time": activity_due_ts_in_dealer_tz}
-                )
+                    "activity_time": activity_due_ts_in_dealer_tz,
+                    "partner_name": partner_name
+                })
             else:
                 create_on_crm(partner_name=partner_name, payload=payload)
 

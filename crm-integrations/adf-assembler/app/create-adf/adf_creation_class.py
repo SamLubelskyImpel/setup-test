@@ -221,7 +221,7 @@ class AdfCreation:
                 customer_address=self.customer_address,
                 vendor=self.vendor,
                 vendor_full_name=dealer.get("dealer_name"),
-            ), dealer.get("integration_partner_name")
+            )
 
         except CRMApiError as e:
             raise e

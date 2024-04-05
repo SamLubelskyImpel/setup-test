@@ -307,7 +307,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 logger.warning(f"No metadata found for dealer: {dealer_partner_id}")
                 adf_recipients = []
 
-            make_adf_assembler_request({"lead_id": lead_id, "recipients": adf_recipients})
+            make_adf_assembler_request({"lead_id": lead_id, "recipients": adf_recipients, "partner_name": integration_partner_name})
         elif notify_listener:
             sqs_client = boto3.client('sqs')
 
