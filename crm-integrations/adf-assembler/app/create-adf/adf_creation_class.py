@@ -59,7 +59,8 @@ class AdfCreation:
                 contact += f'<name part="{part}">{name_value}</name>\n'
 
         for key, item in customer_data.items():
-            # In address section
+            if not item:
+                continue
             if key == "address":
                 address += f'<street line="1">{item}</street>\n'
             if key in ("city", "country", "postal_code"):
@@ -156,6 +157,12 @@ class AdfCreation:
                 else:
                     category_data += self.formatter.format(name=mapper_name, data=item)
 
+        # Required fields
+        if lead_category == "vehicle":
+            for required_field in ["year", "make", "model"]:
+                if not lead_data.get(required_field):
+                    category_data += self.formatter.format(name=required_field, data="")
+
         # Add color combination data
         category_data += self._create_color_combination(lead_data)
 
@@ -194,16 +201,9 @@ class AdfCreation:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
             lead_comment = vehicle.get("lead_comment")
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
-            if not vehicle_of_interest:
-                self.vehicle = "{}{}{}".format(
-                    self.formatter.format(name="year", data=""),
-                    self.formatter.format(name="make", data=""),
-                    self.formatter.format(name="model", data="")
-                )
-            else:
-                self.vehicle = self.generate_adf_from_lead_data(
-                    vehicle_of_interest, "vehicle"
-                )
+            self.vehicle = self.generate_adf_from_lead_data(
+                vehicle_of_interest, "vehicle"
+            )
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
             consumer |= {"comment": self._create_comment(appointment_time, lead_comment, add_summary_to_appointment_comment)}
