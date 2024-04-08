@@ -625,6 +625,25 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
+
+  UploadSalespersonsData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-UploadSalespersonsData"
+      CodeUri: app/dealer/
+      Handler: upload_salespersons.lambda_handler
+      Timeout: 90
+      MemorySize: 1024
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/salespersons/{dealer_id}
+            Method: POST
+      Layers:
+        - !Ref CrmOrmLayer
   
   NotifyEventListener:
     Type: AWS::Serverless::Function
