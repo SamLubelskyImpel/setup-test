@@ -92,7 +92,13 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
     if authorized and endpoint_allowed:
         policy["Statement"][0]["Effect"] = "Allow"
-        return {"policyDocument": policy, "principalId": partner_id}
+        return {
+            "policyDocument": policy, 
+            "principalId": partner_id,
+            "context": {
+                "integration_partner": secret_data.get("integration_partner", None)
+            }
+        }
     else:
         logger.info(f"Access denied for partner_id {partner_id} to endpoint {method_arn}")
         raise Exception("Unauthorized")

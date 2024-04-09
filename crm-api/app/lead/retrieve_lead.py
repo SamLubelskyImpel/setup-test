@@ -12,6 +12,8 @@ from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.session_config import DBSession
 
+from utils import get_restricted_query
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -33,10 +35,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
+        integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
         lead_id = event["pathParameters"]["lead_id"]
 
         with DBSession() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
+            lead = (
+                get_restricted_query(session, integration_partner)
+                .filter(Lead.id == lead_id)
+                .first()
+            )
+            
             vehicles_db = (
                 session.query(Vehicle)
                 .filter(Vehicle.lead_id == lead_id)
