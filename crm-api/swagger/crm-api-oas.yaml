@@ -825,6 +825,7 @@ paths:
   /dealers/{dealer_id}/salespersons:
     get:
       summary: Get saleslpersons from CRM API.
+      #{{RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO}}
       tags:
         - Dealers
       parameters:
