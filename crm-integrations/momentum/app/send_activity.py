@@ -25,9 +25,13 @@ crm_api = CrmApiWrapper()
 
 
 def get_salespersons_handler(event: Any, context: Any) -> Any:
+    logger.info(f"This is event: {event}")
     try:
         formatted_salespersons = []
-        momentum_crm_api = MomentumApiWrapper(activity=loads(event))
+        dealer_id = event['dealer_id']
+        momentum_crm_api = MomentumApiWrapper(activity={
+            "crm_dealer_id": dealer_id
+        })
         salespersons = momentum_crm_api.get_salespersons()
         for person in salespersons:
             position_name = person.get("jobTitle")
@@ -46,10 +50,10 @@ def get_salespersons_handler(event: Any, context: Any) -> Any:
 
     except Exception as e:
         logger.exception(
-            f"Failed to retrieve salespersons {event['dealer_integration_partner_id']} to Momentum"
+            f"Failed to retrieve salespersons {event} to Momentum"
         )
         logger.error(
-            f"[SUPPORT ALERT] Failed to Get salespersons [CONTENT] DealerIntegrationPartnerId: {event['dealer_integration_partner_id']}"
+            f"[SUPPORT ALERT] Failed to Get salespersons [CONTENT] DealerIntegrationPartnerId: {event}"
         )
         return {"statusCode": 500, "error":"Failed to retrieve salespersons"}
 

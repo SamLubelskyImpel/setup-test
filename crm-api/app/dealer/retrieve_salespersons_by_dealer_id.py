@@ -48,6 +48,7 @@ def get_lambda_arn(partner_name: str) -> Any:
 
 def invoke_lambda_get_dealer_salespersons(dealer_id: str, lambda_arn: str):
     """Get dealer salespersons from CRM."""
+    logger.info(f"Invoke lambda to get salespersons from CRM using crm_dealer_id:{dealer_id}")
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
         InvocationType="RequestResponse",
@@ -60,7 +61,7 @@ def invoke_lambda_get_dealer_salespersons(dealer_id: str, lambda_arn: str):
             f"Error retrieving salespersons {response_json['statusCode']}: {response_json}"
         )
         raise
-    return response_json
+    return loads(response_json["body"])
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -74,12 +75,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
         with DBSession() as session:
             integration_partner_name = (
                 session.query(
-                    Dealer.product_dealer_id,
+                    DealerIntegrationPartner.crm_dealer_id,
                     IntegrationPartner.impel_integration_partner_name,
                 )
                 .join(
-                    DealerIntegrationPartner,
-                    DealerIntegrationPartner.dealer_id == Dealer.id,
+                    Dealer,
+                    Dealer.id == DealerIntegrationPartner.dealer_id,
                 )
                 .join(
                     IntegrationPartner,
@@ -91,7 +92,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             )
 
             dealer_salespersons = invoke_lambda_get_dealer_salespersons(
-                dealer_id=product_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
+                dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
             )
 
             if not dealer_salespersons or dealer_salespersons.get("statusCode") != 200:
