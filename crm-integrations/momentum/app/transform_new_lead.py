@@ -116,6 +116,28 @@ def parse_address(data):
         return add1 or add2 or None
 
 
+def extract_salesperson(salesperson_id: str, salesperson_name=None, position_name="Primary Salesperson"):
+    """Extract salesperson data."""
+    db_salesperson = {
+        "crm_salesperson_id": salesperson_id,
+        "first_name": "",
+        "last_name": "",
+        "is_primary": True,
+        "position_name": position_name,
+    }
+    if salesperson_name:
+        try:
+            sp_first, sp_last = salesperson_name.split()
+            db_salesperson["first_name"] = sp_first
+            db_salesperson["last_name"] = sp_last
+        except ValueError:
+            logger.warning(f"Unexpected salesperson name: {salesperson_name}")
+            db_salesperson["first_name"] = salesperson_name.strip().replace(" ", "")
+            db_salesperson["last_name"] = ""
+
+    return db_salesperson
+
+
 def parse_lead(product_dealer_id, data):
     """Parse the JSON lead data."""
     parsed_data = {}
@@ -166,23 +188,12 @@ def parse_lead(product_dealer_id, data):
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
-        if data.get("contactID"):
-            db_salesperson = {
-                "crm_salesperson_id": data["contactID"],
-                "first_name": "",
-                "last_name": "",
-                "is_primary": True,
-                "position_name": "Primary Salesperson",
-            }
-            if data.get("contactName"):
-                try:
-                    sp_first, sp_last = data["contactName"].split()
-                    db_salesperson["first_name"] = sp_first
-                    db_salesperson["last_name"] = sp_last
-                except ValueError:
-                    logger.warning(f"Unexpected salesperson name: {data['contactName']}")
-                    db_salesperson["first_name"] = data["contactName"].strip().replace(" ", "")
-                    db_salesperson["last_name"] = ""
+        if data.get("bdcID"):
+            db_salesperson = extract_salesperson(data["bdcID"], data.get("bdcName"), "BDC Rep")
+
+        elif data.get("contactID"):
+            logger.info("No BDC rep found. Using sales rep as salesperson.")
+            db_salesperson = extract_salesperson(data["contactID"], data.get("contactName"))
 
         else:
             db_salesperson = {}

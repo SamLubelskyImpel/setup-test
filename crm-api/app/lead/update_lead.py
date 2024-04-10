@@ -11,6 +11,8 @@ from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
 
+from utils import get_restricted_query
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -112,6 +114,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """Update lead."""
     logger.info(f"Event: {event}")
 
+    integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
     lead_id = event["pathParameters"]["lead_id"]
 
     try:
@@ -130,7 +133,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
         with DBSession() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
+            lead = (
+                get_restricted_query(session, integration_partner)
+                .filter(Lead.id == lead_id)
+                .first()
+            )
 
             if not lead:
                 logger.error(f"Lead not found {lead_id}")

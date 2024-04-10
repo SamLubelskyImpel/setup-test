@@ -17,6 +17,8 @@ from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import DBSession
 
+from utils import get_restricted_query
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -54,16 +56,16 @@ def retrieve_leads_from_db(
     end_date: str,
     page: int,
     max_results: int,
-    dealer_partner_id: Optional[int] = None
+    dealer_partner_id: Optional[int] = None,
+    integration_partner: str = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
 
     with DBSession() as session:
+        leads_query = get_restricted_query(session, integration_partner)
         leads_query = (
-            session.query(Lead)
-            .join(Consumer, Lead.consumer_id == Consumer.id)
-            .options(joinedload(Lead.vehicles))
+            leads_query.options(joinedload(Lead.vehicles))
             .filter(
                 Lead.db_creation_date >= start_date,
                 Lead.db_creation_date <= end_date
@@ -168,6 +170,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve a list of all leads for a given integration partner id."""
     logger.info(f"Event: {event}")
     try:
+        integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
         filters = event.get("queryStringParameters", {})
         page = int(filters.get("page", 1))
         max_results = min(1000, int(filters.get("result_count", 1000)))
@@ -197,7 +200,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 db_creation_date_end,
                 page,
                 max_results,
-                dealer_partner_id
+                dealer_partner_id,
+                integration_partner
         )
 
         return {

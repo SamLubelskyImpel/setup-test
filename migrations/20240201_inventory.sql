@@ -73,8 +73,12 @@ CREATE TABLE stage.inv_dealer (
     zip_code VARCHAR(20) NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     db_update_date timestamptz NULL,
-    db_update_user varchar(255) NULL,
+    db_update_role varchar(255) NULL,
     full_name VARCHAR(255) NULL,
+    merch_dealer_id VARCHAR(255) NULL,
+    salesai_dealer_id VARCHAR(255) NULL,
+    merch_is_active BOOLEAN NULL DEFAULT false,
+    salesai_is_active BOOLEAN NULL DEFAULT false,
     CONSTRAINT unique_inv_impel_id UNIQUE (impel_dealer_id)
 );
 
@@ -119,7 +123,7 @@ CREATE TABLE stage.inv_dealer_integration_partner (
     is_active BOOLEAN NOT NULL DEFAULT true,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+	db_update_role varchar(255) NULL,
     CONSTRAINT inv_dealer_integration_partner_un UNIQUE (dealer_id, integration_partner_id, provider_dealer_id)
 );
 
@@ -168,10 +172,11 @@ CREATE TABLE stage.inv_vehicle (
     "year" int4 NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+	db_update_role varchar(255) NULL,
     dealer_integration_partner_id INTEGER REFERENCES stage.inv_dealer_integration_partner(id) NOT NULL,
     new_or_used VARCHAR(1) NULL,
-    metadata jsonb NULL
+    metadata jsonb NULL,
+    stock_num VARCHAR NULL
 );
 
 -- Create a trigger on inv_vehicle table that fires on INSERT
@@ -212,7 +217,7 @@ CREATE TABLE stage.inv_inventory (
     vehicle_id INTEGER REFERENCES stage.inv_vehicle(id) NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+	db_update_role varchar(255) NULL,
     list_price FLOAT NULL,
     cost_price FLOAT NULL,
     fuel_type VARCHAR(255) NULL,
@@ -247,7 +252,8 @@ CREATE TABLE stage.inv_inventory (
     engine VARCHAR(255) NULL,
     engine_displacement VARCHAR(255) NULL,
     factory_certified BOOLEAN NULL,
-    metadata jsonb NULL
+    metadata jsonb NULL,
+    received_datetime timestamptz NULL
 );
 
 -- Create a trigger on inv_inventory table that fires on INSERT
@@ -287,7 +293,7 @@ CREATE TABLE stage.inv_equipment (
     id SERIAL PRIMARY KEY NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+	db_update_role varchar(255) NULL,
     equipment_description VARCHAR(255) NULL,
     is_optional BOOLEAN NULL
 );
@@ -329,7 +335,7 @@ CREATE TABLE stage.inv_option (
     id SERIAL PRIMARY KEY NOT NULL,
     db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	db_update_date timestamptz NULL,
-	db_update_user varchar(255) NULL,
+	db_update_role varchar(255) NULL,
     option_description VARCHAR(255) NULL,
     is_priority BOOLEAN NULL
 );
