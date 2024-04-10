@@ -64,8 +64,8 @@ def parse_salesperson(agent: dict):
         "crm_salesperson_id": user_id,
         "first_name": first_name,
         "last_name": last_name,
-        "email": email_address,
-        "phone": phone_number,
+        "email": email_address or [],
+        "phone": phone_number or [],
         "position_name": "Agent",
         "is_primary": True
     }
