@@ -68,7 +68,7 @@ class AdfCreation:
             if key in ("email", "phone"):
                 contact += self.formatter.format(name=self.mapper[key], data=item)
             if key in ("comment"):
-                customer += f'<comments><![CDATA[{item}]]></comments>\n'
+                customer += f'<comments><![CDATA[ {item} ]]></comments>\n'
                 # customer += self.formatter.format(name=self.mapper[key], data=item)
 
         return customer, contact, address
