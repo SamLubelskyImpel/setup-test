@@ -28,10 +28,7 @@ def get_salespersons_handler(event: Any, context: Any) -> Any:
     logger.info(f"This is event: {event}")
     try:
         formatted_salespersons = []
-        dealer_id = event['dealer_id']
-        momentum_crm_api = MomentumApiWrapper(activity={
-            "crm_dealer_id": dealer_id
-        })
+        momentum_crm_api = MomentumApiWrapper(activity=event)
         salespersons = momentum_crm_api.get_salespersons()
         for person in salespersons:
             position_name = person.get("jobTitle")

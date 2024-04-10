@@ -52,7 +52,7 @@ def invoke_lambda_get_dealer_salespersons(dealer_id: str, lambda_arn: str):
     response = lambda_client.invoke(
         FunctionName=lambda_arn,
         InvocationType="RequestResponse",
-        Payload=dumps({"dealer_id": dealer_id}),
+        Payload=dumps({"crm_dealer_id": dealer_id}),
     )
     logger.info(f"Response from lambda: {response}")
     response_json = loads(response["Payload"].read().decode("utf-8"))
@@ -95,7 +95,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
             )
 
-            if not dealer_salespersons or dealer_salespersons.get("statusCode") != 200:
+            if not dealer_salespersons:
                 logger.error(
                     f"No salespersons found with dealer_id: {product_dealer_id}"
                 )
