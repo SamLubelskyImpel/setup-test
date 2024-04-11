@@ -30,7 +30,7 @@ def get_secrets():
     return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
 
-def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
+def get_lead(crm_dealer_id, crm_lead_id):
     """Get lead from DealerPeak."""
     api_url, username, password = get_secrets()
     auth = HTTPBasicAuth(username, password)
@@ -40,6 +40,7 @@ def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
         auth=auth,
         timeout=3,
     )
+    logger.info(f"DealerPeak responded with: {response.status_code}")
     response.raise_for_status()
     return response.json()
 
