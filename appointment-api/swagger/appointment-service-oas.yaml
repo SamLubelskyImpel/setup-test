@@ -1,0 +1,592 @@
+openapi: 3.0.0
+info:
+  version: "1.0.0"
+  title: Appointment Service API
+  description: An API for scheduling appointments on behalf of consumers through third-party vendors.
+servers:
+  - description: Impel test environment
+    url: https://appointment-service-test.testenv.impel.io/
+  - description: Impel staging environment
+    url: https://appointment-service.testenv.impel.io/
+  - description: Impel production environment
+    url: https://appointment-service.impel.io/
+#{{APPOINTMENT_SERVICE_API_VALIDATION}}
+paths:
+  /appointments/v1:
+    post:
+      #{{CREATE_APPOINTMENT_INFO}}
+      tags:
+        - Appointments
+      description: Create new appointment in shared layer
+      operationId: createAppointment
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+        - "$ref": "#/components/parameters/consumerId"
+      requestBody:
+        description: Appointment information
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - "$ref": "#/components/schemas/BasicAppointment"
+                - type: object
+                  properties:
+                    consumer:
+                      "$ref": "#/components/schemas/Consumer"
+                - type: object
+                  properties:
+                    vehicle:
+                      "$ref": "#/components/schemas/Vehicle"
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointment_id:
+                    type: number
+                    description: ID of the appointment in the shared layer
+                    example: 12345
+                  consumer_id:
+                    type: number
+                    description: ID of the consumer in the shared layer
+                    example: 12345
+                  vehicle_id:
+                    type: number
+                    description: ID of the vehicle in the shared layer
+                    example: 12345
+                  request_id:
+                    type: string
+                    description: Auto-generated GUID for request
+                    example: "5aec6d02-239e-49d1-9c95-78cdb787df4f"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
+    get:
+      #{{RETRIEVE_APPOINTMENTS_INFO}}
+      tags:
+        - Appointments
+      description: Get existing appointments from shared layer
+      operationId: getAppointments
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+        - in: query
+          name: op_code
+          description: The products op code for the appointment
+          schema:
+            type: string
+            example: "ABCDEFG"
+        - in: query
+          name: status
+          description: Status of appointment
+          schema:
+            type: string
+            example: "Active"
+            enum: [ Active, Cancelled, Failed, Passed ]
+        - in: query
+          name: first_name
+          description: First name of consumer
+          schema:
+            type: string
+            example: "John"
+        - in: query
+          name: last_name
+          description: Last name of consumer
+          schema:
+            type: string
+            example: "Smith"
+        - in: query
+          name: email_address
+          description: Primary email address of consumer
+          schema:
+            type: string
+            example: "john.smith@example.com"
+        - in: query
+          name: phone_number
+          description: Primary phone number of consumer
+          schema:
+            type: string
+            example: "123-456-7890"
+        - in: query
+          name: vin
+          description: Vehicle Identification Number of a vehicle
+          schema:
+            type: string
+            example: "1HGBH41JXMN109186"
+        - in: query
+          name: db_creation_date_start
+          description: Specifies the earliest 'db_creation_date' in the local time of the dealer to include in the query for created leads
+          schema:
+            type: string
+            format: date-time
+            example: '2024-03-26T14:00:00'
+        - in: query
+          name: db_creation_date_end
+          description: Specifies the latest 'db_creation_date' in the local time of the dealer to include in the query for created leads     
+          schema:
+            type: string
+            format: date-time
+            example: '2024-03-30T14:00:00'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointments:
+                    type: array
+                    items:
+                      allOf:
+                        - type: object
+                          properties:
+                            id:
+                              type: number
+                              description: ID of the appointment in shared layer
+                              example: 12345
+                        - "$ref": "#/components/schemas/Appointment"
+                        - type: object
+                          properties:
+                            consumer:
+                              allOf:
+                                - type: object
+                                  properties:
+                                    id:
+                                      type: number
+                                      description: ID of consumer in shared layer
+                                      example: 12345
+                                - "$ref": "#/components/schemas/Consumer"
+                        - type: object
+                          properties:
+                            vehicle:
+                              allOf:
+                                - type: object
+                                  properties:
+                                    id:
+                                      type: number
+                                      description: ID of the vehicle in shared layer
+                                      example: 12345
+                                - "$ref": "#/components/schemas/Vehicle"
+                  request_id:
+                    type: string
+                    description: Auto-generated GUID for request
+                    example: "5aec6d02-239e-49d1-9c95-78cdb787df4f"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
+  # /appointments/v1/{appointment_id}:
+  #   get:
+  #     tags:
+  #       - Appointments
+  #     description: Get existing appointment from shared layer
+  #     operationId: getAppointment
+  #     parameters:
+  #       - "$ref": "#/components/parameters/partnerId"
+  #       - "$ref": "#/components/parameters/xApiKey"
+  #       - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+  #       - in: path
+  #         name: appointment_id
+  #         required: true
+  #         description: ID of appointment from shared layer
+  #         schema:
+  #           type: number
+  #           example: 12345
+  #     responses:
+  #       '200':
+  #         description: Success
+  #         content:
+  #           application/json:
+  #             schema:
+  #               allOf:
+  #                 - type: object
+  #                   properties:
+  #                     id:
+  #                       type: number
+  #                       description: ID of the appointment in shared layer
+  #                       example: 12345
+  #                 - "$ref": "#/components/schemas/Appointment"
+  #                 - type: object
+  #                   properties:
+  #                     consumer:
+  #                       allOf:
+  #                         - type: object
+  #                           properties:
+  #                             id:
+  #                               type: number
+  #                               description: ID of consumer in shared layer
+  #                               example: 12345
+  #                         - "$ref": "#/components/schemas/Consumer"
+  #                 - type: object
+  #                   properties:
+  #                     vehicle:
+  #                       allOf:
+  #                         - type: object
+  #                           properties:
+  #                             id:
+  #                               type: number
+  #                               description: ID of the vehicle in shared layer
+  #                               example: 12345
+  #                         - "$ref": "#/components/schemas/Vehicle"
+  #                 - type: object
+  #                   properties:
+  #                     request_id:
+  #                       type: string
+  #                       description: Auto-generated GUID for request
+  #                       example: "5aec6d02-239e-49d1-9c95-78cdb787df4f"
+  #       '400':
+  #         "$ref": "#/components/responses/400"
+  #       '401':
+  #         "$ref": "#/components/responses/401"
+  #       '404':
+  #         description: Not found. The appointment_id included in the request didn't match any existing records on Impel.
+  #       '500':
+  #         "$ref": "#/components/responses/500"
+    # put:
+    #   tags:
+    #     - Appointments
+    #   description: Update an existing appointment in shared layer
+    #   operationId: updateAppointment
+    #   parameters:
+    #     - "$ref": "#/components/parameters/partnerId"
+    #     - "$ref": "#/components/parameters/xApiKey"
+    #     - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+    #     - in: path
+    #       name: appointment_id
+    #       required: true
+    #       description: ID of appointment from shared layer
+    #       schema:
+    #         type: number
+    #         example: 12345
+    #   requestBody:
+    #     description: Appointment information
+    #     required: true
+    #     content:
+    #       application/json:
+    #         schema:
+    #           "$ref": "#/components/schemas/Appointment"
+    #   responses:
+    #     '200':
+    #       description: Success
+      
+  # /appointments/v1/{appointment_id}/cancel:
+  #   post:
+  #     tags:
+  #       - Appointments
+  #     description: Cancel an existing appointment in shared layer
+  #     operationId: cancelAppointment
+  #     parameters:
+  #       - "$ref": "#/components/parameters/partnerId"
+  #       - "$ref": "#/components/parameters/xApiKey"
+  #       - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+  #       - in: path
+  #         name: appointment_id
+  #         required: true
+  #         description: ID of appointment from shared layer
+  #         schema:
+  #           type: number
+  #           example: 12345
+  #     responses:
+  #       '200':
+  #         description: Success
+  #       '400':
+  #         "$ref": "#/components/responses/400"
+  #       '401':
+  #         "$ref": "#/components/responses/401"
+  #       '404':
+  #         description: Not found. The appointment_id included in the request didn't match any existing records on Impel.
+  #       '500':
+  #         "$ref": "#/components/responses/500"
+  /appointments/v1/timeslots:
+    get:
+      #{{RETRIEVE_TIMESLOTS_INFO}}
+      tags:
+        - Timeslots
+      description: Returns available timeslots for appointments
+      operationId: get
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+        - in: query
+          name: start_time
+          required: true
+          description: Specifies the earliest date for available timeslot search (Local Time Dealer)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-03-25T14:00:00"
+        - in: query
+          name: end_time
+          required: true
+          description: Specifies the latest date for available timeslot search (Local Time Dealer)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-03-30T14:00:00"
+        - in: query
+          name: op_code
+          required: true
+          description: The products op code for the appointment
+          schema:
+            type: string
+            example: "ABCDEFG"
+        - in: query
+          name: vin
+          description: Vehicle Identification Number of a vehicle
+          schema:
+            type: string
+            example: "1HGBH41JXMN109186"
+        - in: query
+          name: year
+          description: The sales model year of a vehicle
+          schema:
+            type: number
+            example: 2025
+            minimum: 1800
+            maximum: 3000
+        - in: query
+          name: make
+          description: Model of a vehicle
+          schema:
+            type: string
+            example: "Ford"
+        - in: query
+          name: model
+          description: Make of a vehicle
+          schema:
+            type: string
+            example: "F-150"
+      responses:
+        '200':
+          description: Available time slots from the specified date range
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeslots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timeslot:
+                          type: string
+                          description: Date timeslot for an available appointment (Local Time Dealer)
+                          example: '2024-03-30T14:00:00'
+                        duration:
+                          type: number
+                          description: Length of appointment timeslot (minutes)
+                          example: 30
+                  request_id:
+                    type: string
+                    description: Auto-generated GUID for request
+                    example: "5aec6d02-239e-49d1-9c95-78cdb787df4f"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
+
+components:
+  schemas:
+    BasicAppointment:
+      type: object
+      description: Appointment in the shared layer
+      properties:
+        op_code:
+          type: string
+          description: The products op code for the appointment
+          example: "ABCDEFG"
+        timeslot:
+          type: string
+          format: date-time
+          description: Date timeslot when the appointment was scheduled for (Local Time Dealer)
+          example: '2024-03-30T14:00:00'
+        timeslot_duration:
+          type: number
+          description: Length of appointment timeslot (minutes)
+          example: 30
+        created_date_ts:
+          type: string
+          format: date-time
+          description: Date appointment was scheduled (UTC)
+          example: '2024-03-26T14:00:00Z'
+        comment:
+          type: string
+          description: Appointment comment
+          example: "Customer will drop off motor vehicle"
+          maxLength: 5000
+    Appointment:
+      allOf:
+        - "$ref": "#/components/schemas/BasicAppointment"
+        - type: object
+          properties:
+            status:
+              type: string
+              description: Status of appointment
+              example: "Active"
+              enum: [ Active, Cancelled, Failed, Passed ]
+    Vehicle:
+      type: object
+      description: Vehicle in the shared layer
+      properties:
+        vin:
+          type: string
+          description: Vehicle Identification Number of a vehicle
+          example: "1HGBH41JXMN109186"
+        make:
+          type: string
+          description: Make of a vehicle
+          example: "Ford"
+        model:
+          type: string
+          description: Model of a vehicle
+          example: "F-150"
+        year:
+          type: number
+          description: Manufactured year of a vehicle
+          example: 2024
+        vehicle_class:
+          type: string
+          description: Class of a vehicle
+          example: "Compact"
+        mileage:
+          type: number
+          description: Mileage of a vehicle
+          example: 50000
+        body_style:
+          type: string
+          description: Body style of a vehicle
+          example: "SUV"
+        transmission:
+          type: string
+          description: Transmission of a vehicle
+          example: "Manual"
+        interior_color:
+          type: string
+          description: Interior color of a vehicle
+          example: "Black"
+        exterior_color:
+          type: string
+          description: Exterior color of a vehicle
+          example: "White"
+        trim:
+          type: string
+          description: Trim of a vehicle
+          example: "GT"
+        condition:
+          type: string
+          description: Condition of a vehicle
+          enum: [ New, Used ]
+          example: "New"
+        odometer_units:
+          type: string
+          description: Units for the odometer reading (e.g., miles, kilometers)
+          enum: [ miles, kilometers ]
+          example: "miles"
+    Consumer:
+      type: object
+      description: Consumer in the shared layer
+      properties:
+        product_consumer_id:
+          type: string
+          description: ID of consumer in the product. Used to identify existing consumers
+          example: "12345abc"
+        first_name:
+          type: string
+          description: First name of consumer
+          example: "John"
+        last_name:
+          type: string
+          description: Last name of consumer
+          example: "Smith"
+        email_address:
+          type: string
+          description: Primary email address of consumer
+          example: "john.smith@example.com"
+        phone_number:
+          type: string
+          description: Primary phone number of consumer
+          example: "123-456-7890"
+  responses:
+    '400':
+      description: This indicates Bad Request. For example this error can occur if
+        a required property in the request JSON is missing.
+    '401':
+      description: This request is unauthorized. The authorization credentials are
+        missing or are wrong. For example if the partner_id or the x_api_key provided
+        in the header are wrong/missing. This error can also occur if the dealer_integration_partner_id
+        provided hasn't been configured with Impel.
+    '500':
+      description: Internal Server Error. Please contact Impel support.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    description: Appointment scheduler error code. Codes starting with "V" indicate an error on the vendors side, those starting with "I" indicate an integration error.
+                    example: "V001"
+                  message:
+                    type: string
+                    description: Description of error
+                    example: "Error connecting to vendor API."
+              request_id:
+                type: string
+                description: Auto-generated GUID for request
+                example: "5aec6d02-239e-49d1-9c95-78cdb787df4f"
+  parameters:
+    consumerId:
+      in: query
+      name: consumer_id
+      description: ID of consumer in the shared layer
+      schema:
+        type: number
+        example: 12345
+    dealerIntegrationPartnerId:
+        in: query
+        name: dealer_integration_partner_id
+        required: true
+        description: ID of dealer integration partner in the shared layer
+        schema:
+          type: number
+          example: 12345
+    partnerId:
+      name: partner_id
+      in: header
+      description: This parameter uniquely identifies an Impel partner/product and will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    xApiKey:
+      name: x_api_key
+      in: header
+      description: An API Key provided by CE team that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
