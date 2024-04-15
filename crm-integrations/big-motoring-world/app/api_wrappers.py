@@ -8,17 +8,13 @@ import requests
 from os import environ
 from json import loads
 from boto3 import client
-from uuid import uuid4
-from datetime import datetime
-from typing import Tuple
 import logging
-import pytz
+
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-OUTBOUND_CALL_DEFAULT_MESSAGE = "Sales AI email/text sent. Clock stopped."
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -84,7 +80,7 @@ class BigMotoringWorldApiWrapper:
             json=payload,
             headers=headers,
         )
-        logger.info(f"Response from CRM: {response.status_code} {response.text}") 
+        logger.info(f"Response from CRM: {response.status_code} {response.text}")
         return response
 
 
