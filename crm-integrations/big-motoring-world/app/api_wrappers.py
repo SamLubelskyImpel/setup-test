@@ -13,40 +13,10 @@ import logging
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
-
-
-class CrmApiWrapper:
-    """CRM API Wrapper."""
-
-    def __init__(self) -> None:
-        self.partner_id = CRM_API_SECRET_KEY
-        self.api_key = self.get_secrets()
-
-    def get_secrets(self):
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
-        )
-        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
-        secret_data = loads(secret)
-
-        return secret_data["api_key"]
-
-    def __run_get(self, endpoint: str):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            },
-        )
-        response.raise_for_status()
-        return response.json()
 
 
 class BigMotoringWorldApiWrapper:
@@ -83,7 +53,6 @@ class BigMotoringWorldApiWrapper:
         logger.info(f"Response from CRM: {response.status_code} {response.text}")
         return response
 
-
     def __insert_note(self):
         """Insert note on CRM."""
         payload = {
@@ -96,7 +65,6 @@ class BigMotoringWorldApiWrapper:
         response.raise_for_status()
 
         return response.text
-
 
     def create_activity(self):
         """Create activity on CRM."""

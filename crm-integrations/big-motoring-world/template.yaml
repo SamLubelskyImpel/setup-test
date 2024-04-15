@@ -62,11 +62,6 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
-                    ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -78,29 +73,6 @@ Resources:
                   - "logs:PutLogEvents"
                   - "logs:DescribeLogStreams"
                 Resource: "arn:aws:logs:*:*:*"
-        - PolicyName: LambdaEC2ENIManagement
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "ec2:CreateNetworkInterface"
-                  - "ec2:DescribeNetworkInterfaces"
-                  - "ec2:DeleteNetworkInterface"
-                Resource: "*"
-        - PolicyName: S3Policy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "s3:PutObject"
-                  - "s3:DeleteObject"
-                  - "s3:GetObject"
-                  - "s3:ListBucket"
-                Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-                - !Sub "arn:aws:s3:::crm-integrations-test*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"

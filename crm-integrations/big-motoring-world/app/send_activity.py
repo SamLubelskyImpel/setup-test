@@ -1,6 +1,4 @@
 """Send activity to Big Motoring World."""
-
-import boto3
 import logging
 from typing import Any
 from os import environ
@@ -11,17 +9,13 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from api_wrappers import CrmApiWrapper, BigMotoringWorldApiWrapper
+from api_wrappers import BigMotoringWorldApiWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = boto3.client("secretsmanager")
-crm_api = CrmApiWrapper()
 
 
 def record_handler(record: SQSRecord):
