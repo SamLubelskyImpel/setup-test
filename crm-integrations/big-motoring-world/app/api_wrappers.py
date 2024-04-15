@@ -90,20 +90,17 @@ class BigMotoringWorldApiWrapper:
 
     def __insert_note(self):
         """Insert note on CRM."""
-
         payload = {
             "accountId": self.__account_id,
             "customerId": self.__activity["lead_id"],
             "note": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM: {payload}")
-        # response = self.__call_api(payload)
-        # response.raise_for_status()
-        # response_json = response.json()
-        # logger.info(f"Response from CRM: {response_json}")
-        response_json = {'status': 'success'}
+        response = self.__call_api(payload)
+        response.raise_for_status()
 
-        return response_json
+        return response.text
+
 
     def create_activity(self):
         """Create activity on CRM."""
