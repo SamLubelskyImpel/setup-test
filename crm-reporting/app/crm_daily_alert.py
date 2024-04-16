@@ -26,12 +26,12 @@ def get_active_dealer_integrations(cursor):
 
 
 def get_new_lead_data(cursor):
-    """Return new lead data from the last 12 hours."""
+    """Return new lead data from the last 24 hours."""
     query = f"""
         SELECT DISTINCT dealer_integration_partner_id
         FROM {schema}.crm_lead
         JOIN {schema}.crm_consumer on crm_consumer.id = crm_lead.consumer_id
-        WHERE date_trunc('day', crm_lead.db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '12 hours')
+        WHERE date_trunc('day', crm_lead.db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '24 hours')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -40,12 +40,12 @@ def get_new_lead_data(cursor):
 
 
 def get_lead_update_data(cursor):
-    """Return lead update data from the last 12 hours."""
+    """Return lead update data from the last 24 hours."""
     query = f"""
         SELECT DISTINCT dealer_integration_partner_id
         FROM {schema}.crm_lead
         JOIN {schema}.crm_consumer on crm_consumer.id = crm_lead.consumer_id
-        WHERE date_trunc('day', crm_lead.db_update_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '12 hours')
+        WHERE date_trunc('day', crm_lead.db_update_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '24 hours')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -54,13 +54,13 @@ def get_lead_update_data(cursor):
 
 
 def get_activity_data(cursor):
-    """Return activity data from the last 12 hours."""
+    """Return activity data from the last 24 hours."""
     query = f"""
         SELECT DISTINCT dealer_integration_partner_id
         FROM {schema}.crm_activity
         JOIN {schema}.crm_lead on crm_lead.id = crm_activity.lead_id
         JOIN {schema}.crm_consumer on crm_consumer.id = crm_lead.consumer_id
-        WHERE date_trunc('day', crm_activity.db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '12 hours')
+        WHERE date_trunc('day', crm_activity.db_creation_date) = date_trunc('day', CURRENT_TIMESTAMP - INTERVAL '24 hours')
     """
     cursor.execute(query)
     rows = cursor.fetchall()
@@ -92,19 +92,19 @@ def get_impel_dealer_ids_by_integration_partner_ids(cursor, ids):
 
 
 def get_previous_date():
-    """Return the datetime 12 hours ago as a datetime.datetime object."""
+    """Return the datetime 24 hours ago as a datetime.datetime object."""
     current_date = datetime.now()
-    previous_date = current_date - timedelta(hours=12)
+    previous_date = current_date - timedelta(hours=24)
     return previous_date.strftime("%m/%d/%Y %H:%M:%S")
 
 
 def alert_topic(dealerlist, data_type):
     """Notify Topic of missing shared layer data."""
     report_date = get_previous_date()
-    message = f"No new {data_type} data uploaded to shared layer for 12 hours after {report_date} for dealers: {dealerlist}"
+    message = f"No new {data_type} data uploaded to shared layer for 24 hours after {report_date} for dealers: {dealerlist}"
     SNS_CLIENT.publish(
             TopicArn=SNS_TOPIC_ARN,
-            Subject="CRM Shared Layer Alerts: Missing Data for 12 Hours",
+            Subject="CRM Shared Layer Alerts: Missing Data for 24 Hours",
             Message=message,
             MessageAttributes={
                 "alert_type": {
