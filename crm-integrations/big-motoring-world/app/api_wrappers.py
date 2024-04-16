@@ -57,7 +57,7 @@ class BigMotoringWorldApiWrapper:
         """Insert note on CRM."""
         payload = {
             "accountId": self.__account_id,
-            "customerId": self.__activity["lead_id"],
+            "customerId": self.__activity["consumer_id"],
             "note": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM: {payload}")
