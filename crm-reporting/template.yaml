@@ -121,30 +121,30 @@ Resources:
                   - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
                   - !Ref CRMReportingSnsTopic
 
-  CRMSemiDailyAlert:
+  CRMDailyAlert:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub crm-reporting-${Environment}-SemiDailyAlert
+      FunctionName: !Sub crm-reporting-${Environment}-DailyAlert
       CodeUri: app/
       Timeout: 30
-      Handler: crm_semidaily_alert.lambda_handler
+      Handler: crm_daily_alert.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref CRMReportingSnsTopic
   
-  CRMSemiDailyErrorAlarm:
+  CRMDailyErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub crm-reporting-${Environment}-SemiDailyAlert
-      AlarmDescription: Semi-daily Alert failed 1 time within 15 minutes
+      AlarmName: !Sub crm-reporting-${Environment}-DailyAlert
+      AlarmDescription: Daily Alert failed 1 time within 15 minutes
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref CRMSemiDailyAlert
+          Value: !Ref CRMDailyAlert
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -153,31 +153,31 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  CRMSemiDailyAlertDeadletterQueue:
+  CRMDailyAlertDeadletterQueue:
     Type: AWS::SQS::Queue
     Properties:
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
-  CRMSemiDailyAlertScheduledEvent:
+  CRMDailyAlertScheduledEvent:
     Type: AWS::Events::Rule
     Properties:
       State: !If [ IsProd, ENABLED, DISABLED ]
       ScheduleExpression: cron(0 12,0 * * ? *)
-      Description: Runs CRM alerting semi-daily
+      Description: Runs CRM alerting daily
       Targets:
-        - Id: CRMSemiDailyAlertFunctionTarget
-          Arn: !GetAtt CRMSemiDailyAlert.Arn
+        - Id: CRMDailyAlertFunctionTarget
+          Arn: !GetAtt CRMDailyAlert.Arn
           DeadLetterConfig:
-            Arn: !GetAtt CRMSemiDailyAlertDeadletterQueue.Arn
+            Arn: !GetAtt CRMDailyAlertDeadletterQueue.Arn
 
-  CRMSemiAlertFunctionPermission:
+  CRMAlertFunctionPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !GetAtt CRMSemiDailyAlert.Arn
+      FunctionName: !GetAtt CRMDailyAlert.Arn
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt CRMSemiDailyAlertScheduledEvent.Arn
+      SourceArn: !GetAtt CRMDailyAlertScheduledEvent.Arn
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
