@@ -163,7 +163,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       State: !If [ IsProd, ENABLED, DISABLED ]
-      ScheduleExpression: cron(0 12,0 * * ? *)
+      ScheduleExpression: cron(0 0 * * ? *)
       Description: Runs CRM alerting daily
       Targets:
         - Id: CRMDailyAlertFunctionTarget
