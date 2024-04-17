@@ -269,8 +269,8 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1
             Method: POST
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
   RetrieveAppointments:
     Type: AWS::Serverless::Function
@@ -288,8 +288,8 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1
             Method: GET
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
   RetrieveTimeslots:
     Type: AWS::Serverless::Function
@@ -307,16 +307,16 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1/timeslots
             Method: GET
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
-  # CrmOrmLayer:
-  #   Type: AWS::Serverless::LayerVersion
-  #   Properties:
-  #     LayerName: !Sub "crm_orm_layer-${Environment}"
-  #     Description: Crm Orm Layer
-  #     ContentUri: ./layers/crm_orm
-  #     CompatibleRuntimes:
-  #       - python3.9
-  #     LicenseInfo: MIT
-  #     RetentionPolicy: Retain
+  ApptOrmLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "appt_orm_layer-${Environment}"
+      Description: Appt Orm Layer
+      ContentUri: ./layers/appt_orm
+      CompatibleRuntimes:
+        - python3.9
+      LicenseInfo: MIT
+      RetentionPolicy: Retain
