@@ -3,7 +3,7 @@ from os import environ
 from json import dumps, loads
 from uuid import uuid4
 from typing import Any, List
-# from rds_instance import RDSInstance
+from datetime import datetime
 from utils import invoke_vendor_lambda, IntegrationError, format_timestamp
 
 from appt_orm.session_config import DBSession
@@ -14,29 +14,21 @@ from appt_orm.models.op_code import OpCode
 from appt_orm.models.op_code import OpCodeProduct
 from appt_orm.models.op_code import OpCodeAppointment
 from appt_orm.models.consumer import Consumer
+from appt_orm.models.vehicle import Vehicle
+from appt_orm.models.appointment import Appointment
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
 
 consumer_attrs = ['dealer_integration_partner_id', 'integration_consumer_id', 'product_consumer_id',
                   'first_name', 'last_name', 'email_address', 'phone_number']
 
 
-def update_attrs(db_object: Any, data: Any, dealer_partner_id: str,
-                 allowed_attrs: List[str], request_product) -> None:
+def update_attrs(db_object: Any, data: Any, allowed_attrs: List[str]) -> None:
     """Update attributes of a database object."""
-    additional_attrs = {
-        "email_optin_flag": data.get("email_optin_flag", True),
-        "sms_optin_flag": data.get("sms_optin_flag", True),
-        "request_product": request_product
-    }
-
-    combined_data = {"dealer_integration_partner_id": dealer_partner_id, **data, **additional_attrs}
-
     for attr in allowed_attrs:
-        if attr in combined_data:
-            setattr(db_object, attr, combined_data[attr])
+        if attr in data:
+            setattr(db_object, attr, data[attr])
 
 
 def lambda_handler(event, context):
@@ -150,41 +142,69 @@ def lambda_handler(event, context):
         integration_appointment_id = loads(response["body"])["appointment_id"]
 
         # Create consumer
-        if consumer_id:
-            with DBSession() as session:
-                consumer = session.query(Consumer).filter_by(id=consumer_id).first()
-                if not consumer:
+        with DBSession() as session:
+            if consumer_id:
+                consumer_db = session.query(Consumer).filter_by(id=consumer_id).first()
+                if not consumer_db:
                     logger.warning(f"No consumer found with id {consumer_id}. Creating new consumer.")
                     consumer_id = None
-        if not consumer_id:
-            db_consumer = Consumer()
-            db_consumer_id = rds_instance.create_consumer({**consumer, "dealer_integration_partner_id": dealer_integration_partner_id})
-            logger.info(f"Created consumer with id {db_consumer_id}")
 
-        # Create vehicle in DB
-        db_vehicle_id = rds_instance.create_vehicle({**vehicle, "consumer_id": db_consumer_id})
-        logger.info(f"Created vehicle with id {db_vehicle_id}")
+            if not consumer_id:
+                consumer_db = Consumer()
+                update_attrs(
+                    consumer_db,
+                    {**consumer, "dealer_integration_partner_id": dealer_integration_partner_id},
+                    consumer_attrs
+                )
+                session.add(consumer_db)
+                session.flush()
+                consumer_id = consumer_db.id
+                logger.info(f"Created consumer with id {consumer_id}")
 
-        # Create appointment in DB
-        db_appointment_id = rds_instance.create_appointment({
-            "consumer_id": db_consumer_id,
-            "vehicle_id": db_vehicle_id,
-            "integration_appointment_id": integration_appointment_id,
-            "op_code_appointment_id": appt_op_code_id,
-            "timeslot_ts": format_timestamp(timeslot, dealer_timezone),
-            "timeslot_duration": body.get("timeslot_duration"),
-            "created_date_ts": body.get("created_date_ts"),
-            "status": "Active",
-            "comment": body.get("comment"),
-        })
-        logger.info(f"Created appointment with id {db_appointment_id}")
+            # Create vehicle in DB
+            vehicle_db = Vehicle(
+                consumer_id=consumer_id,
+                vin=body.get("vin"),
+                vehicle_class=body.get("vehicle_class"),
+                mileage=body.get("mileage"),
+                make=body.get("make"),
+                model=body.get("model"),
+                manufactured_year=body.get("year"),
+                body_style=body.get("body_style"),
+                transmission=body.get("transmission"),
+                interior_color=body.get("interior_color"),
+                exterior_color=body.get("exterior_color"),
+                condition=body.get("condition"),
+                odometer_units=body.get("odometer_units")
+            )
+            session.add(vehicle_db)
+            session.flush()
+            logger.info(f"Created vehicle with id {vehicle_db.id}")
+
+            # Create appointment in DB
+            appointment_db = Appointment(
+                consumer_id=consumer_id,
+                vehicle_id=vehicle_db.id,
+                integration_appointment_id=integration_appointment_id,
+                op_code_appointment_id=appt_op_code_id,
+                timeslot_ts=format_timestamp(timeslot, dealer_timezone),
+                timeslot_duration=body.get("timeslot_duration"),
+                created_date_ts=body.get("created_date_ts", datetime.utcnow().isoformat()),
+                status="Active",
+                comment=body.get("comment")
+            )
+
+            session.add(appointment_db)
+            session.flush()
+            logger.info(f"Created appointment with id {appointment_db.id}")
+            session.commit()
 
         return {
             "statusCode": "201",
             "body": dumps({
-                "appointment_id": db_appointment_id,
-                "consumer_id": db_consumer_id,
-                "vehicle_id": db_vehicle_id,
+                "appointment_id": appointment_db.id,
+                "consumer_id": consumer_id,
+                "vehicle_id": vehicle_db.id,
                 "request_id": request_id,
             })
         }
