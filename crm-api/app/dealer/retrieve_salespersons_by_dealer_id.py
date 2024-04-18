@@ -91,36 +91,36 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 .first()
             )
 
-            dealer_salespersons = invoke_lambda_get_dealer_salespersons(
-                dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
+        dealer_salespersons = invoke_lambda_get_dealer_salespersons(
+            dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
+        )
+
+        if not dealer_salespersons:
+            logger.error(
+                f"No salespersons found with dealer_id: {product_dealer_id}"
             )
-
-            if not dealer_salespersons:
-                logger.error(
-                    f"No salespersons found with dealer_id: {product_dealer_id}"
-                )
-                return {
-                    "statusCode": 404,
-                    "body": dumps(
-                        {
-                            "error": f"No dealer found with dealer_id: {product_dealer_id}"
-                        }
-                    ),
-                }
-
-            logger.info(f"Found dealer salespersons: {len(dealer_salespersons)}")
-
-            for salesperson in dealer_salespersons:
-                salespersons_list.append(
+            return {
+                "statusCode": 404,
+                "body": dumps(
                     {
-                        "Emails": salesperson.get('email', []),
-                        "FirstName": salesperson.get('first_name'),
-                        "FullName": f"{salesperson.get('first_name')} {salesperson.get('last_name')}",
-                        "LastName": salesperson.get('last_name'),
-                        "Phones": salesperson.get('phone', []),
-                        "UserId": salesperson.get('crm_salesperson_id'),
+                        "error": f"No dealer found with dealer_id: {product_dealer_id}"
                     }
-                )
+                ),
+            }
+
+        logger.info(f"Found dealer salespersons: {len(dealer_salespersons)}")
+
+        for salesperson in dealer_salespersons:
+            salespersons_list.append(
+                {
+                    "Emails": salesperson.get('email', []),
+                    "FirstName": salesperson.get('first_name'),
+                    "FullName": f"{salesperson.get('first_name')} {salesperson.get('last_name')}",
+                    "LastName": salesperson.get('last_name'),
+                    "Phones": salesperson.get('phone', []),
+                    "UserId": salesperson.get('crm_salesperson_id'),
+                }
+            )
 
         return {
             "statusCode": 200,

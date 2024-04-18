@@ -848,7 +848,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Salesperson'
+                  $ref: '#/components/schemas/ExtendedSalesperson'
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -1277,6 +1277,31 @@ components:
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
+  
+    ExtendedSalesperson:
+      allOf:
+        - $ref: '#/components/schemas/Salesperson'
+        - type: object
+          properties:
+            email:
+              type: array
+              description: Email addresses of the salesperson
+              items:
+                type: string
+              example: 
+                - "john.smith@example.com"
+                - "jsmith@example.com"
+              maxLength: 50
+            phone:
+              type: array
+              description: Phone numbers of the salesperson
+              items:
+                type: string
+              example: 
+                - "123-456-7890"
+                - "987-654-3210"
+              maxLength: 20
+
   responses:
     '201':
       description: Lead successfully created
