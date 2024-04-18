@@ -136,6 +136,7 @@ def build_lead_records(leads_page: List[Lead], session: Any) -> List[Dict[str, A
             "trade_in_year": vehicle.trade_in_year,
             "trade_in_make": vehicle.trade_in_make,
             "trade_in_model": vehicle.trade_in_model,
+            "metadata": vehicle.metadata_,
             "db_creation_date": vehicle.db_creation_date
         }
 
