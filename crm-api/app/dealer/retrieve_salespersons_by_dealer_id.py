@@ -91,8 +91,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 .first()
             )
 
+        lambda_arn = get_lambda_arn(integration_partner_name.impel_integration_partner_name)
+
+        if not lambda_arn:
+            return {
+                "statusCode": 404,
+                "body": dumps(
+                    {
+                        "error": f"This CRM don't support retrieving salespersons list. dealer_id: {product_dealer_id}"
+                    }
+                ),
+            }
+
         dealer_salespersons = invoke_lambda_get_dealer_salespersons(
-            dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=get_lambda_arn(integration_partner_name.impel_integration_partner_name)
+            dealer_id=integration_partner_name.crm_dealer_id, lambda_arn=lambda_arn
         )
 
         if not dealer_salespersons:

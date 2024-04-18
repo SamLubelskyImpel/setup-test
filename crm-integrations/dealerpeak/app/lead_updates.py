@@ -55,8 +55,8 @@ def parse_salesperson(agent: dict):
     phones = agent["contactInformation"].get("phoneNumbers", [{}])
     emails = agent["contactInformation"].get("emails", [{}])
 
-    phone_number = phones[0].get("number") if phones else ""
-    email_address = emails[0].get("address") if emails else ""
+    phone_number = phones[0].get("number") if phones else []
+    email_address = emails[0].get("address") if emails else []
     for phone in phones:
         if phone["type"].lower() in ("mobile", "cell"):
             phone_number = phone.get("number")
@@ -65,8 +65,8 @@ def parse_salesperson(agent: dict):
         "crm_salesperson_id": user_id,
         "first_name": first_name,
         "last_name": last_name,
-        "email": email_address or [],
-        "phone": phone_number or [],
+        "email": email_address,
+        "phone": phone_number,
         "position_name": "Agent",
         "is_primary": True
     }
