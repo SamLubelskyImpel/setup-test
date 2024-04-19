@@ -32,6 +32,9 @@ paths:
             schema:
               allOf:
                 - "$ref": "#/components/schemas/BasicAppointment"
+                - required:
+                    - op_code
+                    - timeslot
                 - type: object
                   properties:
                     consumer:
@@ -83,11 +86,18 @@ paths:
         - "$ref": "#/components/parameters/xApiKey"
         - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
         - in: query
-          name: op_code
-          description: The products op code for the appointment
+          name: vin
+          description: Vehicle Identification Number of a vehicle
           schema:
             type: string
-            example: "ABCDEFG"
+            example: "1HGBH41JXMN109186"
+          required: true
+        # - in: query
+        #   name: op_code
+        #   description: The products op code for the appointment
+        #   schema:
+        #     type: string
+        #     example: "ABCDEFG"
         - in: query
           name: status
           description: Status of appointment
@@ -119,26 +129,20 @@ paths:
           schema:
             type: string
             example: "123-456-7890"
-        - in: query
-          name: vin
-          description: Vehicle Identification Number of a vehicle
-          schema:
-            type: string
-            example: "1HGBH41JXMN109186"
-        - in: query
-          name: db_creation_date_start
-          description: Specifies the earliest 'db_creation_date' in the local time of the dealer to include in the query for created leads
-          schema:
-            type: string
-            format: date-time
-            example: '2024-03-26T14:00:00'
-        - in: query
-          name: db_creation_date_end
-          description: Specifies the latest 'db_creation_date' in the local time of the dealer to include in the query for created leads     
-          schema:
-            type: string
-            format: date-time
-            example: '2024-03-30T14:00:00'
+        # - in: query
+        #   name: db_creation_date_start
+        #   description: Specifies the earliest 'db_creation_date' in the local time of the dealer to include in the query for created leads
+        #   schema:
+        #     type: string
+        #     format: date-time
+        #     example: '2024-03-26T14:00:00'
+        # - in: query
+        #   name: db_creation_date_end
+        #   description: Specifies the latest 'db_creation_date' in the local time of the dealer to include in the query for created leads     
+        #   schema:
+        #     type: string
+        #     format: date-time
+        #     example: '2024-03-30T14:00:00'
       responses:
         '200':
           description: Success
@@ -348,12 +352,14 @@ paths:
           schema:
             type: string
             example: "ABCDEFG"
+            maxLength: 255
         - in: query
           name: vin
           description: Vehicle Identification Number of a vehicle
           schema:
             type: string
             example: "1HGBH41JXMN109186"
+            maxLength: 20
         - in: query
           name: year
           description: The sales model year of a vehicle
@@ -368,12 +374,14 @@ paths:
           schema:
             type: string
             example: "Ford"
+            maxLength: 80
         - in: query
           name: model
           description: Make of a vehicle
           schema:
             type: string
             example: "F-150"
+            maxLength: 80
       responses:
         '200':
           description: Available time slots from the specified date range
@@ -418,6 +426,7 @@ components:
           type: string
           description: The products op code for the appointment
           example: "ABCDEFG"
+          maxLength: 255
         timeslot:
           type: string
           format: date-time
@@ -446,7 +455,7 @@ components:
               type: string
               description: Status of appointment
               example: "Active"
-              enum: [ Active, Cancelled, Failed, Passed ]
+              enum: [ Active, Cancelled, Lost, Completed ]
     Vehicle:
       type: object
       description: Vehicle in the shared layer
@@ -455,22 +464,28 @@ components:
           type: string
           description: Vehicle Identification Number of a vehicle
           example: "1HGBH41JXMN109186"
+          maxLength: 20
         make:
           type: string
           description: Make of a vehicle
           example: "Ford"
+          maxLength: 80
         model:
           type: string
           description: Model of a vehicle
           example: "F-150"
+          maxLength: 80
         year:
           type: number
           description: Manufactured year of a vehicle
           example: 2024
+          minimum: 1800
+          maximum: 3000
         vehicle_class:
           type: string
           description: Class of a vehicle
           example: "Compact"
+          maxLength: 40
         mileage:
           type: number
           description: Mileage of a vehicle
@@ -479,22 +494,27 @@ components:
           type: string
           description: Body style of a vehicle
           example: "SUV"
+          maxLength: 50
         transmission:
           type: string
           description: Transmission of a vehicle
           example: "Manual"
+          maxLength: 50
         interior_color:
           type: string
           description: Interior color of a vehicle
           example: "Black"
+          maxLength: 50
         exterior_color:
           type: string
           description: Exterior color of a vehicle
           example: "White"
+          maxLength: 50
         trim:
           type: string
           description: Trim of a vehicle
           example: "GT"
+          maxLength: 20
         condition:
           type: string
           description: Condition of a vehicle
@@ -513,22 +533,27 @@ components:
           type: string
           description: ID of consumer in the product. Used to identify existing consumers
           example: "12345abc"
+          maxLength: 50
         first_name:
           type: string
           description: First name of consumer
           example: "John"
+          maxLength: 50
         last_name:
           type: string
           description: Last name of consumer
           example: "Smith"
+          maxLength: 50
         email_address:
           type: string
           description: Primary email address of consumer
           example: "john.smith@example.com"
+          maxLength: 50
         phone_number:
           type: string
           description: Primary phone number of consumer
           example: "123-456-7890"
+          maxLength: 15
   responses:
     '400':
       description: This indicates Bad Request. For example this error can occur if
