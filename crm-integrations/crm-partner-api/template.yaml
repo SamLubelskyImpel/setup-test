@@ -357,3 +357,35 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /momentum/crm-upload/v1/lead-updates
             Method: POST
+
+  ActivixCreateLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-partner-api-${Environment}-ActivixCreateLead"
+      CodeUri: app/activix/
+      Handler: create_lead.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /activix/crm-upload/v1/leads
+            Method: POST
+
+  ActivixUpdateLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-partner-api-${Environment}-ActivixUpdateLead"
+      CodeUri: app/activix/
+      Handler: update_lead.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /activix/crm-upload/v1/lead-updates
+            Method: POST
