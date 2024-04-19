@@ -126,26 +126,7 @@ def lambda_handler(event, context):
         }
         logger.info(f"Payload to integration: {payload}")
 
-        if ENVIRONMENT != 'prod' and not create_appt_arn:
-            response = {
-                "statusCode": 201,
-                "body": dumps({
-                    "appointment_id": str(uuid4())
-                })
-            }
-            # response = {
-            #     "statusCode": 500,
-            #     "body": dumps({
-            #         "error": {
-            #             "code": "V002",
-            #             "message": "Timeslot already booked. Please select another timeslot."
-            #         },
-            #         "request_id": request_id,
-            #     })
-            # }
-        else:
-            response = invoke_vendor_lambda(payload, create_appt_arn)
-
+        response = invoke_vendor_lambda(payload, create_appt_arn)
         if response["statusCode"] == 500:
             logger.error(f"Integration encountered error: {response}")
             body = loads(response["body"])

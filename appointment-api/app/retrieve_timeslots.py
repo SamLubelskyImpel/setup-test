@@ -19,36 +19,8 @@ ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 
 def call_integration(payload, request_id, timeslots_arn) -> dict:
-    # For testing
-    if ENVIRONMENT != 'prod' and not timeslots_arn:
-        response = {
-            "statusCode": 200,
-            "body": dumps({
-                "available_timeslots": [
-                    {
-                        "timeslot": "2024-04-17T12:00:00",
-                        "duration": 30
-                    },
-                    {
-                        "timeslot": "2024-04-17T14:00:00",
-                        "duration": 30
-                    }
-                ],
-            })
-        }
-        # response = {
-        #     "statusCode": 500,
-        #     "body": dumps({
-        #         "error": {
-        #             "code": "V001",
-        #             "message": "XTime integration encountered an error"
-        #         }
-        #     })
-        # }
-
     # Invoke vendor lambda
-    else:
-        response = invoke_vendor_lambda(payload, timeslots_arn)
+    response = invoke_vendor_lambda(payload, timeslots_arn)
 
     logger.info(f"Response from integration: {response}")
     if response["statusCode"] == 500:

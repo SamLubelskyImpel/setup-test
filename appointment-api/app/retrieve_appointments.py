@@ -204,36 +204,7 @@ def lambda_handler(event, context):
         }
         logger.info(f"Payload to integration: {payload}")
 
-        if ENVIRONMENT != 'prod' and not retrieve_appts_arn:
-            response = {
-                "statusCode": 200,
-                "body": dumps({
-                    "appointments": [{
-                        "appointment_id": "4121cb9c-5182-4667-9af4-066210d5a424",
-                        "vin": "2HGBH41JXMN109185",
-                        "timeslot": "2024-04-26T14:00:00",
-                        "timeslot_duration": 30,
-                        "comment": "This is a comment",
-                        "first_name": "Jane",
-                        "last_name": "Smith",
-                        "email_address": "jane.smith@example.com",
-                        "phone_number": "123-456-7891",
-                        "op_code": "VENDOR004"
-                    }]
-                })
-            }
-            # response = {
-            #     "statusCode": 500,
-            #     "body": dumps({
-            #         "error": {
-            #             "code": "V002",
-            #             "message": "Unexpected response from XTime integration."
-            #         }
-            #     })
-            # }
-        else:
-            response = invoke_vendor_lambda(payload, retrieve_appts_arn)
-
+        response = invoke_vendor_lambda(payload, retrieve_appts_arn)
         if response["statusCode"] == 500:
             logger.error(f"Integration encountered error: {response}")
             body = loads(response["body"])
