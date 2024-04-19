@@ -3,12 +3,14 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
-from datetime import datetime
+# from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 
 class IntegrationError(Exception):
@@ -47,15 +49,29 @@ def format_timestamp(local_timestamp: Any, timezone: Any) -> Any:
 
 def convert_utc_to_timezone(input_ts, timezone, dealer_partner_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
-    utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-    utc_datetime = pytz.utc.localize(utc_datetime)
+    # utc_datetime = datetime.strptime(input_ts, '%Y-%m-%d %H:%M:%S%z')
+    # utc_datetime = pytz.utc.localize(input_ts)
 
     if not timezone:
         logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
-        return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+        return input_ts.strftime('%Y-%m-%dT%H:%M:%S')
 
     # Get the dealer timezone object, convert UTC datetime to dealer timezone
     dealer_tz = pytz.timezone(timezone)
-    dealer_datetime = utc_datetime.astimezone(dealer_tz)
+    dealer_datetime = input_ts.astimezone(dealer_tz)
 
     return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
+
+def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> None:
+    """Send alert notification to CE team."""
+    data = {
+        "message": f"Error occurred in {endpoint} for request_id {request_id}: {e}",
+    }
+    sns_client = boto3.client('sns')
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=dumps({'default': dumps(data)}),
+        Subject=f'Appointment Service: {endpoint} Failure Alert',
+        MessageStructure='json'
+    )

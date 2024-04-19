@@ -11,8 +11,8 @@ from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code import OpCodeProduct
-from appt_orm.models.op_code import OpCodeAppointment
+from appt_orm.models.op_code_product import OpCodeProduct
+from appt_orm.models.op_code_appointment import OpCodeAppointment
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
 from appt_orm.models.appointment import Appointment
@@ -22,6 +22,8 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 consumer_attrs = ['dealer_integration_partner_id', 'integration_consumer_id', 'product_consumer_id',
                   'first_name', 'last_name', 'email_address', 'phone_number']
+
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 
 def update_attrs(db_object: Any, data: Any, allowed_attrs: List[str]) -> None:
@@ -58,9 +60,9 @@ def lambda_handler(event, context):
                 Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
             ).join(
                 IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-            ).filter_by(
-                id=dealer_integration_partner_id,
-                is_active=True
+            ).filter(
+                DealerIntegrationPartner.id == dealer_integration_partner_id,
+                DealerIntegrationPartner.is_active == True
             ).first()
 
             if not dealer_partner:
@@ -82,7 +84,7 @@ def lambda_handler(event, context):
             ).join(
                 OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id
             ).join(
-                OpCodeProduct, OpCodeProduct.id == OpCode.op_code_product_id
+                OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
             ).filter(
                 OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
                 OpCodeProduct.product_id == dealer_partner.product_id,
@@ -101,7 +103,7 @@ def lambda_handler(event, context):
             appt_op_code_id = op_code_query.id
             logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
 
-        create_appt_arn = loads(partner_metadata).get("create_appt_arn", "")
+        create_appt_arn = partner_metadata.get("create_appt_arn", "")
 
         payload = {
             "request_id": request_id,
@@ -120,26 +122,30 @@ def lambda_handler(event, context):
             "make": vehicle.get("make"),
             "model": vehicle.get("model")
         }
+        logger.info(f"Payload to integration: {payload}")
 
-        response = invoke_vendor_lambda(payload, create_appt_arn)
-        if response["statusCode"] == 500:
-            logger.error(f"Integration encountered error: {response}")
-            body = loads(response["body"])
-            return {
-                "statusCode": "500",
-                "body": dumps({
-                    "error": {
-                        "code": body["error"]["code"],
-                        "message": body["error"]["message"]
-                    },
-                    "request_id": request_id,
-                })
-            }
-        elif response["statusCode"] not in [200, 201]:
-            raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
+        if ENVIRONMENT != 'prod' and not create_appt_arn:
+            integration_appointment_id = str(uuid4())
+        else:
+            response = invoke_vendor_lambda(payload, create_appt_arn)
+            if response["statusCode"] == 500:
+                logger.error(f"Integration encountered error: {response}")
+                body = loads(response["body"])
+                return {
+                    "statusCode": "500",
+                    "body": dumps({
+                        "error": {
+                            "code": body["error"]["code"],
+                            "message": body["error"]["message"]
+                        },
+                        "request_id": request_id,
+                    })
+                }
+            elif response["statusCode"] not in [200, 201]:
+                raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
 
-        # Parse response
-        integration_appointment_id = loads(response["body"])["appointment_id"]
+            # Parse response
+            integration_appointment_id = loads(response["body"])["appointment_id"]
 
         # Create consumer
         with DBSession() as session:
@@ -164,27 +170,28 @@ def lambda_handler(event, context):
             # Create vehicle in DB
             vehicle_db = Vehicle(
                 consumer_id=consumer_id,
-                vin=body.get("vin"),
-                vehicle_class=body.get("vehicle_class"),
-                mileage=body.get("mileage"),
-                make=body.get("make"),
-                model=body.get("model"),
-                manufactured_year=body.get("year"),
-                body_style=body.get("body_style"),
-                transmission=body.get("transmission"),
-                interior_color=body.get("interior_color"),
-                exterior_color=body.get("exterior_color"),
-                condition=body.get("condition"),
-                odometer_units=body.get("odometer_units")
+                vin=vehicle.get("vin"),
+                vehicle_class=vehicle.get("vehicle_class"),
+                mileage=vehicle.get("mileage"),
+                make=vehicle.get("make"),
+                model=vehicle.get("model"),
+                manufactured_year=vehicle.get("year"),
+                body_style=vehicle.get("body_style"),
+                transmission=vehicle.get("transmission"),
+                interior_color=vehicle.get("interior_color"),
+                exterior_color=vehicle.get("exterior_color"),
+                condition=vehicle.get("condition"),
+                odometer_units=vehicle.get("odometer_units")
             )
             session.add(vehicle_db)
             session.flush()
-            logger.info(f"Created vehicle with id {vehicle_db.id}")
+            vehicle_id = vehicle_db.id
+            logger.info(f"Created vehicle with id {vehicle_id}")
 
             # Create appointment in DB
             appointment_db = Appointment(
                 consumer_id=consumer_id,
-                vehicle_id=vehicle_db.id,
+                vehicle_id=vehicle_id,
                 integration_appointment_id=integration_appointment_id,
                 op_code_appointment_id=appt_op_code_id,
                 timeslot_ts=format_timestamp(timeslot, dealer_timezone),
@@ -196,15 +203,16 @@ def lambda_handler(event, context):
 
             session.add(appointment_db)
             session.flush()
-            logger.info(f"Created appointment with id {appointment_db.id}")
+            appointment_id = appointment_db.id
+            logger.info(f"Created appointment with id {appointment_id}")
             session.commit()
 
         return {
             "statusCode": "201",
             "body": dumps({
-                "appointment_id": appointment_db.id,
+                "appointment_id": appointment_id,
                 "consumer_id": consumer_id,
-                "vehicle_id": vehicle_db.id,
+                "vehicle_id": vehicle_id,
                 "request_id": request_id,
             })
         }
@@ -226,7 +234,10 @@ def lambda_handler(event, context):
         return {
             "statusCode": "500",
             "body": dumps({
-                "error": str(e),
+                "error": {
+                    "code": "I001",
+                    "message": "Internal server error. Please contact Impel support."
+                },
                 "request_id": request_id,
             })
         }

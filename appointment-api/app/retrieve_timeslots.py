@@ -9,16 +9,48 @@ from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code import OpCodeProduct
-from appt_orm.models.op_code import OpCodeAppointment
+from appt_orm.models.op_code_product import OpCodeProduct
+from appt_orm.models.op_code_appointment import OpCodeAppointment
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+
 
 def call_integration(payload, request_id, timeslots_arn) -> dict:
+    # For testing
+    if ENVIRONMENT != 'prod' and not timeslots_arn:
+        response = {
+            "statusCode": 200,
+            "body": dumps({
+                "available_timeslots": [
+                    {
+                        "timeslot": "2024-04-17T12:00:00",
+                        "duration": 30
+                    },
+                    {
+                        "timeslot": "2024-04-17T14:00:00",
+                        "duration": 30
+                    }
+                ],
+            })
+        }
+        # response = {
+        #     "statusCode": 500,
+        #     "body": dumps({
+        #         "error": {
+        #             "code": "V001",
+        #             "message": "XTime integration encountered an error"
+        #         }
+        #     })
+        # }
+
     # Invoke vendor lambda
-    response = invoke_vendor_lambda(payload, timeslots_arn)
+    else:
+        response = invoke_vendor_lambda(payload, timeslots_arn)
+
+    logger.info(f"Response from integration: {response}")
     if response["statusCode"] == 500:
         logger.error(f"Integration encountered error: {response}")
         body = loads(response["body"])
@@ -75,9 +107,9 @@ def lambda_handler(event, context):
                 Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
             ).join(
                 IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-            ).filter_by(
-                id=dealer_integration_partner_id,
-                is_active=True
+            ).filter(
+                DealerIntegrationPartner.id == dealer_integration_partner_id,
+                DealerIntegrationPartner.is_active == True
             ).first()
 
             if not dealer_partner:
@@ -100,13 +132,14 @@ def lambda_handler(event, context):
             ).join(
                 OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id
             ).join(
-                OpCodeProduct, OpCodeProduct.id == OpCode.op_code_product_id
+                OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
             ).filter(
                 OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
                 OpCodeProduct.product_id == dealer_partner.product_id,
                 OpCodeProduct.op_code == op_code
             ).first()
 
+            vendor_op_code = vendor_op_code.op_code if vendor_op_code else None
             if not vendor_op_code:
                 return {
                     "statusCode": "404",
@@ -117,8 +150,8 @@ def lambda_handler(event, context):
                 }
             logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
 
-        timeslots_arn = loads(partner_metadata).get("timeslots_arn", "")
-        if not timeslots_arn:
+        timeslots_arn = partner_metadata.get("timeslots_arn", "")
+        if ENVIRONMENT == 'prod' and not timeslots_arn:
             raise Exception(f"Timeslots ARN not found in metadata for partner {integration_dealer_id}")
 
         payload = {
@@ -133,6 +166,7 @@ def lambda_handler(event, context):
             "make": params.get("make"),
             "model": params.get("model")
         }
+        logger.info(f"Payload to integration: {payload}")
 
         return call_integration(payload, request_id, timeslots_arn)
 

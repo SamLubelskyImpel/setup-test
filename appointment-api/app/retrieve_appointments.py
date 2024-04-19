@@ -1,23 +1,43 @@
 import logging
 from os import environ
-from json import dumps, loads
+from json import dumps, loads, JSONEncoder
 from uuid import uuid4
-from datetime import datetime
+from decimal import Decimal
+from datetime import datetime, timezone
 from utils import invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone
+from typing import Any
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code import OpCodeProduct
-from appt_orm.models.op_code import OpCodeAppointment
+from appt_orm.models.op_code_product import OpCodeProduct
+from appt_orm.models.op_code_appointment import OpCodeAppointment
 from appt_orm.models.appointment import Appointment
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+
+
+class CustomEncoder(JSONEncoder):
+    """Custom JSON encoder that handles datetime and Decimal objects."""
+
+    def default(self, obj: Any) -> Any:
+        """Serialize datetime and Decimal objects."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super(CustomEncoder, self).default(obj)
+
+
+def update_appointment_status(appointment_id, session, new_status):
+    session.query(Appointment).filter(Appointment.id == appointment_id).update({"status": new_status})
 
 
 def generate_appointment_response(appointment):
@@ -43,7 +63,7 @@ def generate_appointment_response(appointment):
 def get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code):
     with DBSession() as session:
         product_op_code = session.query(
-            OpCodeProduct.op_code
+            OpCodeProduct
         ).join(
             OpCodeAppointment, OpCodeAppointment.op_code_product_id == OpCodeProduct.id
         ).join(
@@ -54,14 +74,14 @@ def get_product_op_code(dealer_integration_partner_id, product_id, integration_o
             OpCode.op_code == integration_op_code
         ).first()
 
-    return product_op_code
+    return product_op_code.op_code if product_op_code else None
 
 
-def extract_appt_data(db_appt, dealer_timezone):
+def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
     return {
         "id": db_appt.Appointment.id,
-        "op_code": db_appt.OpCodeProduct.op_code,
-        "timeslot": convert_utc_to_timezone(db_appt.Appointment.timeslot, dealer_timezone),
+        "op_code": db_appt.op_code,
+        "timeslot": convert_utc_to_timezone(db_appt.Appointment.timeslot_ts, dealer_timezone, dealer_integration_partner_id),
         "timeslot_duration": db_appt.Appointment.timeslot_duration,
         "created_date_ts": db_appt.Appointment.created_date_ts,
         "comment": db_appt.Appointment.comment,
@@ -101,7 +121,6 @@ def lambda_handler(event, context):
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         vin = params["vin"]
-        op_code = params.get("op_code")
         status = params.get("status")
         first_name = params.get("first_name")
         last_name = params.get("last_name")
@@ -119,9 +138,9 @@ def lambda_handler(event, context):
                 Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
             ).join(
                 IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-            ).filter_by(
-                id=dealer_integration_partner_id,
-                is_active=True
+            ).filter(
+                DealerIntegrationPartner.id == dealer_integration_partner_id,
+                DealerIntegrationPartner.is_active == True
             ).first()
 
             if not dealer_partner:
@@ -164,10 +183,12 @@ def lambda_handler(event, context):
             for field, value in filters.items():
                 if value:
                     appointments_query = appointments_query.filter(getattr(Consumer, field) == value)
+                    logger.info(f"Filtering by {field}: {value}")
 
             appointments_db = appointments_query.all()
+            logger.info(f"Appointments found: {len(appointments_db)}")
 
-        retrieve_appts_arn = loads(partner_metadata).get("retrieve_appts_arn", "")
+        retrieve_appts_arn = partner_metadata.get("retrieve_appts_arn", "")
 
         payload = {
             "request_id": request_id,
@@ -179,27 +200,56 @@ def lambda_handler(event, context):
             "phone_number": phone_number,
             "vin": vin
         }
+        logger.info(f"Payload to integration: {payload}")
 
-        response = invoke_vendor_lambda(payload, retrieve_appts_arn)
-        if response["statusCode"] == 500:
-            logger.error(f"Integration encountered error: {response}")
+        if ENVIRONMENT != 'prod' and not retrieve_appts_arn:
+            vendor_appointments = [
+                {
+                    "appointment_id": "ff8cc547-7291-43ab-a11d-2b2f15d0441a",
+                    "vin": "1HGBH41JXMN109186",
+                    "timeslot": "2024-04-12T00:00:00",
+                    "timeslot_duration": 30,
+                    "comment": "This is a comment",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email_address": "john.doe@example.com",
+                    "phone_number": "123-456-7890",
+                    "op_code": "VENDOR004"
+                },
+                {
+                    "appointment_id": "ff8cc547-7291-43ab-a11d-2b2f15d0441b",
+                    "vin": "1HGBH41JXMN109186",
+                    "timeslot": "2024-04-12T01:00:00",
+                    "timeslot_duration": 30,
+                    "comment": "This is a comment",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email_address": "john.doe@example.com",
+                    "phone_number": "123-456-7890",
+                    "op_code": "VENDOR005"
+                }
+            ]
+        else:
+            response = invoke_vendor_lambda(payload, retrieve_appts_arn)
+            if response["statusCode"] == 500:
+                logger.error(f"Integration encountered error: {response}")
+                body = loads(response["body"])
+                return {
+                    "statusCode": "500",
+                    "body": dumps({
+                        "error": {
+                            "code": body["error"]["code"],
+                            "message": body["error"]["message"]
+                        },
+                        "request_id": request_id,
+                    })
+                }
+            elif response["statusCode"] != 200:
+                raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
+
+            # Parse response
             body = loads(response["body"])
-            return {
-                "statusCode": "500",
-                "body": dumps({
-                    "error": {
-                        "code": body["error"]["code"],
-                        "message": body["error"]["message"]
-                    },
-                    "request_id": request_id,
-                })
-            }
-        elif response["statusCode"] != 200:
-            raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
-
-        # Parse response
-        body = loads(response["body"])
-        vendor_appointments = body["appointments"]
+            vendor_appointments = body["appointments"]
 
         appointments = []
         with DBSession() as session:
@@ -209,22 +259,22 @@ def lambda_handler(event, context):
                     if db_appt.Appointment.integration_appointment_id == v_appt["appointment_id"]:
                         if v_appt.get("status") and db_appt.Appointment.status != v_appt["status"]:
                             # Update appointment in db
-                            db_appt.Appointment.status = v_appt["status"]
-                            appointments.append(extract_appt_data(db_appt, dealer_timezone))
+                            update_appointment_status(db_appt.Appointment.id, session, v_appt["status"])
+                            logger.info(f"Appointment {db_appt.Appointment.id} status updated to {v_appt['status']}")
+                        appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
                         break
                 else:
                     # Appointment not found in vendor
-                    current_time = datetime.utcnow()
-                    timeslot_time = datetime.strptime(db_appt["timeslot"], "%Y-%m-%dT%H:%M:%S")
+                    current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+                    timeslot_time = db_appt.Appointment.timeslot_ts
                     if timeslot_time < current_time:
-                        logger.info(f"Appointment {db_appt.Appointment.id} timeslot has passed.")
-                        db_appt.Appointment.status = "Completed"
+                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Completed.")
+                        update_appointment_status(db_appt.Appointment.id, session, "Completed")
                     else:
-                        logger.info(f"Appointment {db_appt['id']} not found in vendor. Assumed Lost.")
-                        db_appt.Appointment.status = "Lost"
+                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor. Assumed Lost.")
+                        update_appointment_status(db_appt.Appointment.id, session, "Lost")
 
-                    appointments.append(db_appt)
-                    appointments.append(extract_appt_data(db_appt, dealer_timezone))
+                    appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
             session.commit()
 
         # Add appointments from vendor which weren't in db
@@ -233,11 +283,10 @@ def lambda_handler(event, context):
                 if appt["appointment_id"] == db_appt.Appointment.integration_appointment_id:
                     break
             else:
-                product_op_code = get_product_op_code(dealer_integration_partner_id, appt["op_code"], product_id)
                 appointment = {
-                    "op_code": product_op_code if product_op_code else None,
+                    "op_code": get_product_op_code(dealer_integration_partner_id, product_id, appt["op_code"]),
                     "timeslot": appt["timeslot"],
-                    "timeslot_duration": appt["duration"],
+                    "timeslot_duration": appt["timeslot_duration"],
                     "comment": appt.get("comment"),
                     "status": appt["status"] if appt.get("status") else "Active",
                     "consumer": {
@@ -252,8 +301,6 @@ def lambda_handler(event, context):
                 }
                 appointments.append(appointment)
 
-        if op_code:
-            appointments = [appt for appt in appointments if appt["op_code"] == op_code]
         if status:
             appointments = [appt for appt in appointments if appt["status"] == status]
 
@@ -262,7 +309,7 @@ def lambda_handler(event, context):
             "body": dumps({
                 "appointments": appointments,
                 "request_id": request_id,
-            })
+            }, cls=CustomEncoder)
         }
 
     except IntegrationError as e:
@@ -282,7 +329,10 @@ def lambda_handler(event, context):
         return {
             "statusCode": "500",
             "body": dumps({
-                "error": str(e),
+                "error": {
+                    "code": "I001",
+                    "message": "Internal server error. Please contact Impel support."
+                },
                 "request_id": request_id,
             })
         }
