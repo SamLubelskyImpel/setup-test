@@ -4,7 +4,7 @@ from json import dumps, loads
 from uuid import uuid4
 from typing import Any, List
 from datetime import datetime
-from utils import invoke_vendor_lambda, IntegrationError, format_timestamp
+from utils import invoke_vendor_lambda, IntegrationError, format_timestamp, send_alert_notification
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -104,6 +104,8 @@ def lambda_handler(event, context):
             logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
 
         create_appt_arn = partner_metadata.get("create_appt_arn", "")
+        if ENVIRONMENT == 'prod' and not create_appt_arn:
+            raise Exception(f"CreateAppt ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {
             "request_id": request_id,
@@ -125,27 +127,43 @@ def lambda_handler(event, context):
         logger.info(f"Payload to integration: {payload}")
 
         if ENVIRONMENT != 'prod' and not create_appt_arn:
-            integration_appointment_id = str(uuid4())
+            response = {
+                "statusCode": 201,
+                "body": dumps({
+                    "appointment_id": str(uuid4())
+                })
+            }
+            # response = {
+            #     "statusCode": 500,
+            #     "body": dumps({
+            #         "error": {
+            #             "code": "V002",
+            #             "message": "Timeslot already booked. Please select another timeslot."
+            #         },
+            #         "request_id": request_id,
+            #     })
+            # }
         else:
             response = invoke_vendor_lambda(payload, create_appt_arn)
-            if response["statusCode"] == 500:
-                logger.error(f"Integration encountered error: {response}")
-                body = loads(response["body"])
-                return {
-                    "statusCode": "500",
-                    "body": dumps({
-                        "error": {
-                            "code": body["error"]["code"],
-                            "message": body["error"]["message"]
-                        },
-                        "request_id": request_id,
-                    })
-                }
-            elif response["statusCode"] not in [200, 201]:
-                raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
 
-            # Parse response
-            integration_appointment_id = loads(response["body"])["appointment_id"]
+        if response["statusCode"] == 500:
+            logger.error(f"Integration encountered error: {response}")
+            body = loads(response["body"])
+            return {
+                "statusCode": "500",
+                "body": dumps({
+                    "error": {
+                        "code": body["error"]["code"],
+                        "message": body["error"]["message"]
+                    },
+                    "request_id": request_id,
+                })
+            }
+        elif response["statusCode"] not in [200, 201]:
+            raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
+
+        # Parse response
+        integration_appointment_id = loads(response["body"])["appointment_id"]
 
         # Create consumer
         with DBSession() as session:
@@ -180,6 +198,7 @@ def lambda_handler(event, context):
                 transmission=vehicle.get("transmission"),
                 interior_color=vehicle.get("interior_color"),
                 exterior_color=vehicle.get("exterior_color"),
+                trim=vehicle.get("trim"),
                 condition=vehicle.get("condition"),
                 odometer_units=vehicle.get("odometer_units")
             )
@@ -210,15 +229,16 @@ def lambda_handler(event, context):
         return {
             "statusCode": "201",
             "body": dumps({
-                "appointment_id": appointment_id,
-                "consumer_id": consumer_id,
-                "vehicle_id": vehicle_id,
+                "appointment_id": int(appointment_id),
+                "consumer_id": int(consumer_id),
+                "vehicle_id": int(vehicle_id),
                 "request_id": request_id,
             })
         }
 
     except IntegrationError as e:
         logger.error(f"Integration error: {e}")
+        send_alert_notification(request_id, "CreateAppointment", e)
         return {
             "statusCode": "500",
             "body": dumps({
@@ -231,6 +251,7 @@ def lambda_handler(event, context):
         }
     except Exception as e:
         logger.error(f"Error: {e}")
+        send_alert_notification(request_id, "CreateAppointment", e)
         return {
             "statusCode": "500",
             "body": dumps({

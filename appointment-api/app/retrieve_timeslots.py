@@ -2,7 +2,7 @@ import logging
 from os import environ
 from json import dumps, loads
 from uuid import uuid4
-from utils import invoke_vendor_lambda, IntegrationError
+from utils import invoke_vendor_lambda, IntegrationError, send_alert_notification
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -76,6 +76,7 @@ def call_integration(payload, request_id, timeslots_arn) -> dict:
             "duration": slot["duration"],
         })
 
+    logger.info(f"Timeslots: {timeslots}")
     return {
         "statusCode": "200",
         "body": dumps({
@@ -152,7 +153,7 @@ def lambda_handler(event, context):
 
         timeslots_arn = partner_metadata.get("timeslots_arn", "")
         if ENVIRONMENT == 'prod' and not timeslots_arn:
-            raise Exception(f"Timeslots ARN not found in metadata for partner {integration_dealer_id}")
+            raise Exception(f"Timeslots ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {
             "request_id": request_id,
@@ -172,6 +173,7 @@ def lambda_handler(event, context):
 
     except IntegrationError as e:
         logger.error(f"Integration error: {e}")
+        send_alert_notification(request_id, "RetrieveTimeslots", e)
         return {
             "statusCode": "500",
             "body": dumps({
@@ -184,6 +186,7 @@ def lambda_handler(event, context):
         }
     except Exception as e:
         logger.error(f"Error: {e}")
+        send_alert_notification(request_id, "RetrieveTimeslots", e)
         return {
             "statusCode": "500",
             "body": dumps({

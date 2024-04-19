@@ -4,7 +4,7 @@ from json import dumps, loads, JSONEncoder
 from uuid import uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
-from utils import invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone
+from utils import invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone, send_alert_notification
 from typing import Any
 
 from appt_orm.session_config import DBSession
@@ -127,7 +127,6 @@ def lambda_handler(event, context):
         email_address = params.get("email_address")
         phone_number = params.get("phone_number")
 
-        # Get dealer info
         with DBSession() as session:
             # Get dealer info
             dealer_partner = session.query(
@@ -188,7 +187,10 @@ def lambda_handler(event, context):
             appointments_db = appointments_query.all()
             logger.info(f"Appointments found: {len(appointments_db)}")
 
+        # Retrieve appointments from vendor
         retrieve_appts_arn = partner_metadata.get("retrieve_appts_arn", "")
+        if ENVIRONMENT == 'prod' and not retrieve_appts_arn:
+            raise Exception(f"RetrieveAppts ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {
             "request_id": request_id,
@@ -203,63 +205,67 @@ def lambda_handler(event, context):
         logger.info(f"Payload to integration: {payload}")
 
         if ENVIRONMENT != 'prod' and not retrieve_appts_arn:
-            vendor_appointments = [
-                {
-                    "appointment_id": "ff8cc547-7291-43ab-a11d-2b2f15d0441a",
-                    "vin": "1HGBH41JXMN109186",
-                    "timeslot": "2024-04-12T00:00:00",
-                    "timeslot_duration": 30,
-                    "comment": "This is a comment",
-                    "first_name": "John",
-                    "last_name": "Doe",
-                    "email_address": "john.doe@example.com",
-                    "phone_number": "123-456-7890",
-                    "op_code": "VENDOR004"
-                },
-                {
-                    "appointment_id": "ff8cc547-7291-43ab-a11d-2b2f15d0441b",
-                    "vin": "1HGBH41JXMN109186",
-                    "timeslot": "2024-04-12T01:00:00",
-                    "timeslot_duration": 30,
-                    "comment": "This is a comment",
-                    "first_name": "John",
-                    "last_name": "Doe",
-                    "email_address": "john.doe@example.com",
-                    "phone_number": "123-456-7890",
-                    "op_code": "VENDOR005"
-                }
-            ]
+            response = {
+                "statusCode": 200,
+                "body": dumps({
+                    "appointments": [{
+                        "appointment_id": "4121cb9c-5182-4667-9af4-066210d5a424",
+                        "vin": "2HGBH41JXMN109185",
+                        "timeslot": "2024-04-26T14:00:00",
+                        "timeslot_duration": 30,
+                        "comment": "This is a comment",
+                        "first_name": "Jane",
+                        "last_name": "Smith",
+                        "email_address": "jane.smith@example.com",
+                        "phone_number": "123-456-7891",
+                        "op_code": "VENDOR004"
+                    }]
+                })
+            }
+            # response = {
+            #     "statusCode": 500,
+            #     "body": dumps({
+            #         "error": {
+            #             "code": "V002",
+            #             "message": "Unexpected response from XTime integration."
+            #         }
+            #     })
+            # }
         else:
             response = invoke_vendor_lambda(payload, retrieve_appts_arn)
-            if response["statusCode"] == 500:
-                logger.error(f"Integration encountered error: {response}")
-                body = loads(response["body"])
-                return {
-                    "statusCode": "500",
-                    "body": dumps({
-                        "error": {
-                            "code": body["error"]["code"],
-                            "message": body["error"]["message"]
-                        },
-                        "request_id": request_id,
-                    })
-                }
-            elif response["statusCode"] != 200:
-                raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
 
-            # Parse response
+        if response["statusCode"] == 500:
+            logger.error(f"Integration encountered error: {response}")
             body = loads(response["body"])
-            vendor_appointments = body["appointments"]
+            return {
+                "statusCode": "500",
+                "body": dumps({
+                    "error": {
+                        "code": body["error"]["code"],
+                        "message": body["error"]["message"]
+                    },
+                    "request_id": request_id,
+                })
+            }
+        elif response["statusCode"] != 200:
+            raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
+
+        # Parse response
+        logger.info(f"Response from integration: {response}")
+        body = loads(response["body"])
+        vendor_appointments = body["appointments"]
 
         appointments = []
+        # Compare appointments from vendor with database records
         with DBSession() as session:
             for db_appt in appointments_db:
                 for v_appt in vendor_appointments:
                     # Appointment found in vendor
                     if db_appt.Appointment.integration_appointment_id == v_appt["appointment_id"]:
                         if v_appt.get("status") and db_appt.Appointment.status != v_appt["status"]:
-                            # Update appointment in db
+                            # Status change in vendor, update appointment in db
                             update_appointment_status(db_appt.Appointment.id, session, v_appt["status"])
+                            db_appt.Appointment.status = v_appt["status"]
                             logger.info(f"Appointment {db_appt.Appointment.id} status updated to {v_appt['status']}")
                         appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
                         break
@@ -268,16 +274,19 @@ def lambda_handler(event, context):
                     current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
                     timeslot_time = db_appt.Appointment.timeslot_ts
                     if timeslot_time < current_time:
+                        # Appointment timeslot has passed
                         logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Completed.")
                         update_appointment_status(db_appt.Appointment.id, session, "Completed")
+                        db_appt.Appointment.status = "Completed"
                     else:
                         logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor. Assumed Lost.")
                         update_appointment_status(db_appt.Appointment.id, session, "Lost")
+                        db_appt.Appointment.status = "Lost"
 
                     appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
             session.commit()
 
-        # Add appointments from vendor which weren't in db
+        # Add appointments from vendor which weren't in database to response
         for appt in vendor_appointments:
             for db_appt in appointments_db:
                 if appt["appointment_id"] == db_appt.Appointment.integration_appointment_id:
@@ -304,6 +313,7 @@ def lambda_handler(event, context):
         if status:
             appointments = [appt for appt in appointments if appt["status"] == status]
 
+        logger.info(f"Appointments: {appointments}")
         return {
             "statusCode": "200",
             "body": dumps({
@@ -314,6 +324,7 @@ def lambda_handler(event, context):
 
     except IntegrationError as e:
         logger.error(f"Integration error: {e}")
+        send_alert_notification(request_id, "RetrieveAppointments", e)
         return {
             "statusCode": "500",
             "body": dumps({
@@ -326,6 +337,7 @@ def lambda_handler(event, context):
         }
     except Exception as e:
         logger.error(f"Error: {e}")
+        send_alert_notification(request_id, "RetrieveAppointments", e)
         return {
             "statusCode": "500",
             "body": dumps({
