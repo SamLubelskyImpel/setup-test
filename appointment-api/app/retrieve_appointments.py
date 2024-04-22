@@ -246,11 +246,11 @@ def lambda_handler(event, context):
                     timeslot_time = db_appt.Appointment.timeslot_ts
                     if timeslot_time < current_time:
                         # Appointment timeslot has passed
-                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Completed.")
-                        update_appointment_status(db_appt.Appointment.id, session, "Completed")
-                        db_appt.Appointment.status = "Completed"
+                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Closed.")
+                        update_appointment_status(db_appt.Appointment.id, session, "Closed")
+                        db_appt.Appointment.status = "Closed"
                     else:
-                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor. Assumed Lost.")
+                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor and timeslot has not passed. Assumed Lost.")
                         update_appointment_status(db_appt.Appointment.id, session, "Lost")
                         db_appt.Appointment.status = "Lost"
 
