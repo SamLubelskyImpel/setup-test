@@ -107,6 +107,62 @@ paths:
               $ref: '#/components/schemas/MomentumLeadUpdate'
       responses:
         '200':
+          description: Success.
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+  /activix/crm-upload/v1/leads:
+    post:
+      security:
+        - SHA256Auth: []
+      summary: Post Activix CRM new leads.
+      #{{ACTIVIX_CREATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Activix
+      operationId: activix-post-lead
+      description: |-
+        This API endpoint creates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivixLead'
+      responses:
+        '200':
+          description: Success.
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+  /activix/crm-upload/v1/lead-updates:
+    post:
+      security:
+        - SHA256Auth: []
+      summary: Post Activix CRM lead updates.
+      #{{ACTIVIX_UPDATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Activix
+      operationId: activix-post-lead-update
+      description: |-
+        This API endpoint updates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivixLead'
+      responses:
+        '200':
           description: Success. 
         '400':
           description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
@@ -114,12 +170,18 @@ paths:
           description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
         '500':
           description: Internal Server Error. Please contact Impel support.
+
 components:
   securitySchemes:
     basicAuth:
       type: http
       scheme: basic
       description: Basic Authentication
+    SHA256Auth:
+      type: apiKey
+      in: header
+      name: X-Activix-Signature
+      description: Provide a SHA256 encrypted signature as part of the request headers.
   schemas:
     ImpelCRMSalesLead:
       type: object
@@ -838,3 +900,11 @@ components:
           minLength: 1
           maxLength: 50
           example: Used
+    ActivixLead:
+      description: Request body for Activix leads
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID of the lead
+          example: 12345

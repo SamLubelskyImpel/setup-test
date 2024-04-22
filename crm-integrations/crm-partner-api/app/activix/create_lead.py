@@ -52,7 +52,7 @@ secret_client = boto3.client("secretsmanager")
 #     format_string = "%Y/%m/%d/%H/%M"
 #     date_key = datetime.utcnow().strftime(format_string)
 
-#     s3_key = f"raw/momentum/{product_dealer_id}/{date_key}_{uuid4()}.json"
+#     s3_key = f"raw/activix/{product_dealer_id}/{date_key}_{uuid4()}.json"
 #     logger.info(f"Saving momentum lead to {s3_key}")
 #     s3_client.put_object(
 #         Body=lead,
@@ -66,11 +66,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
 
-        # body = loads(event["body"])
-        # momentum_dealer_list = get_dealers("MOMENTUM")
-        # crm_dealer_id = body["dealerID"]
+        body = loads(event["body"])
 
-        # for dealer in momentum_dealer_list:
+        # activix_dealer_list = get_dealers("ACTIVIX")
+        # crm_dealer_id = body["account_id"] #????
+
+        # for dealer in activix_dealer_list:
         #     if dealer["crm_dealer_id"] == crm_dealer_id:
         #         product_dealer_id = dealer["product_dealer_id"]
         #         break
@@ -84,7 +85,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         #     }
 
         # logger.info(f"New lead received for dealer: {product_dealer_id}")
-        # logger.info(f"Lead body: {body}")
+        logger.info(f"Lead body: {body}")
         # save_raw_lead(dumps(body), product_dealer_id)
 
         return {"statusCode": 200}

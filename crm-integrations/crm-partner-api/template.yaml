@@ -174,12 +174,16 @@ Resources:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
           DefaultAuth:
+            FunctionPayloadType: REQUEST
             FunctionArn: !GetAtt Authorizer.Arn
             Identity:
-              Headers:
-                - Authorization
-              ValidationExpression: ^Basic.*$
+              Headers: []
               ReauthorizeEvery: 0
+        AddDefaultAuthorizerToCorsPreflight: False
+      Cors:
+        AllowMethods: "'GET,POST,PUT,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,x-api-key,X-Amz-Security-Token,X-Activix-Signature'"
+        AllowOrigin: "'*'"
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-
