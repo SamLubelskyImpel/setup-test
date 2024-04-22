@@ -243,6 +243,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     trade_in_year=vehicle.get("trade_in_year"),
                     trade_in_make=vehicle.get("trade_in_make"),
                     trade_in_model=vehicle.get("trade_in_model"),
+                    metadata_=vehicle.get("metadata"),
                 )
                 lead.vehicles.append(vehicle)
 
