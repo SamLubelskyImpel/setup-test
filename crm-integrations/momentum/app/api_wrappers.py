@@ -205,28 +205,47 @@ class MomentumApiWrapper:
         logger.info(f"Response from CRM: {response_json}")
 
         return str(response_json.get("appointmentApiID", ""))
-    
-    def __extract_conversation_link(self):
-        pattern = r'(?i)view conversation\s+(https?://\S+)'
-        regex_match = re.search(pattern, self.__activity["notes"])
+
+    def __extract_action_links(self):
+        extraction_map = [
+            {
+                "title": "View Conversation",
+                "pattern": r'(?i)view conversation\s+(https?://\S+)'
+            },
+            {
+                "title": "Stop Communication",
+                "pattern": r'(?i)link to stop communication:\s+(https?://\S+)'
+            },
+            {
+                "title": "Reply as Assistant",
+                "pattern": r'(?i)link to reply as assistant:\s+(https?://\S+)'
+            }
+        ]
         
-        if not regex_match:
-            return None
+        extracted = []
         
-        return regex_match.group(1)
+        for m in extraction_map:
+            regex_match = re.search(m["pattern"], self.__activity["notes"])
+            if regex_match:
+                extracted.append({
+                    "title": m["title"],
+                    "link": regex_match.group(1),
+                    "description": self.__activity["notes"]
+                })
+        
+        return extracted
         
     def __insert_note(self):
         """Insert note on CRM."""
-        conversation_link = self.__extract_conversation_link()
+        action_links = self.__extract_action_links()
         
         url = "{}/lead/{}".format(self.__api_url, self.__activity["crm_lead_id"])
         
-        if conversation_link:
-            url += "/actionlink"
+        if len(action_links):
+            url += "/contact/remark/clockstop"
             payload = {
-                "title": "View Conversation",
-                "link": conversation_link,
-                "description": self.__activity["notes"]
+                "remark": "Communication Sent/Received",
+                "actionLinks": action_links
             }
         else:
             url += "/contact/remark"
