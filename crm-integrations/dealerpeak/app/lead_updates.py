@@ -45,7 +45,7 @@ def get_lead(crm_dealer_id, crm_lead_id):
     return response.json()
 
 
-def parse_salesperson(agent: dict):
+def parse_salesperson(agent: dict, format_list: bool = False):
     """Parse salesperson from lead."""
     user_id = agent["userID"]
 
@@ -55,8 +55,8 @@ def parse_salesperson(agent: dict):
     phones = agent["contactInformation"].get("phoneNumbers", [{}])
     emails = agent["contactInformation"].get("emails", [{}])
 
-    phone_number = phones[0].get("number") if phones else []
-    email_address = emails[0].get("address") if emails else []
+    phone_number = phones[0].get("number", "")
+    email_address = emails[0].get("address", "")
     for phone in phones:
         if phone["type"].lower() in ("mobile", "cell"):
             phone_number = phone.get("number")
@@ -65,8 +65,8 @@ def parse_salesperson(agent: dict):
         "crm_salesperson_id": user_id,
         "first_name": first_name,
         "last_name": last_name,
-        "email": email_address,
-        "phone": phone_number,
+        "email": [email_address] if format_list else email_address,
+        "phone": [phone_number] if format_list else phone_number,
         "position_name": "Agent",
         "is_primary": True
     }
@@ -159,7 +159,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         response.raise_for_status()
 
         salespersons = [
-            parse_salesperson(x) for x in response.json()
+            parse_salesperson(x, format_list=True) for x in response.json()
         ]
 
         return {
