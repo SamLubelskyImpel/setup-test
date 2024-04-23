@@ -1133,6 +1133,10 @@ components:
             description: The model name of the trade-in vehicle
             maxLength: 80
             example: F-150
+          metadata:
+            type: object
+            additionalProperties: true
+            example: {"min_price": 25000.00, "max_price": 30000.00}
     Consumer:
       description: An object containing all information about a person interested in a vehicle
       type: object

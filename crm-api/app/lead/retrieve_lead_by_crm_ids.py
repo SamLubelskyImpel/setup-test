@@ -110,6 +110,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "trade_in_year": vehicle.trade_in_year,
                 "trade_in_make": vehicle.trade_in_make,
                 "trade_in_model": vehicle.trade_in_model,
+                "metadata": vehicle.metadata_,
                 "db_creation_date": vehicle.db_creation_date
             }
             vehicles.append(vehicle_record)
