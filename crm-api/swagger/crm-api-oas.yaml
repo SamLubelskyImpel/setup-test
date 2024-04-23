@@ -587,7 +587,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
-                        maxLength: 40
+                        maxLength: 100
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -655,7 +655,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
-                        maxLength: 40
+                        maxLength: 100
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -783,7 +783,7 @@ paths:
           schema:
             type: string
             minLength: 1
-            maxLength: 40
+            maxLength: 100
             example: "test_dealer_id"
       responses:
         '200':
@@ -876,7 +876,7 @@ paths:
                   type: string
                   description: The ID assigned to the dealership by Impel during onboarding.
                   example: "test_dealer_id"
-                  maxLength: 40
+                  maxLength: 100
                 lead:
                   allOf:
                     - type: object
@@ -1364,7 +1364,7 @@ components:
       schema:
         type: string
         minLength: 1
-        maxLength: 50
+        maxLength: 100
         example: "test_dealer_id"
     crmDealerId:
       name: crm_dealer_id
