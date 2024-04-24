@@ -27,7 +27,7 @@ def call_integration(payload, request_id, timeslots_arn) -> dict:
         logger.error(f"Integration encountered error: {response}")
         body = loads(response["body"])
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": body["error"]["code"],
@@ -50,7 +50,7 @@ def call_integration(payload, request_id, timeslots_arn) -> dict:
 
     logger.info(f"Timeslots: {timeslots}")
     return {
-        "statusCode": "200",
+        "statusCode": 200,
         "body": dumps({
             "timeslots": timeslots,
             "request_id": request_id,
@@ -87,7 +87,7 @@ def lambda_handler(event, context):
 
             if not dealer_partner:
                 return {
-                    "statusCode": "404",
+                    "statusCode": 404,
                     "body": dumps({
                         "error": f"No active dealer found with id {dealer_integration_partner_id}",
                         "request_id": request_id,
@@ -115,7 +115,7 @@ def lambda_handler(event, context):
             vendor_op_code = vendor_op_code.op_code if vendor_op_code else None
             if not vendor_op_code:
                 return {
-                    "statusCode": "404",
+                    "statusCode": 404,
                     "body": dumps({
                         "error": f"No integration op code mapping found for product op code: {op_code}",
                         "request_id": request_id,
@@ -147,7 +147,7 @@ def lambda_handler(event, context):
         logger.error(f"Integration error: {e}")
         send_alert_notification(request_id, "RetrieveTimeslots", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I002",
@@ -160,7 +160,7 @@ def lambda_handler(event, context):
         logger.error(f"Error: {e}")
         send_alert_notification(request_id, "RetrieveTimeslots", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I001",

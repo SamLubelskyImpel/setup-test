@@ -144,7 +144,7 @@ def lambda_handler(event, context):
 
             if not dealer_partner:
                 return {
-                    "statusCode": "404",
+                    "statusCode": 404,
                     "body": dumps({
                         "error": f"No active dealer found with id {dealer_integration_partner_id}",
                         "request_id": request_id,
@@ -209,7 +209,7 @@ def lambda_handler(event, context):
             logger.error(f"Integration encountered error: {response}")
             body = loads(response["body"])
             return {
-                "statusCode": "500",
+                "statusCode": 500,
                 "body": dumps({
                     "error": {
                         "code": body["error"]["code"],
@@ -286,7 +286,7 @@ def lambda_handler(event, context):
 
         logger.info(f"Appointments: {appointments}")
         return {
-            "statusCode": "200",
+            "statusCode": 200,
             "body": dumps({
                 "appointments": appointments,
                 "request_id": request_id,
@@ -297,7 +297,7 @@ def lambda_handler(event, context):
         logger.error(f"Integration error: {e}")
         send_alert_notification(request_id, "RetrieveAppointments", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I002",
@@ -310,7 +310,7 @@ def lambda_handler(event, context):
         logger.error(f"Error: {e}")
         send_alert_notification(request_id, "RetrieveAppointments", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I001",

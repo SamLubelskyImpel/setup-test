@@ -67,7 +67,7 @@ def lambda_handler(event, context):
 
             if not dealer_partner:
                 return {
-                    "statusCode": "404",
+                    "statusCode": 404,
                     "body": dumps({
                         "error": f"No active dealer found with id {dealer_integration_partner_id}",
                         "request_id": request_id,
@@ -93,7 +93,7 @@ def lambda_handler(event, context):
 
             if not op_code_query:
                 return {
-                    "statusCode": "404",
+                    "statusCode": 404,
                     "body": dumps({
                         "error": f"No integration op code mapping found for product op code: {op_code}",
                         "request_id": request_id,
@@ -131,7 +131,7 @@ def lambda_handler(event, context):
             logger.error(f"Integration encountered error: {response}")
             body = loads(response["body"])
             return {
-                "statusCode": "500",
+                "statusCode": 500,
                 "body": dumps({
                     "error": {
                         "code": body["error"]["code"],
@@ -208,7 +208,7 @@ def lambda_handler(event, context):
             session.commit()
 
         return {
-            "statusCode": "201",
+            "statusCode": 201,
             "body": dumps({
                 "appointment_id": int(appointment_id),
                 "consumer_id": int(consumer_id),
@@ -221,7 +221,7 @@ def lambda_handler(event, context):
         logger.error(f"Integration error: {e}")
         send_alert_notification(request_id, "CreateAppointment", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I002",
@@ -234,7 +234,7 @@ def lambda_handler(event, context):
         logger.error(f"Error: {e}")
         send_alert_notification(request_id, "CreateAppointment", e)
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({
                 "error": {
                     "code": "I001",
