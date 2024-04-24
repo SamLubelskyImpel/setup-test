@@ -1,6 +1,6 @@
 """Tests for the retrieve_appointments module.
 
-AWS_PROFILE=unified-test pytest
+AWS_PROFILE=unified-test pytest test_retrieve_appointments.py
 """
 import os
 import sys

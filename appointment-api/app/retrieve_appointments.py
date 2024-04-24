@@ -189,7 +189,7 @@ def lambda_handler(event, context):
 
         # Retrieve appointments from vendor
         retrieve_appts_arn = partner_metadata.get("retrieve_appts_arn", "")
-        if ENVIRONMENT == 'prod' and not retrieve_appts_arn:
+        if not retrieve_appts_arn:
             raise Exception(f"RetrieveAppts ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {

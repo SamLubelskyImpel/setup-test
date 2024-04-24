@@ -1,6 +1,6 @@
 """Tests for the create_appointments module.
 
-AWS_PROFILE=unified-test pytest
+AWS_PROFILE=unified-test pytest test_create_appointments.py
 """
 import os
 import sys

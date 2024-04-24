@@ -1,6 +1,6 @@
 """Tests for the retrieve_timeslots module.
 
-AWS_PROFILE=unified-test pytest
+AWS_PROFILE=unified-test pytest test_timeslots.py
 """
 import os
 import sys

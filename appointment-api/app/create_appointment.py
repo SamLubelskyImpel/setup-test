@@ -104,7 +104,7 @@ def lambda_handler(event, context):
             logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
 
         create_appt_arn = partner_metadata.get("create_appt_arn", "")
-        if ENVIRONMENT == 'prod' and not create_appt_arn:
+        if not create_appt_arn:
             raise Exception(f"CreateAppt ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {
