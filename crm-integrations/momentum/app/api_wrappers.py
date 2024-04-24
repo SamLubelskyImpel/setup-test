@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Tuple
 import logging
 import pytz
+import re
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -205,20 +206,61 @@ class MomentumApiWrapper:
 
         return str(response_json.get("appointmentApiID", ""))
 
+    def __extract_action_links(self):
+        extraction_map = [
+            {
+                "title": "View Conversation",
+                "pattern": r'(?i)view conversation\s+(https?://\S+)'
+            },
+            {
+                "title": "Stop Communication",
+                "pattern": r'(?i)link to stop communication:\s+(https?://\S+)'
+            },
+            {
+                "title": "Reply as Assistant",
+                "pattern": r'(?i)link to reply as assistant:\s+(https?://\S+)'
+            }
+        ]
+        
+        extracted = []
+        
+        for m in extraction_map:
+            regex_match = re.search(m["pattern"], self.__activity["notes"])
+            if regex_match:
+                extracted.append({
+                    "title": m["title"],
+                    "link": regex_match.group(1),
+                    "description": self.__activity["notes"]
+                })
+        
+        return extracted
+        
     def __insert_note(self):
         """Insert note on CRM."""
-        url = "{}/lead/{}/contact/remark".format(self.__api_url, self.__activity["crm_lead_id"])
-
-        payload = {
-            "remark": self.__activity["notes"]
-        }
+        action_links = self.__extract_action_links()
+        
+        url = "{}/lead/{}".format(self.__api_url, self.__activity["crm_lead_id"])
+        
+        if len(action_links):
+            url += "/contact/remark/clockstop"
+            payload = {
+                "remark": "Communication Sent/Received",
+                "actionLinks": action_links
+            }
+        else:
+            url += "/contact/remark"
+            payload = {
+                "remark": self.__activity["notes"]
+            }
+        
+        logger.info(f"Request URL to CRM: {url}")
         logger.info(f"Payload to CRM: {payload}")
         response = self.__call_api(url, payload)
         response.raise_for_status()
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("leadRemarkID", ""))
+        return str(response_json.get("leadRemarkID", "") or response_json.get("actionLinkKey", ""))
 
     def __create_outbound_call(self):
         """Create outbound call on CRM."""
