@@ -86,8 +86,8 @@ def lambda_handler(event, context):
     for partner in partners:
         # sidekick doesn't have 'fi_closed_deal' files
         file_types = ['repair_order'] if partner == 'sidekick' else ['fi_closed_deal', 'repair_order']
-        if partner == 'sidekick':
-            continue  # sidekick is not live yet, so just skip it for now
+        if partner in ['sidekick', 'tekion']:
+            continue  # sidekick and tekion are not live yet, so just skip them for now
         for file_type in file_types:
             file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'   
             if not check_folder_has_files(bucket_name, file_key):
