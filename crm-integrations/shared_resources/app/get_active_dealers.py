@@ -85,7 +85,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     integration_partner_name = event["impel_integration_partner_name"]
     try:
         current_time = datetime.utcnow()
-        start_time = (current_time - timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        start_time = (current_time - timedelta(minutes=10)).strftime('%Y-%m-%dT%H:%M:%SZ')
         end_time = current_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         dealers = get_dealers(integration_partner_name)
