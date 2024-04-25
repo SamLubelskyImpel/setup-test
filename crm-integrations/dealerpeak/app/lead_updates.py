@@ -55,8 +55,9 @@ def parse_salesperson(agent: dict, format_list: bool = False):
     phones = agent["contactInformation"].get("phoneNumbers", [{}])
     emails = agent["contactInformation"].get("emails", [{}])
 
-    phone_number = phones[0].get("number", "")
-    email_address = emails[0].get("address", "")
+    phone_number = phones[0].get("number", "") if phones else ""
+    email_address = emails[0].get("address", "") if emails else ""
+    
     for phone in phones:
         if phone["type"].lower() in ("mobile", "cell"):
             phone_number = phone.get("number")
@@ -123,7 +124,13 @@ def get_salesperson_by_lead_id(crm_dealer_id: str, crm_lead_id: str, lead_id: st
         "salespersons": [salesperson]
     })
 
-    return status, salesperson
+    return (
+        200,
+        {
+            "status": status,
+            "salespersons": [salesperson]
+        }
+    )
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -137,14 +144,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     crm_lead_id = event.get("crm_lead_id")
 
     if lead_id and crm_lead_id:
-        status, salesperson = get_salesperson_by_lead_id(crm_dealer_id=crm_dealer_id, crm_lead_id=crm_lead_id, lead_id=lead_id, dealer_partner_id=dealer_partner_id)
+        statusCode, body = get_salesperson_by_lead_id(crm_dealer_id=crm_dealer_id, crm_lead_id=crm_lead_id, lead_id=lead_id, dealer_partner_id=dealer_partner_id)
 
         return {
-            "statusCode": 200,
-            "body": dumps({
-                "status": status,
-                "salespersons": [salesperson]
-            })
+            "statusCode": statusCode,
+            "body": dumps(body)
         }
     else:
         api_url, username, password = get_secrets()
