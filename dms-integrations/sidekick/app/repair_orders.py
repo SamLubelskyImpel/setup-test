@@ -29,9 +29,9 @@ def parse_date(date_str):
     return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S") if date_str else datetime.now(timezone.utc)
 
 
-def alert_topic(dealer_id, daily_date_path, historical_date_path):
+def alert_topic(dealer_id, daily_date_path, historical_date_path, daily_filename, historical_filename):
     """Notify Topic of missing S3 files."""
-    message = f'SIDEKICK: No {dealer_id} files uploaded for {date_path} or there is an issue with the historical file {historical_date_path}.'
+    message = f'SIDEKICK: No {dealer_id} files uploaded for {date_path} or there is an issue with the historical file {historical_date_path}. Filenames: {daily_filename}, {historical_filename}.'
 
     response = SNS_CLIENT.publish(
             TopicArn=SNS_TOPIC_ARN,
@@ -53,22 +53,22 @@ def parse_data(sqs_message_data):
         parent_store, child_store = dealer_id.split("-")
 
         end_dt = parse_date(sqs_message_data.get("end_dt_str"))
-        daily_date_path = 'daily/' + end_dt.strftime("%Y/%m/%d")
-        historical_date_path = 'historical/' + end_dt.strftime("%Y/%m/%d")
+        daily_date_path = end_dt.strftime("%Y/%m/%d") + 'daily/'
+        historical_date_path = end_dt.strftime("%Y/%m/%d") + 'historical/'
 
-        filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y%m%d')}.csv"
+        daily_filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y%m%d')}.csv"
         historical_filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y%m%d')}-History.csv"
 
         # check daily file
         ftp_session.transfer_file_from_ftp_to_s3(
-            filename=filename,
+            filename=daily_filename,
             bucket_name=INTEGRATIONS_BUCKET,
             date_path=daily_date_path,
             parent_store=parent_store,
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed {filename}")
+        logger.info(f"Successfully processed {daily_filename}")
 
         # check historical file if exists
         ftp_session.transfer_file_from_ftp_to_s3(
@@ -83,7 +83,7 @@ def parse_data(sqs_message_data):
 
     except Exception as e:
         logger.error(f"Error processing SQS message: {e}")
-        alert_topic(dealer_id, daily_date_path, historical_date_path)
+        alert_topic(dealer_id, daily_date_path, historical_date_path, daily_filename, historical_filename)
 
 
 def lambda_handler(event, context):
