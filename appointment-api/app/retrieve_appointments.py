@@ -263,8 +263,9 @@ def lambda_handler(event, context):
                 if appt["appointment_id"] == db_appt.Appointment.integration_appointment_id:
                     break
             else:
+                integration_op_code = appt["services"][0].get("op_code") if appt.get("services") else None
                 appointment = {
-                    "op_code": get_product_op_code(dealer_integration_partner_id, product_id, appt["op_code"]),
+                    "op_code": get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code),
                     "timeslot": appt["timeslot"],
                     "timeslot_duration": appt["timeslot_duration"],
                     "comment": appt.get("comment"),

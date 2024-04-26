@@ -30,7 +30,12 @@ mock_response_payload_1 = {
             "last_name": "Smith",
             "email_address": "jane.smith@example.com",
             "phone_number": "123-456-7891",
-            "op_code": "VENDOR004"
+            "services": [
+                {
+                    "op_code": "VENDOR004",
+                    "service_name": "Oil Change",
+                }
+            ]
         }]
     })
 }
