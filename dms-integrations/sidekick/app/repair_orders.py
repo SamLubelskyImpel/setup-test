@@ -53,8 +53,8 @@ def parse_data(sqs_message_data):
         parent_store, child_store = dealer_id.split("-")
 
         end_dt = parse_date(sqs_message_data.get("end_dt_str"))
-        daily_date_path = end_dt.strftime("%Y/%m/%d") + 'daily/'
-        historical_date_path = end_dt.strftime("%Y/%m/%d") + 'historical/'
+        daily_date_path = 'daily/' + end_dt.strftime("%Y/%m/%d")
+        historical_date_path = 'historical/' + end_dt.strftime("%Y/%m/%d")
 
         previous_date = end_dt - timedelta(days=1)
         daily_filename = f"Sidekick-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
