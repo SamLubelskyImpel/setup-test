@@ -23,6 +23,81 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
+def get_secret(secret_name, secret_key) -> Any:
+    """Get secret from Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret = loads(secret["SecretString"])[str(secret_key)]
+    secret_data = loads(secret)
+
+    return secret_data
+
+
+def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
+    """Get existing lead from CRM API."""
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
+        )
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()["lead_id"]
+        elif status_code == 404:
+            return None
+        else:
+            raise Exception(f"Error getting existing lead from CRM API: {response.text}")
+
+    except Exception as e:
+        logger.error(f"Error getting existing lead from CRM API: {e}")
+        raise
+
+
+def create_consumer(parsed_lead, crm_api_key) -> dict:
+    """Create consumer in db."""
+    consumer_obj = parsed_lead["consumer"]
+
+    try:
+        response = requests.post(
+            url=f"https://{CRM_API_DOMAIN}/consumers",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"dealer_id": parsed_lead["product_dealer_id"]},
+            json=consumer_obj,
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API /consumers responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error creating consumer from CRM API: {e}")
+        raise
+
+
+def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
+    """Create lead in db."""
+    lead_obj = parsed_lead["lead"]
+
+    lead_obj.update({
+        "consumer_id": consumer_id,
+        "vehicles_of_interest": parsed_lead["vehicle"] if parsed_lead["vehicle"] else [],
+        "salespersons": [parsed_lead["salesperson"]] if parsed_lead["salesperson"] else [],
+    })
+
+    try:
+        response = requests.post(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            json=lead_obj,
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API /leads responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error creating lead from CRM API: {e}")
+        raise
+
+
 def parse_phone_number(phones):
     """Parse the phone number."""
     if not phones:
@@ -34,11 +109,11 @@ def parse_phone_number(phones):
             preferred_phone = phone
             break 
 
-    return preferred_phone
+    return preferred_phone.get('number')
 
 
 def parse_email(emails):
-    """Parse the email."""
+    """Parse the emails."""
     if not emails:
         return None
 
@@ -47,9 +122,9 @@ def parse_email(emails):
     for email in emails:
         if email.get('valid') is True:
             preferred_email = email
-            break  
+            break
 
-    return preferred_email
+    return preferred_email.get('address')
 
 
 def parse_address(data):
@@ -66,7 +141,7 @@ def parse_lead(product_dealer_id, data):
     """Parse the JSON lead data."""
     parsed_data = {}
     try:
-        crm_lead_id = data["id"]
+        crm_lead_id = str(data["id"])
 
         db_consumer = {
             "first_name": data.get("first_name"),
@@ -77,8 +152,8 @@ def parse_lead(product_dealer_id, data):
             "city": data.get("city"),
             "country": data.get("country"),
             "postal_code": str(data.get("postal_code", "")) if data.get("postal_code") else None,
-            "email_optin_flag": user_data.get('unsubscribe_all_date') is None and user_data.get('unsubscribe_email_date') is None,
-            "sms_optin_flag": user_data.get('unsubscribe_all_date') is None and user_data.get('unsubscribe_sms_date') is None
+            "email_optin_flag": data.get('unsubscribe_all_date') is None and data.get('unsubscribe_email_date') is None,
+            "sms_optin_flag": data.get('unsubscribe_all_date') is None and data.get('unsubscribe_sms_date') is None
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
@@ -97,44 +172,70 @@ def parse_lead(product_dealer_id, data):
             "lead_source_detail": data.get("provider", "")
         }
 
-        # vehicleType = data.get("vehicleType")
-        # if vehicleType:
-        #     vehicleType = vehicleType.lower().capitalize()
-        #     if vehicleType not in ("New", "Used"):
-        #         logger.warning(f"Unexpected vehicle type: {vehicleType}")
+        vehicles = data.get("vehicles", [])
+        db_vehicles = []
+        for vehicle in vehicles:
+            if vehicle.get("type") == "wanted":
+                db_vehicle = {
+                    "vin": vehicle.get("vin"),
+                    "crm_vehicle_id": vehicle.get("id"), # not present in the CRM API 
+                    "stock_num": vehicle.get("stock"),
+                    "mileage": vehicle.get("odometer"),
+                    "make": vehicle.get("make"),
+                    "model": vehicle.get("model"),
+                    "year": vehicle.get("year"),
+                    "transmission": vehicle.get("transmission"),
+                    "interior_color": vehicle.get("color_interior"),
+                    "exterior_color": vehicle.get("color_exterior"),
+                    "trim": vehicle.get("trim"),
+                    "price": vehicle.get("price"),
+                    "status": vehicle.get("type"),
+                    "vehicle_comments": vehicle.get("comment")
+                }
+            elif vehicle.get("type") == "exchange":
+                db_vehicle = {
+                    "trade_in_vin": vehicle.get("vin"),
+                    "trade_in_year": vehicle.get("year"),
+                    "trade_in_make": vehicle.get("make"),
+                    "trade_in_model": vehicle.get("model"),
+                    "status": vehicle.get("type")
+                }
+            else:
+                logger.warning(f"Unhandled vehicle type: {vehicle.get('type')}")
+            
+            db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+            db_vehicles.append(db_vehicle)
 
-        # db_vehicle = {
-        #     "vin": data.get("vin"),
-        #     "stock_num": data.get("stock"),
-        #     "make": data.get("make"),
-        #     "model": data.get("model"),
-        #     "year": data.get("year"),
-        #     "exterior_color": data.get("color"),
-        #     "trim": data.get("trim"),
-        #     "condition": vehicleType
-        # }
-        # db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+        bdc = data.get("bdc")
+        if bdc:
+            db_salesperson = {
+                "crm_salesperson_id": str(bdc.get("id")),
+                "first_name": bdc.get("first_name"),
+                "last_name": bdc.get("last_name"),
+                "email": bdc.get("email"),
+                "is_primary": True,
+                "position_name": "BDC"
+            }
+        else:
+            advisor = data.get("advisor")
+            db_salesperson = {
+                "crm_salesperson_id": str(advisor.get("id")),
+                "first_name": advisor.get("first_name"),
+                "last_name": advisor.get("last_name"),
+                "email": advisor.get("email"),
+                "is_primary": True,
+                "position_name": "Advisor"
+            }
 
-        # if data.get("bdcID"):
-        #     db_salesperson = extract_salesperson(data["bdcID"], data.get("bdcName"), "BDC Rep")
+        parsed_data = {
+            "product_dealer_id": product_dealer_id,
+            "lead": db_lead,
+            "consumer": db_consumer,
+            "vehicle": db_vehicles,
+            "salesperson": db_salesperson
+        }
 
-        # elif data.get("contactID"):
-        #     logger.info("No BDC rep found. Using sales rep as salesperson.")
-        #     db_salesperson = extract_salesperson(data["contactID"], data.get("contactName"))
-
-        # else:
-        #     db_salesperson = {}
-        #     logger.info("No salesperson found in the lead data")
-
-        # parsed_data = {
-        #     "product_dealer_id": product_dealer_id,
-        #     "lead": db_lead,
-        #     "consumer": db_consumer,
-        #     "vehicle": db_vehicle,
-        #     "salesperson": db_salesperson
-        # }
-
-        # return parsed_data
+        return parsed_data
 
     except Exception as e:
         logger.error(f"Error parsing JSON: {e}")
@@ -155,31 +256,28 @@ def record_handler(record: SQSRecord) -> None:
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        crm_lead_id = json_data["id"]
+        crm_lead_id = str(json_data["id"])
         crm_dealer_id = json_data["account_id"]
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
-        # if parsed_lead["lead"]["lead_origin"] != "Internet":
-        #     logger.warning(f"Lead type is not Internet: {parsed_lead['lead']['lead_origin']}. Ignoring lead.")
-        #     return
 
-        # crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        # existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
-        # if existing_lead:
-        #     logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
-        #     return
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
+        existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
+        if existing_lead:
+            logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
+            return
 
-        # consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
-        # lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]
+        consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
+        lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]
 
-        # logger.info(f"New lead created: {lead_id}")
+        logger.info(f"New lead created: {lead_id}")
 
     except Exception as e:
-        logger.error(f"Error transforming momentum record - {record}: {e}")
-        # logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
-        #     product_dealer_id, crm_dealer_id, crm_lead_id, e)
-        #     )
+        logger.error(f"Error transforming activix record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, crm_lead_id, e)
+            )
         raise
 
 

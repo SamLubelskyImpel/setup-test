@@ -21,29 +21,22 @@ s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 
-# def create_signature(api_key, body):
-#     """
-#     Create an HMAC SHA256 signature using the API key and body (JSON data).
+def create_signature(api_key, body):
+    """
+    Create an HMAC SHA256 signature using the API key and body (JSON data).
+    """
+    # Convert the dictionary to a JSON string
+    body_json = json.dumps(body, separators=(',', ':'))
 
-#     Args:
-#     api_key (str): The API key used as the secret for HMAC.
-#     body (dict): The body data to encode, typically as a dictionary.
+    # Ensure the key and message are bytes
+    key_bytes = api_key.encode()
+    message_bytes = body_json.encode()
 
-#     Returns:
-#     str: The generated HMAC signature as a hexadecimal string.
-#     """
-#     # Convert the dictionary to a JSON string
-#     body_json = json.dumps(body, separators=(',', ':'))
+    # Create HMAC object with the key and specify SHA256 as the hash function
+    hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha256)
 
-#     # Ensure the key and message are bytes
-#     key_bytes = api_key.encode()
-#     message_bytes = body_json.encode()
-
-#     # Create HMAC object with the key and specify SHA256 as the hash function
-#     hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha256)
-
-#     # Return the HMAC digest as a hexadecimal string
-#     return hmac_obj.hexdigest()
+    # Return the HMAC digest as a hexadecimal string
+    return hmac_obj.hexdigest()
 
 
 def get_secrets():
@@ -55,6 +48,17 @@ def get_secrets():
     secret_data = loads(secret)
 
     return secret_data["api_key"]
+
+
+def get_api_key(crm_dealer_id: str) -> str:
+    """Get Activix secrets."""
+    secret = secret_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/activix"
+    )
+    secret = loads(secret["SecretString"])[crm_dealer_id]
+    secret_data = loads(secret)
+
+    return secret_data["leadUpdate"]
 
 
 def get_dealers(integration_partner_name: str) -> Any:
@@ -95,11 +99,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Lead update: {body}")
 
-        activix_signature = event.get('headers', {}).get('X-Activix-Signature', None)
-        logger.info(f"Activix Signature: {activix_signature}")
+        signature = event["headers"]["X-Activix-Signature"]
 
         activix_dealer_list = get_dealers("ACTIVIX")
-        crm_dealer_id = str(body["account_id"])  #??? 
+        crm_dealer_id = str(body["account_id"])
+
+        api_key = get_api_key(crm_dealer_id)
+
+        if signature != create_signature(api_key, body):
+            logger.error("Invalid signature.")
+            return {
+                "statusCode": 401,
+                "body": dumps({
+                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
+                }),
+            }
 
         logger.info(f"Activix dealers: {activix_dealer_list}")
 
