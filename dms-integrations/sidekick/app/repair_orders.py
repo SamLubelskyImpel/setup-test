@@ -56,8 +56,11 @@ def parse_data(sqs_message_data):
         daily_date_path = end_dt.strftime("%Y/%m/%d") + 'daily/'
         historical_date_path = end_dt.strftime("%Y/%m/%d") + 'historical/'
 
-        daily_filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y%m%d')}.csv"
-        historical_filename = f"Sidekick-{parent_store}-{end_dt.strftime('%Y%m%d')}-History.csv"
+        previous_date = end_dt - timedelta(days=1)
+        daily_filename = f"Sidekick-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
+        historical_filename = f"Sidekick-{parent_store}-{previous_date.strftime('%Y%m%d')}-History.csv"
+
+        logger.info(f"Checking for files: {daily_filename}, {historical_filename}")
 
         # check daily file
         ftp_session.transfer_file_from_ftp_to_s3(
