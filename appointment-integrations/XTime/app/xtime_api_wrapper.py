@@ -24,7 +24,9 @@ class XTimeApiWrapper:
     """XTime API Wrapper."""
 
     def __init__(self):
-        self.__x_api_key, self.__api_url, self.__developer_key = self.__get_secrets()
+        self.__authorization_data, self.__x_api_key, self.__api_url, self.__dealer_code = self.__get_secrets()
+
+        self.__authorization_token = self.__get_token()
 
 
     def __get_secrets(self):
@@ -33,29 +35,48 @@ class XTimeApiWrapper:
         )
         secret = loads(secret["SecretString"])["XTime"]
         secret_data = loads(secret)
-
         return (
-            secret_data["API_URL"],
-            secret_data["X_API_KEY"],
-            secret_data["DEVELOPER_KEY"]
+            secret_data["authorization_token_config"],
+            secret_data["x_api_key"],
+            secret_data["api_url"],
+            secret_data["dealer_code"]
         )
+
+
+    def __get_token(self):
+        url, username, password = self.__authorization_data.values()
+        session = requests.Session()
+        session.auth = (username, password)
+
+        payload='grant_type=client_credentials&scope=cai.scheduling.appointments.read%20cai.scheduling.appointments.write'
+
+        response = session.post(
+            url=url, 
+            data=payload,
+        )
+
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Status code from XTime Auth: {response.status_code}")
+
+        return f"{response_json['token_type']} {response_json['access_token']}"
 
 
     def __call_api(self, url, payload=None, method="POST", params=None):
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.__x_api_key,
-            "developerKey": self.__developer_key,
+            "Authorization": self.__authorization_token,
         }
-        response = requests.request(
-            method=method,
-            url=url,
-            json=payload,
-            headers=headers,
-            params=params
-        )
-        logger.info(f"Response from CRM: {response.status_code}")
-        return response
+        try:
+            response = requests.request(method=method, url=url, json=payload, headers=headers, params=params)
+            logger.info(f"Response from CRM: {response}")
+            
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"API call failed: {e}")
+            raise
 
 
     def __convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str) -> str:
@@ -94,8 +115,8 @@ class XTimeApiWrapper:
             "emailAddress": create_appt_data.email_address,
             "phoneNumber": create_appt_data.phone_number,
             "comment": create_appt_data.comment,
-            "dmsNotes": "", #TODO find out if we can send this data.
-            "advisorId": create_appt_data.integration_dealer_id, #Can be nothing
+            "dmsNotes": "",
+            "advisorId": create_appt_data.integration_dealer_id,
             "transportType": "",
             "label": {},
             "reportingLabel": {},
@@ -112,11 +133,10 @@ class XTimeApiWrapper:
             "valet": {}
         }
 
-        response = self.__call_api(url, payload=payload, params=params)
+        response_json = self.__call_api(url, payload=payload, params=params)
 
-        response.raise_for_status()
-        logger.info(f"Response from XTime: {response.json()}")
-        return response.json()
+        logger.info(f"Response from XTime: {response_json}")
+        return response_json
 
 
     def retrieve_appointments(self, appointments: GetAppointments):
@@ -124,14 +144,11 @@ class XTimeApiWrapper:
         url = "{}/appointments".format(self.__api_url)
 
         params = {
-            "dealerCode": appointments.integration_dealer_id,
+            "dealerCode": self.__dealer_code,
             "vin": appointments.vin
         }
 
-        response = self.__call_api(url, method="GET", params=params)
-
-        response.raise_for_status()
-        response_json = response.json()
+        response_json = self.__call_api(url, method="GET", params=params)
 
         logger.info(f"Response from CRM: {response_json}")
         return response_json["appointments"]
@@ -139,24 +156,20 @@ class XTimeApiWrapper:
 
     def retrieve_appt_time_slots(self, appointment_slots: AppointmentSlots):
         """Retrieve appointment time slots on XTime."""
-        url = "{}/appointments-availabilities".format(self.__api_url)
-
-        start_time = self.__convert_utc_to_timezone(appointment_slots.start_time, appointment_slots.dealer_timezone)
-        end_time = self.__convert_utc_to_timezone(appointment_slots.end_time, appointment_slots.dealer_timezone)
+        url = f"{self.__api_url}/service/appointments-availabilities"
 
         params = {
             "dealerCode": appointment_slots.integration_dealer_id,
-            "vin": appointment_slots.vin,
-            "year": appointment_slots.year,
-            "make": appointment_slots.make,
-            "model": appointment_slots.model,
-            "opcode": appointment_slots.op_code,
-            "start": start_time,
-            "end": end_time
         }
 
-        response = self.__call_api(url, method="GET", params=params)
+        parameters = ["year", "make", "model", "op_code", "start_time", "end_time"]
 
-        response.raise_for_status()
-        logger.info(f"Response from XTime: {response.json()}")
-        return response.json()
+        for param in parameters:
+            value = getattr(appointment_slots, param, None)
+            if value:
+                params[param] = value
+
+        response_json = self.__call_api(url, method="GET", params=params)
+
+        logger.info(f"Response from XTime: {response_json}")
+        return response_json

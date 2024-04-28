@@ -2,7 +2,7 @@ import logging
 from os import environ
 from typing import Any
 from json import dumps, loads
-from api_wrapper import XTimeApiWrapper
+from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
 
 logger = logging.getLogger()
