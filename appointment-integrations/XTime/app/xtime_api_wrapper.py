@@ -30,17 +30,32 @@ class XTimeApiWrapper:
 
 
     def __get_secrets(self):
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/appt-integration-partners"
-        )
-        secret = loads(secret["SecretString"])["XTime"]
-        secret_data = loads(secret)
+        # secret = secret_client.get_secret_value(
+        #     SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/appt-integration-partners"
+        # )
+        # secret = loads(secret["SecretString"])["XTime"]
+        # secret_data = loads(secret)
+        test_dict = {
+            "authorization_token_config": {
+                "url":  "https://auth.coxautoinc.com/token",
+                "username": "6d95cc71-8de0-4574-805a-c5f3594fdf4d",
+                "password": "vttqvYiMk783ZB3mEE8S1Ffuxd229sCF3sfGhr4xWYvI9paCohIxr4ErD"
+            },
+            "x_api_key": "1Dn57QXZxo1Jt8f97lrJ337dLhwTr1Uf6tHytBQb",
+            "api_url": "https://sandbox.api.coxautoinc.com/xtime", 
+            "dealer_code": "xts9010"
+        }
         return (
-            secret_data["authorization_token_config"],
-            secret_data["x_api_key"],
-            secret_data["api_url"],
-            secret_data["dealer_code"]
+            test_dict["authorization_token_config"],
+            test_dict["x_api_key"],
+            test_dict["api_url"],
+            test_dict["dealer_code"]
         )
+        # return (
+        #     secret_data["API_URL"],
+        #     secret_data["X_API_KEY"],
+        #     secret_data["DEVELOPER_KEY"]
+        # )
 
 
     def __get_token(self):
