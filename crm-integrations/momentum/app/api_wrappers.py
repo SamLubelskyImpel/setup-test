@@ -89,7 +89,7 @@ class MomentumApiWrapper:
         self.__activity = kwargs.get("activity")
         self.__api_token, self.__api_url = self.get_token()
         self.__salesperson = kwargs.get("salesperson")
-        self.__dealer_timezone = self.__activity["dealer_timezone"]
+        self.__dealer_timezone = self.__activity.get("dealer_timezone")
 
     def get_token(self):
         response = requests.get(
@@ -290,3 +290,12 @@ class MomentumApiWrapper:
                 f"Momentum CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None
+
+    def get_salespersons(self):
+        url = f"{self.__api_url}/employee"
+        response = self.__call_api(url=url, method="GET")
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM: {response_json}")
+
+        return response_json
