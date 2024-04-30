@@ -29,13 +29,21 @@ class FtpToS3:
             if not self.connected_ftp:
                 raise ConnectionError("Problem with connection to the FTP server")
 
-            remote_path = f"{parent_store}/{date_path}/{filename}"
+            remote_path = f"/{parent_store}/{date_path}/{filename}"
+            directory = f"/{parent_store}/{date_path}"
             logger.info(f"Checking for file {remote_path} in FTP directory.")
 
             # Determine the appropriate S3 key and check for file existence if historical
             if 'History' in filename:
-                logger.info(f"Folder: test/{parent_store}/{date_path}/")
-                if filename not in self.connected_ftp.nlst(f"{parent_store}/{date_path}"):
+                try:
+                    self.connected_ftp.cwd(directory)
+                    files = self.connected_ftp.nlst()
+                except error_perm as e:
+                    logger.info(f"Folder not found: {directory}. Error: {e}")
+                    return  # Exit the function if the directory does not exist
+
+                # Check if the file is present in the directory
+                if filename not in files:
                     logger.info(f"Historical file {filename} not found in FTP directory. Skipping transfer.")
                     return
                 s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
@@ -44,6 +52,7 @@ class FtpToS3:
 
             # Proceed with file retrieval and processing
             buffer = io.BytesIO()
+            self.connected_ftp.cwd(directory)
             self.connected_ftp.retrbinary(f"RETR {filename}", buffer.write)
             buffer.seek(0)
 

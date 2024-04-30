@@ -57,8 +57,8 @@ def parse_data(sqs_message_data):
         historical_date_path = 'historical/' + end_dt.strftime("%Y/%m/%d")
 
         previous_date = end_dt - timedelta(days=1)
-        daily_filename = f"Sidekick-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
-        historical_filename = f"Sidekick-{parent_store}-{previous_date.strftime('%Y%m%d')}-History.csv"
+        daily_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
+        historical_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}-History.csv"
 
         logger.info(f"Checking for files: {daily_filename}, {historical_filename}")
 
@@ -82,7 +82,7 @@ def parse_data(sqs_message_data):
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed {historical_filename}")
+        logger.info(f"Successfully processed {historical_filename} if it exists.")
 
     except Exception as e:
         logger.error(f"Error processing SQS message: {e}")
