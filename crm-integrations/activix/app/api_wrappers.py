@@ -9,7 +9,7 @@ from os import environ
 from json import loads
 from boto3 import client
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Tuple
 import logging
 import pytz
@@ -84,15 +84,16 @@ class ActivixApiWrapper:
     """Activix API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__api_key = self.get_secrets()
         self.__activity = kwargs.get("activity")
         self.__salesperson = kwargs.get("salesperson")
+        self.__api_key = self.get_secrets()
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/activix"
         )
-        secret = loads(secret["SecretString"])[self.__activity["crm_dealer_id"]]
+        crm_dealer_id = self.__activity["crm_dealer_id"]
+        secret = loads(secret["SecretString"])[crm_dealer_id]
         secret_data = loads(secret)
 
         return secret_data["api_key"]
@@ -111,33 +112,30 @@ class ActivixApiWrapper:
         logger.info(f"Response from CRM: {response.status_code}")
         return response
 
-    # def __create_appointment(self):
-    #     """Create appointment on CRM."""
-    #     url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
-    #     appt_date, appt_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
-    #     request_id = str(uuid4())
+    def __create_appointment(self):
+        """Create appointment on CRM."""
+        url = "{}/events".format(ACTIVIX_API_DOMAIN)
 
-    #     payload = {
-    #         "apptDate": appt_date,
-    #         "apptTime": appt_time,
-    #         "salesmanApiID": self.__salesperson["crm_salesperson_id"],
-    #         "note": self.__activity["notes"],
-    #         "externalCreatedByName": "ImpelCRM",
-    #         "externalID": request_id,
-    #     }
+        payload = {
+            "owner": {
+                "id": self.__salesperson["crm_salesperson_id"]
+            },
+            "start_at": self.__activity["activity_due_ts"],
+            "end_at": self.__activity["activity_due_ts"] + timedelta(hours=1),
+            "lead_id": self.__activity["crm_lead_id"],
+            "title": "Appointment",
+            "description": self.__activity["notes"],
+            "type": "appointmment"
+        }
 
-    #     logger.info(f"Payload to CRM: {payload}")
-    #     response = self.__call_api(url, payload)
-    #     if response.status_code == 409:
-    #         logger.warning(f"Appointment already exists for lead_id: {self.__activity['crm_lead_id']}. Rescheduling...")
-    #         response_json = self.__reschedule_appointment(url, appt_date, appt_time, payload)
-    #     else:
-    #         response.raise_for_status()
-    #         response_json = response.json()
+        logger.info(f"Payload to CRM: {payload}")
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM: {response_json}")
 
-    #     logger.info(f"Response from CRM: {response_json}")
+        return str(response_json.get("data", "").get("id", ""))
 
-    #     return str(response_json.get("appointmentApiID", ""))
 
     def __insert_note(self):
         """Insert note on CRM."""
@@ -167,6 +165,29 @@ class ActivixApiWrapper:
             "title": "Stop the clock",
             "description": self.__activity["notes"],
             "type": self.__activity["contact_method"]
+        }
+
+        logger.info(f"Payload to CRM: {payload}")
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("data", "").get("id", ""))
+
+    def __create_phone_call_task(self):
+        """Create phone call task on CRM."""
+        url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
+
+        payload = {
+            "owner": {
+                "id": self.__salesperson["crm_salesperson_id"]
+            },
+            "date": self.__activity["activity_due_ts"],
+            "lead_id": self.__activity["crm_lead_id"],
+            "title": "Phone call task",
+            "description": self.__activity["notes"],
+            "type": "call"
         }
 
         logger.info(f"Payload to CRM: {payload}")
