@@ -3,16 +3,11 @@ from os import environ
 from json import dumps, loads
 from uuid import uuid4
 from typing import Any, List
-from datetime import datetime
-from utils import invoke_vendor_lambda, IntegrationError, format_timestamp, send_alert_notification
+from datetime import datetime, timezone
+from utils import (invoke_vendor_lambda, IntegrationError, format_timestamp,
+                   send_alert_notification, get_dealer_info, get_vendor_op_code)
 
 from appt_orm.session_config import DBSession
-from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
-from appt_orm.models.dealer import Dealer
-from appt_orm.models.integration_partner import IntegrationPartner
-from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_product import OpCodeProduct
-from appt_orm.models.op_code_appointment import OpCodeAppointment
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
 from appt_orm.models.appointment import Appointment
@@ -51,20 +46,7 @@ def lambda_handler(event, context):
         vehicle = body.get("vehicle", {})
 
         with DBSession() as session:
-            # Get dealer info
-            dealer_partner = session.query(
-                DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
-                DealerIntegrationPartner.integration_dealer_id,
-                Dealer.timezone, IntegrationPartner.metadata_
-            ).join(
-                Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
-            ).join(
-                IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-            ).filter(
-                DealerIntegrationPartner.id == dealer_integration_partner_id,
-                DealerIntegrationPartner.is_active == True
-            ).first()
-
+            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
             if not dealer_partner:
                 return {
                     "statusCode": 404,
@@ -79,19 +61,8 @@ def lambda_handler(event, context):
             partner_metadata = dealer_partner.metadata_
 
             # Get vendor op code
-            op_code_query = session.query(
-                OpCode.op_code, OpCodeAppointment.id
-            ).join(
-                OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id
-            ).join(
-                OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
-            ).filter(
-                OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
-                OpCodeProduct.product_id == dealer_partner.product_id,
-                OpCodeProduct.op_code == op_code
-            ).first()
-
-            if not op_code_query:
+            op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
+            if not op_code_result:
                 return {
                     "statusCode": 404,
                     "body": dumps({
@@ -99,8 +70,8 @@ def lambda_handler(event, context):
                         "request_id": request_id,
                     })
                 }
-            vendor_op_code = op_code_query.op_code
-            appt_op_code_id = op_code_query.id
+            vendor_op_code = op_code_result.op_code
+            appt_op_code_id = op_code_result.id
             logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
 
         create_appt_arn = partner_metadata.get("create_appt_arn", "")
@@ -196,7 +167,7 @@ def lambda_handler(event, context):
                 op_code_appointment_id=appt_op_code_id,
                 timeslot_ts=format_timestamp(timeslot, dealer_timezone),
                 timeslot_duration=body.get("timeslot_duration"),
-                created_date_ts=body.get("created_date_ts", datetime.utcnow().isoformat()),
+                created_date_ts=body.get("created_date_ts", datetime.now(timezone.utc).isoformat()),
                 status="Active",
                 comment=body.get("comment")
             )

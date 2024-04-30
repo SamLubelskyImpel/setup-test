@@ -7,6 +7,13 @@ from typing import Any
 from dateutil import parser as date_parser
 import pytz
 
+from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from appt_orm.models.dealer import Dealer
+from appt_orm.models.integration_partner import IntegrationPartner
+from appt_orm.models.op_code import OpCode
+from appt_orm.models.op_code_product import OpCodeProduct
+from appt_orm.models.op_code_appointment import OpCodeAppointment
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -75,3 +82,38 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
         Subject=f'Appointment Service: {endpoint} Failure Alert',
         MessageStructure='json'
     )
+
+
+def get_dealer_info(session, dealer_integration_partner_id: str) -> dict:
+    """Get dealer info from the shared layer."""
+    dealer_partner = session.query(
+        DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
+        DealerIntegrationPartner.integration_dealer_id,
+        Dealer.timezone, IntegrationPartner.metadata_
+    ).join(
+        Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+    ).join(
+        IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+    ).filter(
+        DealerIntegrationPartner.id == dealer_integration_partner_id,
+        DealerIntegrationPartner.is_active == True
+    ).first()
+
+    return dealer_partner
+
+
+def get_vendor_op_code(session, dealer_integration_partner_id: str, op_code: str, product_id: str) -> str:
+    """Get vendor op code from the shared layer."""
+    op_code_result = session.query(
+        OpCode.op_code, OpCodeAppointment.id
+    ).join(
+        OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id
+    ).join(
+        OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
+    ).filter(
+        OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
+        OpCodeProduct.product_id == product_id,
+        OpCodeProduct.op_code == op_code
+    ).first()
+
+    return op_code_result

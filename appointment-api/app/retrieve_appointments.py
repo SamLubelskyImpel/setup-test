@@ -4,13 +4,11 @@ from json import dumps, loads, JSONEncoder
 from uuid import uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
-from utils import invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone, send_alert_notification
 from typing import Any
+from utils import (invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone,
+                   send_alert_notification, get_dealer_info)
 
 from appt_orm.session_config import DBSession
-from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
-from appt_orm.models.dealer import Dealer
-from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
 from appt_orm.models.op_code_product import OpCodeProduct
 from appt_orm.models.op_code_appointment import OpCodeAppointment
@@ -38,26 +36,6 @@ class CustomEncoder(JSONEncoder):
 
 def update_appointment_status(appointment_id, session, new_status):
     session.query(Appointment).filter(Appointment.id == appointment_id).update({"status": new_status})
-
-
-def generate_appointment_response(appointment):
-    return {
-        "id": appointment["id"],
-        "op_code": appointment["op_code"],
-        "timeslot": appointment["timeslot"],
-        "timeslot_duration": appointment["timeslot_duration"],
-        "comment": appointment["comment"],
-        "status": appointment["status"],
-        "consumer": {
-            "first_name": appointment["consumer"]["first_name"],
-            "last_name": appointment["consumer"]["last_name"],
-            "email_address": appointment["consumer"]["email_address"],
-            "phone_number": appointment["consumer"]["phone_number"],
-        },
-        "vehicle": {
-            "vin": appointment["vehicle"]["vin"],
-        }
-    }
 
 
 def get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code):
@@ -129,19 +107,7 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
             # Get dealer info
-            dealer_partner = session.query(
-                DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
-                DealerIntegrationPartner.integration_dealer_id,
-                Dealer.timezone, IntegrationPartner.metadata_
-            ).join(
-                Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
-            ).join(
-                IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-            ).filter(
-                DealerIntegrationPartner.id == dealer_integration_partner_id,
-                DealerIntegrationPartner.is_active == True
-            ).first()
-
+            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
             if not dealer_partner:
                 return {
                     "statusCode": 404,
@@ -242,7 +208,7 @@ def lambda_handler(event, context):
                         break
                 else:
                     # Appointment not found in vendor
-                    current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+                    current_time = datetime.now(timezone.utc)
                     timeslot_time = db_appt.Appointment.timeslot_ts
                     if timeslot_time < current_time:
                         # Appointment timeslot has passed

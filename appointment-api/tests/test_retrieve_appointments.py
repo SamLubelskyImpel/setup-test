@@ -175,7 +175,7 @@ mock_response_3 = {
             "timeslot_duration": 30,
             "created_date_ts": "2024-03-26T14:00:00+00:00",
             "comment": "Customer will drop off motor vehicle",
-            "status": "Lost",
+            "status": "Closed",
             "consumer": {
                 "product_consumer_id": "12345abc",
                 "first_name": "Jane",
