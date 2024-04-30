@@ -28,6 +28,7 @@ Globals:
         SECRET_KEY: "ACTIVIX"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        ACTIVIX_API_DOMAIN: "https://api.crm.activix.ca/v2"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [
             IsProd,
@@ -59,14 +60,14 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
-                    ]
-                  - !If [
-                      IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/activix*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/activix*",
+                  ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"

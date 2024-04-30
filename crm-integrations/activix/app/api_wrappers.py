@@ -1,0 +1,194 @@
+"""
+These classes are designed to manage calls to the Momentum/CRM API for activities.
+This wrapper classes defined this file should NOT be modified or used by any other resources aside from the SendActivity lambda.
+A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
+"""
+
+import requests
+from os import environ
+from json import loads
+from boto3 import client
+from uuid import uuid4
+from datetime import datetime
+from typing import Tuple
+import logging
+import pytz
+
+ENVIRONMENT = environ.get("ENVIRONMENT")
+SECRET_KEY = environ.get("SECRET_KEY")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+ACTIVIX_API_DOMAIN = environ.get("ACTIVIX_API_DOMAIN")
+
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+secret_client = client("secretsmanager")
+
+
+class CrmApiWrapper:
+    """CRM API Wrapper."""
+
+    def __init__(self) -> None:
+        self.partner_id = CRM_API_SECRET_KEY
+        self.api_key = self.get_secrets()
+
+    def get_secrets(self):
+        secret = secret_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        )
+        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
+        secret_data = loads(secret)
+
+        return secret_data["api_key"]
+
+    def __run_get(self, endpoint: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_salesperson(self, lead_id: int):
+        salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
+        if not salespersons:
+            return None
+
+        return salespersons[0]
+
+    def update_activity(self, activity_id, crm_activity_id):
+        try:
+            response = requests.put(
+                url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+                json={"crm_activity_id": crm_activity_id},
+                headers={
+                    "x_api_key": self.api_key,
+                    "partner_id": self.partner_id,
+                },
+            )
+            response.raise_for_status()
+            logger.info(f"CRM API PUT Activities responded with: {response.status_code}")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error occured calling CRM API: {e}")
+
+    def get_appointments(self, lead_id):
+        response_json = self.__run_get(f"leads/{lead_id}/activities")
+        return [activity for activity in response_json if activity["activity_type"] == "appointment"]
+
+
+class ActivixApiWrapper:
+    """Activix API Wrapper."""
+
+    def __init__(self, **kwargs):
+        self.__api_key = self.get_secrets()
+        self.__activity = kwargs.get("activity")
+        self.__salesperson = kwargs.get("salesperson")
+
+    def get_secrets(self):
+        secret = secret_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/activix"
+        )
+        secret = loads(secret["SecretString"])[self.__activity["crm_dealer_id"]]
+        secret_data = loads(secret)
+
+        return secret_data["api_key"]
+
+    def __call_api(self, url, payload=None, method="POST"):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": self.__api_key,
+        }
+        response = requests.request(
+            method=method,
+            url=url,
+            json=payload,
+            headers=headers,
+        )
+        logger.info(f"Response from CRM: {response.status_code}")
+        return response
+
+    # def __create_appointment(self):
+    #     """Create appointment on CRM."""
+    #     url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
+    #     appt_date, appt_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
+    #     request_id = str(uuid4())
+
+    #     payload = {
+    #         "apptDate": appt_date,
+    #         "apptTime": appt_time,
+    #         "salesmanApiID": self.__salesperson["crm_salesperson_id"],
+    #         "note": self.__activity["notes"],
+    #         "externalCreatedByName": "ImpelCRM",
+    #         "externalID": request_id,
+    #     }
+
+    #     logger.info(f"Payload to CRM: {payload}")
+    #     response = self.__call_api(url, payload)
+    #     if response.status_code == 409:
+    #         logger.warning(f"Appointment already exists for lead_id: {self.__activity['crm_lead_id']}. Rescheduling...")
+    #         response_json = self.__reschedule_appointment(url, appt_date, appt_time, payload)
+    #     else:
+    #         response.raise_for_status()
+    #         response_json = response.json()
+
+    #     logger.info(f"Response from CRM: {response_json}")
+
+    #     return str(response_json.get("appointmentApiID", ""))
+
+    def __insert_note(self):
+        """Insert note on CRM."""
+        url = "{}/leads/{}/notes".format(ACTIVIX_API_DOMAIN, self.__activity["crm_lead_id"])
+
+        payload = {
+            "content": self.__activity["notes"]
+        }
+        logger.info(f"Payload to CRM: {payload}")
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("data", "").get("id", ""))
+
+    def __create_outbound_call(self):
+        """Create outbound call on CRM."""
+        url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
+
+        payload = {
+            "owner": {
+                "id": self.__salesperson["crm_salesperson_id"]
+            },
+            "date": self.__activity["activity_due_ts"],
+            "lead_id": self.__activity["crm_lead_id"],
+            "title": "Stop the clock",
+            "description": self.__activity["notes"],
+            "type": self.__activity["contact_method"]
+        }
+
+        logger.info(f"Payload to CRM: {payload}")
+        response = self.__call_api(url, payload)
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM: {response_json}")
+
+        return str(response_json.get("data", "").get("id", ""))
+
+    def create_activity(self):
+        """Create activity on CRM."""
+        if self.__activity["activity_type"] == "note":
+            return self.__insert_note()
+        elif self.__activity["activity_type"] == "appointment":
+            return self.__create_appointment()
+        elif self.__activity["activity_type"] == "outbound_call":
+            return self.__create_outbound_call()
+        elif self.__activity["activity_type"] == "phone_call_task":
+            return self.__create_phone_call_task()
+        else:
+            logger.error(
+                f"Activix CRM doesn't support activity type: {self.__activity['activity_type']}"
+            )
+            return None
