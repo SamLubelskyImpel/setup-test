@@ -79,8 +79,11 @@ def parse_csv_to_entries(df, s3_uri):
                     db_consumer["postal_code"] = str(int(zip_code_numeric))
 
                 phone_patterns = r'(?P<Cell>Cell:(\d+))?.*?(?P<Home>Home:(\d+))?.*?(?P<Work>Work:(\d+))?'
+                customer_phone = row.get('Customer Phone Numbers')
+                if pd.isna(customer_phone):  # Check if the value is nan
+                    customer_phone = ''
 
-                matches = re.search(phone_patterns, row.get('Customer Phone Numbers'))
+                matches = re.search(phone_patterns, customer_phone)
 
                 if matches:
                     phone_numbers_extracted = matches.groupdict()
