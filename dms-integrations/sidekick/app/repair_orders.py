@@ -58,7 +58,7 @@ def parse_data(sqs_message_data):
 
         previous_date = end_dt - timedelta(days=1)
         daily_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
-        historical_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}-History.csv"
+        historical_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
 
         logger.info(f"Checking for files: {daily_filename}, {historical_filename}")
 

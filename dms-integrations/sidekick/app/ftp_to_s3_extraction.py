@@ -34,7 +34,7 @@ class FtpToS3:
             logger.info(f"Checking for file {remote_path} in FTP directory.")
 
             # Determine the appropriate S3 key and check for file existence if historical
-            if 'History' in filename:
+            if 'historical' in date_path:
                 try:
                     self.connected_ftp.cwd(directory)
                     files = self.connected_ftp.nlst()
