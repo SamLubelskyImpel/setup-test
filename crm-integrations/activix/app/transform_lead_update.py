@@ -1,3 +1,4 @@
+"""Update activix lead in the Impel CRM persistence layer."""
 import json
 from json import loads
 import logging
@@ -183,7 +184,7 @@ def record_handler(record: SQSRecord) -> None:
         raise
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw activix lead update data to the unified format."""
     logger.info(f"Event: {event}")
 

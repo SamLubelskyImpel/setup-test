@@ -1,3 +1,4 @@
+"""Create new activix lead in the Impel CRM persistence layer."""
 import boto3
 import requests
 from json import loads
@@ -178,7 +179,7 @@ def parse_lead(product_dealer_id, data):
             if vehicle.get("type") == "wanted":
                 db_vehicle = {
                     "vin": vehicle.get("vin"),
-                    "crm_vehicle_id": vehicle.get("id"), # not present in the CRM API 
+                    "crm_vehicle_id": vehicle.get("id"),
                     "stock_num": vehicle.get("stock"),
                     "mileage": vehicle.get("odometer"),
                     "make": vehicle.get("make"),
