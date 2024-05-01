@@ -162,10 +162,16 @@ def parse_lead(product_dealer_id, data):
 
         db_consumer = {key: value for key, value in db_consumer.items() if value}
 
+        lead_status = data.get("status", "")
+
+        # if status is not provided, then default value is Active. Activix considers 'Active' as having no status, whereas invalid, duplicate, lost are considered as having a status.
+        if not lead_status:
+            lead_status = "Active"
+
         db_lead = {
             "lead_ts": datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())).strftime("%Y-%m-%d %H:%M:%S.%f +0000"),
             "crm_lead_id": crm_lead_id,
-            "lead_status": data.get("status", ""),
+            "lead_status": lead_status,
             "lead_substatus": "",
             "lead_comment": data.get("comment", ""),
             "lead_origin": data.get("type", ""),

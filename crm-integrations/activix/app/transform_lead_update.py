@@ -150,6 +150,10 @@ def record_handler(record: SQSRecord) -> None:
         crm_dealer_id = str(json_data["account_id"])
         lead_status = json_data.get("status", "")
 
+        # if status is not provided, then default value is Active. Activix considers 'Active' as having no status, whereas invalid, duplicate, lost are considered as having a status.
+        if not lead_status:
+            lead_status = "Active"
+
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
