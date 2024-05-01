@@ -98,7 +98,7 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
         raise
 
 
-def parse_phone_number(phones):
+def parse_phone_number(data):
     """Parse the phone number."""
     phone_numbers = [data.get("cellPhone", ""), data.get("homePhone", ""), data.get("workPhone", "")]
     phone_number = next((number for number in phone_numbers if number), "")
