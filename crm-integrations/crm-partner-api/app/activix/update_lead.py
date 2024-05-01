@@ -25,17 +25,10 @@ def create_signature(api_key, body):
     """
     Create an HMAC SHA256 signature using the API key and body (JSON data).
     """
-    # Convert the dictionary to a JSON string
     body_json = json.dumps(body, separators=(',', ':'))
-
-    # Ensure the key and message are bytes
     key_bytes = api_key.encode()
     message_bytes = body_json.encode()
-
-    # Create HMAC object with the key and specify SHA256 as the hash function
     hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha256)
-
-    # Return the HMAC digest as a hexadecimal string
     return hmac_obj.hexdigest()
 
 
@@ -94,11 +87,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """This API handler takes the Json sent by momentum and puts the raw Json into the S3 bucket."""
     try:
         logger.info(f"Event: {event}")
-
         body = loads(event["body"])
-
-        logger.info(f"Lead update: {body}")
-
         signature = event["headers"]["X-Activix-Signature"]
 
         activix_dealer_list = get_dealers("ACTIVIX")
@@ -133,10 +122,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Lead update received for dealer: {product_dealer_id}")
         logger.info(f"Lead body: {body}")
         save_raw_lead(dumps(body), product_dealer_id)
-
-        # signature = create_signature(api_key, body)
-        # logger.info(f"Generated Signature: {signature}")
-        # logger.info(f"Signatures are equal: {signature == activix_signature}")
 
         return {
             "statusCode": 200
