@@ -116,16 +116,20 @@ class ActivixApiWrapper:
         """Create appointment on CRM."""
         url = "{}/events".format(ACTIVIX_API_DOMAIN)
 
+        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        start_at = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        end_at = (dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
         payload = {
             "owner": {
-                "id": self.__salesperson["crm_salesperson_id"]
+                "id": int(self.__salesperson["crm_salesperson_id"])
             },
-            "start_at": self.__activity["activity_due_ts"],
-            "end_at": self.__activity["activity_due_ts"] + timedelta(hours=1),
-            "lead_id": self.__activity["crm_lead_id"],
+            "start_at": start_at,
+            "end_at": end_at,
+            "lead_id": int(self.__activity["crm_lead_id"]),
             "title": "Appointment",
             "description": self.__activity["notes"],
-            "type": "appointmment"
+            "type": "appointment"
         }
 
         logger.info(f"Payload to CRM: {payload}")
@@ -156,12 +160,15 @@ class ActivixApiWrapper:
         """Create outbound call on CRM."""
         url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
 
+        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
         payload = {
             "owner": {
-                "id": self.__salesperson["crm_salesperson_id"]
+                "id": int(self.__salesperson["crm_salesperson_id"])
             },
-            "date": self.__activity["activity_due_ts"],
-            "lead_id": self.__activity["crm_lead_id"],
+            "date": date,
+            "lead_id": int(self.__activity["crm_lead_id"]),
             "title": "Stop the clock",
             "description": self.__activity["notes"],
             "type": self.__activity["contact_method"]
@@ -179,12 +186,15 @@ class ActivixApiWrapper:
         """Create phone call task on CRM."""
         url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
 
+        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
         payload = {
             "owner": {
-                "id": self.__salesperson["crm_salesperson_id"]
+                "id": int(self.__salesperson["crm_salesperson_id"])
             },
-            "date": self.__activity["activity_due_ts"],
-            "lead_id": self.__activity["crm_lead_id"],
+            "date": date,
+            "lead_id": int(self.__activity["crm_lead_id"]),
             "title": "Phone call task",
             "description": self.__activity["notes"],
             "type": "call"
