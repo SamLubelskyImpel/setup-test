@@ -66,6 +66,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
         authorized = api_key == secret_data["api_key"]
 
+    # The Activix signature is created with the SHA256 algorithm, so authentication must occur within the Lambda function to access the request body.
     if activix_header:
         partner_id = 'activix'
 

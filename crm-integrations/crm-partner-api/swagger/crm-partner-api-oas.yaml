@@ -1037,6 +1037,32 @@ components:
               minLength: 1
               maxLength: 50
               example: "Johnson"
+        advisor:
+          type: object
+          description: User object representing the associated advisor.
+          properties:
+            id:
+              type: integer
+              description: ID of the advisor
+              example: 9988
+            email:
+              type: string
+              description: Email address of the advisor
+              minLength: 1
+              maxLength: 100
+              example: "advisor@example.com"
+            first_name:
+              type: string
+              description: First name of the advisor
+              minLength: 1
+              maxLength: 50
+              example: "John"
+            last_name:
+              type: string
+              description: Last name of the advisor
+              minLength: 1
+              maxLength: 50
+              example: "Johnson"
         emails:
           type: array
           description: List of email addresses associated with the lead.
@@ -1163,7 +1189,7 @@ components:
                 example: 25000
               type:
                 type: string
-                description: Type of vehicle (e.g., sedan, SUV)
+                description: The type of vehicle. Possible values are wanted or exchange.
                 minLength: 1
                 maxLength: 50
-                example: "Sedan"
+                example: "wanted"

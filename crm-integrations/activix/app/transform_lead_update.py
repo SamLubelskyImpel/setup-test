@@ -59,8 +59,8 @@ def get_lead(crm_lead_id, crm_dealer_id, crm_api_key):
         logger.error(f"Error getting existing lead from CRM API: {e}")
 
 
-def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
-    """Update lead status through CRM API."""
+def update_lead(lead_id: str, data: dict, crm_api_key: str) -> Any:
+    """Update lead through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
 
     headers = {
@@ -77,37 +77,41 @@ def update_lead_status(lead_id: str, data: dict, crm_api_key: str) -> Any:
     return response_data
 
 
-def process_salespersons(response_data, bdc):
+def process_salespersons(response_data, data, position_name):
     """Process salespersons from CRM API response."""
-    new_first_name = bdc.get('first_name')
-    new_last_name = bdc.get('last_name')
+    new_first_name = data.get('first_name')
+    new_last_name = data.get('last_name')
 
     logger.info(f"New Salesperson: {new_first_name} {new_last_name}")
+    logger.info(f"Salesperson: {data}")
 
     for salesperson in response_data:
-        if salesperson.get('crm_salesperson_id') == str(bdc.get('id')):
+        if salesperson.get('crm_salesperson_id') == str(salesperson.get('id')):
             salesperson['first_name'] = new_first_name
             salesperson['last_name'] = new_last_name
-            salesperson['email'] = bdc.get('email')
+            salesperson['email'] = salesperson.get('email')
             salesperson['is_primary'] = True
             return response_data
 
-    return [create_or_update_salesperson(bdc)]
+    return [create_or_update_salesperson(data, position_name)]
 
 
-def create_or_update_salesperson(bdc):
+def create_or_update_salesperson(data, position_name):
+    """Create or update salesperson."""
+    logger.info(f"Creating or updating salesperson: {data}")
+    logger.info(f"CRM Salesperson id: {data.get('id')}")
     return {
-        "crm_salesperson_id": bdc.get('id'),
-        "first_name": bdc.get('first_name'),
-        "last_name": bdc.get('last_name'),
-        "email": bdc.get('email'),
+        "crm_salesperson_id": str(data.get('id')),
+        "first_name": data.get('first_name'),
+        "last_name": data.get('last_name'),
+        "email": data.get('email'),
         # "phone": "",
-        "position_name": "BDC",
+        "position_name": position_name,
         "is_primary": True
     }
 
 
-def update_lead_salespersons(bdc, lead_id: str, crm_api_key: str) -> Any:
+def update_lead_salespersons(salesperson, lead_id: str, crm_api_key: str, position_name) -> Any:
     """Update lead salespersons through CRM API."""
     url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons'
 
@@ -125,7 +129,7 @@ def update_lead_salespersons(bdc, lead_id: str, crm_api_key: str) -> Any:
 
     response_data = response.json()
     logger.info(f"CRM API Get Salesperson response data: {response_data}")
-    salespersons = process_salespersons(response_data, bdc)
+    salespersons = process_salespersons(response_data, salesperson, position_name)
     logger.info(f"Processed salespersons: {salespersons}")
     return salespersons
 
@@ -163,19 +167,17 @@ def record_handler(record: SQSRecord) -> None:
 
         data = {'metadata': {}}
 
-        if lead_status:
-            data['lead_status'] = lead_status
-        else:
-            logger.warning(f"Lead status is empty for CRM lead ID: {crm_lead_id}. No update will be performed for this field.")
-
         if json_data.get("bdc"):
-            salesperson = update_lead_salespersons(json_data["bdc"], lead_id, crm_api_key)
+            salesperson = update_lead_salespersons(json_data["bdc"], lead_id, crm_api_key, "BDC")
+            data['salespersons'] = salesperson
+        elif json_data.get("advisor"):
+            salesperson = update_lead_salespersons(json_data["advisor"], lead_id, crm_api_key, "Advisor")
             data['salespersons'] = salesperson
         else:
-            logger.warning(f"Salesperson info (BDC/sales rep) not included. CRM lead ID: {crm_lead_id}. No update will be performed for salespersons.")
+            logger.warning(f"Salesperson info (BDC/Advisor) not included. CRM lead ID: {crm_lead_id}. No update will be performed for salespersons.")
 
         if 'lead_status' in data or 'salespersons' in data:
-            update_lead_status(lead_id, data, crm_api_key)
+            update_lead(lead_id, data, crm_api_key)
             logger.info(f"Lead {crm_lead_id} updated successfully.")
         else:
             logger.info(f"No updates to apply for lead {crm_lead_id}.")

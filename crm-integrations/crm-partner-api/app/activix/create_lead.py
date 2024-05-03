@@ -114,9 +114,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         else:
             logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
             return {
-                "statusCode": 401,
+                "statusCode": 422,
                 "body": dumps({
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealerID provided hasn't been configured with Impel."
+                    "error": "Unknown Account (Dealer)."
                 }),
             }
 

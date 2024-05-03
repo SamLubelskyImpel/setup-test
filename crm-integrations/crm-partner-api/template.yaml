@@ -382,6 +382,26 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /activix/crm-upload/v1/leads
             Method: POST
+  
+  ActivixCreateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ActivixCreateLead
+      AlarmDescription: Activix Create Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ActivixCreateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   ActivixUpdateLead:
     Type: AWS::Serverless::Function
@@ -398,3 +418,23 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /activix/crm-upload/v1/lead-updates
             Method: POST
+
+  ActivixUpdateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ActivixUpdateLead
+      AlarmDescription: Activix Update Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ActivixUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching

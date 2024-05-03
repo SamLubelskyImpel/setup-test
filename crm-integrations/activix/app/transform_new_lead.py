@@ -41,7 +41,7 @@ def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
         response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}",
             headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
-            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
+            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "ACTIVIX"},
         )
         status_code = response.status_code
         if status_code == 200:
@@ -81,7 +81,7 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
 
     lead_obj.update({
         "consumer_id": consumer_id,
-        "vehicles_of_interest": parsed_lead["vehicle"] if parsed_lead["vehicle"] else [],
+        "vehicles_of_interest": parsed_lead["vehicles"],
         "salespersons": [parsed_lead["salesperson"]] if parsed_lead["salesperson"] else [],
     })
 
@@ -138,6 +138,18 @@ def parse_address(data):
         return add1 or add2 or None
 
 
+def extract_salesperson(position_name, data):
+    """Extract salesperson data."""
+    return {
+        "crm_salesperson_id": str(data.get("id")),
+        "first_name": data.get("first_name"),
+        "last_name": data.get("last_name"),
+        "email": data.get("email"),
+        "is_primary": True,
+        "position_name": position_name
+    }
+
+
 def parse_lead(product_dealer_id, data):
     """Parse the JSON lead data."""
     parsed_data = {}
@@ -147,14 +159,17 @@ def parse_lead(product_dealer_id, data):
         db_consumer = {
             "first_name": data.get("first_name"),
             "last_name": data.get("last_name"),
+            "crm_consumer_id": str(data.get("customer_id")),
             "phone": parse_phone_number(data.get("phones", [])),
             "email": parse_email(data.get("emails", [])),
             "address": parse_address(data),
             "city": data.get("city"),
             "country": data.get("country"),
-            "postal_code": str(data.get("postal_code", "")) if data.get("postal_code") else None,
-            "email_optin_flag": data.get('unsubscribe_all_date') is None and data.get('unsubscribe_email_date') is None,
-            "sms_optin_flag": data.get('unsubscribe_all_date') is None and data.get('unsubscribe_sms_date') is None
+            "postal_code": str(data["postal_code"]) if data.get("postal_code") else None,
+            "email_optin_flag": (data.get('unsubscribe_all_date') is None or data.get('unsubscribe_all_date') == '') and
+                                (data.get('unsubscribe_email_date') is None or data.get('unsubscribe_email_date') == ''),
+            "sms_optin_flag": (data.get('unsubscribe_all_date') is None or data.get('unsubscribe_all_date') == '') and
+                              (data.get('unsubscribe_sms_date') is None or data.get('unsubscribe_sms_date') == '')
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
@@ -182,10 +197,11 @@ def parse_lead(product_dealer_id, data):
         vehicles = data.get("vehicles", [])
         db_vehicles = []
         for vehicle in vehicles:
+            db_vehicle = {}
             if vehicle.get("type") == "wanted":
                 db_vehicle = {
                     "vin": vehicle.get("vin"),
-                    "crm_vehicle_id": vehicle.get("id"),
+                    "crm_vehicle_id": str(vehicle.get("id")),
                     "stock_num": vehicle.get("stock"),
                     "mileage": vehicle.get("odometer"),
                     "make": vehicle.get("make"),
@@ -199,6 +215,9 @@ def parse_lead(product_dealer_id, data):
                     "status": vehicle.get("type"),
                     "vehicle_comments": vehicle.get("comment")
                 }
+                # Ensure "wanted" vehicle is the first in the list
+                db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+                db_vehicles.insert(0, db_vehicle)
             elif vehicle.get("type") == "exchange":
                 db_vehicle = {
                     "trade_in_vin": vehicle.get("vin"),
@@ -207,38 +226,28 @@ def parse_lead(product_dealer_id, data):
                     "trade_in_model": vehicle.get("model"),
                     "status": vehicle.get("type")
                 }
+                db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+                db_vehicles.append(db_vehicle)
             else:
                 logger.warning(f"Unhandled vehicle type: {vehicle.get('type')}")
-            
-            db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
-            db_vehicles.append(db_vehicle)
 
-        bdc = data.get("bdc")
-        if bdc:
-            db_salesperson = {
-                "crm_salesperson_id": str(bdc.get("id")),
-                "first_name": bdc.get("first_name"),
-                "last_name": bdc.get("last_name"),
-                "email": bdc.get("email"),
-                "is_primary": True,
-                "position_name": "BDC"
-            }
-        else:
+        if data.get("bdc"):
+            bdc = data.get("bdc")
+            db_salesperson = extract_salesperson("BDC", bdc)
+        elif data.get("advisor"):
+            logger.info("No BDC rep found. Using advisor as salesperson.")
             advisor = data.get("advisor")
-            db_salesperson = {
-                "crm_salesperson_id": str(advisor.get("id")),
-                "first_name": advisor.get("first_name"),
-                "last_name": advisor.get("last_name"),
-                "email": advisor.get("email"),
-                "is_primary": True,
-                "position_name": "Advisor"
-            }
+            db_salesperson = extract_salesperson("Advisor", advisor)
+        else:
+            db_salesperson = {}
+            logger.error("No salesperson found in the lead data")
+            raise Exception("No salesperson found in the lead data")
 
         parsed_data = {
             "product_dealer_id": product_dealer_id,
             "lead": db_lead,
             "consumer": db_consumer,
-            "vehicle": db_vehicles,
+            "vehicles": db_vehicles,
             "salesperson": db_salesperson
         }
 
@@ -264,7 +273,7 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Raw data: {json_data}")
 
         crm_lead_id = str(json_data["id"])
-        crm_dealer_id = json_data["account_id"]
+        crm_dealer_id = str(json_data["account_id"])
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
