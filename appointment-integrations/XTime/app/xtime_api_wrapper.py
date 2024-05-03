@@ -79,7 +79,7 @@ class XTimeApiWrapper:
             raise
 
 
-    def __convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str) -> str:
+    def __convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str, formatted = False) -> str:
         """Convert UTC timestamp to dealer's local time."""
         utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%S')
         utc_datetime = pytz.utc.localize(utc_datetime)
@@ -88,50 +88,37 @@ class XTimeApiWrapper:
             logger.warning("Dealer timezone not found")
             return utc_datetime.strftime('%Y-%m-%d')
 
-        # Get the dealer timezone object, convert UTC datetime to dealer timezone
         dealer_tz = pytz.timezone(dealer_timezone)
         dealer_datetime = utc_datetime.astimezone(dealer_tz)
+    
+        if formatted:
+            return dealer_datetime.strftime('%Y-%m-%dT%H:%M%z')
 
         return dealer_datetime.strftime('%Y-%m-%d')
     
 
     def create_appointments(self, create_appt_data: CreateAppointment):
         """Create appointments on XTime."""
-        url = "{}/appointments-bookings".format(self.__api_url)
+        url = "{}/service/appointments-bookings".format(self.__api_url)
         
         params = {
             "dealerCode": create_appt_data.integration_dealer_id,
             "vin": create_appt_data.vin,
-            "year": create_appt_data.year,
-            "make": create_appt_data.make,
-            "model": create_appt_data.model
         }
 
         payload = {
-            "appointmentId":create_appt_data.request_id,
-            "appointmentDateTimeLocal": create_appt_data.timeslot,
+            "appointmentDateTimeLocal": self.__convert_utc_to_timezone(create_appt_data.timeslot, create_appt_data.dealer_timezone, formatted=True),
             "firstName": create_appt_data.first_name,
             "lastName": create_appt_data.last_name,
             "emailAddress": create_appt_data.email_address,
-            "phoneNumber": create_appt_data.phone_number,
-            "comment": create_appt_data.comment,
-            "dmsNotes": "",
-            "advisorId": create_appt_data.integration_dealer_id,
-            "transportType": "",
-            "label": {},
-            "reportingLabel": {},
+            "phoneNumber": create_appt_data.phone_number.replace("-", ""),
             "services": [
                 {
-                    "serviceName": "",
-                    "opcode": create_appt_data.op_code,
-                    "price": "",
-                    "comment": ""
+                    "opcode": create_appt_data.op_code
                 }
-            ],
-            "servicePackage": {},
-            "tellusMore": {},
-            "valet": {}
+            ]
         }
+        logger.info(f"This is payload for creating appointment: \n {payload}")
 
         response_json = self.__call_api(url, payload=payload, params=params)
 

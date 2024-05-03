@@ -1,22 +1,19 @@
-import logging
 from os import environ
 from typing import Any
-from json import dumps, loads
+from logging import getLogger
 from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
 
-logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+from utils import parse_event, validate_data, handle_exception, lambda_response
 
+logger = getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def get_appt_time_slots(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
-        if event.get("body"):
-            body = loads(event["body"])
-            appointment_slots = AppointmentSlots(**body)
-        else:
-            appointment_slots = AppointmentSlots(**event)
+        data = parse_event(event)
+        appointment_slots = validate_data(data, AppointmentSlots)
 
         api_wrapper = XTimeApiWrapper()
 
@@ -27,9 +24,9 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
         logger.info(appt_time_slots["availableAppointments"])
 
         if appt_time_slots["success"]:
-            return {
-                "statusCode": 200,
-                "body": dumps({
+            return lambda_response(
+                200,
+                {
                     "available_timeslots": [
                         {
                             "timeslot": time_slot["appointmentDateTimeLocal"],
@@ -37,80 +34,65 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
                         }
                         for time_slot in appt_time_slots["availableAppointments"]
                     ]
-                })
-            }
-
-        return {
-            "statusCode": 500,
-            "body": dumps(
-                {
-                    "error": {
-                        "code": appt_time_slots["code"],
-                        "message": appt_time_slots["message"],
-                    }
+                },
+            )
+        return lambda_response(
+            500,
+            {
+                "error": {
+                    "code": appt_time_slots["code"],
+                    "message": appt_time_slots["message"],
                 }
-            ),
-        }
-    
+            },
+        )
+
     except Exception as e:
-        logger.exception(f"Error creating lead: {e}.")
-        return {
-            "statusCode": 500,
-            "body": dumps({"error": "An error occurred while processing the request."}),
-        }
+        return handle_exception(e, "get_appt_time_slot")
 
 
 def create_appointment(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
-        if event.get("body"):
-            body = loads(event["body"])
-            create_appointment_data = CreateAppointment(**body)
-        else:
-            create_appointment_data = CreateAppointment(**event)
+        data = parse_event(event)
+        create_appointment_data = validate_data(data, CreateAppointment)
 
         api_wrapper = XTimeApiWrapper()
 
         create_appointment = api_wrapper.create_appointments(create_appointment_data)
 
         if create_appointment["success"]:
-            return {
-                "statusCode": 201,
-                "body": {"appointment_id": create_appointment["appointmentId"]},
-            }
+            return lambda_response(
+                201, {"appointment_id": create_appointment["appointmentId"]}
+            )
 
-        return {
-            "statusCode": 401,
-            "body": dumps(
-                {"message": f"Response from XTime: {create_appointment['message']}."}
-            ),
-        }
+        return lambda_response(
+            500,
+            {
+                "error": {
+                    "code": create_appointment["code"],
+                    "message": create_appointment["message"],
+                }
+            },
+        )
 
     except Exception as e:
-        logger.exception(f"Error creating lead: {e}.")
-        return {
-            "statusCode": 500,
-            "body": dumps({"error": "An error occurred while processing the request."}),
-        }
+        return handle_exception(e, "create_appointment")
 
 
 def get_appointments(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
-        if event.get("body"):
-            body = loads(event["body"])
-            get_appointments_data = GetAppointments(**body)
-        else:
-            get_appointments_data = GetAppointments(**event)
+        data = parse_event(event)
+        get_appointments_data = validate_data(data, GetAppointments)
 
         api_wrapper = XTimeApiWrapper()
 
         appointments_data = api_wrapper.retrieve_appointments(get_appointments_data)
 
         if appointments_data["success"]:
-            return {
-                "statusCode": 200,
-                "body": dumps({
+            return lambda_response(
+                200,
+                {
                     "appointments": [
                         {
                             "appointment_id": appt.get("appointmentId"),
@@ -132,24 +114,17 @@ def get_appointments(event: Any, context: Any) -> Any:
                         }
                         for appt in appointments_data["appointments"]
                     ]
-                },)
-            }
+                },
+            )
 
-        return {
-            "statusCode": 500,
-            "body": dumps(
-                {
-                    "error": {
-                        "code": appointments_data["code"],
-                        "message": appointments_data["message"],
-                    }
+        return lambda_response(
+            500,
+            {
+                "error": {
+                    "code": appointments_data["code"],
+                    "message": appointments_data["message"],
                 }
-            ),
-        }
-
+            },
+        )
     except Exception as e:
-        logger.exception(f"Error creating lead: {e}.")
-        return {
-            "statusCode": 500,
-            "body": dumps({"error": f"An error occurred while processing the request.\n{e}"}),
-        }
+        return handle_exception(e, "get_appointments")

@@ -1,6 +1,6 @@
 """
 Tests for the create_appointments api.
-AWS_PROFILE=unified-test pytest test_create_appointments.py
+AWS_PROFILE=unified-test pytest
 """
 import os
 import sys
@@ -25,15 +25,15 @@ class TestLambdaFunctions(unittest.TestCase):
             "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
             "integration_dealer_id": "xts9010",
             "dealer_timezone": "America/New_York",
-            "op_code": "10909807",
-            "timeslot": "2024-04-12T00:00:00",
+            "op_code": "9648760",
+            "timeslot": "2024-05-21T00:00:00",
             "duration": 15,
             "comment": "Customer will drop off the motor vehicle",
             "first_name": "John",
             "last_name": "Smith",
             "email_address": "john.smith@example.com",
             "phone_number": "123-456-7890",
-            "vin": "1FTHF35L0G0019158",
+            "vin": "3MZBN1L31JM173950",
             "year": 2011,
             "make": "Ford",
             "model": "Explorer"
@@ -44,87 +44,148 @@ class TestLambdaFunctions(unittest.TestCase):
         self.assertEqual(response["statusCode"], 201)
         body_json = loads(response["body"])
         self.assertIsInstance(body_json, dict)
-        self.assertIsInstance(body_json.get("appointment_id"), list)
+        self.assertIsInstance(body_json.get("appointment_id"), str)
+
+        event_no_vin = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "op_code": "9648760",
+            "timeslot": "2024-05-21T00:00:00",
+            "duration": 15,
+            "comment": "Customer will drop off the motor vehicle",
+            "first_name": "John",
+            "last_name": "Smith",
+            "email_address": "john.smith@example.com",
+            "phone_number": "123-456-7890",
+            "vin": None,
+            "year": 2011,
+            "make": "Ford",
+            "model": "Explorer"
+        }
+
+        response = create_appointment(event_no_vin, None)
+
+        self.assertEqual(response["statusCode"], 500)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json['error'], dict)
+        self.assertIsInstance(body_json['error']['message'], str)
 
 
+    def test_time_slots(self):
+        event_success = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "op_code": "9648748",
+            "start_time": "2024-05-20T12:00:00",
+            "end_time": "2024-05-22T12:00:00",
+            "vin": "3MZBN1L31JM173950",
+            "year": 2011,
+            "make": "Ford",
+            "model": "Explorer"
+        }
 
-    # def test_time_slots(self):
-    #     event_success = {
-    #         "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
-    #         "integration_dealer_id": "xts9010",
-    #         "dealer_timezone": "America/New_York",
-    #         "op_code": "9648748",
-    #         "start_time": "2024-05-20T12:00:00",
-    #         "end_time": "2024-05-22T12:00:00",
-    #         "vin": "3MZBN1L31JM173950",
-    #         "year": 2011,
-    #         "make": "Ford",
-    #         "model": "Explorer"
-    #     }
+        response = get_appt_time_slots(event_success, None)
 
-    #     response = get_appt_time_slots(event_success, None)
+        self.assertEqual(response["statusCode"], 200)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json.get("available_timeslots"), list)
 
-    #     self.assertEqual(response["statusCode"], 200)
-    #     body_json = loads(response["body"])
-    #     self.assertIsInstance(body_json, dict)
-    #     self.assertIsInstance(body_json.get("available_timeslots"), list)
+        event_no_vin = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "op_code": "9648748",
+            "start_time": "2024-05-20T12:00:00",
+            "end_time": "2024-05-22T12:00:00",
+            "vin": "",
+            "year": 2011,
+            "make": "Ford",
+            "model": "Explorer"
+        }
 
-    #     event_no_vin = {
-    #         "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
-    #         "integration_dealer_id": "xts9010",
-    #         "dealer_timezone": "America/New_York",
-    #         "op_code": "9648748",
-    #         "start_time": "2024-05-20T12:00:00",
-    #         "end_time": "2024-05-22T12:00:00",
-    #         "vin": "",
-    #         "year": 2011,
-    #         "make": "Ford",
-    #         "model": "Explorer"
-    #     }
+        response = get_appt_time_slots(event_no_vin, None)
 
-    #     response = get_appt_time_slots(event_no_vin, None)
+        self.assertEqual(response["statusCode"], 500)
+        event_success = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "first_name": "John",
+            "last_name": "Smith",
+            "email_address": "john.smith@example.com",
+            "phone_number": "123-456-7890",
+            "vin": "1G4GH5E39CF263169",
+        }
 
-    #     self.assertEqual(response["statusCode"], 500)
-    #     body_json = loads(response["body"])
-    #     self.assertIsInstance(body_json, dict)
-    #     self.assertIsInstance(body_json['error'], dict)
-    #     self.assertIsInstance(body_json['error']['message'], str)
+        response = get_appointments(event_success, None)
+
+        self.assertEqual(response["statusCode"], 200)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json.get("appointments"), list)
+
+        event_no_vin = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "first_name": "John",
+            "last_name": "Smith",
+            "email_address": "john.smith@example.com",
+            "phone_number": "123-456-7890",
+            "vin": "",
+        }
+
+        response = get_appointments(event_no_vin, None)
+
+        self.assertEqual(response["statusCode"], 500)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json['error'], dict)
+        self.assertIsInstance(body_json['error']['message'], str)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json['error'], dict)
+        self.assertIsInstance(body_json['error']['message'], str)
 
 
-    # def test_get_appointments(self):
-        # event_success = {
-        #     "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
-        #     "integration_dealer_id": "xts9010",
-        #     "dealer_timezone": "America/New_York",
-        #     "first_name": "John",
-        #     "last_name": "Smith",
-        #     "email_address": "john.smith@example.com",
-        #     "phone_number": "123-456-7890",
-        #     "vin": "1G4GH5E39CF263169",
-        # }
+    def test_get_appointments(self):
+        event_success = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "first_name": "John",
+            "last_name": "Smith",
+            "email_address": "john.smith@example.com",
+            "phone_number": "123-456-7890",
+            "vin": "1G4GH5E39CF263169",
+        }
 
-        # response = get_appointments(event_success, None)
+        response = get_appointments(event_success, None)
 
-        # self.assertEqual(response["statusCode"], 200)
-        # body_json = loads(response["body"])
-        # self.assertIsInstance(body_json, dict)
-        # self.assertIsInstance(body_json.get("appointments"), list)
+        self.assertEqual(response["statusCode"], 200)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json.get("appointments"), list)
 
-        # event_no_vin = {
-        #     "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
-        #     "integration_dealer_id": "xts9010",
-        #     "dealer_timezone": "America/New_York",
-        #     "first_name": "John",
-        #     "last_name": "Smith",
-        #     "email_address": "john.smith@example.com",
-        #     "phone_number": "123-456-7890",
-        #     "vin": "",
-        # }
+        event_no_vin = {
+            "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
+            "integration_dealer_id": "xts9010",
+            "dealer_timezone": "America/New_York",
+            "first_name": "John",
+            "last_name": "Smith",
+            "email_address": "john.smith@example.com",
+            "phone_number": "123-456-7890",
+            "vin": "",
+        }
 
-        # response = get_appointments(event_no_vin, None)
+        response = get_appointments(event_no_vin, None)
 
-        # self.assertEqual(response["statusCode"], 500)
-        # body_json = loads(response["body"])
-        # self.assertIsInstance(body_json, dict)
-        # self.assertIsInstance(body_json['error'], dict)
-        # self.assertIsInstance(body_json['error']['message'], str)
+        self.assertEqual(response["statusCode"], 500)
+        body_json = loads(response["body"])
+        self.assertIsInstance(body_json, dict)
+        self.assertIsInstance(body_json['error'], dict)
+        self.assertIsInstance(body_json['error']['message'], str)
