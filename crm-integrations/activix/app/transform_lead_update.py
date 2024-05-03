@@ -86,10 +86,10 @@ def process_salespersons(response_data, data, position_name):
     logger.info(f"Salesperson: {data}")
 
     for salesperson in response_data:
-        if salesperson.get('crm_salesperson_id') == str(salesperson.get('id')):
+        if salesperson.get('crm_salesperson_id') == str(data.get('id')):
             salesperson['first_name'] = new_first_name
             salesperson['last_name'] = new_last_name
-            salesperson['email'] = salesperson.get('email')
+            salesperson['email'] = data.get('email')
             salesperson['is_primary'] = True
             return response_data
 
