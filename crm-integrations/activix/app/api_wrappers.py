@@ -75,10 +75,6 @@ class CrmApiWrapper:
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
 
-    def get_appointments(self, lead_id):
-        response_json = self.__run_get(f"leads/{lead_id}/activities")
-        return [activity for activity in response_json if activity["activity_type"] == "appointment"]
-
 
 class ActivixApiWrapper:
     """Activix API Wrapper."""
@@ -138,7 +134,7 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("data", "").get("id", ""))
+        return str(response_json.get("data", {}).get("id", ""))
 
 
     def __insert_note(self):
@@ -180,7 +176,7 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("data", "").get("id", ""))
+        return str(response_json.get("data", {}).get("id", ""))
 
     def __create_phone_call_task(self):
         """Create phone call task on CRM."""
@@ -206,7 +202,7 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("data", "").get("id", ""))
+        return str(response_json.get("data", {}).get("id", ""))
 
     def create_activity(self):
         """Create activity on CRM."""
