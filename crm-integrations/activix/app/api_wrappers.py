@@ -156,7 +156,7 @@ class ActivixApiWrapper:
         """Create outbound call on CRM."""
         url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
 
-        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
         date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
         payload = {
