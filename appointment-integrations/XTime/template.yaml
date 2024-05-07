@@ -21,7 +21,6 @@ Globals:
     Runtime: python3.9
     Environment:
       Variables:
-        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
@@ -96,7 +95,7 @@ Resources:
       Threshold: 1
       ComparisonOperator: "GreaterThanOrEqualToThreshold"
       AlarmActions:
-        - !Ref SNS_TOPIC_ARN
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   GetAppTimeSlots:
     Type: AWS::Serverless::Function
@@ -129,7 +128,7 @@ Resources:
       Threshold: 1
       ComparisonOperator: "GreaterThanOrEqualToThreshold"
       AlarmActions:
-        - !Ref SNS_TOPIC_ARN
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   GetAppointments:
     Type: AWS::Serverless::Function
@@ -162,4 +161,4 @@ Resources:
       Threshold: 1
       ComparisonOperator: "GreaterThanOrEqualToThreshold"
       AlarmActions:
-        - !Ref SNS_TOPIC_ARN
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'

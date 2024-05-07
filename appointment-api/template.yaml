@@ -252,6 +252,11 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/appointment-service*",
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/appointment-service*",
                 ]
+  
+  AuthorizerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-Authorizer"
 
   CreateAppointment:
     Type: AWS::Serverless::Function
@@ -271,6 +276,11 @@ Resources:
             Method: POST
       Layers:
         - !Ref ApptOrmLayer
+  
+  CreateAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-CreateAppointment"
 
   RetrieveAppointments:
     Type: AWS::Serverless::Function
@@ -290,6 +300,11 @@ Resources:
             Method: GET
       Layers:
         - !Ref ApptOrmLayer
+  
+  CreateAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-CreateAppointment"
 
   RetrieveTimeslots:
     Type: AWS::Serverless::Function
@@ -309,6 +324,11 @@ Resources:
             Method: GET
       Layers:
         - !Ref ApptOrmLayer
+  
+  RetrieveTimeslotsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-RetrieveTimeslots"
 
   ApptOrmLayer:
     Type: AWS::Serverless::LayerVersion
