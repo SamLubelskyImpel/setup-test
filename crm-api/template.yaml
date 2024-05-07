@@ -430,6 +430,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_activities.lambda_handler
       Timeout: 30
+      MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
