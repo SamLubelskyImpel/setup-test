@@ -240,8 +240,7 @@ def parse_lead(product_dealer_id, data):
             db_salesperson = extract_salesperson("Advisor", advisor)
         else:
             db_salesperson = {}
-            logger.error("No salesperson found in the lead data")
-            raise Exception("No salesperson found in the lead data")
+            logger.info("No salesperson found in the lead data")
 
         parsed_data = {
             "product_dealer_id": product_dealer_id,
