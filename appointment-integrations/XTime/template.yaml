@@ -21,7 +21,6 @@ Globals:
     Runtime: python3.9
     Environment:
       Variables:
-        APPT_API_DOMAIN: !If [IsProd, "appt-service.impel.io", "appt-service-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
@@ -65,14 +64,6 @@ Resources:
                   - "logs:PutLogEvents"
                   - "logs:DescribeLogStreams"
                 Resource: "arn:aws:logs:*:*:*"
-        - PolicyName: LambdaPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "lambda:InvokeFunction"
-                Resource: "*"
 
   CreateAppointments:
     Type: AWS::Serverless::Function
@@ -92,7 +83,7 @@ Resources:
   CreateAppointmentsCloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "CreateAppointmentsFailureAlarm-${Environment}"
+      AlarmName: !Sub "xtime-${Environment}-CreateAppointmentsFailureAlarm"
       AlarmDescription: "Alarm for failed invocations of CreateAppointments Lambda"
       Namespace: "AWS/Lambda"
       MetricName: "Errors"
@@ -125,7 +116,7 @@ Resources:
   GetAppTimeSlotsCloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "GetAppTimeSlotsFailureAlarm-${Environment}"
+      AlarmName: !Sub "xtime-${Environment}-GetAppTimeSlotsFailureAlarm"
       AlarmDescription: "Alarm for failed invocations of GetAppTimeSlots Lambda"
       Namespace: "AWS/Lambda"
       MetricName: "Errors"
@@ -158,7 +149,7 @@ Resources:
   GetAppointmentsCloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "GetAppointmentsFailureAlarm-${Environment}"
+      AlarmName: !Sub "xtime-${Environment}-GetAppointmentsFailureAlarm"
       AlarmDescription: "Alarm for failed invocations of GetAppointments Lambda"
       Namespace: "AWS/Lambda"
       MetricName: "Errors"

@@ -10,6 +10,7 @@ from utils import parse_event, validate_data, handle_exception, lambda_response
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+
 def get_appt_time_slots(event: Any, context: Any) -> Any:
     try:
         logger.info(f"Event: {event}")
@@ -29,7 +30,7 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
             def formatted_time(time_string: str) -> str:
                 dt = datetime.fromisoformat(time_string.replace('Z', '+00:00'))
                 return dt.strftime('%Y-%m-%dT%H:%M')
-            
+
             return lambda_response(
                 200,
                 {

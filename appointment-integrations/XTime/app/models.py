@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+
 @dataclass
 class AppointmentSlots:
     request_id: str
@@ -13,6 +14,7 @@ class AppointmentSlots:
     year: Optional[int] = None
     make: Optional[str] = None
     model: Optional[str] = None
+
 
 @dataclass
 class CreateAppointment:
@@ -31,6 +33,7 @@ class CreateAppointment:
     year: Optional[int] = None
     make: Optional[str] = None
     model: Optional[str] = None
+
 
 @dataclass
 class GetAppointments:

@@ -19,6 +19,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+
 class XTimeApiWrapper:
     """XTime API Wrapper."""
 
@@ -26,7 +27,6 @@ class XTimeApiWrapper:
         self.__authorization_data, self.__x_api_key, self.__api_url, self.__dealer_code = self.__get_secrets()
 
         self.__authorization_token = self.__get_token()
-
 
     def __get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -42,16 +42,15 @@ class XTimeApiWrapper:
             secret_data["dealer_code"]
         )
 
-
     def __get_token(self):
         url, username, password = self.__authorization_data.values()
         session = requests.Session()
         session.auth = (username, password)
 
-        payload='grant_type=client_credentials&scope=cai.scheduling.appointments.read%20cai.scheduling.appointments.write'
+        payload = 'grant_type=client_credentials&scope=cai.scheduling.appointments.read%20cai.scheduling.appointments.write'
 
         response = session.post(
-            url=url, 
+            url=url,
             data=payload,
         )
 
@@ -60,7 +59,6 @@ class XTimeApiWrapper:
         logger.info(f"Status code from XTime Auth: {response.status_code}")
 
         return f"{response_json['token_type']} {response_json['access_token']}"
-
 
     def __call_api(self, url, payload=None, method="POST", params=None):
         headers = {
@@ -72,26 +70,24 @@ class XTimeApiWrapper:
             logger.info(f"Headers for XTime: {headers}")
             response = requests.request(method=method, url=url, json=payload, headers=headers, params=params)
             logger.info(f"Response from XTime: {response.json()}")
-            
+
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
             logger.error(f"API call failed: {e}")
             raise
- 
 
     def _add_optional_params(self, params, data_instance):
-            """Add optional parameters to the request."""
-            for key in ["vin", "year", "make", "model"]:
-                value = getattr(data_instance, key, None)
-                if value is not None:
-                    params[key] = value
-
+        """Add optional parameters to the request."""
+        for key in ["vin", "year", "make", "model"]:
+            value = getattr(data_instance, key, None)
+            if value is not None:
+                params[key] = value
 
     def create_appointments(self, create_appt_data: CreateAppointment):
         """Create appointments on XTime."""
         url = "{}/service/appointments-bookings".format(self.__api_url)
-        
+
         params = {
             "dealerCode": create_appt_data.integration_dealer_id
         }
@@ -117,7 +113,6 @@ class XTimeApiWrapper:
         logger.info(f"Response from XTime: {response_json}")
         return response_json
 
-
     def retrieve_appointments(self, appointments: GetAppointments):
         """Retrieve appointments on XTime."""
         url = "{}/service/appointments".format(self.__api_url)
@@ -128,7 +123,6 @@ class XTimeApiWrapper:
         }
 
         return self.__call_api(url, method="GET", params=params)
-
 
     def retrieve_appt_time_slots(self, appointment_slots: AppointmentSlots):
         """Retrieve appointment time slots on XTime."""

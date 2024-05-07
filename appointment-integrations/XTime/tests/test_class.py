@@ -18,6 +18,7 @@ from appointment_handler import (
     get_appointments,
 )
 
+
 class TestLambdaFunctions(unittest.TestCase):
 
     def test_create_appointment(self):
@@ -72,7 +73,6 @@ class TestLambdaFunctions(unittest.TestCase):
         self.assertIsInstance(body_json['error'], dict)
         self.assertIsInstance(body_json['error']['message'], str)
 
-
     def test_time_slots(self):
         event_success = {
             "request_id": "5aec6d02-239e-49d1-9c95-78cdb787df4f",
@@ -106,7 +106,6 @@ class TestLambdaFunctions(unittest.TestCase):
         response = get_appt_time_slots(event_no_vin, None)
 
         self.assertEqual(response["statusCode"], 500)
-        
 
     def test_get_appointments(self):
         event_success = {
