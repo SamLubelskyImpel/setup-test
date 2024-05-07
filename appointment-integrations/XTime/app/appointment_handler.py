@@ -3,6 +3,7 @@ from typing import Any
 from logging import getLogger
 from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
+from datetime import datetime
 
 from utils import parse_event, validate_data, handle_exception, lambda_response
 
@@ -24,12 +25,17 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
         logger.info(appt_time_slots["availableAppointments"])
 
         if appt_time_slots["success"]:
+
+            def formatted_time(time_string: str) -> str:
+                dt = datetime.fromisoformat(time_string.replace('Z', '+00:00'))
+                return dt.strftime('%Y-%m-%dT%H:%M')
+            
             return lambda_response(
                 200,
                 {
                     "available_timeslots": [
                         {
-                            "timeslot": time_slot["appointmentDateTimeLocal"],
+                            "timeslot": formatted_time(time_slot["appointmentDateTimeLocal"]),
                             "duration": time_slot["durationMinutes"],
                         }
                         for time_slot in appt_time_slots["availableAppointments"]
@@ -40,7 +46,7 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
             500,
             {
                 "error": {
-                    "code": appt_time_slots["code"],
+                    "code": appt_time_slots.get("code", "401"),
                     "message": appt_time_slots["message"],
                 }
             },

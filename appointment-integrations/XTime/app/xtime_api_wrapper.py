@@ -4,7 +4,6 @@ This wrapper classes defined this file should NOT be modified or used by any oth
 A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
 """
 
-import pytz
 import requests
 from os import environ
 from json import loads
@@ -43,6 +42,7 @@ class XTimeApiWrapper:
             secret_data["dealer_code"]
         )
 
+
     def __get_token(self):
         url, username, password = self.__authorization_data.values()
         session = requests.Session()
@@ -69,6 +69,7 @@ class XTimeApiWrapper:
             "Authorization": self.__authorization_token,
         }
         try:
+            logger.info(f"Headers for XTime: {headers}")
             response = requests.request(method=method, url=url, json=payload, headers=headers, params=params)
             logger.info(f"Response from XTime: {response.json()}")
             
@@ -77,37 +78,28 @@ class XTimeApiWrapper:
         except requests.RequestException as e:
             logger.error(f"API call failed: {e}")
             raise
+ 
 
+    def _add_optional_params(self, params, data_instance):
+            """Add optional parameters to the request."""
+            for key in ["vin", "year", "make", "model"]:
+                value = getattr(data_instance, key, None)
+                if value is not None:
+                    params[key] = value
 
-    def __convert_utc_to_timezone(self, input_ts: str, dealer_timezone: str, formatted = False) -> str:
-        """Convert UTC timestamp to dealer's local time."""
-        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%S')
-        utc_datetime = pytz.utc.localize(utc_datetime)
-
-        if not dealer_timezone:
-            logger.warning("Dealer timezone not found")
-            return utc_datetime.strftime('%Y-%m-%d')
-
-        dealer_tz = pytz.timezone(dealer_timezone)
-        dealer_datetime = utc_datetime.astimezone(dealer_tz)
-    
-        if formatted:
-            return dealer_datetime.strftime('%Y-%m-%dT%H:%M%z')
-
-        return dealer_datetime.strftime('%Y-%m-%d')
-    
 
     def create_appointments(self, create_appt_data: CreateAppointment):
         """Create appointments on XTime."""
         url = "{}/service/appointments-bookings".format(self.__api_url)
         
         params = {
-            "dealerCode": create_appt_data.integration_dealer_id,
-            "vin": create_appt_data.vin,
+            "dealerCode": create_appt_data.integration_dealer_id
         }
 
+        self._add_optional_params(params=params, data_instance=create_appt_data)
+
         payload = {
-            "appointmentDateTimeLocal": self.__convert_utc_to_timezone(create_appt_data.timeslot, create_appt_data.dealer_timezone, formatted=True),
+            "appointmentDateTimeLocal": datetime.strptime(create_appt_data.timeslot, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%dT%H:%M%z'),
             "firstName": create_appt_data.first_name,
             "lastName": create_appt_data.last_name,
             "emailAddress": create_appt_data.email_address,
@@ -144,11 +136,11 @@ class XTimeApiWrapper:
 
         params = {
             "dealerCode": appointment_slots.integration_dealer_id,
-            "start": self.__convert_utc_to_timezone(appointment_slots.start_time, appointment_slots.dealer_timezone),
-            "end": self.__convert_utc_to_timezone(appointment_slots.end_time, appointment_slots.dealer_timezone),
-            "opcode": appointment_slots.op_code,
-            "vin": appointment_slots.vin
+            "start": datetime.strptime(appointment_slots.start_time, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%d'),
+            "end": datetime.strptime(appointment_slots.end_time, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%d'),
+            "opcode": appointment_slots.op_code
         }
+        self._add_optional_params(params=params, data_instance=appointment_slots)
 
         response_json = self.__call_api(url, method="GET", params=params)
 

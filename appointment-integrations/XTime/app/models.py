@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class AppointmentSlots:
@@ -8,10 +9,10 @@ class AppointmentSlots:
     op_code: str
     start_time: str
     end_time: str
-    vin: str
-    year: int
-    make: str
-    model: str
+    vin: Optional[str] = None
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
 
 @dataclass
 class CreateAppointment:
@@ -26,10 +27,10 @@ class CreateAppointment:
     last_name: str
     email_address: str
     phone_number: str
-    vin: str
-    year: int
-    make: str
-    model: str
+    vin: Optional[str] = None
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
 
 @dataclass
 class GetAppointments:
@@ -41,3 +42,6 @@ class GetAppointments:
     email_address: str
     phone_number: str
     vin: str
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
