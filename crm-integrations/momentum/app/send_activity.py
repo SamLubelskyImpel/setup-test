@@ -38,10 +38,10 @@ def record_handler(record: SQSRecord):
 
         momentum_crm_api = MomentumApiWrapper(activity=activity, salesperson=salesperson)
 
-        dealerpeak_task_id = momentum_crm_api.create_activity()
-        logger.info(f"Momentum responded with task ID: {dealerpeak_task_id}")
+        momentum_activity_id = momentum_crm_api.create_activity()
+        logger.info(f"Momentum responded with activity ID: {momentum_activity_id}")
 
-        crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
+        crm_api.update_activity(activity["activity_id"], momentum_activity_id)
 
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Momentum")
