@@ -269,8 +269,8 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1
             Method: POST
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
   RetrieveAppointments:
     Type: AWS::Serverless::Function
@@ -288,8 +288,8 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1
             Method: GET
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
   RetrieveTimeslots:
     Type: AWS::Serverless::Function
@@ -307,16 +307,76 @@ Resources:
             RestApiId: !Ref AppointmentServiceApiGateway
             Path: /appointments/v1/timeslots
             Method: GET
-      # Layers:
-      #   - !Ref CrmOrmLayer
+      Layers:
+        - !Ref ApptOrmLayer
 
-  # CrmOrmLayer:
-  #   Type: AWS::Serverless::LayerVersion
-  #   Properties:
-  #     LayerName: !Sub "crm_orm_layer-${Environment}"
-  #     Description: Crm Orm Layer
-  #     ContentUri: ./layers/crm_orm
-  #     CompatibleRuntimes:
-  #       - python3.9
-  #     LicenseInfo: MIT
-  #     RetentionPolicy: Retain
+  ApptOrmLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "appt_orm_layer-${Environment}"
+      Description: Appt Orm Layer
+      ContentUri: ./layers/appt_orm
+      CompatibleRuntimes:
+        - python3.9
+      LicenseInfo: MIT
+      RetentionPolicy: Retain
+  
+  CreateAppointmentErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub appointment-service-${Environment}-CreateAppointment
+      AlarmDescription: Appointment service failed to process incoming request
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CreateAppointment
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+    
+  RetrieveAppointmentsErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub appointment-service-${Environment}-RetrieveAppointments
+      AlarmDescription: Appointment service failed to process incoming request
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RetrieveAppointments
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  RetrieveTimeslotsErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub appointment-service-${Environment}-RetrieveTimeslots
+      AlarmDescription: Appointment service failed to process incoming request
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RetrieveTimeslots
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
