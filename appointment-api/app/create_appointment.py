@@ -1,3 +1,5 @@
+"""Create an appointment in the vendor."""
+
 import logging
 from os import environ
 from json import dumps, loads
@@ -5,7 +7,8 @@ from uuid import uuid4
 from typing import Any, List
 from datetime import datetime, timezone
 from utils import (invoke_vendor_lambda, IntegrationError, format_timestamp,
-                   send_alert_notification, get_dealer_info, get_vendor_op_code)
+                   send_alert_notification, get_dealer_info, get_vendor_op_code,
+                   validate_request_body, ValidationError)
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.consumer import Consumer
@@ -15,8 +18,8 @@ from appt_orm.models.appointment import Appointment
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-consumer_attrs = ['dealer_integration_partner_id', 'integration_consumer_id', 'product_consumer_id',
-                  'first_name', 'last_name', 'email_address', 'phone_number']
+consumer_attrs = ['dealer_integration_partner_id', 'first_name', 'last_name', 'email_address', 'phone_number']
+required_params = ["op_code", "timeslot", {"consumer": ["first_name", "last_name", "email_address", "phone_number"]}, "vehicle"]
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
@@ -29,6 +32,7 @@ def update_attrs(db_object: Any, data: Any, allowed_attrs: List[str]) -> None:
 
 
 def lambda_handler(event, context):
+    """Create an appointment in the vendor for a service."""
     logger.info(f"Event: {event}")
 
     request_id = str(uuid4())
@@ -40,10 +44,19 @@ def lambda_handler(event, context):
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         consumer_id = params.get("consumer_id")
 
+        validate_request_body(body, required_params)
+
         op_code = body["op_code"]
         timeslot = body["timeslot"]
-        consumer = body.get("consumer", {})
-        vehicle = body.get("vehicle", {})
+        consumer = body["consumer"]
+        vehicle = body["vehicle"]
+
+        vin = vehicle.get("vin")
+        year = vehicle.get("year")
+        make = vehicle.get("make")
+        model = vehicle.get("model")
+        if not vin and not (year and make and model):
+            raise ValidationError("VIN or Year, Make, Model must be provided")
 
         with DBSession() as session:
             dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
@@ -86,10 +99,10 @@ def lambda_handler(event, context):
             "timeslot": timeslot,
             "duration": body.get("timeslot_duration"),
             "comment": body.get("comment"),
-            "first_name": consumer.get("first_name"),
-            "last_name": consumer.get("last_name"),
-            "email_address": consumer.get("email_address"),
-            "phone_number": consumer.get("phone_number"),
+            "first_name": consumer["first_name"],
+            "last_name": consumer["last_name"],
+            "email_address": consumer["email_address"],
+            "phone_number": consumer["phone_number"],
             "vin": vehicle.get("vin"),
             "year": vehicle.get("year"),
             "make": vehicle.get("make"),
@@ -183,11 +196,19 @@ def lambda_handler(event, context):
             "body": dumps({
                 "appointment_id": int(appointment_id),
                 "consumer_id": int(consumer_id),
-                "vehicle_id": int(vehicle_id),
                 "request_id": request_id,
             })
         }
 
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "error": str(e),
+                "request_id": request_id,
+            })
+        }
     except IntegrationError as e:
         logger.error(f"Integration error: {e}")
         send_alert_notification(request_id, "CreateAppointment", e)

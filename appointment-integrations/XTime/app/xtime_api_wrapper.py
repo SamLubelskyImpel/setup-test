@@ -1,8 +1,4 @@
-"""
-These classes are designed to manage calls to the XTime for appointments.
-This wrapper classes defined this file should NOT be modified or used by any other resources aside from the appointment lambda.
-A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
-"""
+"""Wrapper class designed to manage calls to the XTime for appointments."""
 
 import requests
 from os import environ
@@ -10,7 +6,8 @@ from json import loads
 from boto3 import client
 from datetime import datetime
 from models import GetAppointments, CreateAppointment, AppointmentSlots
-
+from dateutil import parser
+import pytz
 import logging
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -34,7 +31,6 @@ class XTimeApiWrapper:
         )
         secret = loads(secret["SecretString"])["XTime"]
         secret_data = loads(secret)
-        logger.info(secret_data)
         return (
             secret_data["authorization_token_config"],
             secret_data["x_api_key"],
@@ -43,6 +39,7 @@ class XTimeApiWrapper:
         )
 
     def __get_token(self):
+        """Generate the authorization token for XTime."""
         url, username, password = self.__authorization_data.values()
         session = requests.Session()
         session.auth = (username, password)
@@ -61,15 +58,16 @@ class XTimeApiWrapper:
         return f"{response_json['token_type']} {response_json['access_token']}"
 
     def __call_api(self, url, payload=None, method="POST", params=None):
+        """Call the XTime API."""
         headers = {
             "Content-Type": "application/json",
             "x-api-key": self.__x_api_key,
             "Authorization": self.__authorization_token,
         }
         try:
-            logger.info(f"Headers for XTime: {headers}")
-            response = requests.request(method=method, url=url, json=payload, headers=headers, params=params)
-            logger.info(f"Response from XTime: {response.json()}")
+            response = requests.request(method=method, url=url, json=payload, headers=headers, params=params, timeout=5)
+            logger.info(f"Status code from XTime: {response.status_code}")
+            logger.info(f"Response text from XTime: {response.text}")
 
             response.raise_for_status()
             return response.json()
@@ -84,6 +82,13 @@ class XTimeApiWrapper:
             if value is not None:
                 params[key] = value
 
+    def __localize_time(self, time_string: str, dealer_timezone: str) -> str:
+        """Localize the timestamp to include the dealer's timezone."""
+        parsed_ts = parser.parse(time_string)
+        dealer_tz = pytz.timezone(dealer_timezone)
+        localized_ts = dealer_tz.localize(parsed_ts)
+        return localized_ts.strftime('%Y-%m-%dT%H:%M%z')
+
     def create_appointments(self, create_appt_data: CreateAppointment):
         """Create appointments on XTime."""
         url = "{}/service/appointments-bookings".format(self.__api_url)
@@ -91,26 +96,28 @@ class XTimeApiWrapper:
         params = {
             "dealerCode": create_appt_data.integration_dealer_id
         }
-
         self._add_optional_params(params=params, data_instance=create_appt_data)
+        logger.info(f"Params for XTime: {params}")
 
         payload = {
-            "appointmentDateTimeLocal": datetime.strptime(create_appt_data.timeslot, '%Y-%m-%dT%H:%M:%S').strftime('%Y-%m-%dT%H:%M%z'),
+            "appointmentDateTimeLocal": self.__localize_time(create_appt_data.timeslot, create_appt_data.dealer_timezone),
             "firstName": create_appt_data.first_name,
             "lastName": create_appt_data.last_name,
             "emailAddress": create_appt_data.email_address,
             "phoneNumber": create_appt_data.phone_number.replace("-", ""),
+            "comment": create_appt_data.comment,
             "services": [
                 {
                     "opcode": create_appt_data.op_code
                 }
             ]
         }
-        logger.info(f"This is payload for creating appointment: \n {payload}")
+        payload = {key: value for key, value in payload.items() if value}
+        logger.info(f"Payload for XTime: \n {payload}")
 
         response_json = self.__call_api(url, payload=payload, params=params)
 
-        logger.info(f"Response from XTime: {response_json}")
+        logger.info(f"XTime Create Appt Response: {response_json}")
         return response_json
 
     def retrieve_appointments(self, appointments: GetAppointments):
@@ -122,7 +129,10 @@ class XTimeApiWrapper:
             "vin": appointments.vin
         }
 
-        return self.__call_api(url, method="GET", params=params)
+        response_json = self.__call_api(url, method="GET", params=params)
+        logger.info(f"XTime Retrieve Appt Response: {response_json}")
+
+        return response_json
 
     def retrieve_appt_time_slots(self, appointment_slots: AppointmentSlots):
         """Retrieve appointment time slots on XTime."""
@@ -135,8 +145,24 @@ class XTimeApiWrapper:
             "opcode": appointment_slots.op_code
         }
         self._add_optional_params(params=params, data_instance=appointment_slots)
+        logger.info(f"Params for XTime: {params}")
 
         response_json = self.__call_api(url, method="GET", params=params)
 
-        logger.info(f"Response from XTime: {response_json}")
+        logger.info(f"XTime Timeslots Response: {response_json}")
+        return response_json
+
+    def get_dealer_codes(self, integration_dealer_id: str):
+        """Retrieve standard dealer op codes from XTime."""
+        url = f"{self.__api_url}/service/services"
+        params = {
+            "dealerCode": integration_dealer_id,
+            "year": 2024,
+            "make": "OTHER",
+            "model": "OTHER"
+        }
+
+        response_json = self.__call_api(url, method="GET", params=params)
+
+        logger.info(f"XTime Dealer Op Codes Response: {response_json}")
         return response_json

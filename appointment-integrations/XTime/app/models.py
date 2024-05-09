@@ -1,3 +1,5 @@
+"""Dataclass models for lambda request payloads."""
+
 from dataclasses import dataclass
 from typing import Optional
 

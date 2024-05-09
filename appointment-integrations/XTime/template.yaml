@@ -71,7 +71,7 @@ Resources:
       CodeUri: app/
       Handler: appointment_handler.create_appointment
       Timeout: 30
-      MemorySize: 256
+      MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
 
   CreateAppointmentsLogGroup:
@@ -104,7 +104,7 @@ Resources:
       CodeUri: app/
       Handler: appointment_handler.get_appt_time_slots
       Timeout: 30
-      MemorySize: 256
+      MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
 
   GetAppTimeSlotsLogGroup:
@@ -137,7 +137,7 @@ Resources:
       CodeUri: app/
       Handler: appointment_handler.get_appointments
       Timeout: 30
-      MemorySize: 256
+      MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
 
   GetAppointmentsLogGroup:
@@ -162,3 +162,18 @@ Resources:
       ComparisonOperator: "GreaterThanOrEqualToThreshold"
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  
+  GetDealerOpcodes:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub xtime-${Environment}-GetDealerOpcodes
+      CodeUri: app/
+      Handler: appointment_handler.get_dealer_codes
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+
+  GetDealerOpcodesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/xtime-${Environment}-GetDealerOpcodes"

@@ -1,6 +1,7 @@
 """Tests for the retrieve_appointments module.
 
 AWS_PROFILE=unified-test pytest test_retrieve_appointments.py
+Requires VPN access to database.
 """
 import os
 import sys
@@ -46,13 +47,12 @@ mock_response_1 = {
         "appointments": [{
             "id": 3,
             "op_code": "PRODUCT003",
-            "timeslot": "2024-03-30T14:00:00",
+            "timeslot": "2024-03-30T11:00:00",
             "timeslot_duration": 30,
             "created_date_ts": "2024-03-26T14:00:00+00:00",
             "comment": "Customer will drop off motor vehicle",
             "status": "Active",
             "consumer": {
-                "product_consumer_id": "12345abc",
                 "first_name": "Jane",
                 "last_name": "Smith",
                 "email_address": "jane.smith@example.com",
@@ -111,13 +111,12 @@ mock_response_3 = {
         "appointments": [{
             "id": 3,
             "op_code": "PRODUCT003",
-            "timeslot": "2024-03-30T14:00:00",
+            "timeslot": "2024-03-30T11:00:00",
             "timeslot_duration": 30,
             "created_date_ts": "2024-03-26T14:00:00+00:00",
             "comment": "Customer will drop off motor vehicle",
             "status": "Active",
             "consumer": {
-                "product_consumer_id": "12345abc",
                 "first_name": "Jane",
                 "last_name": "Smith",
                 "email_address": "jane.smith@example.com",
@@ -141,13 +140,12 @@ mock_response_3 = {
         }, {
             "id": 4,
             "op_code": "PRODUCT003",
-            "timeslot": "2024-03-30T14:00:00",
+            "timeslot": "2024-03-30T11:00:00",
             "timeslot_duration": 30,
             "created_date_ts": "2024-03-26T14:00:00+00:00",
             "comment": "Customer will drop off motor vehicle",
             "status": "Closed",
             "consumer": {
-                "product_consumer_id": "12345abc",
                 "first_name": "Jane",
                 "last_name": "Smith",
                 "email_address": "jane.smith@example.com",
@@ -171,13 +169,12 @@ mock_response_3 = {
         }, {
             "id": 5,
             "op_code": "PRODUCT002",
-            "timeslot": "2024-04-26T14:00:00",
+            "timeslot": "2024-04-26T11:00:00",
             "timeslot_duration": 30,
             "created_date_ts": "2024-03-26T14:00:00+00:00",
             "comment": "Customer will drop off motor vehicle",
             "status": "Closed",
             "consumer": {
-                "product_consumer_id": "12345abc",
                 "first_name": "Jane",
                 "last_name": "Smith",
                 "email_address": "jane.smith@example.com",
@@ -218,6 +215,22 @@ mock_boto3_client.invoke.side_effect = [
     {"Payload": mock_lambda_response_3}
 ]
 
+
+def remove_varying_fields(response_body: dict):
+    return {
+        k: v if not isinstance(v, list) else sorted([
+            {
+                k2: v2 if k2 != 'consumer' else {
+                    k3: v3 for k3, v3 in v2.items() if k3 != 'id'
+                }
+                for k2, v2 in item.items()
+            }
+            for item in v
+        ], key=lambda x: x['id'])
+        for k, v in response_body.items() if k != 'request_id'
+    }
+
+
 @patch('boto3.client', return_value=mock_boto3_client)
 def test_retrieve_appointments(mock_boto3_client):
     test_event = {
@@ -239,14 +252,14 @@ def test_retrieve_appointments(mock_boto3_client):
     test_context = MagicMock()
     response = retrieve_appointments.lambda_handler(test_event, test_context)
     assert response['statusCode'] == mock_response_1['statusCode']
-    response_copy = {k: v for k, v in loads(response['body']).items() if k != 'request_id'}
+    response_copy = remove_varying_fields(loads(response['body']))
     assert response_copy == loads(mock_response_1['body'])
 
     # Error response from integration
     test_context_2 = MagicMock()
     response_2 = retrieve_appointments.lambda_handler(test_event, test_context_2)
     assert response_2['statusCode'] == mock_response_payload_2['statusCode']
-    response_copy_2 = {k: v for k, v in loads(response_2['body']).items() if k != 'request_id'}
+    response_copy_2 = remove_varying_fields(loads(response_2['body']))
     assert response_copy_2 == loads(mock_response_payload_2['body'])
 
     # Successful response
@@ -255,7 +268,7 @@ def test_retrieve_appointments(mock_boto3_client):
     test_event_3['queryStringParameters'].pop('status', None)
     response_3 = retrieve_appointments.lambda_handler(test_event_3, test_context_3)
     assert response_3['statusCode'] == mock_response_3['statusCode']
-    response_copy_3 = {k: v for k, v in loads(response_3['body']).items() if k != 'request_id'}
+    response_copy_3 = remove_varying_fields(loads(response_3['body']))
     assert response_copy_3 == loads(mock_response_3['body'])
 
 

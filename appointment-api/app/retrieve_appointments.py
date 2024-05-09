@@ -1,3 +1,5 @@
+"""Retrieve appointments from the vendor and database."""
+
 import logging
 from os import environ
 from json import dumps, loads, JSONEncoder
@@ -35,10 +37,12 @@ class CustomEncoder(JSONEncoder):
 
 
 def update_appointment_status(appointment_id, session, new_status):
+    """Update appointment status in database."""
     session.query(Appointment).filter(Appointment.id == appointment_id).update({"status": new_status})
 
 
 def get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code):
+    """Retrieve product op code from database."""
     with DBSession() as session:
         product_op_code = session.query(
             OpCodeProduct
@@ -56,6 +60,7 @@ def get_product_op_code(dealer_integration_partner_id, product_id, integration_o
 
 
 def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
+    """Extract appointment data from db object."""
     return {
         "id": db_appt.Appointment.id,
         "op_code": db_appt.op_code,
@@ -65,7 +70,7 @@ def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
         "comment": db_appt.Appointment.comment,
         "status": db_appt.Appointment.status,
         "consumer": {
-            "product_consumer_id": db_appt.Consumer.product_consumer_id,
+            "id": db_appt.Consumer.id,
             "first_name": db_appt.Consumer.first_name,
             "last_name": db_appt.Consumer.last_name,
             "email_address": db_appt.Consumer.email_address,
@@ -90,6 +95,7 @@ def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
 
 
 def lambda_handler(event, context):
+    """Retrieve appointments from database and vendor."""
     logger.info(f"Event: {event}")
 
     request_id = str(uuid4())
@@ -233,7 +239,7 @@ def lambda_handler(event, context):
                 appointment = {
                     "op_code": get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code),
                     "timeslot": appt["timeslot"],
-                    "timeslot_duration": appt["timeslot_duration"],
+                    "timeslot_duration": appt.get("timeslot_duration"),
                     "comment": appt.get("comment"),
                     "status": appt["status"] if appt.get("status") else "Active",
                     "consumer": {

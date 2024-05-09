@@ -1,6 +1,7 @@
 """Tests for the retrieve_timeslots module.
 
 AWS_PROFILE=unified-test pytest test_timeslots.py
+Requires VPN access to database.
 """
 import os
 import sys
@@ -105,10 +106,10 @@ def test_timeslots(mock_boto3_client):
             "vin": "1HGBH41JXMN109186",
             "year": "2025"
         },
-        "httpMethod": "GET",  # Example HTTP method
-        "path": "/test/path",  # Example resource path
-        "headers": {},  # Example headers
-        "body": None,  # Example request body
+        "httpMethod": "GET",
+        "path": "/test/path",
+        "headers": {},
+        "body": None,
     }
 
     # Successful response

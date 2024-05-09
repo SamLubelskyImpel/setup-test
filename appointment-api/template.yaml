@@ -237,7 +237,7 @@ Resources:
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 30
-      MemorySize: 256
+      MemorySize: 512
       Policies:
         - Id: AuthorizerPermissions
           Version: "2012-10-17"
@@ -265,7 +265,7 @@ Resources:
       CodeUri: app/
       Handler: create_appointment.lambda_handler
       Timeout: 30
-      MemorySize: 512
+      MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -289,7 +289,7 @@ Resources:
       CodeUri: app/
       Handler: retrieve_appointments.lambda_handler
       Timeout: 30
-      MemorySize: 512
+      MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -313,7 +313,7 @@ Resources:
       CodeUri: app/
       Handler: retrieve_timeslots.lambda_handler
       Timeout: 30
-      MemorySize: 512
+      MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -349,14 +349,14 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
           Value: !Ref CreateAppointment
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
-      Period: 900
+      Period: 300
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
@@ -369,14 +369,14 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
           Value: !Ref RetrieveAppointments
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
-      Period: 900
+      Period: 300
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
@@ -389,14 +389,14 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Dimensions:
         - Name: FunctionName
           Value: !Ref RetrieveTimeslots
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
-      Period: 900
+      Period: 300
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching

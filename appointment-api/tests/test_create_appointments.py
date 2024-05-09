@@ -1,12 +1,12 @@
 """Tests for the create_appointments module.
 
 AWS_PROFILE=unified-test pytest test_create_appointments.py
+Requires VPN access to database.
 """
 import os
 import sys
 from json import dumps, loads
 from unittest.mock import patch, MagicMock
-from datetime import datetime
 
 os.environ["ENVIRONMENT"] = "test"
 
@@ -70,9 +70,9 @@ def test_create_appointments(mock_boto3_client):
         "queryStringParameters": {
             "dealer_integration_partner_id": 1
         },
-        "httpMethod": "GET",  # Example HTTP method
-        "path": "/test/path",  # Example resource path
-        "headers": {},  # Example headers
+        "httpMethod": "GET",
+        "path": "/test/path",
+        "headers": {},
         "body": dumps({
             "op_code": "PRODUCT004",
             "timeslot": "2024-03-30T14:00:00",

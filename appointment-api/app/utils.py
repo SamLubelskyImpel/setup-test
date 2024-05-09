@@ -1,9 +1,10 @@
+"""Utility functions for the appointment service."""
+
 import boto3
 import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
-# from datetime import datetime
 from dateutil import parser as date_parser
 import pytz
 
@@ -24,8 +25,12 @@ class IntegrationError(Exception):
     pass
 
 
+class ValidationError(Exception):
+    pass
+
+
 def invoke_vendor_lambda(payload: dict, lambda_arn: str) -> Any:
-    """Invoke vendor lambda."""
+    """Invoke vendor integration lambda."""
     response = boto3.client("lambda").invoke(
         FunctionName=lambda_arn,
         InvocationType="RequestResponse",
@@ -56,9 +61,6 @@ def format_timestamp(local_timestamp: Any, timezone: Any) -> Any:
 
 def convert_utc_to_timezone(input_ts, timezone, dealer_partner_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
-    # utc_datetime = datetime.strptime(input_ts, '%Y-%m-%d %H:%M:%S%z')
-    # utc_datetime = pytz.utc.localize(input_ts)
-
     if not timezone:
         logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
         return input_ts.strftime('%Y-%m-%dT%H:%M:%S')
@@ -117,3 +119,15 @@ def get_vendor_op_code(session, dealer_integration_partner_id: str, op_code: str
     ).first()
 
     return op_code_result
+
+
+def validate_request_body(body: Any, required_params) -> None:
+    """Validate request body."""
+    for param in required_params:
+        if isinstance(param, dict):
+            for key, value in param.items():
+                if key not in body:
+                    raise ValidationError(f"Required parameter '{key}' not found in request body")
+                validate_request_body(body[key], value)
+        elif param not in body:
+            raise ValidationError(f"Required parameter '{param}' not found in request body")

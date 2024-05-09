@@ -1,10 +1,12 @@
+"""Retrieve available timeslots for a given dealer and service."""
+
 import logging
 from os import environ
 from json import dumps, loads
 from uuid import uuid4
 from datetime import datetime
 from utils import (invoke_vendor_lambda, IntegrationError, send_alert_notification,
-                   get_dealer_info, get_vendor_op_code)
+                   get_dealer_info, get_vendor_op_code, ValidationError)
 
 from appt_orm.session_config import DBSession
 
@@ -15,7 +17,7 @@ ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 
 def call_integration(payload, request_id, timeslots_arn) -> dict:
-    # Invoke vendor lambda
+    """Invoke vendor integration lambda and process response."""
     response = invoke_vendor_lambda(payload, timeslots_arn)
 
     logger.info(f"Response from integration: {response}")
@@ -49,16 +51,25 @@ def call_integration(payload, request_id, timeslots_arn) -> dict:
 
 
 def lambda_handler(event, context):
+    """Retrieve available timeslots for a given dealer and service."""
     logger.info(f"Event: {event}")
 
     request_id = str(uuid4())
     logger.info(f"Request ID: {request_id}")
+
     try:
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         start_time = params["start_time"]
         end_time = params["end_time"]
         op_code = params["op_code"]
+
+        vin = params.get("vin")
+        year = params.get("year")
+        make = params.get("make")
+        model = params.get("model")
+        if not vin and not (year and make and model):
+            raise ValidationError("VIN or Year, Make, Model must be provided")
 
         if datetime.fromisoformat(start_time) >= datetime.fromisoformat(end_time):
             return {

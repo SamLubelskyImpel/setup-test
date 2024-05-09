@@ -1,3 +1,5 @@
+"""Utility functions for the XTime integration."""
+
 from typing import Any
 from os import environ
 from json import loads, dumps
@@ -37,6 +39,7 @@ def validate_data(data: dict, data_class: type) -> Any:
 
 
 def handle_exception(e, context):
+    """Generates lambda response for runtime exceptions."""
     logger.exception(f"Error in {context}: {e}")
     return {
         "statusCode": 500,
@@ -44,12 +47,8 @@ def handle_exception(e, context):
             {
                 "error": {
                     "code": "V001",
-                    "message": f"XTime responded with an unexpected error {e}",
+                    "message": "Vendor integration an unexpected error. Please contact Impel support.",
                 }
             }
         ),
     }
-
-
-def lambda_response(status_code, body):
-    return {"statusCode": status_code, "body": dumps(body)}
