@@ -7,6 +7,7 @@ from uuid import uuid4
 from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Any
+from sqlalchemy import func
 from utils import (invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone,
                    send_alert_notification, get_dealer_info)
 
@@ -153,8 +154,14 @@ def lambda_handler(event, context):
             )
             for field, value in filters.items():
                 if value:
-                    appointments_query = appointments_query.filter(getattr(Consumer, field) == value)
-                    logger.info(f"Filtering by {field}: {value}")
+                    field_attr = getattr(Consumer, field)
+                    if field_attr is not None:
+                        appointments_query = appointments_query.filter(
+                            func.lower(field_attr) == str(value).lower()
+                        )
+                        logger.info(f"Filtering by {field}: {value}")
+                    else:
+                        logger.warning(f"Field {field} not found in Consumer model")
 
             appointments_db = appointments_query.all()
             logger.info(f"Appointments found: {len(appointments_db)}")

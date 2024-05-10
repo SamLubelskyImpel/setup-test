@@ -154,14 +154,7 @@ paths:
                         - type: object
                           properties:
                             vehicle:
-                              allOf:
-                                - type: object
-                                  properties:
-                                    id:
-                                      type: number
-                                      description: ID of the vehicle in shared layer
-                                      example: 12345
-                                - "$ref": "#/components/schemas/Vehicle"
+                              "$ref": "#/components/schemas/Vehicle"
                   request_id:
                     type: string
                     description: Auto-generated GUID for request

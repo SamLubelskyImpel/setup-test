@@ -400,3 +400,33 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
+  
+  CheckDealerOpCodes:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "appointment-service-${Environment}-CheckDealerOpCodes"
+      CodeUri: app/
+      Handler: check_dealer_opcodes.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+      Layers:
+        - !Ref ApptOrmLayer
+  
+  CheckOpCodesScheduledEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      State: !If [ IsProd, ENABLED, DISABLED ]
+      ScheduleExpression: cron(0 0 * * ? *)
+      Description: Runs CheckDealerOpCodes daily
+      Targets:
+        - Id: CheckDealerOpCodesTarget
+          Arn: !GetAtt CheckDealerOpCodes.Arn
+
+  CheckOpCodesFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CheckDealerOpCodes.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CheckOpCodesScheduledEvent.Arn

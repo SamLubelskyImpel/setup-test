@@ -72,6 +72,8 @@ def lambda_handler(event, context):
         try:
             # Get mapped opcodes
             db_dealers = get_opcode_mappings(partner)
+            if not db_dealers:
+                continue
 
             integration_dealer_ids = [
                 dealer["integration_dealer_id"] for dealer in db_dealers
