@@ -93,19 +93,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         activix_dealer_list = get_dealers("ACTIVIX")
         crm_dealer_id = str(body["account_id"])
 
-        api_key = get_api_key(crm_dealer_id)
-
-        if signature != create_signature(api_key, body):
-            logger.error("Invalid signature.")
-            return {
-                "statusCode": 401,
-                "body": dumps({
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
-                }),
-            }
-
-        logger.info(f"Activix dealers: {activix_dealer_list}")
-
         for dealer in activix_dealer_list:
             if dealer["crm_dealer_id"] == crm_dealer_id:
                 product_dealer_id = dealer["product_dealer_id"]
@@ -116,6 +103,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "statusCode": 422,
                 "body": dumps({
                     "error": "Unknown Account (Dealer)."
+                }),
+            }
+
+        api_key = get_api_key(crm_dealer_id)
+        if signature != create_signature(api_key, body):
+            logger.error("Invalid signature.")
+            return {
+                "statusCode": 401,
+                "body": dumps({
+                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
                 }),
             }
 

@@ -4,7 +4,7 @@ As such this data is interpolated with the client copy as part of deployment scr
 
 CRM_PARTNER_API_AWS_VALIDATION = """
 x-amazon-apigateway-request-validators:
-  full:
+  basic:
     validateRequestBody: true
     validateRequestParameters: true
 
