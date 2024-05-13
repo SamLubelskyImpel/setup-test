@@ -166,7 +166,7 @@ class ActivixApiWrapper:
             "date": date,
             "lead_id": int(self.__activity["crm_lead_id"]),
             "title": "Stop the clock",
-            "description": self.__activity["notes"],
+            "description": "Stop the clock",  # harcode this value as it's required by the CRM
             "type": self.__activity["contact_method"]
         }
 
