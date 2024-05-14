@@ -212,11 +212,6 @@ def lambda_handler(event, context):
                 for v_appt in vendor_appointments:
                     # Appointment found in vendor
                     if db_appt.Appointment.integration_appointment_id == v_appt["appointment_id"]:
-                        if v_appt.get("status") and db_appt.Appointment.status != v_appt["status"]:
-                            # Status change in vendor, update appointment in db
-                            update_appointment_status(db_appt.Appointment.id, session, v_appt["status"])
-                            db_appt.Appointment.status = v_appt["status"]
-                            logger.info(f"Appointment {db_appt.Appointment.id} status updated to {v_appt['status']}")
                         appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
                         break
                 else:
@@ -225,13 +220,15 @@ def lambda_handler(event, context):
                     timeslot_time = db_appt.Appointment.timeslot_ts
                     if timeslot_time < current_time:
                         # Appointment timeslot has passed
-                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Closed.")
-                        update_appointment_status(db_appt.Appointment.id, session, "Closed")
-                        db_appt.Appointment.status = "Closed"
+                        if db_appt.Appointment.status != "Closed":
+                            logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor, but timeslot has passed. Assumed Closed.")
+                            update_appointment_status(db_appt.Appointment.id, session, "Closed")
+                            db_appt.Appointment.status = "Closed"
                     else:
-                        logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor and timeslot has not passed. Assumed Lost.")
-                        update_appointment_status(db_appt.Appointment.id, session, "Lost")
-                        db_appt.Appointment.status = "Lost"
+                        if db_appt.Appointment.status != "Lost":
+                            logger.info(f"Appointment {db_appt.Appointment.id} not found in vendor and timeslot has not passed. Assumed Lost.")
+                            update_appointment_status(db_appt.Appointment.id, session, "Lost")
+                            db_appt.Appointment.status = "Lost"
 
                     appointments.append(extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id))
             session.commit()
@@ -248,7 +245,7 @@ def lambda_handler(event, context):
                     "timeslot": appt["timeslot"],
                     "timeslot_duration": appt.get("timeslot_duration"),
                     "comment": appt.get("comment"),
-                    "status": appt["status"] if appt.get("status") else "Active",
+                    "status": "Active",
                     "consumer": {
                         "first_name": appt.get("first_name"),
                         "last_name": appt.get("last_name"),
