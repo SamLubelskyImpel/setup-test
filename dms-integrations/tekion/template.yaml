@@ -151,6 +151,45 @@ Resources:
             Schedule: cron(0 0 * * ? *)
             Input: '{"frequency": "daily"}'
 
+  InvokeHistoricalTekionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Invoke historical data check from the SFTP 
+      CodeUri: app/
+      Handler: invoke_historical_tekion.lambda_handler
+      Timeout: 180
+      # Policies:
+      #   - Id: FunctionPermissions
+      #     Version: "2012-10-17"
+      #     Statement:
+      #       - Sid: AllowSQS
+      #         Effect: Allow
+      #         Action:
+      #           - sqs:SendMessage
+      #         Resource:
+      #           - !GetAtt RepairOrderQueue.Arn
+      #       - Sid: AllowSecrets
+      #         Effect: Allow
+      #         Action:
+      #           - secretsmanager:GetSecretValue
+      #         Resource:
+      #           - !If [ IsProd,
+      #               !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+      #               !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
+      #             ]
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+          # REPAIR_ORDER_QUEUE: !Ref RepairOrderQueue
+      Events:
+        DailyInvoke:
+          Type: Schedule
+          Properties:
+            Description: Start the historical daily data check.
+            Enabled: !If [ IsProd, true, false ]
+            Schedule: cron(0 0 * * ? *)
+            Input: '{"frequency": "daily"}'
+
   RepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
