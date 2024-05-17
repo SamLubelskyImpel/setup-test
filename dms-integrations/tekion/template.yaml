@@ -110,6 +110,17 @@ Resources:
   DealsDLQ:
     Type: AWS::SQS::Queue
 
+  HistoricalDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt HistoricalDataDLQ.Arn
+        maxReceiveCount: 5
+
+  HistoricalDataDLQ:
+    Type: AWS::SQS::Queue
+
   InvokeTekionFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -128,6 +139,7 @@ Resources:
               Resource:
                 - !GetAtt RepairOrderQueue.Arn
                 - !GetAtt DealsQueue.Arn
+                - !GetAtt HistoricalDataQueue.Arn
             - Sid: AllowSecrets
               Effect: Allow
               Action:
@@ -142,50 +154,12 @@ Resources:
           Environment: !Ref Environment
           REPAIR_ORDER_QUEUE: !Ref RepairOrderQueue
           DEALS_QUEUE: !Ref DealsQueue
+          HISTORICAL_DATA_QUEUE: !Ref HistoricalDataQueue
       Events:
         DailyInvoke:
           Type: Schedule
           Properties:
             Description: Start the daily data pull for each tekion dealer.
-            Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 0 * * ? *)
-            Input: '{"frequency": "daily"}'
-
-  InvokeHistoricalTekionFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      Description: Invoke historical data check from the SFTP 
-      CodeUri: app/
-      Handler: invoke_historical_tekion.lambda_handler
-      Timeout: 180
-      # Policies:
-      #   - Id: FunctionPermissions
-      #     Version: "2012-10-17"
-      #     Statement:
-      #       - Sid: AllowSQS
-      #         Effect: Allow
-      #         Action:
-      #           - sqs:SendMessage
-      #         Resource:
-      #           - !GetAtt RepairOrderQueue.Arn
-      #       - Sid: AllowSecrets
-      #         Effect: Allow
-      #         Action:
-      #           - secretsmanager:GetSecretValue
-      #         Resource:
-      #           - !If [ IsProd,
-      #               !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
-      #               !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
-      #             ]
-      Environment:
-        Variables:
-          Environment: !Ref Environment
-          # REPAIR_ORDER_QUEUE: !Ref RepairOrderQueue
-      Events:
-        DailyInvoke:
-          Type: Schedule
-          Properties:
-            Description: Start the historical daily data check.
             Enabled: !If [ IsProd, true, false ]
             Schedule: cron(0 0 * * ? *)
             Input: '{"frequency": "daily"}'
@@ -243,6 +217,54 @@ Resources:
           Properties:
             Enabled: True
             Queue: !GetAtt RepairOrderQueue.Arn
+
+  HistoricalDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Tekion Historical Data Pull
+      CodeUri: app/
+      Handler: historical_data.lambda_handler
+      Timeout: 900
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowSecrets
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/TekionFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/TekionFTP*",
+                  ]
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt HistoricalDataQueue.Arn
 
   DealsFunction:
     Type: AWS::Serverless::Function
