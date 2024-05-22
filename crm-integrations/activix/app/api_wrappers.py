@@ -139,11 +139,21 @@ class ActivixApiWrapper:
 
     def __insert_note(self):
         """Insert note on CRM."""
-        url = "{}/leads/{}/notes".format(ACTIVIX_API_DOMAIN, self.__activity["crm_lead_id"])
+        url = "{}/communications".format(ACTIVIX_API_DOMAIN)
+
+        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
 
         payload = {
-            "content": self.__activity["notes"]
+            "lead_id": int(self.__activity["crm_lead_id"]),
+            "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
+            "type": communication_type,
+            "executed_at": date,
+            "executed_by": int(self.__salesperson["crm_salesperson_id"]),
+            "description": self.__activity["notes"]
         }
+
         logger.info(f"Payload to CRM: {payload}")
         response = self.__call_api(url, payload)
         response.raise_for_status()
@@ -151,32 +161,6 @@ class ActivixApiWrapper:
         logger.info(f"Response from CRM: {response_json}")
 
         return str(response_json.get("data", "").get("id", ""))
-
-    def __create_outbound_call(self):
-        """Create outbound call on CRM."""
-        url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
-
-        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-
-        payload = {
-            "owner": {
-                "id": int(self.__salesperson["crm_salesperson_id"])
-            },
-            "date": date,
-            "lead_id": int(self.__activity["crm_lead_id"]),
-            "title": "Stop the clock",
-            "description": "Stop the clock",  # harcode this value as it's required by the CRM
-            "type": self.__activity["contact_method"]
-        }
-
-        logger.info(f"Payload to CRM: {payload}")
-        response = self.__call_api(url, payload)
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
-
-        return str(response_json.get("data", {}).get("id", ""))
 
     def __create_phone_call_task(self):
         """Create phone call task on CRM."""
@@ -211,7 +195,7 @@ class ActivixApiWrapper:
         elif self.__activity["activity_type"] == "appointment":
             return self.__create_appointment()
         elif self.__activity["activity_type"] == "outbound_call":
-            return self.__create_outbound_call()
+            return
         elif self.__activity["activity_type"] == "phone_call_task":
             return self.__create_phone_call_task()
         else:
