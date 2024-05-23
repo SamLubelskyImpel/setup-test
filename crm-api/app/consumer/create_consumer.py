@@ -54,12 +54,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         with DBSession() as session:
-            dealer_partner = session.query(DealerIntegrationPartner).\
-                join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
-                filter(
-                    Dealer.product_dealer_id == product_dealer_id,
-                    DealerIntegrationPartner.is_active == True
-                ).first()
+            dealer_partner = session.query(
+                DealerIntegrationPartner
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).filter(
+                Dealer.product_dealer_id == product_dealer_id,
+                DealerIntegrationPartner.is_active == True
+            ).first()
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {product_dealer_id}. Consumer failed to be created.")
                 return {
@@ -87,7 +89,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             update_attrs(consumer_db, body, dealer_partner.id, consumer_attrs, request_product)
             if not consumer_db.id:
                 session.add(consumer_db)
-                session.flush()
+                # session.flush()  Why flush right before commit??? when is the customer_id generated?
 
             session.commit()
             consumer_id = consumer_db.id
@@ -95,19 +97,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if created_consumer:
             logger.info(f"Created consumer {consumer_id}")
             return {
-                "statusCode": "201",
+                "statusCode": 201,
                 "body": dumps({"consumer_id": consumer_id})
             }
         else:
             logger.info(f"Updated existing consumer {consumer_id}")
             return {
-                "statusCode": "200",
+                "statusCode": 200,
                 "body": dumps({"consumer_id": consumer_id})
             }
 
     except Exception as e:
         logger.error(f"Error creating consumer: {str(e)}")
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."})
         }

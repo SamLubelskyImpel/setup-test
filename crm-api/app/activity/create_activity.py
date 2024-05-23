@@ -14,6 +14,10 @@ from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
 from crm_orm.models.activity_type import ActivityType
 from crm_orm.session_config import DBSession
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.consumer import Consumer
+from crm_orm.models.dealer import Dealer
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -87,7 +91,7 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
         send_alert_notification(payload['activity_id'], e)
 
 
-def convert_utc_to_timezone(input_ts, time_zone, dealer_partner_id) -> str:
+def apply_dealer_timeszone(input_ts, time_zone, dealer_partner_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
     utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
     utc_datetime = pytz.utc.localize(utc_datetime)
@@ -137,8 +141,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             # Check lead existence
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
-            if not lead:
+            db_results = session.query(
+                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, IntegrationPartner.impel_integration_partner_name
+            ).join(
+                Consumer, Lead.consumer_id == Consumer.id
+            ).join(
+                DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).filter(
+                Lead.id == lead_id
+            ).first()
+            if not db_results:
                 logger.error(f"Lead {lead_id} not found. Activity failed to be created.")
                 return {
                     "statusCode": 404,
@@ -153,9 +169,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Activity type {activity_type} not found."})
                 }
 
+            lead_db, consumer_db, dealer_partner_db, dealer_metadata, partner_name = db_results
+
             # Create activity
             activity = Activity(
-                lead_id=lead.id,
+                lead_id=lead_db.id,
                 activity_type_id=activity_type_db.id,
                 activity_due_ts=activity_due_ts,
                 activity_requested_ts=activity_requested_ts,
@@ -170,25 +188,22 @@ def lambda_handler(event: Any, context: Any) -> Any:
             activity_id = activity.id
             logger.info(f"Created activity {activity_id}")
 
-            dealer_partner = lead.consumer.dealer_integration_partner
-            partner_name = dealer_partner.integration_partner.impel_integration_partner_name
-            dealer_partner_metadata = dealer_partner.metadata_
+            dip_metadata = dealer_partner_db.metadata_
 
-            dealer_metadata = dealer_partner.dealer.metadata_
             if dealer_metadata:
                 dealer_timezone = dealer_metadata.get("timezone", "")
             else:
-                logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
+                logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
                 dealer_timezone = ""
 
             payload = {
                 # Lead info
-                "lead_id": lead.id,
-                "crm_lead_id": lead.crm_lead_id,
-                "dealer_integration_partner_id": dealer_partner.id,
-                "crm_dealer_id": dealer_partner.crm_dealer_id,
-                "consumer_id": lead.consumer.id,
-                "crm_consumer_id": lead.consumer.crm_consumer_id,
+                "lead_id": lead_db.id,
+                "crm_lead_id": lead_db.crm_lead_id,
+                "dealer_integration_partner_id": dealer_partner_db.id,
+                "crm_dealer_id": dealer_partner_db.crm_dealer_id,
+                "consumer_id": consumer_db.id,
+                "crm_consumer_id": consumer_db.crm_consumer_id,
                 # Activity info
                 "activity_id": activity_id,
                 "notes": activity.notes,
@@ -205,19 +220,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if request_product == "chat_ai" and activity_type == "appointment":
                 adf_recipients = []
                 sftp_config = {}
-                
-                if dealer_partner_metadata:
-                    adf_recipients = dealer_partner_metadata.get("adf_email_recipients", [])
-                    sftp_config = dealer_partner_metadata.get("adf_sftp_config",{})
+
+                if dip_metadata:
+                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    sftp_config = dip_metadata.get("adf_sftp_config", {})
                 else:
-                    logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
+                    logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
 
                 # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.id)
+                activity_due_dealer_ts = apply_dealer_timeszone(
+                    activity_due_ts, dealer_timezone, dealer_partner_db.id
+                )
                 make_adf_assembler_request({
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
-                    "activity_time": activity_due_ts_in_dealer_tz,
+                    "activity_time": activity_due_dealer_ts,
                     "partner_name": partner_name,
                     "sftp_config": sftp_config
                 })

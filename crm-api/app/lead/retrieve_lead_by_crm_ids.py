@@ -41,25 +41,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
         integration_partner_name = event["queryStringParameters"]["integration_partner_name"]
 
         with DBSession() as session:
-            dealer_partner = session.query(DealerIntegrationPartner).join(DealerIntegrationPartner.integration_partner).filter(
-                DealerIntegrationPartner.crm_dealer_id == crm_dealer_id,
-                DealerIntegrationPartner.is_active == True,
-                IntegrationPartner.impel_integration_partner_name == integration_partner_name
-            ).first()
-
-            if not dealer_partner:
-                logger.error(f"No active dealer found with id {crm_dealer_id}.")
-                return {
-                    "statusCode": 404,
-                    "body": dumps({"error": f"No active dealer found with id {crm_dealer_id}."})
-                }
-
-            leads = session.query(Lead).join(Lead.consumer).join(Consumer.dealer_integration_partner).filter(
+            leads_db = session.query(
+                Lead
+            ).join(
+                Consumer, Lead.consumer_id == Consumer.id
+            ).join(
+                DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).filter(
                 Lead.crm_lead_id == crm_lead_id,
-                DealerIntegrationPartner.id == dealer_partner.id
+                DealerIntegrationPartner.crm_dealer_id == crm_dealer_id,
+                IntegrationPartner.impel_integration_partner_name == integration_partner_name
             ).all()
 
-            if not leads:
+            if not leads_db:
                 logger.error(f"Lead with crm_lead_id: {crm_lead_id} and crm_dealer_id: {crm_dealer_id} not found.")
                 return {
                     "statusCode": 404,
@@ -67,14 +63,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
 
             # Check if multiple leads are found
-            if len(leads) > 1:
-                logger.error(f"Expected one lead but found {len(leads)} with the same crm_lead_id {crm_lead_id}")
+            if len(leads_db) > 1:
+                logger.error(f"Expected one lead but found {len(leads_db)} with the same crm_lead_id {crm_lead_id}")
                 return {
                     "statusCode": 400,
-                    "body": json.dumps({"error": f"Expected one lead but found {len(leads)} with the same crm_lead_id {crm_lead_id}"})
+                    "body": json.dumps({"error": f"Expected one lead but found {len(leads_db)} with the same crm_lead_id {crm_lead_id}"})
                 }
 
-            lead = leads[0]
+            lead = leads_db[0]
             logger.info(f"Found lead {lead.as_dict()}")
 
             vehicles_db = (

@@ -17,6 +17,8 @@ from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from crm_orm.models.integration_partner import IntegrationPartner
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
@@ -70,18 +72,18 @@ def update_attrs(
             setattr(db_object, attr, combined_data[attr])
 
 
-def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
-    """Get the timezone of the dealer."""
-    with DBSession() as session:
-        dealer_timezone = (
-            session.query(Dealer.metadata_["timezone"])
-            .filter(Dealer.id == dealer_integration_partner_id)
-            .first()
-        )
+# def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
+#     """Get the timezone of the dealer."""
+#     with DBSession() as session:
+#         dealer_timezone = (
+#             session.query(Dealer.metadata_["timezone"])
+#             .filter(Dealer.id == dealer_integration_partner_id)
+#             .first()
+#         )
 
-        timezone = dealer_timezone[0] if dealer_timezone else "UTC"
-        logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
-        return timezone
+#         timezone = dealer_timezone[0] if dealer_timezone else "UTC"
+#         logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
+#         return timezone
 
 
 def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
@@ -152,11 +154,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
         lead_ts = body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
-            consumer = (
-                session.query(Consumer).filter(Consumer.id == consumer_id).first()
-            )
+            db_results = session.query(
+                Consumer, DealerIntegrationPartner, Dealer, IntegrationPartner
+            ).join(
+                DealerIntegrationPartner, DealerIntegrationPartner.id == Consumer.dealer_integration_partner_id
+            ).join(
+                Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+            ).join(
+                IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+            ).filter(
+                Consumer.id == consumer_id
+            ).first()
 
-            if not consumer:
+            if not db_results:
                 logger.error(f"Consumer {consumer_id} not found")
                 return {
                     "statusCode": 404,
@@ -167,21 +177,27 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     ),
                 }
 
-            dealer_integration_partner_id = consumer.dealer_integration_partner_id
-            dealer_timezone = get_dealer_timezone(dealer_integration_partner_id)
+            consumer_db, dip_db, dealer_db, integration_partner_db = db_results
+            integration_partner_name = integration_partner_db.impel_integration_partner_name
+
+            dealer_metadata = dealer_db.metadata_
+            if dealer_metadata:
+                dealer_timezone = dealer_metadata.get("timezone", "UTC")
+            else:
+                logger.warning(f"No metadata found for dealer: {dealer_db.product_dealer_id}. Defaulting to UTC.")
+                dealer_timezone = "UTC"
 
             logger.info(f"Original timestamp: {lead_ts}")
             lead_ts = process_lead_ts(lead_ts, dealer_timezone)
             logger.info(f"Processed timestamp: {lead_ts}")
-
-            integration_partner = consumer.dealer_integration_partner.integration_partner
 
             # Query for existing lead
             if crm_lead_id:
                 lead_db = (
                     session.query(Lead)
                     .filter(
-                        Lead.consumer_id == consumer_id, Lead.crm_lead_id == crm_lead_id
+                        Lead.consumer_id == consumer_id,
+                        Lead.crm_lead_id == crm_lead_id
                     )
                     .first()
                 )
@@ -245,10 +261,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     trade_in_model=vehicle.get("trade_in_model"),
                     metadata_=vehicle.get("metadata"),
                 )
-                lead.vehicles.append(vehicle)
+                session.add(vehicle)
+                # lead.vehicles.append(vehicle) ????
 
             if salespersons:
-                dealer_partner_id = consumer.dealer_integration_partner_id
                 for salesperson in salespersons:
                     # Create salesperson
                     crm_salesperson_id = salesperson.get("crm_salesperson_id")
@@ -260,8 +276,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                             session.query(Salesperson)
                             .filter(
                                 Salesperson.crm_salesperson_id == crm_salesperson_id,
-                                Salesperson.dealer_integration_partner_id
-                                == dealer_partner_id,
+                                Salesperson.dealer_integration_partner_id == dip_db.id,
                             )
                             .first()
                         )
@@ -272,14 +287,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     update_attrs(
                         salesperson_db,
                         salesperson,
-                        dealer_partner_id,
+                        dip_db.id,
                         salesperson_attrs,
                         request_product,
                     )
 
                     if not salesperson_db.id:
                         session.add(salesperson_db)
-                        session.flush()
+                        # session.flush()   Why flush right before commit??? when is the customer_id generated?
 
                     # Create lead salesperson
                     lead_salesperson = Lead_Salesperson(
@@ -291,9 +306,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             session.commit()
             lead_id = lead.id
-            integration_partner_name = integration_partner.impel_integration_partner_name
-            dealer_partner_id = consumer.dealer_integration_partner_id
-            dealer_metadata = consumer.dealer_integration_partner.metadata_
 
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
@@ -304,16 +316,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if request_product == "chat_ai":
             adf_recipients = []
             sftp_config = {}
-            
-            if dealer_metadata:
-                adf_recipients = dealer_metadata.get("adf_email_recipients", [])
-                sftp_config = dealer_metadata.get("adf_sftp_config",{})
+
+            dip_metadata = dip_db.metadata_
+            if dip_metadata:
+                adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                sftp_config = dip_metadata.get("adf_sftp_config", {})
             else:
-                logger.warning(f"No metadata found for dealer: {dealer_partner_id}")
+                logger.warning(f"No metadata found for dealer: {dip_db.id}")
 
             make_adf_assembler_request({
-                "lead_id": lead_id, 
-                "recipients": adf_recipients, 
+                "lead_id": lead_id,
+                "recipients": adf_recipients,
                 "partner_name": integration_partner_name,
                 "sftp_config": sftp_config
             })
@@ -325,7 +338,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 MessageBody=dumps({"lead_id": lead_id})
             )
 
-        return {"statusCode": "201", "body": dumps({"lead_id": lead_id})}
+        return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
