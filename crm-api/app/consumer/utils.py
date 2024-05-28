@@ -1,5 +1,3 @@
-# from crm_orm.models.consumer import Consumer
-# from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 
 

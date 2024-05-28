@@ -79,15 +79,16 @@ def update_lead_salespersons(session, lead_id, dealer_partner_id, new_salesperso
     crm_to_lead_salesperson = {ls.salesperson_id: ls for ls in db_lead_salespeople}
 
     for new_person in new_salespersons:
-        # Update lead_salesperson if exists, otherwise create
         is_primary = new_person.get("is_primary", False)
 
         lead_salesperson = crm_to_lead_salesperson.get(new_person["salesperson_id"])
         if lead_salesperson:
+            # Update existing lead salesperson
             if lead_salesperson.is_primary != is_primary:
                 lead_salesperson.is_primary = is_primary
                 logger.info(f"Updated Lead_Salesperson for lead_id {lead_id}, {new_person}")
         else:
+            # Create new lead salesperson
             lead_salesperson = Lead_Salesperson(
                 lead_id=lead_id,
                 salesperson_id=new_person["salesperson_id"],
