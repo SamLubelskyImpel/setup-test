@@ -33,25 +33,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 DealerIntegrationPartner.is_active == True
             ).first()
 
-            # crm_dealer = session.query(
-            #         Dealer
-            #     ).filter(
-            #         Dealer.product_dealer_id == product_dealer_id
-            #     ).first()
-            # if not crm_dealer:
-            #     logger.error(f"No dealer found with dealer_id: {product_dealer_id}")
-            #     return {
-            #         "statusCode": 404,
-            #         "body": dumps({"error": f"No dealer found with dealer_id: {product_dealer_id}"})
-            #     }
-            # logger.info(f"Found dealer: {crm_dealer.as_dict()}")
-
-            # crm_dealer_partner = session.query(
-            #         DealerIntegrationPartner
-            #     ).filter(
-            #         DealerIntegrationPartner.dealer_id == crm_dealer.id,
-            #         DealerIntegrationPartner.is_active == True
-            #     ).first()
             if not db_results:
                 logger.error(f"No active dealer integration found with dealer_id: {product_dealer_id}")
                 return {

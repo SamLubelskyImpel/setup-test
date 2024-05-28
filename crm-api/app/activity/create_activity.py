@@ -210,7 +210,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "activity_due_ts": activity_due_ts,
                 "activity_requested_ts": activity_requested_ts,
                 "dealer_timezone": dealer_timezone,
-                "activity_type": activity.activity_type.type,
+                "activity_type": activity_type,
                 "contact_method": activity.contact_method,
             }
 
@@ -242,19 +242,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 create_on_crm(partner_name=partner_name, payload=payload)
 
         return {
-            "statusCode": "201",
+            "statusCode": 201,
             "body": dumps({"activity_id": activity_id})
         }
 
     except ValidationError as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {
-            "statusCode": "400",
+            "statusCode": 400,
             "body": dumps({"error": str(e)})
         }
     except Exception as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."})
         }

@@ -89,7 +89,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             update_attrs(consumer_db, body, dealer_partner.id, consumer_attrs, request_product)
             if not consumer_db.id:
                 session.add(consumer_db)
-                # session.flush()  Why flush right before commit??? when is the customer_id generated?
 
             session.commit()
             consumer_id = consumer_db.id

@@ -11,7 +11,7 @@ from crm_orm.models.dealer import Dealer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 
-# from utils import get_restricted_query
+from utils import get_restricted_query
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -26,7 +26,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         with DBSession() as session:
-            db_results = session.query(
+            consumer_query = session.query(
                 Consumer, Dealer.product_dealer_id
             ).join(
                 DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
@@ -35,13 +35,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
             ).join(
                 IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
             ).filter(
-                Consumer.id == consumer_id,
-                IntegrationPartner.impel_integration_partner_name == integration_partner
-            ).first()
+                Consumer.id == consumer_id
+            )
 
-            # consumer_db = (get_restricted_query(session, integration_partner)
-            #             .filter(Consumer.id == consumer_id)
-            #             .first())
+            consumer_query = get_restricted_query(consumer_query, integration_partner)
+            db_results = consumer_query.first()
 
             if not db_results:
                 logger.error(f"Consumer {consumer_id} not found")

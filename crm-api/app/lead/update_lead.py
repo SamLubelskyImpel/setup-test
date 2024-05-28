@@ -13,8 +13,6 @@ from crm_orm.session_config import DBSession
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 
-# from utils import get_restricted_query
-
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -29,20 +27,29 @@ def get_salespersons_for_lead(session, lead_id: str) -> Any:
 
 def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
     """Update assigned salespersons for a given lead ID."""
+    crm_ids = [new_person["crm_salesperson_id"] for new_person in new_salespersons if new_person.get("crm_salesperson_id")]
+    db_salespersons = session.query(
+        Salesperson
+    ).filter(
+        Salesperson.dealer_integration_partner_id == dealer_partner_id,
+        Salesperson.crm_salesperson_id.in_(crm_ids)
+    ).all()
+
+    crm_to_db_salesperson = {db_person.crm_salesperson_id: db_person for db_person in db_salespersons}
+
     for new_person in new_salespersons:
-        salesperson = session.query(Salesperson).filter(
-                Salesperson.dealer_integration_partner_id == dealer_partner_id,
-                Salesperson.crm_salesperson_id == new_person["crm_salesperson_id"]
-            ).first()
-        # Update salesperson if exists, otherwise create
-        if salesperson:
-            salesperson.first_name = new_person.get("first_name", "")
-            salesperson.last_name = new_person.get("last_name", "")
-            salesperson.phone = new_person.get("phone", "")
-            salesperson.email = new_person.get("email", "")
-            salesperson.position_name = new_person.get("position_name", "")
+        db_person = crm_to_db_salesperson.get(new_person["crm_salesperson_id"])
+        if db_person:
+            # Update existing salesperson
+            db_person.first_name = new_person.get("first_name", "")
+            db_person.last_name = new_person.get("last_name", "")
+            db_person.phone = new_person.get("phone", "")
+            db_person.email = new_person.get("email", "")
+            db_person.position_name = new_person.get("position_name", "")
+            new_person["salesperson_id"] = db_person.id
             logger.info(f"Updated Salesperson for lead_id {lead_id}, {new_person}")
         else:
+            # Create new salesperson
             salesperson = Salesperson(
                 crm_salesperson_id=new_person["crm_salesperson_id"],
                 first_name=new_person.get("first_name", ""),
@@ -53,32 +60,42 @@ def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
                 dealer_integration_partner_id=dealer_partner_id
             )
             session.add(salesperson)
+            session.flush()
+            new_person.update({"salesperson_id": salesperson.id})
             logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")
-        # session.flush()
-        new_person.update({"salesperson_id": salesperson.id})
-    # session.commit()
+    session.commit()
 
 
 def update_lead_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
     """Update assigned lead salespersons for a given lead ID."""
+    crm_ids = [new_person["salesperson_id"] for new_person in new_salespersons]
+    db_lead_salespeople = session.query(
+        Lead_Salesperson
+    ).filter(
+        Lead_Salesperson.lead_id == lead_id,
+        Lead_Salesperson.salesperson_id.in_(crm_ids)
+    ).all()
+
+    crm_to_lead_salesperson = {ls.salesperson_id: ls for ls in db_lead_salespeople}
+
     for new_person in new_salespersons:
-        lead_salesperson = session.query(Lead_Salesperson).filter(
-            Lead_Salesperson.lead_id == lead_id,
-            Lead_Salesperson.salesperson_id == new_person["salesperson_id"]
-        ).first()
         # Update lead_salesperson if exists, otherwise create
+        is_primary = new_person.get("is_primary", False)
+
+        lead_salesperson = crm_to_lead_salesperson.get(new_person["salesperson_id"])
         if lead_salesperson:
-            lead_salesperson.is_primary = new_person.get("is_primary", False)
-            logger.info(f"Updated Lead_Salesperson for lead_id {lead_id}, {new_person}")
+            if lead_salesperson.is_primary != is_primary:
+                lead_salesperson.is_primary = is_primary
+                logger.info(f"Updated Lead_Salesperson for lead_id {lead_id}, {new_person}")
         else:
             lead_salesperson = Lead_Salesperson(
                 lead_id=lead_id,
                 salesperson_id=new_person["salesperson_id"],
-                is_primary=new_person.get("is_primary", False)
+                is_primary=is_primary
             )
             session.add(lead_salesperson)
             logger.info(f"Created Lead_Salesperson for lead_id {lead_id}, {new_person}")
-    # session.commit()
+    session.commit()
 
 
 def modify_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
@@ -102,7 +119,6 @@ def modify_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
                 Lead_Salesperson.lead_id == lead_id,
                 Lead_Salesperson.salesperson_id.in_(removed_salespeople)
             ).delete(synchronize_session=False)
-        # session.commit()
         logger.info(f"Deleted Lead_Salesperson for lead_id {lead_id}, {removed_salespeople}")
 
     logger.info(f"Salespersons are updated {lead_id}")
@@ -132,13 +148,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
         with DBSession() as session:
-            # lead = (
-            #     get_restricted_query(session, integration_partner)
-            #     .filter(Lead.id == lead_id)
-            #     .first()
-            # )
-
-            db_results = session.query(
+            db_query = session.query(
                 Lead, Consumer
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
@@ -147,10 +157,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
             ).join(
                 IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
             ).filter(
-                Lead.id == lead_id,
-                IntegrationPartner.impel_integration_partner_name == integration_partner
-            ).first()
+                Lead.id == lead_id
+            )
 
+            if integration_partner:
+                db_query = db_query.filter(IntegrationPartner.impel_integration_partner_name == integration_partner)
+
+            db_results = db_query.first()
             if not db_results:
                 logger.error(f"Lead not found {lead_id}")
                 return {
@@ -227,7 +240,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     metadata_=vehicle.get("metadata")
                 )
                 session.add(vehicle)
-                # lead.vehicles.append(vehicle)
 
             session.commit()
             logger.info(f"Lead is updated {lead_id}")

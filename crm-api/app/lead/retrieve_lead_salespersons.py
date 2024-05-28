@@ -158,7 +158,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         else:
             logger.info(f"No lambda ARN detected for partner {partner_name}. Using salespersons from DB.")
             salespersons = salespersons_db
-            # salespersons = get_salespersons_from_db(lead_id)
 
         return {
             "statusCode": 200,

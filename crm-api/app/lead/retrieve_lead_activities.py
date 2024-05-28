@@ -7,7 +7,6 @@ from json import dumps, JSONEncoder
 from typing import Any
 
 from crm_orm.models.activity import Activity
-from crm_orm.models.lead import Lead
 from crm_orm.session_config import DBSession
 from crm_orm.models.activity_type import ActivityType
 
@@ -36,9 +35,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             activities_db = session.query(
                 Activity, ActivityType.type
             ).join(
-                Activity, Lead.id == Activity.lead_id
+                ActivityType, ActivityType.id == Activity.activity_type_id
             ).filter(
-                Lead.id == lead_id
+                Activity.lead_id == lead_id
             ).order_by(
                 Activity.db_creation_date.desc()
             ).all()
