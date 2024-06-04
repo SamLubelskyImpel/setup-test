@@ -197,6 +197,14 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             consumer = item.get('customer', None)
             extract_contact_information('consumer', consumer, db_consumer)
 
+            #Email and phone check
+            if not db_consumer.get('email') and not db_consumer.get('phone'):
+                logger.warning("No contact details provided")
+                continue
+            elif not db_consumer.get('email'):
+                logger.warning("Email is missing.")
+            elif not db_consumer.get('phone'):
+                logger.warning("Phone number is missing.")
             salesperson = item.get('agent', None)
             extract_contact_information('salesperson', salesperson, db_salesperson)
             db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
@@ -208,7 +216,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             }
 
             entries.append(entry)
-        return entries
+        return entries        
     except Exception as e:
         logger.error(f"Error processing record: {e}")
         raise

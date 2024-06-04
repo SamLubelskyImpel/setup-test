@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+import sys
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -156,7 +157,13 @@ def parse_lead(product_dealer_id, data):
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
-            raise Exception("Email or phone number is required")
+            logger.warning("No contact details provided")
+            sys.exit()
+        elif not db_consumer.get('email'):
+            logger.warning("Email is missing.")
+        elif not db_consumer.get('phone'):
+            logger.warning("Phone number is missing.")
+
 
         db_consumer = {key: value for key, value in db_consumer.items() if value}
 
