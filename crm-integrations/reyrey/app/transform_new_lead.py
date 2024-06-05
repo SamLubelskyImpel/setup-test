@@ -15,7 +15,6 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-import sys
 
 
 logger = logging.getLogger()
@@ -48,6 +47,8 @@ class NotInternetLeadException(Exception):
 class NoCustomerInitiatedLeadException(Exception):
     pass
 
+class CustomerContactInfoError(Exception):
+    pass
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -93,13 +94,6 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
         "email_optin_flag": False if get_text(root, ".//star:Consent/star:Email", namespace) == "N" else True,
         "sms_optin_flag": False if get_text(root, ".//star:Consent/star:Text", namespace) == "N" else True,
     }
-    if not fields.get('email') and not fields.get('phone'):
-        logger.warning("No contact details provided")
-        sys.exit()
-    elif not fields.get('email'):
-        logger.warning("Email is missing.")
-    elif not fields.get('phone'):
-        logger.warning("Phone number is missing.")
 
     extracted_data = {}
 
@@ -108,7 +102,7 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
             extracted_data[key] = value
 
     if not extracted_data.get("email") and not extracted_data.get("phone"):
-        logger.warning(f"Consumer {fields['crm_consumer_id']} does not have an email or phone number.")
+        raise CustomerContactInfoError(f"Consumer does not have an email or phone number.")
 
     return extracted_data
 
@@ -454,7 +448,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = BatchProcessor(event_type=EventType.SQS)
+        # processor = BatchProcessor(event_type=EventType.SQS)
+        record_handler(event)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
@@ -462,6 +457,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
+    except CustomerContactInfoError:
+       logger.warning("Lead doesn't contain customer's email and phone")
+       return
     except Exception as e:
         logger.error(f"Error processing ReyRey new lead: {e}")
         raise

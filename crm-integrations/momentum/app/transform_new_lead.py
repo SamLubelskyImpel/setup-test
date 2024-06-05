@@ -11,7 +11,6 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-import sys
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -23,6 +22,8 @@ UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
+class CustomerContactInfoError(Exception):
+    pass
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
@@ -157,12 +158,7 @@ def parse_lead(product_dealer_id, data):
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
-            logger.warning("No contact details provided")
-            sys.exit()
-        elif not db_consumer.get('email'):
-            logger.warning("Email is missing.")
-        elif not db_consumer.get('phone'):
-            logger.warning("Phone number is missing.")
+            raise CustomerContactInfoError("Email or phone number is required")
 
 
         db_consumer = {key: value for key, value in db_consumer.items() if value}
@@ -268,7 +264,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = BatchProcessor(event_type=EventType.SQS)
+        # processor = BatchProcessor(event_type=EventType.SQS)
+        record_handler(event)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
@@ -276,7 +273,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-
+    except CustomerContactInfoError:
+       logger.warning("Lead doesn't contain customer's email and phone")
+       return
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise
