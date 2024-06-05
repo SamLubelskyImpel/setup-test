@@ -14,23 +14,91 @@ Conditions:
     Fn::Equals:
       - Ref: AWS::AccountId
       - 196800776222
-  IsUsEast1: !Equals [ !Ref "AWS::Region", "us-east-1" ]
 
 Globals:
   Function:
     Runtime: python3.12
     Environment:
       Variables:
-        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
-        REGION: !Ref "${AWS::Region}"
         ENVIRONMENT: !Ref Environment
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        REGION: !Sub "${AWS::Region}"
+        SECRET_MANAGER_ID: 'TEKION'
         PARTNER_KEY: "TEKION"
-        LOGLEVEL: INFO
-        SECRET_MANAGER_ID: !Ref SecretsManagerId
+        POWERTOOLS_SERVICE_NAME: token-rotation
+        POWERTOOLS_LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
+
 
 Resources:
+  TekionTokenRotationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:s3:::auth-service-${AWS::Region}-prod*",
+                    !Sub "arn:aws:s3:::auth-service-${AWS::Region}-test*"
+                  ]
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt TekionTokenRotationQueue.Arn
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-tekion*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-tekion*"
+                  ]
+
   TekionTokenRotationQueueDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionTokenRotationQueueDLQ
 
   TekionTokenRotationQueue:
     Type: AWS::SQS::Queue
@@ -39,18 +107,18 @@ Resources:
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionTokenRotationQueueDLQ.Arn
-        maxReceiveCount: 5
+        maxReceiveCount: 1
 
   TekionTokenRotationFunctionRule:
     Type: AWS::Events::Rule
     Properties:
       Description: Nightly trigger for InvokeTekionTokenRotationFunction
       ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm UTC every day
-      State: !If [ IsProd, ENABLED, DISABLED ]
+      State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
-        - Arn: !GetAtt TekionTokenRotationQueue.Arn
-          Id: TekionTokenRotationQueue
-          # RoleArn: !GetAtt StateMachineTriggerRole.Arn
+        - Id: "TekionTokenRotationQueue"
+          Arn: !GetAtt TekionTokenRotationQueue.Arn
+
 
   TekionTokenRotationEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -64,7 +132,9 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Invoke Tekion's token rotation
+      Role: !GetAtt TekionTokenRotationRole.Arn
       CodeUri: app/
+      Runtime: python3.12
       Handler: access_token.lambda_handler
       Timeout: 180
       Policies:
@@ -93,8 +163,6 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          TEKION_AUTH_FILE_PATH: !Ref TekionAuthFilePath
-          SECRET_MANAGER_ID: !Ref SecretsManagerId
 
   InvokeTekionTokenRotationErrorAlarm:
     Type: AWS::CloudWatch::Alarm
