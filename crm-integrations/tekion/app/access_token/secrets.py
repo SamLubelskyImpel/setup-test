@@ -5,7 +5,7 @@ from os import environ
 from .schemas import TekionCredentials
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-SECRETS_MANAGER_ID = environ.get(
+TEKION_AUTH_SECRETS_ID = environ.get(
     "TEKION_AUTH_SECRETS_ID",
     f"{"prod" if ENVIRONMENT == "prod" else "test"}/crm-tekion"
 )
