@@ -23,7 +23,6 @@ Globals:
         ENVIRONMENT: !Ref Environment
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         REGION: !Sub "${AWS::Region}"
-        SECRET_MANAGER_ID: 'TEKION'
         PARTNER_KEY: "TEKION"
         POWERTOOLS_SERVICE_NAME: token-rotation
         POWERTOOLS_LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
