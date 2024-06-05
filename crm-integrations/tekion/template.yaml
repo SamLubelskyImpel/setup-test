@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: tekion token rotation
+Description: tekion crm integration
 
 Parameters:
   Environment:
@@ -27,6 +27,7 @@ Globals:
         PARTNER_KEY: "TEKION"
         POWERTOOLS_SERVICE_NAME: token-rotation
         POWERTOOLS_LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
 
 
 Resources:
