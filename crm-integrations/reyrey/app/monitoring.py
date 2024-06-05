@@ -24,6 +24,9 @@ def decode_logs_event(logs_event):
 def process_support_log(log_entry, log_stream):
     """Process support log and send alert notification."""
     # Example: "[SUPPORT ALERT] This is a test alert. [CONTENT] Traceback (most recent call last)..."
+    if "ReyRey responded with an error: 213" in log_message:
+        logger.info("Error code 213 skipped \n", log_message)
+        return
     log_message = log_entry.split("[SUPPORT ALERT]")[1].strip()
     alert, content = log_message.split("[CONTENT]")
 
