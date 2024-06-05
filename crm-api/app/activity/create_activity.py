@@ -203,18 +203,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
             if request_product == "chat_ai" and activity_type == "appointment":
+                adf_recipients = []
+                sftp_config = {}
+                
                 if dealer_partner_metadata:
                     adf_recipients = dealer_partner_metadata.get("adf_email_recipients", [])
+                    sftp_config = dealer_partner_metadata.get("adf_sftp_config",{})
                 else:
                     logger.warning(f"No metadata found for dealer: {dealer_partner.id}")
-                    adf_recipients = []
+
                 # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
                 activity_due_ts_in_dealer_tz = convert_utc_to_timezone(activity_due_ts, dealer_timezone, dealer_partner.id)
                 make_adf_assembler_request({
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
                     "activity_time": activity_due_ts_in_dealer_tz,
-                    "partner_name": partner_name
+                    "partner_name": partner_name,
+                    "sftp_config": sftp_config
                 })
             else:
                 create_on_crm(partner_name=partner_name, payload=payload)

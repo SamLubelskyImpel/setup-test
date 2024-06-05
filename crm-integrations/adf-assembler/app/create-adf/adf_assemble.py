@@ -5,6 +5,7 @@ from boto3 import client
 from json import dumps, loads
 from datetime import datetime
 from adf_creation_class import AdfCreation
+import sftp
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -24,7 +25,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Partner Name: {partner_name}")
 
         current_time = datetime.now().strftime("%Y_%m_%dT%H-%M-%SZ")
-        s3_key = f"chatai/{partner_name}_{body.get('lead_id')}_{current_time}.json"
+        filename = f"{partner_name}_{body.get('lead_id')}_{current_time}"
+        s3_key = f"chatai/{filename}.json"
 
         logger.info(f"take object from: configurations/{ENVIRONMENT}_{partner_name}.json \n Bucket: {BUCKET}")
         s3_object = loads(
@@ -68,12 +70,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "statusCode": 200,
                 "body": dumps({"message": "Adf file was successfully created."})
             }
+        elif integration_type == 'SFTP': 
+            sftp_config = body.get('sftp_config')
+            
+            if not sftp_config:
+                raise Exception('SFTP configuration is missing')
+            
+            sftp.put_adf(sftp_config, formatted_adf, f"{filename}.xml")
+            
+            return {
+                "statusCode": 200,
+                "body": dumps({"message": "Adf file was successfully uploaded to SFTP."})
+            }
         else:
             logger.info(f"Unsupported integration type: {integration_type}")
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
-        return {
-            "statusCode": 500,
-            "body": dumps({"error": "An error occurred while processing the request."}),
-        }
+        raise

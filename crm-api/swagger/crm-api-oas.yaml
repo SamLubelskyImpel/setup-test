@@ -587,7 +587,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
-                        maxLength: 40
+                        maxLength: 100
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -655,7 +655,7 @@ paths:
                         type: string
                         description: The ID assigned to the dealership by Impel during onboarding.
                         example: "test_dealer_id"
-                        maxLength: 40
+                        maxLength: 100
                   - $ref: '#/components/schemas/Consumer'
         '400':
           "$ref": "#/components/responses/400"
@@ -783,7 +783,7 @@ paths:
           schema:
             type: string
             minLength: 1
-            maxLength: 40
+            maxLength: 100
             example: "test_dealer_id"
       responses:
         '200':
@@ -822,6 +822,41 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/{dealer_id}/salespersons:
+    get:
+      summary: Get saleslpersons from CRM API.
+      #{{RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: dealer_id
+          in: path
+          description: The ID assigned to the dealership by Impel during onboarding.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            example: "test_dealer_id"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExtendedSalesperson'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No salespersons found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
   /upload:
     post:
       summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
@@ -841,7 +876,7 @@ paths:
                   type: string
                   description: The ID assigned to the dealership by Impel during onboarding.
                   example: "test_dealer_id"
-                  maxLength: 40
+                  maxLength: 100
                 lead:
                   allOf:
                     - type: object
@@ -1246,6 +1281,31 @@ components:
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
+  
+    ExtendedSalesperson:
+      allOf:
+        - $ref: '#/components/schemas/Salesperson'
+        - type: object
+          properties:
+            email:
+              type: array
+              description: Email addresses of the salesperson
+              items:
+                type: string
+              example: 
+                - "john.smith@example.com"
+                - "jsmith@example.com"
+              maxLength: 50
+            phone:
+              type: array
+              description: Phone numbers of the salesperson
+              items:
+                type: string
+              example: 
+                - "123-456-7890"
+                - "987-654-3210"
+              maxLength: 20
+
   responses:
     '201':
       description: Lead successfully created
@@ -1304,7 +1364,7 @@ components:
       schema:
         type: string
         minLength: 1
-        maxLength: 50
+        maxLength: 100
         example: "test_dealer_id"
     crmDealerId:
       name: crm_dealer_id

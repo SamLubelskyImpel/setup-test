@@ -1,6 +1,6 @@
 from typing import Any
 from os import environ
-from json import loads
+from json import loads, dumps
 from boto3 import client
 from logging import getLogger
 from aws_lambda_powertools.utilities.batch import (
@@ -24,8 +24,39 @@ secret_client = client("secretsmanager")
 crm_api = CrmApiWrapper()
 
 
+def get_salespersons_handler(event: Any, context: Any) -> Any:
+    logger.info(f"This is event: {event}")
+    try:
+        formatted_salespersons = []
+        momentum_crm_api = MomentumApiWrapper(activity=event)
+        salespersons = momentum_crm_api.get_salespersons()
+        for person in salespersons:
+            position_name = person.get("jobTitle")
+            if not position_name:
+                position_name = person.get("roles", [""])[0]
+            formatted_salespersons.append(
+                {
+                    "crm_salesperson_id": person["employeeApiID"],
+                    "first_name": person["firstName"],
+                    "last_name": person.get("lastName"),
+                    "position_name": position_name,
+                }
+            )
+        
+        return {"statusCode": 200, "body": dumps(formatted_salespersons)}
+
+    except Exception as e:
+        logger.exception(
+            f"Failed to retrieve salespersons {event} to Momentum"
+        )
+        logger.error(
+            f"[SUPPORT ALERT] Failed to Get salespersons [CONTENT] DealerIntegrationPartnerId: {event}"
+        )
+        return {"statusCode": 500, "error":"Failed to retrieve salespersons"}
+
+
 def record_handler(record: SQSRecord):
-    """Create activity on DealerPeak."""
+    """Create activity on Momentum."""
     logger.info(f"Record: {record}")
     try:
         activity = loads(record['body'])
@@ -38,10 +69,10 @@ def record_handler(record: SQSRecord):
 
         momentum_crm_api = MomentumApiWrapper(activity=activity, salesperson=salesperson)
 
-        dealerpeak_task_id = momentum_crm_api.create_activity()
-        logger.info(f"Momentum responded with task ID: {dealerpeak_task_id}")
+        momentum_activity_id = momentum_crm_api.create_activity()
+        logger.info(f"Momentum responded with activity ID: {momentum_activity_id}")
 
-        crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
+        crm_api.update_activity(activity["activity_id"], momentum_activity_id)
 
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Momentum")
@@ -61,7 +92,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             event=event,
             record_handler=record_handler,
             processor=processor,
-            context=context
+            context=context,
         )
         return result
 
