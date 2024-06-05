@@ -448,8 +448,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        # processor = BatchProcessor(event_type=EventType.SQS)
-        record_handler(event)
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
