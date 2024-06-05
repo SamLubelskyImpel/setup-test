@@ -20,19 +20,18 @@ logger = Logger()
 
 
 def get_token_from_s3() -> Token | None:
-    # logger.debug(
-    #     "Fetching token from S3",
-    #     extra={
-    #         "bucket": AUTH_BUCKET,
-    #         "key": TEKION_AUTH_FILE_PATH,
-    #     }
-    # )
-    # content = boto3.client("s3").get_object(
-    #     Bucket=AUTH_BUCKET, Key=TEKION_AUTH_FILE_PATH
-    # )["Body"].read()
-    # token = Token.model_validate_json(json_data=content) if content else None
-    # return token
-    return None
+    logger.debug(
+        "Fetching token from S3",
+        extra={
+            "bucket": AUTH_BUCKET,
+            "key": TEKION_AUTH_FILE_PATH,
+        }
+    )
+    content = boto3.client("s3").get_object(
+        Bucket=AUTH_BUCKET, Key=TEKION_AUTH_FILE_PATH
+    )["Body"].read()
+    token = Token.model_validate_json(json_data=content) if content else None
+    return token
 
 
 def save_token_to_s3(token: Token) -> None:
