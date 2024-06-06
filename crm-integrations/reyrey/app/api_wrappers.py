@@ -99,6 +99,21 @@ NOTE_SCHEMA = """
 class CRMApiError(Exception):
     pass
 
+class ReyReyApiError(Exception):
+    def __init__(self, error_code):
+        self.error_code = error_code
+        self.code_mapper = {
+            "7": "COULD NOT OBTAIN STORE",
+            "8": "COULD NOT OBTAIN SYSTEM NUMBER",
+            "9": "COULD NOT OBTAIN BRANCH",
+            "201": "REQUIRED DATA IS MISSING",
+            "202": "VALIDATION ERROR",
+            "213": "NO MATCHING RECORD(S) FOUND",
+        }
+
+    def __str__(self):
+        return f'{self.error_code}: {self.code_mapper[self.error_code]}'
+
 
 class CrmApiWrapper:
     """CRM API Wrapper."""
@@ -175,6 +190,8 @@ class ReyreyApiWrapper:
         status_code = str(trans_status["StatusCode"])
         if status_code != "0":
             logger.error(f"ReyRey responded with an error: {status_code} {trans_status['Status']}")
+            if status_code in ("7", "8", "9", "201", "202", "213"):
+                raise ReyReyApiError(error_code=status_code)
             raise Exception(f"ReyRey responded with an error: {status_code}")
 
         crm_activity_id = trans_status["ActivityId"]

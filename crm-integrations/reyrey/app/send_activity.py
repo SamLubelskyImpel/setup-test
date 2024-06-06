@@ -11,7 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from api_wrappers import CrmApiWrapper, CRMApiError, ReyreyApiWrapper
+from api_wrappers import CrmApiWrapper, CRMApiError, ReyreyApiWrapper, ReyReyApiError
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -39,6 +39,9 @@ def record_handler(record: SQSRecord):
 
     except CRMApiError:
         return
+    except ReyReyApiError as e:
+        logger.warning(f"ReyRey API error occurred: \n{e}")
+        raise
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to ReyRey")
         logger.error("[SUPPORT ALERT] Failed to Send Activity to ReyRey Focus CRM [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
