@@ -100,7 +100,7 @@ class CRMApiError(Exception):
     pass
 
 class ReyReyApiError(Exception):
-    def __init__(self, error_code):
+    def __init__(self, error_code: str):
         self.error_code = error_code
         self.code_mapper = {
             "7": "COULD NOT OBTAIN STORE",
@@ -112,7 +112,8 @@ class ReyReyApiError(Exception):
         }
 
     def __str__(self):
-        return f'{self.error_code}: {self.code_mapper[self.error_code]}'
+        return f'{self.error_code}: {self.code_mapper.get(self.error_code, "UNKNOWN ERROR")}'
+
 
 
 class CrmApiWrapper:
