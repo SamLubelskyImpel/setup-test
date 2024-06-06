@@ -23,39 +23,37 @@ def lambda_handler(event: Any, context: Any) -> Any:
         integration_partner_name = event["queryStringParameters"]["integration_partner_name"]
 
         with DBSession() as session:
-            crm_partner = session.query(
-                    IntegrationPartner
-                ).filter(
-                    IntegrationPartner.impel_integration_partner_name == integration_partner_name
-                ).first()
+            db_results = session.query(
+                DealerIntegrationPartner, Dealer
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).filter(
+                IntegrationPartner.impel_integration_partner_name == integration_partner_name,
+                DealerIntegrationPartner.is_active == True
+            ).all()
 
-            if not crm_partner:
-                logger.error(f"Integration Partner not found {integration_partner_name}")
+            if not db_results:
+                logger.error(f"No active dealers found for {integration_partner_name}")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"Integration Partner not found {integration_partner_name}"})
+                    "body": dumps({"error": f"No active dealers found for {integration_partner_name}"})
                 }
 
-            dealer_partners = session.query(
-                    DealerIntegrationPartner
-                ).filter(
-                    DealerIntegrationPartner.integration_partner_id == crm_partner.id,
-                    DealerIntegrationPartner.is_active == True
-                ).all()
+            logger.info(f"Found {len(db_results)} active dealers for {integration_partner_name}")
 
-            logger.info(f"Found {len(dealer_partners)} active dealers for {integration_partner_name}")
-
-            for dealer_partner in dealer_partners:
+            for dip_db, dealer_db in db_results:
                 dealer_record = {
-                    "dealer_integration_partner_id": dealer_partner.id,
-                    "crm_dealer_id": dealer_partner.crm_dealer_id,
-                    "product_dealer_id": dealer_partner.dealer.product_dealer_id,
-                    "dealer_name": dealer_partner.dealer.dealer_name
+                    "dealer_integration_partner_id": dip_db.id,
+                    "crm_dealer_id": dip_db.crm_dealer_id,
+                    "product_dealer_id": dealer_db.product_dealer_id,
+                    "dealer_name": dealer_db.dealer_name
                 }
                 dealer_records.append(dealer_record)
 
         return {
-            "statusCode": "200",
+            "statusCode": 200,
             "body": dumps(dealer_records)
         }
 
