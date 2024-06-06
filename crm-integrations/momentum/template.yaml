@@ -258,6 +258,16 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
+
+  RetrieveSalespersons:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-RetrieveSalespersons
+      CodeUri: app/
+      Handler: send_activity.get_salespersons_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
   
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup

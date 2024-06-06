@@ -25,8 +25,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             # Check activity existence
-            activity = session.query(Activity).filter(Activity.id == activity_id).first()
-            if not activity:
+            actvitiy_db = session.query(Activity).filter(Activity.id == activity_id).first()
+            if not actvitiy_db:
                 logger.error(f"Activity {activity_id} not found. Activity failed to be updated.")
                 return {
                     "statusCode": 404,
@@ -34,19 +34,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
 
             # Update activity
-            activity.crm_activity_id = crm_activity_id
+            actvitiy_db.crm_activity_id = crm_activity_id
             session.commit()
 
             logger.info(f"Request product: {request_product} has updated activity {activity_id}")
 
         return {
-            "statusCode": "200",
+            "statusCode": 200,
             "body": dumps({"message": "Activity updated successfully"})
         }
 
     except Exception as e:
         logger.error(f"Error updating activity: {str(e)}")
         return {
-            "statusCode": "500",
+            "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."})
         }
