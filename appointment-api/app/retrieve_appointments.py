@@ -259,6 +259,7 @@ def lambda_handler(event, context):
                 appointments.append(appointment)
 
         if status:
+            logger.info(f"Filtering appointments by status: {status}")
             appointments = [appt for appt in appointments if appt["status"] == status]
 
         logger.info(f"Appointments: {appointments}")

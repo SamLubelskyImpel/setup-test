@@ -4,6 +4,7 @@ from typing import Any
 from os import environ
 from json import loads, dumps
 from logging import getLogger
+from datetime import datetime
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -52,3 +53,8 @@ def handle_exception(e, context):
             }
         ),
     }
+
+
+def formatted_time(time_string: str) -> str:
+    dt = datetime.fromisoformat(time_string.replace('Z', '+00:00'))
+    return dt.strftime('%Y-%m-%dT%H:%M:%S')

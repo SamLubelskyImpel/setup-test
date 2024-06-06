@@ -127,7 +127,6 @@ def test_create_appointments(mock_boto3_client):
         ).first()
 
     assert appointment_info.Consumer.id == response_copy["consumer_id"]
-    assert appointment_info.Vehicle.id == response_copy["vehicle_id"]
 
     # Validate Appointment
     assert appointment_info.Appointment.integration_appointment_id == loads(mock_response_payload_1["body"])["appointment_id"]
@@ -167,7 +166,7 @@ def test_create_appointments(mock_boto3_client):
     # Cleanup
     with DBSession() as session:
         session.query(Appointment).filter(Appointment.id == response_copy["appointment_id"]).delete()
-        session.query(Vehicle).filter(Vehicle.id == response_copy["vehicle_id"]).delete()
+        session.query(Vehicle).filter(Vehicle.id == appointment_info.Vehicle.id).delete()
         session.query(Consumer).filter(Consumer.id == response_copy["consumer_id"]).delete()
         session.commit()
 

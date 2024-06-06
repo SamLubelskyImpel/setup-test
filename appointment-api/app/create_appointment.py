@@ -145,14 +145,10 @@ def lambda_handler(event, context):
                     {**consumer, "dealer_integration_partner_id": dealer_integration_partner_id},
                     consumer_attrs
                 )
-                session.add(consumer_db)
-                session.flush()
-                consumer_id = consumer_db.id
-                logger.info(f"Created consumer with id {consumer_id}")
+                logger.info("Consumer pending")
 
             # Create vehicle in DB
             vehicle_db = Vehicle(
-                consumer_id=consumer_id,
                 vin=vehicle.get("vin"),
                 vehicle_class=vehicle.get("vehicle_class"),
                 mileage=vehicle.get("mileage"),
@@ -167,15 +163,12 @@ def lambda_handler(event, context):
                 condition=vehicle.get("condition"),
                 odometer_units=vehicle.get("odometer_units")
             )
-            session.add(vehicle_db)
-            session.flush()
-            vehicle_id = vehicle_db.id
-            logger.info(f"Created vehicle with id {vehicle_id}")
+            vehicle_db.consumer = consumer_db
+
+            logger.info("Vehicle pending")
 
             # Create appointment in DB
             appointment_db = Appointment(
-                consumer_id=consumer_id,
-                vehicle_id=vehicle_id,
                 integration_appointment_id=integration_appointment_id,
                 op_code_appointment_id=appt_op_code_id,
                 timeslot_ts=format_timestamp(timeslot, dealer_timezone),
@@ -184,18 +177,20 @@ def lambda_handler(event, context):
                 status="Active",
                 comment=body.get("comment")
             )
+            appointment_db.vehicle = vehicle_db
+            appointment_db.consumer = consumer_db
 
             session.add(appointment_db)
-            session.flush()
+            session.commit()
+
             appointment_id = appointment_db.id
             logger.info(f"Created appointment with id {appointment_id}")
-            session.commit()
 
         return {
             "statusCode": 201,
             "body": dumps({
                 "appointment_id": int(appointment_id),
-                "consumer_id": int(consumer_id),
+                "consumer_id": int(appointment_db.consumer_id),
                 "request_id": request_id,
             })
         }

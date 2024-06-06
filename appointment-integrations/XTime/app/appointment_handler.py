@@ -3,11 +3,10 @@
 from os import environ
 from typing import Any
 from logging import getLogger
-from datetime import datetime
 from json import dumps
 from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
-from utils import parse_event, validate_data, handle_exception
+from utils import parse_event, validate_data, handle_exception, formatted_time
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -27,11 +26,6 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
         )
 
         if appt_time_slots["success"]:
-
-            def formatted_time(time_string: str) -> str:
-                dt = datetime.fromisoformat(time_string.replace('Z', '+00:00'))
-                return dt.strftime('%Y-%m-%dT%H:%M:%S')
-
             timeslots = [
                 {
                     "timeslot": formatted_time(time_slot["appointmentDateTimeLocal"]),
