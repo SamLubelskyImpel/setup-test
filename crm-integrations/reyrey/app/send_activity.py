@@ -37,11 +37,9 @@ def record_handler(record: SQSRecord):
         if reyrey_task_id:
             crm_api.update_activity(activity["activity_id"], reyrey_task_id)
 
-    except CRMApiError:
+    except CRMApiError as e:
+        logger.warning(f"CRM API error: {e}")
         return
-    except ReyReyApiError as e:
-        logger.warning(f"ReyRey API error occurred: \n{e}")
-        raise
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to ReyRey")
         logger.error("[SUPPORT ALERT] Failed to Send Activity to ReyRey Focus CRM [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(

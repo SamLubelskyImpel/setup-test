@@ -99,22 +99,6 @@ NOTE_SCHEMA = """
 class CRMApiError(Exception):
     pass
 
-class ReyReyApiError(Exception):
-    def __init__(self, error_code: str):
-        self.error_code = error_code
-        self.code_mapper = {
-            "7": "COULD NOT OBTAIN STORE",
-            "8": "COULD NOT OBTAIN SYSTEM NUMBER",
-            "9": "COULD NOT OBTAIN BRANCH",
-            "201": "REQUIRED DATA IS MISSING",
-            "202": "VALIDATION ERROR",
-            "213": "NO MATCHING RECORD(S) FOUND",
-        }
-
-    def __str__(self):
-        return f'{self.error_code}: {self.code_mapper.get(self.error_code, "UNKNOWN ERROR")}'
-
-
 
 class CrmApiWrapper:
     """CRM API Wrapper."""
@@ -148,6 +132,21 @@ class CrmApiWrapper:
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
+        
+    def get_lead_status(self, lead_id):
+        try:
+            res = requests.get(
+                url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}/status",
+                headers={
+                    "x_api_key": self.api_key,
+                    "partner_id": self.partner_id,
+                }
+            )
+            res.raise_for_status()
+            return res.json().get('Salesperson Contacted')
+        except Exception as e:
+            logger.error(f"Error occurred calling CRM API: {e}")
+            raise CRMApiError(f"Error occurred calling CRM API: {e}")
 
 
 class ReyreyApiWrapper:
@@ -191,8 +190,11 @@ class ReyreyApiWrapper:
         status_code = str(trans_status["StatusCode"])
         if status_code != "0":
             logger.error(f"ReyRey responded with an error: {status_code} {trans_status['Status']}")
-            if status_code in ("7", "8", "9", "201", "202", "213"):
-                raise ReyReyApiError(error_code=status_code)
+            if "213" == status_code:
+                response_status = CrmApiWrapper().get_lead_status(self.__activity["crm_lead_id"])
+                if response_status in ("Bad Lead", "Salesperson Contacted"):
+                    logger.warning(f"Activity cannot be created for Lead {self.__activity["crm_lead_id"]} status: {response_status}")
+                    raise CRMApiError(response_status)
             raise Exception(f"ReyRey responded with an error: {status_code}")
 
         crm_activity_id = trans_status["ActivityId"]
