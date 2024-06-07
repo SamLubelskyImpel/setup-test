@@ -1,10 +1,12 @@
-from aws_lambda_powertools import Logger
+import logging
 
+from .envs import LOGLEVEL
 from .s3 import get_token_from_s3
 from .secrets import get_credentials_from_secrets
 from .token_wrapper import TekionTokenWrapper
 
-logger = Logger()
+logger = logging.getLogger()
+logger.setLevel(LOGLEVEL.upper())
 
 
 def create_wrapper() -> TekionTokenWrapper:
