@@ -36,7 +36,7 @@ class TekionTokenWrapper:
         self.token = Token(
             token=resp_data["access_token"],
             token_type=resp_data['token_type'],
-            expires_in_seconds=resp_data['expires_in'],
+            expires_in_seconds=resp_data['expires_in_seconds'],
         )
 
         logger.info("Token received")
