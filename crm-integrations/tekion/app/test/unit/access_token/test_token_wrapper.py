@@ -3,19 +3,12 @@ from unittest.mock import patch
 import pytest
 import requests_mock
 
-from access_token.exceptions import TokenStillValid
 from access_token.token_wrapper import TekionTokenWrapper
 
 
 @pytest.fixture
 def wrapper(aws_s3, token, token_creds):
     return TekionTokenWrapper(credentials=token_creds, token=token)
-
-
-def test_renew_when_token_is_still_valid(wrapper, token):
-    assert token.expired is False
-    with pytest.raises(TokenStillValid):
-        wrapper.renew()
 
 
 def test_renew_when_token_is_expired(wrapper, token, token_creds):
@@ -41,7 +34,7 @@ def test_renew_when_token_is_expired(wrapper, token, token_creds):
         assert result.expired is False
 
 
-def test_renew_when_no_previous_token_is_none(wrapper, token, token_creds):
+def test_renew_when_no_previous_token(wrapper, token, token_creds):
     expected = {
         "access_token": "token-content",
         "token_type": "Bearer",

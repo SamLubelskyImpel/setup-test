@@ -14,13 +14,13 @@ def s3_bucket(aws_s3):
     return aws_s3
 
 
-@patch("access_token.s3.AUTH_BUCKET", TEST_BUCKET)
-@patch("access_token.s3.TEKION_AUTH_FILE_PATH", TEST_AUTH_FILE)
+@patch("access_token.s3.INTEGRATIONS_BUCKET", TEST_BUCKET)
+@patch("access_token.s3.TOKEN_FILE", TEST_AUTH_FILE)
 def test_fetching_token_from_s3(s3_bucket, token):
     s3_bucket.put_object(
         Bucket=TEST_BUCKET,
         Key=TEST_AUTH_FILE,
-        Body=token.model_dump_json()
+        Body=token.as_json()
     )
 
     result = get_token_from_s3()
@@ -30,13 +30,13 @@ def test_fetching_token_from_s3(s3_bucket, token):
     assert result.expires_in_seconds == token.expires_in_seconds
 
 
-@patch("access_token.s3.AUTH_BUCKET", TEST_BUCKET)
-@patch("access_token.s3.TEKION_AUTH_FILE_PATH", TEST_AUTH_FILE)
+@patch("access_token.s3.INTEGRATIONS_BUCKET", TEST_BUCKET)
+@patch("access_token.s3.TOKEN_FILE", TEST_AUTH_FILE)
 def test_save_token_to_s3(s3_bucket, token):
     save_token_to_s3(token=token)
 
     result = s3_bucket.get_object(Bucket=TEST_BUCKET, Key=TEST_AUTH_FILE)
 
-    assert result["Body"].read() == token.model_dump_json().encode()
+    assert result["Body"].read() == token.as_json().encode()
 
 

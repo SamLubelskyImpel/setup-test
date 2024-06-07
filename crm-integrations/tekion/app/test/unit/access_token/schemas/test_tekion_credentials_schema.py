@@ -1,3 +1,6 @@
+from unittest.mock import patch
+from urllib.parse import urljoin
+
 import pytest
 
 from access_token.schemas import TekionCredentials
@@ -6,7 +9,7 @@ from access_token.schemas import TekionCredentials
 @pytest.fixture()
 def credentials():
     return TekionCredentials(
-        auth_uri="https://example.com",
+        url="https://example.com",
         access_key="access_key",
         secret_key="secret_key",
         client_id="client_id",
@@ -26,3 +29,11 @@ def test_credentials_data(credentials):
         "access-key": "access_key",
         "secret-key": "secret_key"
     }
+
+
+TEST_AUTH_URI = "/fake-auth-uri"
+
+
+@patch("access_token.schemas.CRM_TEKION_AUTH_ENDPOINT", TEST_AUTH_URI)
+def test_auth_uri(credentials):
+    assert credentials.auth_uri == urljoin(credentials.url, TEST_AUTH_URI)

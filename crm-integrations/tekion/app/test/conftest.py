@@ -36,14 +36,14 @@ def token() -> Token:
     return Token(
         token="fake-token",
         token_type="Bearer",
-        expires_in=3600,
+        expires_in_seconds=3600,
     )
 
 
 @pytest.fixture
 def token_creds() -> TekionCredentials:
     return TekionCredentials(
-        auth_uri="http://fake-auth-uri.com",
+        url="http://fake-auth-uri.com",
         access_key="fake_access_key",
         secret_key="fake_secret_key",
         client_id="fake_client_id"
