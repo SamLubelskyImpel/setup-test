@@ -26,6 +26,9 @@ def lambda_handler(event, context):
         wrapper = create_wrapper()
         wrapper.renew()
         wrapper.save()
+
+        logger.info("Token Rotation Function completed successfully")
+
     except Exception as e:
         logger.exception(str(e))
         raise

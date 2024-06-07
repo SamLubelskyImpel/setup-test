@@ -48,7 +48,7 @@ def get_token_from_s3() -> Token | None:
 
 
 def save_token_to_s3(token: Token) -> None:
-    logger.debug(
+    logger.info(
         "Saving token to S3: %s/%s", INTEGRATIONS_BUCKET, TOKEN_FILE,
     )
     boto3.client("s3").put_object(

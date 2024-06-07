@@ -36,10 +36,10 @@ class TekionTokenWrapper:
         self.token = Token(
             token=resp_data["access_token"],
             token_type=resp_data['token_type'],
-            expires_in_seconds=resp_data['expires_in_seconds'],
+            expires_in_seconds=resp_data['expires_in'],
         )
 
-        logger.info("Token received")
+        logger.info("Token renewed successfully")
 
         return self.token
 
