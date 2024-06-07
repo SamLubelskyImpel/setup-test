@@ -1,11 +1,13 @@
-import requests
-from aws_lambda_powertools import Logger
+import logging
 
-from .exceptions import TokenStillValid
+import requests
+
+from .envs import LOGLEVEL
 from .s3 import save_token_to_s3
 from .schemas import Token, TekionCredentials
 
-logger = Logger()
+logger = logging.getLogger()
+logger.setLevel(LOGLEVEL.upper())
 
 
 class TekionTokenWrapper:
@@ -18,12 +20,12 @@ class TekionTokenWrapper:
     def renew(self) -> Token:
         """Renews the access token."""
         if self.token and not self.token.expired:
-            raise TokenStillValid()
+            logger.info("Renewing valid token")
 
         logger.debug(
             "Requesting new token",
             extra={
-                "credentials": self.credentials.model_dump_json()
+                "credentials": self.credentials.as_dict()
             }
         )
 
