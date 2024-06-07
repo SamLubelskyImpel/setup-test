@@ -6,11 +6,11 @@ from urllib.parse import urljoin
 from .envs import CRM_TEKION_AUTH_ENDPOINT
 
 
-@dataclass
+@dataclass(frozen=True)
 class Token:
     token: str
     expires_in_seconds: int | None = field(default=86400)
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime | None = field(default_factory=datetime.now)
     token_type: str | None = field(default="Bearer")
 
     @property
@@ -33,7 +33,7 @@ class Token:
         return json.dumps(self.as_dict())
 
 
-@dataclass
+@dataclass(frozen=True)
 class TekionCredentials:
     url: str
     access_key: str

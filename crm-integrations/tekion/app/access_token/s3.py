@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 
 import boto3
 
@@ -14,10 +15,29 @@ def get_token_from_s3() -> Token | None:
     logger.info(
         "Fetching token from S3: %s/%s", INTEGRATIONS_BUCKET, TOKEN_FILE
     )
-    content = boto3.client("s3").get_object(
-        Bucket=INTEGRATIONS_BUCKET, Key=TOKEN_FILE
-    )["Body"].read()
-    token = Token(**json.loads(content)) if content else None
+    client = boto3.client("s3")
+    try:
+        content = client.get_object(
+            Bucket=INTEGRATIONS_BUCKET, Key=TOKEN_FILE
+        )["Body"].read()
+    except client.exceptions.NoSuchKey:
+        logger.info("Token file not found in S3")
+        return None
+
+    if not content:
+        logger.info("Empty token file found in S3")
+        return None
+
+    logger.info("Token file found in S3")
+
+    data = json.loads(content)
+    token = Token(
+        token=data["token"],
+        expires_in_seconds=data["expires_in_seconds"],
+        created_at=datetime.fromisoformat(data["created_at"]),
+        token_type=data["token_type"],
+    )
+
     return token
 
 
