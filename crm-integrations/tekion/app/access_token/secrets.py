@@ -22,4 +22,7 @@ def get_credentials_from_secrets() -> TekionCredentials:
     content = json.loads(response["SecretString"])
     partner_content = content[PARTNER_KEY]
 
+    if isinstance(partner_content, str):
+        partner_content = json.loads(partner_content)
+
     return TekionCredentials(**partner_content)
