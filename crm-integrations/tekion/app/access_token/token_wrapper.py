@@ -22,12 +22,7 @@ class TekionTokenWrapper:
         if self.token and not self.token.expired:
             logger.info("Renewing valid token")
 
-        logger.debug(
-            "Requesting new token",
-            extra={
-                "credentials": self.credentials.as_dict()
-            }
-        )
+        logger.debug("Requesting new token: %s", self.credentials.as_dict())
 
         resp = requests.post(
             url=self.credentials.auth_uri,
@@ -44,7 +39,7 @@ class TekionTokenWrapper:
             expires_in_seconds=resp_data['expires_in'],
         )
 
-        logger.debug("Token received")
+        logger.info("Token received")
 
         return self.token
 

@@ -11,9 +11,8 @@ logger.setLevel(LOGLEVEL.upper())
 
 
 def get_token_from_s3() -> Token | None:
-    logger.debug(
-        "Fetching token from S3",
-        extra={"bucket": INTEGRATIONS_BUCKET, "key": TOKEN_FILE}
+    logger.info(
+        "Fetching token from S3: %s/%s", INTEGRATIONS_BUCKET, TOKEN_FILE
     )
     content = boto3.client("s3").get_object(
         Bucket=INTEGRATIONS_BUCKET, Key=TOKEN_FILE
@@ -24,8 +23,7 @@ def get_token_from_s3() -> Token | None:
 
 def save_token_to_s3(token: Token) -> None:
     logger.debug(
-        "Saving token to S3",
-        extra={"bucket": INTEGRATIONS_BUCKET, "key": TOKEN_FILE}
+        "Saving token to S3: %s/%s", INTEGRATIONS_BUCKET, TOKEN_FILE,
     )
     boto3.client("s3").put_object(
         Bucket=INTEGRATIONS_BUCKET,

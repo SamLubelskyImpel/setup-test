@@ -25,9 +25,7 @@ Globals:
         REGION: !Sub "${AWS::Region}"
         PARTNER_KEY: "TEKION"
         POWERTOOLS_SERVICE_NAME: token-rotation
-        LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
-        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
-
+        LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
 
 Resources:
   TekionTokenRotationRole:
@@ -62,7 +60,11 @@ Resources:
                   - "s3:GetObject"
                   - "s3:PutObject"
                 Resource:
-                  - !Sub "arn:aws:s3:::crm-integrations-${Environment}/tekion_crm*"
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:s3:::crm-integrations-prod*",
+                    !Sub "arn:aws:s3:::crm-integrations-test*"
+                  ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -111,7 +113,7 @@ Resources:
     Properties:
       Description: Nightly trigger for InvokeTekionTokenRotationFunction
       ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
-      State: !If [IsProd, "ENABLED", "DISABLED"]
+      State: !If [ IsProd, "ENABLED", "DISABLED" ]
       Targets:
         - Id: "TekionTokenRotationQueue"
           Arn: !GetAtt TekionTokenRotationQueue.Arn

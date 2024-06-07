@@ -12,10 +12,8 @@ logger.setLevel(LOGLEVEL.upper())
 
 def get_credentials_from_secrets() -> TekionCredentials:
     logger.debug(
-        "Fetching credentials from Secrets Manager",
-        extra={
-            "secrets_manager_id": CRM_INTEGRATION_SECRETS_ID
-        }
+        "Fetching credentials from Secrets Manager: %s",
+        CRM_INTEGRATION_SECRETS_ID,
     )
     client = boto3.client("secretsmanager")
     response = client.get_secret_value(SecretId=CRM_INTEGRATION_SECRETS_ID)

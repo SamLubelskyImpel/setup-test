@@ -10,16 +10,9 @@ logger.setLevel(LOGLEVEL.upper())
 
 
 def create_wrapper() -> TekionTokenWrapper:
+    logger.debug("Creating Token Wrapper")
     creds = get_credentials_from_secrets()
     last_token = get_token_from_s3()
-
-    logger.debug(
-        "Creating Token Wrapper",
-        extra={
-            "found_credentials": creds is not None,
-            "has_last_token": last_token is not None,
-        }
-    )
 
     wrapper = TekionTokenWrapper(credentials=creds, token=last_token)
     return wrapper
@@ -27,13 +20,7 @@ def create_wrapper() -> TekionTokenWrapper:
 
 def lambda_handler(event, context):
     """Handles Token Rotation Function."""
-    logger.info(
-        "Starting Token Rotation Function",
-        extra={
-            "event": event,
-            "context": context,
-        }
-    )
+    logger.info("Starting Token Rotation Function: %s, %s", event, context)
 
     try:
         wrapper = create_wrapper()
