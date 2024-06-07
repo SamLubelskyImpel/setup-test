@@ -25,7 +25,7 @@ Globals:
         REGION: !Sub "${AWS::Region}"
         PARTNER_KEY: "TEKION"
         POWERTOOLS_SERVICE_NAME: token-rotation
-        POWERTOOLS_LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
+        LOG_LEVEL: !If [IsProd, "INFO", "DEBUG"]
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
 
 
@@ -62,11 +62,7 @@ Resources:
                   - "s3:GetObject"
                   - "s3:PutObject"
                 Resource:
-                  - !If [
-                    IsProd,
-                    !Sub "arn:aws:s3:::auth-service-${AWS::Region}-prod*",
-                    !Sub "arn:aws:s3:::auth-service-${AWS::Region}-test*"
-                  ]
+                  - !Sub "arn:aws:s3:::crm-integrations-${Environment}/tekion_crm*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -90,11 +86,7 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !If [
-                    IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-tekion*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-tekion*"
-                  ]
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}/crm-integrations-partner*"
 
   TekionTokenRotationQueueDLQ:
     Type: AWS::SQS::Queue
@@ -114,7 +106,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Description: Nightly trigger for InvokeTekionTokenRotationFunction
-      ScheduleExpression: cron(0 22 * * ? *)  # Schedule for 10pm UTC every day
+      ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Id: "TekionTokenRotationQueue"
