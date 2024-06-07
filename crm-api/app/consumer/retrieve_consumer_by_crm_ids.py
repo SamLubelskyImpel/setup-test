@@ -50,7 +50,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 Consumer
             ).filter(
                 Consumer.crm_consumer_id == crm_consumer_id,
-                DealerIntegrationPartner.id == dip_db.id
+                Consumer.dealer_integration_partner_id == dip_db.id
             ).first()
 
             if not consumer_db:
