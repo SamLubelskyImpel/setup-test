@@ -9,6 +9,7 @@ from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.session_config import DBSession
+from crm_orm.models.dealer import Dealer
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -24,25 +25,35 @@ def lambda_handler(event: Any, context: Any) -> Any:
         integration_partner_name = event["queryStringParameters"]["integration_partner_name"]
 
         with DBSession() as session:
-            dealer_partner = session.query(DealerIntegrationPartner).join(DealerIntegrationPartner.integration_partner).filter(
+            db_results = session.query(
+                DealerIntegrationPartner, Dealer
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).filter(
                 DealerIntegrationPartner.crm_dealer_id == crm_dealer_id,
                 DealerIntegrationPartner.is_active == True,
                 IntegrationPartner.impel_integration_partner_name == integration_partner_name
             ).first()
 
-            if not dealer_partner:
+            if not db_results:
                 logger.error(f"No active dealer found with id {crm_dealer_id}.")
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": f"No active dealer found with id {crm_dealer_id}."})
                 }
 
-            consumer = session.query(Consumer).join(Consumer.dealer_integration_partner).filter(
+            dip_db, dealer_db = db_results
+
+            consumer_db = session.query(
+                Consumer
+            ).filter(
                 Consumer.crm_consumer_id == crm_consumer_id,
-                DealerIntegrationPartner.id == dealer_partner.id
+                Consumer.dealer_integration_partner_id == dip_db.id
             ).first()
 
-            if not consumer:
+            if not consumer_db:
                 message = f"Consumer with crm_consumer_id: {crm_consumer_id} for crm_dealer_id: {crm_dealer_id} not found."
                 logger.error(message)
                 return {
@@ -50,23 +61,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": message})
                 }
 
-            logger.info(f"Found consumer {consumer.as_dict()}")
+            logger.info(f"Found consumer {consumer_db.as_dict()}")
 
             consumer_record = {
-                "consumer_id": consumer.id,
-                "dealer_id": dealer_partner.dealer.product_dealer_id,
-                "crm_consumer_id": consumer.crm_consumer_id,
-                "first_name": consumer.first_name,
-                "last_name": consumer.last_name,
-                "middle_name": consumer.middle_name,
-                "email": consumer.email,
-                "phone": consumer.phone,
-                "email_optin_flag": consumer.email_optin_flag,
-                "sms_optin_flag": consumer.sms_optin_flag,
-                "city": consumer.city,
-                "country": consumer.country,
-                "address": consumer.address,
-                "postal_code": consumer.postal_code
+                "consumer_id": consumer_db.id,
+                "dealer_id": dealer_db.product_dealer_id,
+                "crm_consumer_id": consumer_db.crm_consumer_id,
+                "first_name": consumer_db.first_name,
+                "last_name": consumer_db.last_name,
+                "middle_name": consumer_db.middle_name,
+                "email": consumer_db.email,
+                "phone": consumer_db.phone,
+                "email_optin_flag": consumer_db.email_optin_flag,
+                "sms_optin_flag": consumer_db.sms_optin_flag,
+                "city": consumer_db.city,
+                "country": consumer_db.country,
+                "address": consumer_db.address,
+                "postal_code": consumer_db.postal_code
             }
 
         return {
