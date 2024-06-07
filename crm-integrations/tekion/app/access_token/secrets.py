@@ -1,19 +1,18 @@
 import json
-import logging
 
 import boto3
+from aws_lambda_powertools import Logger
 
-from .envs import CRM_INTEGRATION_SECRETS_ID, LOGLEVEL, PARTNER_KEY
+from .envs import CRM_INTEGRATION_SECRETS_ID, PARTNER_KEY
 from .schemas import TekionCredentials
 
-logger = logging.getLogger()
-logger.setLevel(LOGLEVEL.upper())
+logger = Logger()
 
 
 def get_credentials_from_secrets() -> TekionCredentials:
     logger.debug(
         "Fetching credentials from Secrets Manager: %s",
-        CRM_INTEGRATION_SECRETS_ID,
+        extra={"secrets_id": CRM_INTEGRATION_SECRETS_ID},
     )
     client = boto3.client("secretsmanager")
     response = client.get_secret_value(SecretId=CRM_INTEGRATION_SECRETS_ID)
