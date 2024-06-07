@@ -20,4 +20,6 @@ CRM_INTEGRATION_SECRETS_ID = environ.get(
 )
 
 # Tekion API
-CRM_TEKION_AUTH_ENDPOINT = environ.get("CRM_TEKION_AUTH_ENDPOINT", "/oauth/token")
+CRM_TEKION_AUTH_ENDPOINT = environ.get(
+    "CRM_TEKION_AUTH_ENDPOINT", "/auth/v1/oauth2/token"
+)
