@@ -35,58 +35,59 @@ class CustomEncoder(json.JSONEncoder):
         return super(CustomEncoder, self).default(obj)
 
 
-def get_dealer_partner_id(product_dealer_id: str) -> Any:
+def get_dealer_partner_id(session, product_dealer_id: str) -> Any:
     """Get the dealer integration partner id based on the product dealer id."""
-    with DBSession() as session:
-        dealer_integration_partner = session.query(DealerIntegrationPartner).\
-            join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
-            filter(
-                Dealer.product_dealer_id == product_dealer_id,
-                DealerIntegrationPartner.is_active == True
-            ).first()
-        if not dealer_integration_partner:
-            logger.error(f"No active dealer found with id {product_dealer_id}.")
-            return None
+    dip_db = session.query(
+        DealerIntegrationPartner
+    ).join(
+        Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+    ).filter(
+            Dealer.product_dealer_id == product_dealer_id,
+            DealerIntegrationPartner.is_active == True
+    ).first()
+    if not dip_db:
+        logger.error(f"No active dealer found with id {product_dealer_id}.")
+        return None
 
-        return dealer_integration_partner.id
+    return dip_db.id
 
 
 def retrieve_leads_from_db(
+    session: Any,
     start_date: str,
     end_date: str,
     page: int,
     max_results: int,
-    dealer_partner_id: Optional[int] = None,
-    integration_partner: str = None
+    integration_partner: str,
+    dealer_partner_id: Optional[int] = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
 
-    with DBSession() as session:
-        leads_query = get_restricted_query(session, integration_partner)
-        leads_query = (
-            leads_query.options(joinedload(Lead.vehicles))
-            .filter(
-                Lead.db_creation_date >= start_date,
-                Lead.db_creation_date <= end_date
-            )
+    leads_query = get_restricted_query(session, integration_partner)
+    leads_query = (
+        leads_query.options(joinedload(Lead.vehicles))
+        .filter(
+            Lead.db_creation_date >= start_date,
+            Lead.db_creation_date <= end_date
         )
+    )
 
-        if dealer_partner_id:
-            leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
+    if dealer_partner_id:
+        leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
 
-        leads_page = (
-            leads_query.order_by(Lead.db_creation_date)
-            .limit(max_results)
-            .offset((page - 1) * max_results)
-            .all()
-        )
+    leads_page = (
+        leads_query.order_by(Lead.db_creation_date)
+        .limit(max_results)
+        .offset((page - 1) * max_results)
+        .all()
+    )
 
-        total_records = leads_query.count()
-        records_on_page = len(leads_page)
-        total_pages = ceil(total_records / max_results)
+    total_records = leads_query.count()
+    records_on_page = len(leads_page)
+    total_pages = ceil(total_records / max_results)
 
-        leads.extend(build_lead_records(leads_page, session))
+    leads.extend(build_lead_records(leads_page, session))
 
     return {
         "leads": leads,
@@ -187,23 +188,25 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": json.dumps({"error": "End date must be after start date"})
             }
 
-        dealer_partner_id = None
-        if product_dealer_id:
-            dealer_partner_id = get_dealer_partner_id(product_dealer_id)
-            if not dealer_partner_id:
-                return {
-                    "statusCode": 404,
-                    "body": json.dumps({"error": f"No active dealer found with id {product_dealer_id}"})
-                }
+        with DBSession() as session:
+            dealer_partner_id = None
+            if product_dealer_id:
+                dealer_partner_id = get_dealer_partner_id(session, product_dealer_id)
+                if not dealer_partner_id:
+                    return {
+                        "statusCode": 404,
+                        "body": json.dumps({"error": f"No active dealer found with id {product_dealer_id}"})
+                    }
 
-        leads = retrieve_leads_from_db(
+            leads = retrieve_leads_from_db(
+                session,
                 db_creation_date_start,
                 db_creation_date_end,
                 page,
                 max_results,
-                dealer_partner_id,
-                integration_partner
-        )
+                integration_partner,
+                dealer_partner_id
+            )
 
         return {
             "statusCode": 200,
