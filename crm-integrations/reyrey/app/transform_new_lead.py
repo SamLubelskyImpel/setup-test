@@ -102,7 +102,7 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
             extracted_data[key] = value
 
     if not extracted_data.get("email") and not extracted_data.get("phone"):
-        raise CustomerContactInfoError(f"Consumer does not have an email or phone number.")
+        raise CustomerContactInfoError("Email or phone number is required.")
 
     return extracted_data
 
@@ -431,6 +431,8 @@ def record_handler(record: SQSRecord) -> None:
         raise
     except LeadCreationException:
         raise
+    except CustomerContactInfoError:
+        logger.warning("Email or phone number is required. Skipping lead.")
     except NotInternetLeadException:
         logger.info("Lead type is not Internet")
     except NoCustomerInitiatedLeadException:
@@ -456,9 +458,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-    except CustomerContactInfoError:
-       logger.warning("Lead doesn't contain customer's email and phone")
-       return
     except Exception as e:
         logger.error(f"Error processing ReyRey new lead: {e}")
         raise

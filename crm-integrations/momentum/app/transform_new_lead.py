@@ -22,8 +22,6 @@ UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
-class CustomerContactInfoError(Exception):
-    pass
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
@@ -157,10 +155,6 @@ def parse_lead(product_dealer_id, data):
             "postal_code": str(data.get("zip", "")) if data.get("zip") else None
         }
 
-        if not db_consumer["email"] and not db_consumer["phone"]:
-            raise CustomerContactInfoError("Email or phone number is required")
-
-
         db_consumer = {key: value for key, value in db_consumer.items() if value}
 
         db_lead = {
@@ -246,11 +240,15 @@ def record_handler(record: SQSRecord) -> None:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
 
+        consumer = parsed_lead["consumer"]
+        if consumer.get("email") is None and consumer.get("phone") is None:
+            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
+            return
+
         consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
         lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]
 
         logger.info(f"New lead created: {lead_id}")
-
     except Exception as e:
         logger.error(f"Error transforming momentum record - {record}: {e}")
         logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
@@ -272,9 +270,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-    except CustomerContactInfoError:
-       logger.warning("Lead doesn't contain customer's email and phone")
-       return
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise
