@@ -11,7 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from api_wrappers import CrmApiWrapper, CRMApiError, ReyreyApiWrapper, ReyReyApiError
+from api_wrappers import CrmApiWrapper, CRMApiError, ReyreyApiWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
