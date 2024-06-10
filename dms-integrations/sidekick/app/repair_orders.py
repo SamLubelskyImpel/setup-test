@@ -2,7 +2,7 @@ import boto3
 import logging
 from os import environ
 from json import loads
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone
 from ftp_to_s3_extraction import FtpToS3
 
 logger = logging.getLogger()
@@ -24,6 +24,7 @@ def get_ftp_credentials():
         logger.error(f"Failed to retrieve secret {secret_id}: {e}")
         raise
 
+
 def parse_date(date_str):
     """Parse date string or get current UTC datetime if None."""
     return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S") if date_str else datetime.now(timezone.utc)
@@ -31,7 +32,7 @@ def parse_date(date_str):
 
 def alert_topic(dealer_id, daily_date_path, historical_date_path, daily_filename, historical_filename):
     """Notify Topic of missing S3 files."""
-    message = f'SIDEKICK: No {dealer_id} files uploaded for {date_path} or there is an issue with the historical file {historical_date_path}. Filenames: {daily_filename}, {historical_filename}.'
+    message = f'SIDEKICK: No {dealer_id} daily files uploaded or there is an issue with the historical file.'
 
     response = SNS_CLIENT.publish(
             TopicArn=SNS_TOPIC_ARN,
@@ -56,37 +57,31 @@ def parse_data(sqs_message_data):
         daily_date_path = 'daily/' + end_dt.strftime("%Y/%m/%d")
         historical_date_path = 'historical/' + end_dt.strftime("%Y/%m/%d")
 
-        previous_date = end_dt - timedelta(days=1)
-        daily_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
-        historical_filename = f"Sidekick360-{parent_store}-{previous_date.strftime('%Y%m%d')}.csv"
-
-        logger.info(f"Checking for files: {daily_filename}, {historical_filename}")
+        logger.info(f"Checking for files in {daily_date_path}, {historical_date_path}")
 
         # check daily file
         ftp_session.transfer_file_from_ftp_to_s3(
-            filename=daily_filename,
             bucket_name=INTEGRATIONS_BUCKET,
             date_path=daily_date_path,
             parent_store=parent_store,
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed {daily_filename}")
+        logger.info(f"Successfully processed a daily file in {daily_date_path}")
 
         # check historical file if exists
         ftp_session.transfer_file_from_ftp_to_s3(
-            filename=historical_filename,
             bucket_name=INTEGRATIONS_BUCKET,
             date_path=historical_date_path,
             parent_store=parent_store,
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed {historical_filename} if it exists.")
+        logger.info(f"Successfully processed a historical file in {historical_date_path} if it exists.")
 
     except Exception as e:
         logger.error(f"Error processing SQS message: {e}")
-        alert_topic(dealer_id, daily_date_path, historical_date_path, daily_filename, historical_filename)
+        alert_topic(dealer_id, daily_date_path, historical_date_path)
 
 
 def lambda_handler(event, context):
@@ -97,4 +92,3 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error("Error running repair order lambda: %s", e)
         raise
-
