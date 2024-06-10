@@ -82,11 +82,12 @@ class FtpToS3:
 
             for filename in files:
                 if 'historical' in date_path:
-                    s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
+                    s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
                 else:
                     s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
 
                 self.process_and_upload_file(filename, directory, s3_key, bucket_name, parent_store, child_store)
+
         except (error_perm, error_temp) as e:
             logger.error(f"FTP transfer error: {e}")
             raise ConnectionError(f"FTP transfer error: {e}")
