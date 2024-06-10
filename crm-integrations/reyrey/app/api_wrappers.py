@@ -193,7 +193,9 @@ class ReyreyApiWrapper:
             if "213" == status_code:
                 response_status = CrmApiWrapper().get_lead_status(self.__activity["crm_lead_id"])
                 if response_status in ("Bad Lead", "Salesperson Contacted"):
-                    logger.warning(f"Activity cannot be created for Lead {self.__activity["crm_lead_id"]} status: {response_status}")
+                    logger.warning("Activity cannot be created for Lead {lead_id} status: {response_status}".format(
+                        self.__activity['crm_lead_id'], response_status
+                        ))
                     raise CRMApiError(response_status)
             raise Exception(f"ReyRey responded with an error: {status_code}")
 
