@@ -30,7 +30,7 @@ def parse_date(date_str):
     return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S") if date_str else datetime.now(timezone.utc)
 
 
-def alert_topic(dealer_id, daily_date_path, historical_date_path, daily_filename, historical_filename):
+def alert_topic(dealer_id):
     """Notify Topic of missing S3 files."""
     message = f'SIDEKICK: No {dealer_id} daily files uploaded or there is an issue with the historical file.'
 
@@ -81,7 +81,7 @@ def parse_data(sqs_message_data):
 
     except Exception as e:
         logger.error(f"Error processing SQS message: {e}")
-        alert_topic(dealer_id, daily_date_path, historical_date_path)
+        alert_topic(dealer_id)
 
 
 def lambda_handler(event, context):
