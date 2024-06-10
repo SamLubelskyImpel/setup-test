@@ -118,6 +118,44 @@ DX1_CONFIG = {
     ],
 }
 
+PSXDIGITAL_CONFIG = {
+    "provider": "psxdigital",
+    "tag": "unit",
+    "headers": [
+        "Address",
+        "Address2",
+        "Beam",
+        "Boatname",
+        "Builder",
+        "Category",
+        "City",
+        "Class",
+        "Condition",
+        "Color",
+        "Description",
+        "Draft",
+        "Fuel",
+        "Headline",
+        "Height",
+        "Length",
+        "Make",
+        "Mileage",
+        "Model",
+        "Msrp",
+        "Price",
+        "Horsepower",
+        "State",
+        "Stocknumber",
+        "Unique",
+        "Vin",
+        "Width",
+        "Year",
+        "Zipcode",
+        "Phone",
+        "Specifications",
+        "Photos"
+    ],
+}
 
 def get_provider_config(provider):
     """Get the config for a given provider."""
@@ -127,4 +165,6 @@ def get_provider_config(provider):
         return ARI_CONFIG
     if provider == "dx1":
         return DX1_CONFIG
+    if provider == "psxdigital":
+        return PSXDIGITAL_CONFIG
     raise RuntimeError(f"Unsupported web provider: {provider}")

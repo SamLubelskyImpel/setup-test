@@ -27,16 +27,10 @@ def decode_basic_auth(basic_auth_str: str):
 
 
 def _lambda_handler(event: Any, context: Any) -> Any:
-    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
+    """Take in the authorization headers sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
 
     method_arn = event["methodArn"]
-
-    auth = event['authorizationToken']
-
-    partner_id, api_key = decode_basic_auth(auth)
-
-    SM_CLIENT = boto3.client("secretsmanager")
 
     policy: Dict[str, Any] = {
         "Version": "2012-10-17",
@@ -45,24 +39,38 @@ def _lambda_handler(event: Any, context: Any) -> Any:
         ],
     }
 
-    try:
-        secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/crm-partner-api"
-        )
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            return {"policyDocument": policy, "principalId": partner_id}
-        else:
-            raise
-    try:
-        secret = json.loads(secret["SecretString"])[str(partner_id)]
-        secret_data = json.loads(secret)
-    except KeyError:
-        logger.exception("Invalid partner_id")
-        raise Exception("Unauthorized")
+    basic_header = event.get('headers', {}).get('Authorization', None)
+    activix_header = event.get('headers', {}).get('X-Activix-Signature', None)
+    authorized = False
 
-    authorized = api_key == secret_data["api_key"]
-    if authorized:
+    if basic_header:
+        partner_id, api_key = decode_basic_auth(basic_header)
+
+        SM_CLIENT = boto3.client("secretsmanager")
+
+        try:
+            secret = SM_CLIENT.get_secret_value(
+                SecretId=f"{'prod' if is_prod else 'test'}/crm-partner-api"
+            )
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                return {"policyDocument": policy, "principalId": partner_id}
+            else:
+                raise
+        try:
+            secret = json.loads(secret["SecretString"])[str(partner_id)]
+            secret_data = json.loads(secret)
+        except KeyError:
+            logger.exception("Invalid partner_id")
+            raise Exception("Unauthorized")
+
+        authorized = api_key == secret_data["api_key"]
+
+    # The Activix signature is created with the SHA256 algorithm, so authentication must occur within the Lambda function to access the request body.
+    if activix_header:
+        partner_id = 'activix'
+
+    if authorized or activix_header:
         policy["Statement"][0]["Effect"] = "Allow"
         return {"policyDocument": policy, "principalId": partner_id}
 

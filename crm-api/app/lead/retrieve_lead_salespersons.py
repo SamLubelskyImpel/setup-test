@@ -10,6 +10,10 @@ from crm_orm.models.lead import Lead
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.consumer import Consumer
+
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -71,33 +75,32 @@ def get_salespersons_from_crm(body: dict, lambda_arn: str) -> Any:
     return salespersons
 
 
-def get_salespersons_from_db(lead_id: str) -> Any:
+def get_salespersons_from_db(session, lead_id: str) -> Any:
     salespersons = []
-    with DBSession() as session:
-        lead_db = session.query(Lead).filter(Lead.id == lead_id).first()
-        if not lead_db:
-            logger.error(f"Lead {lead_id} not found.")
-            raise
 
-        salespersons_db = session.query(Salesperson, Lead_Salesperson.is_primary)\
-            .join(
-                Lead_Salesperson,
-                Salesperson.id == Lead_Salesperson.salesperson_id,
-            ).filter(Lead_Salesperson.lead_id == lead_id)\
-            .order_by(Lead_Salesperson.is_primary.asc())\
-            .all()
+    salespersons_db = session.query(
+        Salesperson, Lead_Salesperson.is_primary
+        ).join(
+            Lead_Salesperson,
+            Salesperson.id == Lead_Salesperson.salesperson_id,
+        ).filter(
+            Lead_Salesperson.lead_id == lead_id
+        ).order_by(
+            Lead_Salesperson.is_primary.asc()
+        ).all()
 
-        for salesperson, is_primary in salespersons_db:
-            salesperson_record = {
-                "crm_salesperson_id": salesperson.crm_salesperson_id,
-                "first_name": salesperson.first_name,
-                "last_name": salesperson.last_name,
-                "email": salesperson.email,
-                "phone": salesperson.phone,
-                "position_name": salesperson.position_name,
-                "is_primary": is_primary
-            }
-            salespersons.append(salesperson_record)
+    for salesperson, is_primary in salespersons_db:
+        salesperson_record = {
+            "crm_salesperson_id": salesperson.crm_salesperson_id,
+            "first_name": salesperson.first_name,
+            "last_name": salesperson.last_name,
+            "email": salesperson.email,
+            "phone": salesperson.phone,
+            "position_name": salesperson.position_name,
+            "is_primary": is_primary
+        }
+        salespersons.append(salesperson_record)
+
     return salespersons
 
 
@@ -109,30 +112,36 @@ def lambda_handler(event: Any, context: Any) -> Any:
         lead_id = event["pathParameters"]["lead_id"]
 
         with DBSession() as session:
-            lead = session.query(
-                Lead
+            db_results = session.query(
+                Lead, DealerIntegrationPartner, IntegrationPartner.impel_integration_partner_name
+            ).join(
+                Consumer, Lead.consumer_id == Consumer.id
+            ).join(
+                DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
             ).filter(
                 Lead.id == lead_id
             ).first()
 
-            if not lead:
+            if not db_results:
                 logger.error(f"Lead not found {lead_id}")
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
-            logger.info(f"lead: {lead.as_dict()}")
 
-            crm_lead_id = lead.crm_lead_id
-            dealer_integration_partner_id = lead.consumer.dealer_integration_partner.id
-            crm_dealer_id = lead.consumer.dealer_integration_partner.crm_dealer_id
-            partner_name = lead.consumer.dealer_integration_partner.integration_partner.impel_integration_partner_name
+            lead_db, dip_db, partner_name = db_results
+
+            logger.info(f"lead: {lead_db.as_dict()}")
+
+            salespersons_db = get_salespersons_from_db(session, lead_id)
 
         payload = {
             "lead_id": lead_id,
-            "dealer_integration_partner_id": dealer_integration_partner_id,
-            "crm_lead_id": crm_lead_id,
-            "crm_dealer_id": crm_dealer_id
+            "dealer_integration_partner_id": dip_db.id,
+            "crm_lead_id": lead_db.crm_lead_id,
+            "crm_dealer_id": dip_db.crm_dealer_id
         }
 
         lambda_arn = get_lambda_arn(partner_name)
@@ -148,7 +157,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
         else:
             logger.info(f"No lambda ARN detected for partner {partner_name}. Using salespersons from DB.")
-            salespersons = get_salespersons_from_db(lead_id)
+            salespersons = salespersons_db
 
         return {
             "statusCode": 200,
