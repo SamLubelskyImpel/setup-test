@@ -50,16 +50,13 @@ class DASyndicationError(Exception):
     pass
 
 
-def send_alert_notification(lead_id: int, e: Exception) -> None:
+def send_alert_notification(message, subject) -> None:
     """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred while sending lead {lead_id} to EventListener: {e}",
-    }
     sns_client = boto3.client('sns')
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps(data)}),
-        Subject='CRM API: Lead Syndication Failure Alert - CreateLead',
+        Message=dumps({'default': dumps({"message": message})}),
+        Subject=f'CRM API: {subject}',
         MessageStructure='json'
     )
 
@@ -189,6 +186,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     }
 
                 consumer_db, dip_db, dealer_db, integration_partner_db = db_results
+                dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
                 dealer_metadata = dealer_db.metadata_
@@ -311,7 +309,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                             is_primary=salesperson.get("is_primary", False),
                         )
                         lead_salesperson.salesperson = salesperson_db
-                        lead.lead_salespersons.append(lead_salesperson)
+                        lead_salesperson.lead = lead
+                        session.add(lead_salesperson)
 
                 session.commit()
                 logger.info("Transactions committed")
@@ -332,7 +331,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             adf_recipients = []
             sftp_config = {}
 
-            dip_metadata = dip_db.metadata_
             if dip_metadata:
                 adf_recipients = dip_metadata.get("adf_email_recipients", [])
                 sftp_config = dip_metadata.get("adf_sftp_config", {})
@@ -358,10 +356,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     except DASyndicationError as e:
         logger.error(f"Error syndicating lead: {e}.")
-        send_alert_notification(lead_id, e)
+        send_alert_notification(
+            message=f"Error occurred while sending lead {lead_id} to EventListener: {e}",
+            subject="Lead Syndication Failure Alert - CreateLead"
+        )
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while creating lead: {e}",
+            subject="Lead Creation Failure Alert - CreateLead"
+        )
         return {
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."}),
