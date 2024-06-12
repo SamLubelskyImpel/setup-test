@@ -146,7 +146,9 @@ class CrmApiWrapper:
                 }
             )
             res.raise_for_status()
-            return res.json().get('lead_status')
+            lead_status = res.json().get('lead_status')
+            logger.info(f"Lead status: {lead_status}")
+            return lead_status
         except Exception as e:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise Exception(f"Error occurred calling CRM API: {e}")
@@ -174,8 +176,8 @@ class ReyreyApiWrapper:
         payload = payload.replace(self.__password, "********")
         return payload
 
-    def retrieve_lead_status(self) -> bool:
-        """Retrieve the lead status and check if it is bad."""
+    def retrieve_bad_lead_statuses(self) -> bool:
+        """Retrieve the bad lead statuses"""
         try:
             s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_REYREY.json"
             s3_object = loads(
@@ -184,11 +186,7 @@ class ReyreyApiWrapper:
                     Key=s3_key
                 )['Body'].read().decode('utf-8')
             )
-            bad_lead_statuses = s3_object["bad_lead_status"]
-            crm_api = CrmApiWrapper()
-            lead_status = crm_api.get_lead_status(self.__activity["lead_id"])
-            logger.info(f"Lead status: {lead_status}")
-            return lead_status in bad_lead_statuses
+            return s3_object["bad_lead_status"]
         except Exception as e:
             logger.error(f"Error fetching or decompressing object from S3: {str(e)}")
             raise Exception(e)

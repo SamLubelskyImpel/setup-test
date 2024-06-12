@@ -31,7 +31,10 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         reyrey_api = ReyreyApiWrapper(activity=activity)
         
-        if reyrey_api.retrieve_lead_status():
+        lead_status = crm_api.get_lead_status(activity["lead_id"])
+        bad_statuses = reyrey_api.retrieve_bad_lead_statuses()
+
+        if lead_status in bad_statuses:
             logger.warning(f"Lead status is bad for lead ID: {activity['lead_id']}")
             return
         
