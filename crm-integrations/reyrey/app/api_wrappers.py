@@ -149,7 +149,7 @@ class CrmApiWrapper:
             return res.json().get('lead_status')
         except Exception as e:
             logger.error(f"Error occurred calling CRM API: {e}")
-            raise CRMApiError(f"Error occurred calling CRM API: {e}")
+            raise Exception(f"Error occurred calling CRM API: {e}")
 
 
 class ReyreyApiWrapper:
@@ -191,7 +191,7 @@ class ReyreyApiWrapper:
             return lead_status in bad_lead_statuses
         except Exception as e:
             logger.error(f"Error fetching or decompressing object from S3: {str(e)}")
-            return None
+            raise Exception(e)
 
     def __call_api(self, payload):
         headers = {
