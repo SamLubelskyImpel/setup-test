@@ -146,7 +146,7 @@ class CrmApiWrapper:
                 }
             )
             res.raise_for_status()
-            return res.json().get('Salesperson Contacted')
+            return res.json().get('lead_status')
         except Exception as e:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occurred calling CRM API: {e}")
