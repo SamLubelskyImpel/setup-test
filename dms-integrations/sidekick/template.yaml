@@ -79,7 +79,9 @@ Resources:
 
   RepairOrderQueue:
     Type: AWS::SQS::Queue
+    DependsOn: RepairOrderDLQ
     Properties:
+      QueueName: SidekickRepairOrderQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt RepairOrderDLQ.Arn
@@ -87,6 +89,9 @@ Resources:
 
   RepairOrderDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: SidekickRepairOrderDLQ
+      MessageRetentionPeriod: 1209600  # 14 days
 
   InvokeSidekickFunction:
     Type: AWS::Serverless::Function
