@@ -20,10 +20,13 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
+s3_client = boto3.client('s3')
 
 
 REYREY_XML_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
@@ -171,6 +174,25 @@ class ReyreyApiWrapper:
         payload = payload.replace(self.__password, "********")
         return payload
 
+    def retrieve_lead_status(self) -> bool:
+        """Retrieve the lead status and check if it is bad."""
+        try:
+            s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_REYREY.json"
+            s3_object = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )
+            bad_lead_statuses = s3_object["bad_lead_status"]
+            crm_api = CrmApiWrapper()
+            lead_status = crm_api.get_lead_status(self.__activity["lead_id"])
+            logger.info(f"Lead status: {lead_status}")
+            return lead_status in bad_lead_statuses
+        except Exception as e:
+            logger.error(f"Error fetching or decompressing object from S3: {str(e)}")
+            return None
+
     def __call_api(self, payload):
         headers = {
             "Content-Type": "application/xml",
@@ -190,13 +212,6 @@ class ReyreyApiWrapper:
         status_code = str(trans_status["StatusCode"])
         if status_code != "0":
             logger.error(f"ReyRey responded with an error: {status_code} {trans_status['Status']}")
-            if "213" == status_code:
-                response_status = CrmApiWrapper().get_lead_status(self.__activity["lead_id"])
-                if response_status in ("Bad Lead", "Salesperson Contacted"):
-                    logger.warning("Activity cannot be created for Lead {lead_id} status: {response_status}".format(
-                        self.__activity['crm_lead_id'], response_status
-                        ))
-                    raise CRMApiError(response_status)
             raise Exception(f"ReyRey responded with an error: {status_code}")
 
         crm_activity_id = trans_status["ActivityId"]

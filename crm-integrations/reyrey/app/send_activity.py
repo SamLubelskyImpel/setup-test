@@ -30,7 +30,11 @@ def record_handler(record: SQSRecord):
     try:
         activity = loads(record['body'])
         reyrey_api = ReyreyApiWrapper(activity=activity)
-
+        
+        if reyrey_api.retrieve_lead_status():
+            logger.warning(f"Lead status is bad for lead ID: {activity['lead_id']}")
+            return
+        
         reyrey_task_id = reyrey_api.create_activity()
         logger.info(f"Reyrey responded with task ID: {reyrey_task_id}")
 
