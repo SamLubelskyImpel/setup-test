@@ -47,6 +47,8 @@ class NotInternetLeadException(Exception):
 class NoCustomerInitiatedLeadException(Exception):
     pass
 
+class CustomerContactInfoError(Exception):
+    pass
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -100,7 +102,7 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
             extracted_data[key] = value
 
     if not extracted_data.get("email") and not extracted_data.get("phone"):
-        logger.warning(f"Consumer {fields['crm_consumer_id']} does not have an email or phone number.")
+        raise CustomerContactInfoError("Email or phone number is required.")
 
     return extracted_data
 
@@ -429,6 +431,8 @@ def record_handler(record: SQSRecord) -> None:
         raise
     except LeadCreationException:
         raise
+    except CustomerContactInfoError:
+        logger.warning("Email or phone number is required. Skipping lead.")
     except NotInternetLeadException:
         logger.info("Lead type is not Internet")
     except NoCustomerInitiatedLeadException:
@@ -454,7 +458,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-
     except Exception as e:
         logger.error(f"Error processing ReyRey new lead: {e}")
         raise
