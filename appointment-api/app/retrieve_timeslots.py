@@ -130,6 +130,15 @@ def lambda_handler(event, context):
 
         return call_integration(payload, request_id, timeslots_arn)
 
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "error": str(e),
+                "request_id": request_id,
+            })
+        }
     except IntegrationError as e:
         logger.error(f"Integration error: {e}")
         send_alert_notification(request_id, "RetrieveTimeslots", e)
