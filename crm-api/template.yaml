@@ -536,7 +536,7 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
-  
+
   UpdateActivity:
     Type: AWS::Serverless::Function
     Properties:
@@ -555,7 +555,7 @@ Resources:
             Method: PUT
       Layers:
         - !Ref CrmOrmLayer
-  
+
   RetrieveDealers:
     Type: AWS::Serverless::Function
     Properties:
@@ -631,7 +631,7 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
-  
+
   NotifyEventListener:
     Type: AWS::Serverless::Function
     Properties:
@@ -641,7 +641,7 @@ Resources:
       Timeout: 30
       MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
-  
+
   NotifyEventListenerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -665,7 +665,7 @@ Resources:
       QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
-  
+
   NotifyEventListenerDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -696,3 +696,21 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
+
+  SharedLayerDBAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: SharedLayerDBAlarm
+      AlarmDescription: Alarm for the Shared Layer DB when CPU usage exceeds 60%
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 60  # 1 minute
+      EvaluationPeriods: 1
+      Threshold: 60
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !If [ IsProd, unified-data-prod-2, unified-data-test-2 ]
