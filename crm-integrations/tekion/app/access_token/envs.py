@@ -7,7 +7,8 @@ ENV = "prod" if environ.get("ENVIRONMENT", "test").lower() == "prod" else "test"
 REGION = environ.get("REGION", "us-east-1")
 
 # Partner
-PARTNER_KEY = environ.get("TEKION_PARTNER_KEY", "TEKION")
+SECRET_KEY = environ.get("SECRET_PARTNER_KEY", "TEKION_V3")
+PARTNER_KEY = environ.get("PARTNER_KEY", "TEKION")
 
 # S3
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET", f"crm-integrations-{ENV}")
@@ -21,5 +22,5 @@ CRM_INTEGRATION_SECRETS_ID = environ.get(
 
 # Tekion API
 CRM_TEKION_AUTH_ENDPOINT = environ.get(
-    "CRM_TEKION_AUTH_ENDPOINT", "/auth/v1/oauth2/token"
+    "CRM_TEKION_AUTH_ENDPOINT", "/openapi/public/tokens"
 )

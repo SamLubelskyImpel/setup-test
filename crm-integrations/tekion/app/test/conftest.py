@@ -44,7 +44,6 @@ def token() -> Token:
 def token_creds() -> TekionCredentials:
     return TekionCredentials(
         url="http://fake-auth-uri.com",
-        access_key="fake_access_key",
+        app_id="fake_app_id",
         secret_key="fake_secret_key",
-        client_id="fake_client_id"
     )

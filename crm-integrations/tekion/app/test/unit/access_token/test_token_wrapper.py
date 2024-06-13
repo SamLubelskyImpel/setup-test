@@ -18,7 +18,7 @@ def test_renew_when_token_is_expired(wrapper, token, token_creds):
         "expires_in": 3600,
     }
     with requests_mock.Mocker() as m:
-        m.register_uri(method='POST', url=token_creds.auth_uri, json=expected)
+        m.register_uri(method='POST', url=token_creds.auth_uri, json={"data": expected})
 
         # force token as expired
         token.expires_in_seconds = -100
@@ -41,7 +41,7 @@ def test_renew_when_no_previous_token(wrapper, token, token_creds):
         "expires_in": 3600,
     }
     with requests_mock.Mocker() as m:
-        m.register_uri(method='POST', url=token_creds.auth_uri, json=expected)
+        m.register_uri(method='POST', url=token_creds.auth_uri, json={"data": expected})
 
         # force token as none
         wrapper.token = None

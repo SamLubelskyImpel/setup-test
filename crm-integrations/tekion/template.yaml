@@ -24,6 +24,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         REGION: !Sub "${AWS::Region}"
         PARTNER_KEY: "TEKION"
+        SECRET_KEY: "TEKION_V3"
         POWERTOOLS_SERVICE_NAME: token-rotation
         LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
 

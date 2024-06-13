@@ -36,9 +36,8 @@ class Token:
 @dataclass
 class TekionCredentials:
     url: str
-    access_key: str
+    app_id: str
     secret_key: str
-    client_id: str
 
     @property
     def auth_uri(self) -> str:
@@ -48,7 +47,6 @@ class TekionCredentials:
     def headers(self) -> dict[str, str]:
         headers = {
             "accept": "application/json",
-            "client_id": self.client_id,
             "Content-Type": "application/x-www-form-urlencoded",
         }
         return headers
@@ -56,17 +54,16 @@ class TekionCredentials:
     @property
     def data(self) -> dict[str, str]:
         data = {
-            "access-key": self.access_key,
-            "secret-key": self.secret_key
+            "app_id": self.app_id,
+            "secret_key": self.secret_key
         }
         return data
 
     def as_dict(self) -> dict:
         return {
             "url": self.url,
-            "access_key": self.access_key,
+            "app_id": self.app_id,
             "secret_key": self.secret_key,
-            "client_id": self.client_id,
         }
 
     def as_json(self) -> str:
