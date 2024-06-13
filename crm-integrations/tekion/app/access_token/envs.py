@@ -2,7 +2,7 @@ from os import environ
 
 
 # Environment
-LOGLEVEL = environ.get("LOGLEVEL", "INFO")
+LOG_LEVEL = environ.get("LOG_LEVEL", "INFO")
 ENV = "prod" if environ.get("ENVIRONMENT", "test").lower() == "prod" else "test"
 REGION = environ.get("REGION", "us-east-1")
 

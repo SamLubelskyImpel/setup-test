@@ -27,6 +27,18 @@ Globals:
         SECRET_KEY: "TEKION_V3"
         POWERTOOLS_SERVICE_NAME: token-rotation
         LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
+        INTEGRATIONS_BUCKET: !If [
+          IsProd,
+          "crm-integrations-prod",
+          "crm-integrations-test"
+        ]
+        TOKEN_FILE: "tekion_crm/token.json"
+        CRM_INTEGRATION_SECRETS_ID: !If [
+          IsProd,
+          "prod/crm-integrations-partner",
+          "test/crm-integrations-partner"
+        ]
+        CRM_TEKION_AUTH_ENDPOINT: "/oauth2/token"
 
 Resources:
   TekionTokenRotationRole:
@@ -137,9 +149,6 @@ Resources:
       Runtime: python3.12
       Handler: access_token.lambda_handler
       Timeout: 180
-      Environment:
-        Variables:
-          ENVIRONMENT: !Ref Environment
 
   InvokeTekionTokenRotationErrorAlarm:
     Type: AWS::CloudWatch::Alarm
