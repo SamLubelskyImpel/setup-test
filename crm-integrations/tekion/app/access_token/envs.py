@@ -7,7 +7,7 @@ ENV = "prod" if environ.get("ENVIRONMENT", "test").lower() == "prod" else "test"
 REGION = environ.get("REGION", "us-east-1")
 
 # Partner
-SECRET_KEY = environ.get("SECRET_PARTNER_KEY", "TEKION_V3")
+SECRET_KEY = environ.get("SECRET_KEY", "TEKION_V3")
 PARTNER_KEY = environ.get("PARTNER_KEY", "TEKION")
 
 # S3

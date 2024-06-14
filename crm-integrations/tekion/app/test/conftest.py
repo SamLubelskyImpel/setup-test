@@ -24,6 +24,17 @@ def aws_s3(aws_credentials):
 
 
 @pytest.fixture(scope="function")
+def aws_sqs(aws_credentials):
+    with mock_aws():
+        yield boto3.client("sqs", region_name=os.environ["AWS_DEFAULT_REGION"])
+
+@pytest.fixture(scope="function")
+def aws_sns(aws_credentials):
+    with mock_aws():
+        yield boto3.client("sns", region_name=os.environ["AWS_DEFAULT_REGION"])
+
+
+@pytest.fixture(scope="function")
 def aws_secret_manager(aws_credentials):
     with mock_aws():
         yield boto3.client(
