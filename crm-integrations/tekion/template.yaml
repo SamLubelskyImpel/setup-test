@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: tekion token rotation
+Description: tekion crm integration
 
 Parameters:
   Environment:
@@ -20,18 +20,20 @@ Globals:
     Runtime: python3.12
     Environment:
       Variables:
+        # Common vars
         ENVIRONMENT: !Ref Environment
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         REGION: !Sub "${AWS::Region}"
-        PARTNER_KEY: "TEKION"
-        SECRET_KEY: "TEKION_V3"
-        POWERTOOLS_SERVICE_NAME: token-rotation
         LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
+        POWERTOOLS_SERVICE_NAME: token-rotation
         INTEGRATIONS_BUCKET: !If [
           IsProd,
           "crm-integrations-prod",
           "crm-integrations-test"
         ]
+        PARTNER_KEY: "TEKION"
+        SECRET_KEY: "TEKION_V3"
+        # Token rotation
         TOKEN_FILE: "tekion_crm/token.json"
         CRM_INTEGRATION_SECRETS_ID: !If [
           IsProd,
@@ -39,9 +41,19 @@ Globals:
           "test/crm-integrations-partner"
         ]
         CRM_TEKION_AUTH_ENDPOINT: "/oauth2/token"
+        # Update leads
+        UPLOAD_SECRET_KEY: "impel"
+        DA_SECRET_KEY: "DA_EVENT_LISTENER"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        REPORTING_TOPIC_ARN: !If [
+          IsProd,
+          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+        ]
 
 Resources:
-  TekionTokenRotationRole:
+  LambdaRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -54,6 +66,24 @@ Resources:
             Action:
               - sts:AssumeRole
       Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -63,11 +93,18 @@ Resources:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
                 Resource: "arn:aws:logs:*:*:*"
         - PolicyName: S3Policy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
               - Effect: Allow
                 Action:
                   - "s3:GetObject"
@@ -84,29 +121,53 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
-                  - "sqs:SendMessage"
-                Resource: "arn:aws:sqs:*:*:*"
-              - Effect: "Allow"
-                Action:
                   - "sqs:ReceiveMessage"
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                  - !GetAtt TekionTokenRotationQueue.Arn
-        - PolicyName: AccessSecretsManager
+                  - "*"
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+              - PolicyName: SNSPolicy
+                PolicyDocument:
+                  Version: "2012-10-17"
+                  Statement:
+                    - Effect: "Allow"
+                      Action:
+                        - "sns:Publish"
+                      Resource:
+                        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                        - !If [
+                          IsProd,
+                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                        ]
+        - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: Allow
+              - Effect: "Allow"
                 Action:
-                  - secretsmanager:GetSecretValue
+                  - "sns:Publish"
                 Resource:
-                  - !If [
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
                     IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
                   ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
 
+  # Token Rotation
   TekionTokenRotationQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -130,7 +191,6 @@ Resources:
       Targets:
         - Id: "TekionTokenRotationQueue"
           Arn: !GetAtt TekionTokenRotationQueue.Arn
-
 
   TekionTokenRotationEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -189,4 +249,40 @@ Resources:
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
+      TreatMissingData: notBreaching
+
+  # Lead updates
+  GetLeadUpdatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-${Environment}-get-lead-updates
+      CodeUri: app/
+      Handler: get_lead_updates.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+
+  GetLeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/tekion-${Environment}-get-lead-updates
+
+  GetLeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-${Environment}-get-lead-updates
+      AlarmDescription: Tekion Lead Updates failed 3 times within 15 minutes
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetLeadUpdatesFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
       TreatMissingData: notBreaching
