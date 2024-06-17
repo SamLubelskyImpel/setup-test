@@ -43,7 +43,7 @@ def get_secrets():
     return secret_data["api_key"]
 
 
-def get_api_key(crm_dealer_id: str) -> str:
+def get_api_keys(crm_dealer_id: str) -> str:
     """Get Activix secrets."""
     secret = secret_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/activix"
@@ -51,7 +51,7 @@ def get_api_key(crm_dealer_id: str) -> str:
     secret = loads(secret["SecretString"])[crm_dealer_id]
     secret_data = loads(secret)
 
-    return secret_data["leadUpdate"]
+    return [secret_data["leadStatusUpdate"], secret_data["leadSalespersonUpdate"]]
 
 
 def get_dealers(integration_partner_name: str) -> Any:
@@ -106,8 +106,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }),
             }
 
-        api_key = get_api_key(crm_dealer_id)
-        if signature != create_signature(api_key, body):
+        api_keys = get_api_keys(crm_dealer_id)
+        signatures = [create_signature(api_key, body) for api_key in api_keys]
+        if signature not in signatures:
             logger.error("Invalid signature.")
             return {
                 "statusCode": 401,
