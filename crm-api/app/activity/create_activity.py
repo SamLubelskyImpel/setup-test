@@ -91,17 +91,12 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
         s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
-        s3_object = loads(
+        queue_url = loads(
             s3_client.get_object(
                 Bucket=INTEGRATIONS_BUCKET,
                 Key=s3_key
             )["Body"].read().decode("utf-8")
-        )
-
-        queue_url = s3_object.get("send_activity_queue_url")
-        if not queue_url:
-            logger.warning(f"Queue URL not found for {partner_name}")
-            return
+        )["send_activity_queue_url"]
 
         sqs_client.send_message(
             QueueUrl=queue_url,
@@ -266,7 +261,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "partner_name": partner_name,
                     "sftp_config": sftp_config
                 })
-            elif not writeback_disabled:
+            elif writeback_disabled:
+                logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
+            else:
                 create_on_crm(partner_name=partner_name, payload=payload)
 
         return {
