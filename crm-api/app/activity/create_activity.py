@@ -69,12 +69,17 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
         s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
-        queue_url = loads(
+        s3_object = loads(
             s3_client.get_object(
                 Bucket=INTEGRATIONS_BUCKET,
                 Key=s3_key
             )["Body"].read().decode("utf-8")
-        )["send_activity_queue_url"]
+        )
+
+        queue_url = s3_object.get("send_activity_queue_url")
+        if not queue_url:
+            logger.warning(f"Queue URL not found for {partner_name}")
+            return
 
         sqs_client.send_message(
             QueueUrl=queue_url,
