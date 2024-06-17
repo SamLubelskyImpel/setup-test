@@ -14,7 +14,7 @@ SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")

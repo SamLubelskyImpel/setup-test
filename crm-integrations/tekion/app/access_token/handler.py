@@ -1,10 +1,12 @@
-from aws_lambda_powertools.logging import Logger
+import logging
 
 from .s3 import get_token_from_s3
 from .secrets import get_credentials_from_secrets
 from .token_wrapper import TekionTokenWrapper
+from .envs import LOG_LEVEL
 
-logger = Logger()
+logger = logging.getLogger()
+logger.setLevel(LOG_LEVEL)
 
 
 def create_wrapper() -> TekionTokenWrapper:
@@ -18,7 +20,7 @@ def create_wrapper() -> TekionTokenWrapper:
 
 def lambda_handler(event, context):
     """Handles Token Rotation Function."""
-    logger.info("Starting Token Rotation Function", extra={"event": event})
+    logger.info("Starting Token Rotation Function: event=%s", event)
 
     try:
         wrapper = create_wrapper()

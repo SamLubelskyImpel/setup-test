@@ -1,10 +1,13 @@
-import requests
-from aws_lambda_powertools.logging import Logger
+import logging
 
+import requests
+
+from .envs import LOG_LEVEL
 from .s3 import save_token_to_s3
 from .schemas import Token, TekionCredentials
 
-logger = Logger()
+logger = logging.getLogger()
+logger.setLevel(LOG_LEVEL)
 
 
 class TekionTokenWrapper:
