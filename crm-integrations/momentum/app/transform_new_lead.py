@@ -174,13 +174,13 @@ def parse_lead(product_dealer_id, data):
                 logger.warning(f"Unexpected vehicle type: {vehicleType}")
 
         db_vehicle = {
-            "vin": data.get("vin"),
-            "stock_num": data.get("stock"),
-            "make": data.get("make"),
-            "model": data.get("model"),
+            "vin": data.get("vin")[:20] if data.get("vin") is not None else None,
+            "stock_num": data.get("stock")[:50] if data.get("stock") is not None else None,
+            "make": data.get("make")[:80] if data.get("make") is not None else None,
+            "model": data.get("model")[:100] if data.get("model") is not None else None,
             "year": data.get("year"),
-            "exterior_color": data.get("color"),
-            "trim": data.get("trim"),
+            "exterior_color": data.get("color")[:80] if data.get("color") is not None else None,
+            "trim": data.get("trim")[:100] if data.get("trim") is not None else None,
             "condition": vehicleType
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}

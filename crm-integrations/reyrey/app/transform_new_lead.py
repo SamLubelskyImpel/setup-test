@@ -140,9 +140,9 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         if len(notes) > 0:
             for note in notes:
                 if "Best Time" not in note.text:
-                    return note.text
+                    return note.text[:5000]
             # If no note without "Best Time" is found, return first note.
-            return notes[0].text
+            return notes[0].text[:5000]
         else:
             return ""
 
