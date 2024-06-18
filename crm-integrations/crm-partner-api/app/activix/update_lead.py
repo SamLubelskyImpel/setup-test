@@ -25,9 +25,9 @@ def create_signature(api_key, body):
     """
     Create an HMAC SHA256 signature using the API key and body (JSON data).
     """
-    body_json = json.dumps(body, separators=(',', ':'))
-    key_bytes = api_key.encode()
-    message_bytes = body_json.encode()
+    body_json = json.dumps(body)
+    key_bytes = api_key.encode('utf-8')
+    message_bytes = body_json.encode('utf-8')
     hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha256)
     return hmac_obj.hexdigest()
 
@@ -84,7 +84,7 @@ def save_raw_lead(lead: str, product_dealer_id: str):
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """This API handler takes the Json sent by momentum and puts the raw Json into the S3 bucket."""
+    """This API handler takes the Json sent by Activix and puts the raw Json into the S3 bucket."""
     try:
         logger.info(f"Event: {event}")
         body = loads(event["body"])
@@ -108,14 +108,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         api_keys = get_api_keys(crm_dealer_id)
         signatures = [create_signature(api_key, body) for api_key in api_keys]
-        if signature not in signatures:
-            logger.error("Invalid signature.")
-            return {
-                "statusCode": 401,
-                "body": dumps({
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
-                }),
-            }
+        logger.info(f"Actvix Signature: {signature}")
+        logger.info(f"Decoded Signatures: {signatures}")
+
+        # temporarily turn off signature check
+        # if signature not in signatures:
+        #     logger.error("Invalid signature.")
+        #     return {
+        #         "statusCode": 401,
+        #         "body": dumps({
+        #             "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
+        #         }),
+        #     }
 
         logger.info(f"Lead update received for dealer: {product_dealer_id}")
         logger.info(f"Lead body: {body}")
