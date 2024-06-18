@@ -65,6 +65,28 @@ def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
             raise ValidationError("Activity due timestamp is required for an appointment or phone_call_task activity")
 
 
+def is_writeback_disabled(partner_name: str, activity_id: int) -> bool:
+    """Check if writeback is disabled for the partner."""
+    try:
+        s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json"
+        config = loads(
+            s3_client.get_object(
+                Bucket=INTEGRATIONS_BUCKET,
+                Key=s3_key
+            )["Body"].read().decode("utf-8")
+        )
+        logger.info(f"Config: {config}")
+        disabled_partners = config["writeback_disabled_partners"]
+        if partner_name in disabled_partners:
+            return True
+
+    except Exception as e:
+        logger.error(f"Error checking writeback status for {partner_name}: {str(e)}")
+        send_alert_notification(activity_id, e)
+
+    return False
+
+
 def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
@@ -170,6 +192,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
 
             lead_db, consumer_db, dealer_partner_db, dealer_metadata, partner_name = db_results
+            dip_metadata = dealer_partner_db.metadata_
 
             # Create activity
             activity = Activity(
@@ -187,8 +210,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             session.commit()
             activity_id = activity.id
             logger.info(f"Created activity {activity_id}")
-
-            dip_metadata = dealer_partner_db.metadata_
 
             if dealer_metadata:
                 dealer_timezone = dealer_metadata.get("timezone", "")
@@ -216,6 +237,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Payload to CRM: {dumps(payload)}")
 
+            writeback_disabled = is_writeback_disabled(partner_name, activity_id)
+
             # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
             if request_product == "chat_ai" and activity_type == "appointment":
                 adf_recipients = []
@@ -238,6 +261,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "partner_name": partner_name,
                     "sftp_config": sftp_config
                 })
+            elif writeback_disabled:
+                logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
             else:
                 create_on_crm(partner_name=partner_name, payload=payload)
 
