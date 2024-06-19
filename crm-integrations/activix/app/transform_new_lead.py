@@ -206,7 +206,7 @@ def parse_lead(product_dealer_id, data):
                     "mileage": vehicle.get("odometer"),
                     "make": vehicle.get("make"),
                     "model": vehicle.get("model"),
-                    "year": vehicle.get("year"),
+                    "year": int(vehicle.get('year')) if vehicle.get('year') and vehicle.get('year').isdigit() else None,
                     "transmission": vehicle.get("transmission"),
                     "interior_color": vehicle.get("color_interior"),
                     "exterior_color": vehicle.get("color_exterior"),
