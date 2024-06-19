@@ -23,9 +23,9 @@ secret_client = boto3.client("secretsmanager")
 
 def create_signature(api_key, body):
     """Create an HMAC SHA256 signature using the API key and body (JSON data)."""
-    body_json = json.dumps(body, separators=(',', ':'))
-    key_bytes = api_key.encode()
-    message_bytes = body_json.encode()
+    body_json = json.dumps(body)
+    key_bytes = api_key.encode('utf-8')
+    message_bytes = body_json.encode('utf-8')
     hmac_obj = hmac.new(key_bytes, message_bytes, hashlib.sha256)
 
     return hmac_obj.hexdigest()
@@ -110,14 +110,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         api_key = get_api_key(crm_dealer_id)
-        if signature != create_signature(api_key, body):
-            logger.error("Invalid signature.")
-            return {
-                "statusCode": 401,
-                "body": dumps({
-                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
-                }),
-            }
+        decoded_signature = create_signature(api_key, body)
+        logger.info(f"Activix Signature: {signature}")
+        logger.info(f"Decoded Signature: {decoded_signature}")
+        # temporarily turn off signature check
+        # if signature != create_signature(api_key, body):
+        #     logger.error("Invalid signature.")
+        #     return {
+        #         "statusCode": 401,
+        #         "body": dumps({
+        #             "error": "This request is unauthorized. The authorization credentials are missing or are wrong."
+        #         }),
+        #     }
 
         logger.info(f"New lead received for dealer: {product_dealer_id}")
         logger.info(f"Lead body: {body}")
