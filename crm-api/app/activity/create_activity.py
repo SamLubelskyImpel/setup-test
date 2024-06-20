@@ -225,6 +225,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "crm_dealer_id": dealer_partner_db.crm_dealer_id,
                 "consumer_id": consumer_db.id,
                 "crm_consumer_id": consumer_db.crm_consumer_id,
+                "dealer_integration_partner_metadata": dip_metadata,
                 # Activity info
                 "activity_id": activity_id,
                 "notes": activity.notes,

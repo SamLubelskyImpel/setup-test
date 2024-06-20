@@ -8,11 +8,8 @@ import requests
 from os import environ
 from json import loads
 from boto3 import client
-from uuid import uuid4
 from datetime import datetime, timedelta
-from typing import Tuple
 import logging
-import pytz
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -83,6 +80,7 @@ class ActivixApiWrapper:
         self.__activity = kwargs.get("activity")
         self.__salesperson = kwargs.get("salesperson")
         self.__api_key = self.get_secrets()
+        self.__user_id = self.__activity.get("dealer_integration_partner_metadata", {}).get("userId", "")
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -115,10 +113,11 @@ class ActivixApiWrapper:
         dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
         start_at = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
         end_at = (dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        owner_id = int(self.__salesperson["crm_salesperson_id"]) if self.__salesperson else self.__user_id
 
         payload = {
             "owner": {
-                "id": int(self.__salesperson["crm_salesperson_id"])
+                "id": owner_id
             },
             "start_at": start_at,
             "end_at": end_at,
@@ -150,7 +149,7 @@ class ActivixApiWrapper:
             "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
             "type": communication_type,
             "executed_at": date,
-            "executed_by": int(self.__salesperson["crm_salesperson_id"]),
+            "executed_by": self.__user_id,
             "description": self.__activity["notes"]
         }
 
@@ -168,10 +167,11 @@ class ActivixApiWrapper:
 
         dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
         date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        owner_id = int(self.__salesperson["crm_salesperson_id"]) if self.__salesperson else self.__user_id
 
         payload = {
             "owner": {
-                "id": int(self.__salesperson["crm_salesperson_id"])
+                "id": owner_id
             },
             "date": date,
             "lead_id": int(self.__activity["crm_lead_id"]),

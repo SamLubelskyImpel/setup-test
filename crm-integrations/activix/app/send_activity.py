@@ -31,12 +31,6 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
         salesperson = crm_api.get_salesperson(activity["lead_id"])
-        if not salesperson and activity.get("activity_type", "") == "appointment":
-            logger.error(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
-            raise Exception(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
-
-        logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
-
         activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
 
         activix_activity_id = activix_crm_api.create_activity()
@@ -53,7 +47,7 @@ def record_handler(record: SQSRecord):
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """Create activity on Momentum."""
+    """Create activity on Activix."""
     logger.info(f"Event: {event}")
 
     try:
