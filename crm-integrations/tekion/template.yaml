@@ -14,27 +14,43 @@ Conditions:
     Fn::Equals:
       - Ref: AWS::AccountId
       - 196800776222
-  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
 Globals:
   Function:
-    Runtime: python3.9
+    Runtime: python3.12
     Environment:
       Variables:
-        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        # Common vars
         ENVIRONMENT: !Ref Environment
-        LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        REGION: !Sub "${AWS::Region}"
+        LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
+        POWERTOOLS_SERVICE_NAME: token-rotation
+        INTEGRATIONS_BUCKET: !If [
+          IsProd,
+          "crm-integrations-prod",
+          "crm-integrations-test"
+        ]
+        PARTNER_KEY: "TEKION"
         SECRET_KEY: "TEKION_V3"
+        # Token rotation
+        TOKEN_FILE: "tekion_crm/token.json"
+        CRM_INTEGRATION_SECRETS_ID: !If [
+          IsProd,
+          "prod/crm-integrations-partner",
+          "test/crm-integrations-partner"
+        ]
+        CRM_TEKION_AUTH_ENDPOINT: "/oauth2/token"
+        # Update leads
         UPLOAD_SECRET_KEY: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [
-            IsProd,
-            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
-            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
-          ]
+          IsProd,
+          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+        ]
 
 Resources:
   LambdaRole:
@@ -83,17 +99,22 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
                   - "s3:PutObject"
                   - "s3:DeleteObject"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
-              - Effect: "Allow"
+                  - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
+              - Effect: Allow
                 Action:
                   - "s3:GetObject"
+                  - "s3:PutObject"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:s3:::crm-integrations-prod*",
+                    !Sub "arn:aws:s3:::crm-integrations-test*"
+                  ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -109,6 +130,20 @@ Resources:
                 Action:
                   - "sqs:SendMessage"
                 Resource: "arn:aws:sqs:*:*:*"
+              - PolicyName: SNSPolicy
+                PolicyDocument:
+                  Version: "2012-10-17"
+                  Statement:
+                    - Effect: "Allow"
+                      Action:
+                        - "sns:Publish"
+                      Resource:
+                        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                        - !If [
+                          IsProd,
+                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                        ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -132,6 +167,91 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource: "*"
 
+  # Token Rotation
+  TekionTokenRotationQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: TekionTokenRotationQueueDLQ
+
+  TekionTokenRotationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'tekion-token-rotation-failures-queue-${Environment}'
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionTokenRotationQueueDLQ.Arn
+        maxReceiveCount: 1
+
+  TekionTokenRotationFunctionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Nightly trigger for InvokeTekionTokenRotationFunction
+      ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
+      State: !If [ IsProd, "ENABLED", "DISABLED" ]
+      Targets:
+        - Id: "TekionTokenRotationQueue"
+          Arn: !GetAtt TekionTokenRotationQueue.Arn
+
+  TekionTokenRotationEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TekionTokenRotationQueue.Arn
+      MaximumBatchingWindowInSeconds: 1
+      FunctionName: !GetAtt InvokeTekionTokenRotationFunction.Arn
+
+  InvokeTekionTokenRotationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Invoke Tekion's token rotation
+      Role: !GetAtt TekionTokenRotationRole.Arn
+      CodeUri: app/
+      Runtime: python3.12
+      Handler: access_token.lambda_handler
+      Timeout: 180
+
+  InvokeTekionTokenRotationErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-token-rotation-error-${Environment}
+      AlarmDescription: There are messages in the Tekion token rotation error
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeTekionTokenRotationFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  TekionTokenRotationQueueDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub TekionTokenRotationQueueDLQ-${Environment}
+      AlarmDescription: There are messages in the Tekion token rotation order DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TekionTokenRotationQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  # Lead updates
   GetLeadUpdatesFunction:
     Type: AWS::Serverless::Function
     Properties:
