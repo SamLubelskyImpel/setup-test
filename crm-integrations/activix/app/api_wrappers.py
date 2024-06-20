@@ -80,7 +80,7 @@ class ActivixApiWrapper:
         self.__activity = kwargs.get("activity")
         self.__salesperson = kwargs.get("salesperson")
         self.__api_key = self.get_secrets()
-        self.__user_id = self.__activity.get("dip_metadata", {}).get("userId", "")
+        self.__user_id = self.__activity.get("dealer_integration_partner_metadata", {}).get("userId", "")
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
