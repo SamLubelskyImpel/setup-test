@@ -9,6 +9,7 @@ from dateutil import parser
 from datetime import datetime
 from json import dumps, loads
 from typing import Any, List
+from sqlalchemy.exc import SQLAlchemyError
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -17,10 +18,13 @@ from crm_orm.models.dealer import Dealer
 from crm_orm.models.salesperson import Salesperson
 from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from crm_orm.models.integration_partner import IntegrationPartner
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 
 logger = logging.getLogger()
@@ -41,17 +45,36 @@ salesperson_attrs = [
 ]
 
 
+class DASyndicationError(Exception):
+    """Custom exception for DA syndication errors."""
+    pass
+
+
+def send_alert_notification(message, subject) -> None:
+    """Send alert notification to CE team."""
+    sns_client = boto3.client('sns')
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=dumps({'default': dumps({"message": message})}),
+        Subject=f'CRM API: {subject}',
+        MessageStructure='json'
+    )
+
+
 def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     """Check if notification should be sent to the event listener."""
-    response = s3_client.get_object(
-        Bucket=INTEGRATIONS_BUCKET,
-        Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
-    )
-    config = loads(response["Body"].read())
-    logger.info(f"Config: {config}")
-    notification_partners = config["notification_partners"]
-    if integration_partner_name in notification_partners:
-        return True
+    try:
+        response = s3_client.get_object(
+            Bucket=INTEGRATIONS_BUCKET,
+            Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+        )
+        config = loads(response["Body"].read())
+        logger.info(f"Config: {config}")
+        notification_partners = config["notification_partners"]
+        if integration_partner_name in notification_partners:
+            return True
+    except Exception as e:
+        raise DASyndicationError(e)
     return False
 
 
@@ -68,20 +91,6 @@ def update_attrs(
     for attr in allowed_attrs:
         if attr in combined_data:
             setattr(db_object, attr, combined_data[attr])
-
-
-def get_dealer_timezone(dealer_integration_partner_id: str) -> Any:
-    """Get the timezone of the dealer."""
-    with DBSession() as session:
-        dealer_timezone = (
-            session.query(Dealer.metadata_["timezone"])
-            .filter(Dealer.id == dealer_integration_partner_id)
-            .first()
-        )
-
-        timezone = dealer_timezone[0] if dealer_timezone else "UTC"
-        logger.info(f"Dealer {dealer_integration_partner_id} timezone: {timezone}")
-        return timezone
 
 
 def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
@@ -152,148 +161,165 @@ def lambda_handler(event: Any, context: Any) -> Any:
         lead_ts = body.get("lead_ts", datetime.utcnow())
 
         with DBSession() as session:
-            consumer = (
-                session.query(Consumer).filter(Consumer.id == consumer_id).first()
-            )
+            try:
+                db_results = session.query(
+                    Consumer, DealerIntegrationPartner, Dealer, IntegrationPartner
+                ).join(
+                    DealerIntegrationPartner, DealerIntegrationPartner.id == Consumer.dealer_integration_partner_id
+                ).join(
+                    Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+                ).join(
+                    IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+                ).filter(
+                    Consumer.id == consumer_id
+                ).first()
 
-            if not consumer:
-                logger.error(f"Consumer {consumer_id} not found")
-                return {
-                    "statusCode": 404,
-                    "body": dumps(
-                        {
-                            "error": f"Consumer {consumer_id} not found. Lead failed to be created."
-                        }
-                    ),
-                }
-
-            dealer_integration_partner_id = consumer.dealer_integration_partner_id
-            dealer_timezone = get_dealer_timezone(dealer_integration_partner_id)
-
-            logger.info(f"Original timestamp: {lead_ts}")
-            lead_ts = process_lead_ts(lead_ts, dealer_timezone)
-            logger.info(f"Processed timestamp: {lead_ts}")
-
-            integration_partner = consumer.dealer_integration_partner.integration_partner
-
-            # Query for existing lead
-            if crm_lead_id:
-                lead_db = (
-                    session.query(Lead)
-                    .filter(
-                        Lead.consumer_id == consumer_id, Lead.crm_lead_id == crm_lead_id
-                    )
-                    .first()
-                )
-
-                if lead_db:
-                    logger.error(f"Lead {crm_lead_id} already exists")
+                if not db_results:
+                    logger.error(f"Consumer {consumer_id} not found")
                     return {
-                        "statusCode": 409,
+                        "statusCode": 404,
                         "body": dumps(
                             {
-                                "error": f"Lead with CRM ID {crm_lead_id} already exists for consumer {consumer_id}. lead_id: {lead_db.id}"
+                                "error": f"Consumer {consumer_id} not found. Lead failed to be created."
                             }
                         ),
                     }
 
-            # Create lead
-            lead = Lead(
-                consumer_id=consumer_id,
-                status=body["lead_status"],
-                substatus=body["lead_substatus"],
-                comment=body["lead_comment"],
-                origin_channel=body["lead_origin"],
-                source_channel=body["lead_source"],
-                source_detail=body.get("lead_source_detail"),
-                crm_lead_id=crm_lead_id,
-                request_product=request_product,
-                lead_ts=lead_ts,
-                metadata_=body.get("metadata"),
-            )
+                consumer_db, dip_db, dealer_db, integration_partner_db = db_results
+                dip_metadata = dip_db.metadata_
+                integration_partner_name = integration_partner_db.impel_integration_partner_name
 
-            session.add(lead)
+                dealer_metadata = dealer_db.metadata_
+                if dealer_metadata:
+                    dealer_timezone = dealer_metadata.get("timezone", "UTC")
+                else:
+                    logger.warning(f"No metadata found for dealer: {dealer_db.product_dealer_id}. Defaulting to UTC.")
+                    dealer_timezone = "UTC"
+                logger.info(f"Dealer timezone: {dealer_timezone}")
 
-            # Create vehicles of interest
-            vehicles_of_interest = body["vehicles_of_interest"]
-            for vehicle in vehicles_of_interest:
-                vehicle = Vehicle(
-                    lead_id=lead.id,
-                    vin=vehicle.get("vin"),
-                    stock_num=vehicle.get("stock_number"),
-                    type=vehicle.get("type"),
-                    vehicle_class=vehicle.get("class"),
-                    mileage=vehicle.get("mileage"),
-                    make=vehicle.get("make"),
-                    model=vehicle.get("model"),
-                    manufactured_year=vehicle.get("year"),
-                    oem_name=vehicle.get("oem_name"),
-                    body_style=vehicle.get("body_style"),
-                    transmission=vehicle.get("transmission"),
-                    interior_color=vehicle.get("interior_color"),
-                    exterior_color=vehicle.get("exterior_color"),
-                    trim=vehicle.get("trim"),
-                    price=vehicle.get("price"),
-                    status=vehicle.get("status"),
-                    condition=vehicle.get("condition"),
-                    odometer_units=vehicle.get("odometer_units"),
-                    vehicle_comments=vehicle.get("vehicle_comments"),
-                    crm_vehicle_id=vehicle.get("crm_vehicle_id"),
-                    trade_in_vin=vehicle.get("trade_in_vin"),
-                    trade_in_year=vehicle.get("trade_in_year"),
-                    trade_in_make=vehicle.get("trade_in_make"),
-                    trade_in_model=vehicle.get("trade_in_model"),
-                    metadata_=vehicle.get("metadata"),
+                logger.info(f"Original timestamp: {lead_ts}")
+                lead_ts = process_lead_ts(lead_ts, dealer_timezone)
+                logger.info(f"Processed timestamp: {lead_ts}")
+
+                # Query for existing lead
+                if crm_lead_id:
+                    lead_db = (
+                        session.query(Lead)
+                        .filter(
+                            Lead.consumer_id == consumer_id,
+                            Lead.crm_lead_id == crm_lead_id
+                        )
+                        .first()
+                    )
+
+                    if lead_db:
+                        logger.error(f"Lead {crm_lead_id} already exists")
+                        return {
+                            "statusCode": 409,
+                            "body": dumps(
+                                {
+                                    "error": f"Lead with CRM ID {crm_lead_id} already exists for consumer {consumer_id}. lead_id: {lead_db.id}"
+                                }
+                            ),
+                        }
+
+                # Create lead
+                lead = Lead(
+                    consumer_id=consumer_id,
+                    status=body["lead_status"],
+                    substatus=body["lead_substatus"],
+                    comment=body["lead_comment"],
+                    origin_channel=body["lead_origin"],
+                    source_channel=body["lead_source"],
+                    source_detail=body.get("lead_source_detail"),
+                    crm_lead_id=crm_lead_id,
+                    request_product=request_product,
+                    lead_ts=lead_ts,
+                    metadata_=body.get("metadata"),
                 )
-                lead.vehicles.append(vehicle)
 
-            if salespersons:
-                dealer_partner_id = consumer.dealer_integration_partner_id
-                for salesperson in salespersons:
-                    # Create salesperson
-                    crm_salesperson_id = salesperson.get("crm_salesperson_id")
+                session.add(lead)
+                logger.info("Lead pending")
 
-                    # Query for existing salesperson
-                    salesperson_db = None
-                    if crm_salesperson_id:
-                        salesperson_db = (
-                            session.query(Salesperson)
-                            .filter(
-                                Salesperson.crm_salesperson_id == crm_salesperson_id,
-                                Salesperson.dealer_integration_partner_id
-                                == dealer_partner_id,
+                # Create vehicles of interest
+                vehicles_of_interest = body["vehicles_of_interest"]
+                for vehicle in vehicles_of_interest:
+                    vehicle = Vehicle(
+                        vin=vehicle.get("vin"),
+                        stock_num=vehicle.get("stock_number"),
+                        type=vehicle.get("type"),
+                        vehicle_class=vehicle.get("class"),
+                        mileage=vehicle.get("mileage"),
+                        make=vehicle.get("make"),
+                        model=vehicle.get("model"),
+                        manufactured_year=vehicle.get("year"),
+                        oem_name=vehicle.get("oem_name"),
+                        body_style=vehicle.get("body_style"),
+                        transmission=vehicle.get("transmission"),
+                        interior_color=vehicle.get("interior_color"),
+                        exterior_color=vehicle.get("exterior_color"),
+                        trim=vehicle.get("trim"),
+                        price=vehicle.get("price"),
+                        status=vehicle.get("status"),
+                        condition=vehicle.get("condition"),
+                        odometer_units=vehicle.get("odometer_units"),
+                        vehicle_comments=vehicle.get("vehicle_comments"),
+                        crm_vehicle_id=vehicle.get("crm_vehicle_id"),
+                        trade_in_vin=vehicle.get("trade_in_vin"),
+                        trade_in_year=vehicle.get("trade_in_year"),
+                        trade_in_make=vehicle.get("trade_in_make"),
+                        trade_in_model=vehicle.get("trade_in_model"),
+                        metadata_=vehicle.get("metadata"),
+                    )
+                    lead.vehicles.append(vehicle)
+
+                if salespersons:
+                    for salesperson in salespersons:
+                        # Create salesperson
+                        crm_salesperson_id = salesperson.get("crm_salesperson_id")
+
+                        # Query for existing salesperson
+                        salesperson_db = None
+                        if crm_salesperson_id:
+                            salesperson_db = (
+                                session.query(Salesperson)
+                                .filter(
+                                    Salesperson.crm_salesperson_id == crm_salesperson_id,
+                                    Salesperson.dealer_integration_partner_id == dip_db.id,
+                                )
+                                .first()
                             )
-                            .first()
+
+                        if not salesperson_db:
+                            salesperson_db = Salesperson()
+
+                        update_attrs(
+                            salesperson_db,
+                            salesperson,
+                            dip_db.id,
+                            salesperson_attrs,
+                            request_product,
                         )
 
-                    if not salesperson_db:
-                        salesperson_db = Salesperson()
+                        if not salesperson_db.id:
+                            logger.info("Salesperson pending")
 
-                    update_attrs(
-                        salesperson_db,
-                        salesperson,
-                        dealer_partner_id,
-                        salesperson_attrs,
-                        request_product,
-                    )
+                        # Create lead salesperson
+                        lead_salesperson = Lead_Salesperson(
+                            is_primary=salesperson.get("is_primary", False),
+                        )
+                        lead_salesperson.salesperson = salesperson_db
+                        lead_salesperson.lead = lead
+                        session.add(lead_salesperson)
 
-                    if not salesperson_db.id:
-                        session.add(salesperson_db)
-                        session.flush()
-
-                    # Create lead salesperson
-                    lead_salesperson = Lead_Salesperson(
-                        lead_id=lead.id,
-                        salesperson_id=salesperson_db.id,
-                        is_primary=salesperson.get("is_primary", False),
-                    )
-                    session.add(lead_salesperson)
-
-            session.commit()
-            lead_id = lead.id
-            integration_partner_name = integration_partner.impel_integration_partner_name
-            dealer_partner_id = consumer.dealer_integration_partner_id
-            dealer_metadata = consumer.dealer_integration_partner.metadata_
+                session.commit()
+                logger.info("Transactions committed")
+                lead_id = lead.id
+            except SQLAlchemyError as e:
+                # Rollback in case of any error
+                session.rollback()
+                logger.info(f"Error occurred: {e}")
+                raise e
 
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
@@ -304,32 +330,46 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if request_product == "chat_ai":
             adf_recipients = []
             sftp_config = {}
-            
-            if dealer_metadata:
-                adf_recipients = dealer_metadata.get("adf_email_recipients", [])
-                sftp_config = dealer_metadata.get("adf_sftp_config",{})
+
+            if dip_metadata:
+                adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                sftp_config = dip_metadata.get("adf_sftp_config", {})
             else:
-                logger.warning(f"No metadata found for dealer: {dealer_partner_id}")
+                logger.warning(f"No metadata found for dealer: {dip_db.id}")
 
             make_adf_assembler_request({
-                "lead_id": lead_id, 
-                "recipients": adf_recipients, 
+                "lead_id": lead_id,
+                "recipients": adf_recipients,
                 "partner_name": integration_partner_name,
                 "sftp_config": sftp_config
             })
         elif notify_listener:
-            sqs_client = boto3.client('sqs')
+            try:
+                sqs_client = boto3.client('sqs')
 
-            sqs_client.send_message(
-                QueueUrl=EVENT_LISTENER_QUEUE,
-                MessageBody=dumps({"lead_id": lead_id})
-            )
+                sqs_client.send_message(
+                    QueueUrl=EVENT_LISTENER_QUEUE,
+                    MessageBody=dumps({"lead_id": lead_id})
+                )
+            except Exception as e:
+                raise DASyndicationError(e)
 
-        return {"statusCode": "201", "body": dumps({"lead_id": lead_id})}
+    except DASyndicationError as e:
+        logger.error(f"Error syndicating lead: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while sending lead {lead_id} to EventListener: {e}",
+            subject="Lead Syndication Failure Alert - CreateLead"
+        )
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while creating lead: {e}",
+            subject="Lead Creation Failure Alert - CreateLead"
+        )
         return {
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."}),
         }
+
+    return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}

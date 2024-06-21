@@ -68,12 +68,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         salesperson = body["salesperson"]
 
         with DBSession() as session:
-            dealer_partner = session.query(DealerIntegrationPartner).\
-                join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id).\
-                filter(
-                    Dealer.product_dealer_id == product_dealer_id,
-                    DealerIntegrationPartner.is_active == True
-                ).first()
+            dealer_partner = session.query(
+                DealerIntegrationPartner
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).filter(
+                Dealer.product_dealer_id == product_dealer_id,
+                DealerIntegrationPartner.is_active == True
+            ).first()
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {product_dealer_id}.")
                 return {
@@ -85,14 +87,31 @@ def lambda_handler(event: Any, context: Any) -> Any:
             crm_consumer_id = consumer.get("crm_consumer_id")
 
             # Query for existing consumer
-            consumer_db = session.query(Consumer).filter(
-                Consumer.crm_consumer_id == crm_consumer_id,
-                Consumer.dealer_integration_partner_id == dealer_partner_id
-            ).first()
+            consumer_db = None
+            if crm_consumer_id:
+                consumer_db = session.query(Consumer).filter(
+                    Consumer.crm_consumer_id == crm_consumer_id,
+                    Consumer.dealer_integration_partner_id == dealer_partner_id
+                ).first()
 
             # Create a new consumer if not found
             if not consumer_db:
                 consumer_db = Consumer()
+            else:
+                existing_lead = session.query(
+                    Lead
+                ).filter(
+                    Lead.crm_lead_id == lead.get("crm_lead_id"),
+                    Lead.consumer_id == consumer_db.id
+                ).first()
+
+                if existing_lead:
+                    msg = f"Lead with this crm_lead_id and customer_id already exists. Lead id {existing_lead.id}"
+                    logger.info(msg)
+                    return {
+                        "statusCode": 409,
+                        "body": dumps(msg)
+                    }
 
             # Update consumer attributes
             update_attrs(
@@ -104,28 +123,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 request_product
             )
 
-            # Add and flush the session if the consumer is new
-            if not consumer_db.id:
-                session.add(consumer_db)
-                session.flush()
-
-            existing_lead = session.query(
-                Lead
-            ).filter(
-                Lead.crm_lead_id == lead.get("crm_lead_id"),
-                Lead.consumer_id == consumer_db.id
-            ).first()
-
-            if existing_lead:
-                msg = f"Lead with this crm_lead_id and customer_id already exists. Lead id {existing_lead.id}"
-                logger.info(msg)
-                return {
-                    "statusCode": 409,
-                    "body": dumps(msg)
-                }
-
-            lead_db = Lead(
-                consumer_id=consumer_db.id,
+            lead_obj = Lead(
                 crm_lead_id=lead.get("crm_lead_id"),
                 status=lead.get("lead_status"),
                 substatus=lead.get("lead_substatus"),
@@ -135,12 +133,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 request_product=request_product,
                 lead_ts=format_ts(lead.get("lead_ts"))
             )
-
-            session.add(lead_db)
+            session.add(lead_obj)
+            lead_obj.consumer = consumer_db
 
             for vehicle in vehicles_of_interest:
                 vehicle_db = Vehicle(
-                    lead_id=lead_db.id,
                     crm_vehicle_id=vehicle.get("crm_vehicle_id"),
                     vin=vehicle.get("vin"),
                     stock_num=vehicle.get("stock_number"),
@@ -162,13 +159,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     odometer_units=vehicle.get("odometer_units"),
                     vehicle_comments=vehicle.get("vehicle_comments")
                 )
-                lead_db.vehicles.append(vehicle_db)
+                lead_obj.vehicles.append(vehicle_db)
 
             crm_salesperson_id = salesperson.get("crm_salesperson_id")
-            salesperson_db = session.query(Salesperson).filter(
-                Salesperson.crm_salesperson_id == crm_salesperson_id,
-                Salesperson.dealer_integration_partner_id == dealer_partner_id
-            ).first()
+            salesperson_db = None
+            if crm_salesperson_id:
+                salesperson_db = session.query(Salesperson).filter(
+                    Salesperson.crm_salesperson_id == crm_salesperson_id,
+                    Salesperson.dealer_integration_partner_id == dealer_partner_id
+                ).first()
 
             if not salesperson_db:
                 salesperson_db = Salesperson()
@@ -183,23 +182,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             if not salesperson_db.id:
                 session.add(salesperson_db)
-                session.flush()
 
             lead_salesperson = Lead_Salesperson(
-                lead_id=lead_db.id,
-                salesperson_id=salesperson_db.id,
                 is_primary=salesperson.get("is_primary", False)
             )
-            session.add(lead_salesperson)
+            lead_salesperson.salesperson = salesperson_db
+            lead_obj.lead_salespersons.append(lead_salesperson)
 
-            session.flush()
             session.commit()
-            lead_id = lead_db.id
+            lead_id = lead_obj.id
 
         logger.info(f"Created lead {lead_id}")
 
         return {
-            "statusCode": "200",
+            "statusCode": 200,
             "body": dumps({"lead_id": lead_id})
         }
 

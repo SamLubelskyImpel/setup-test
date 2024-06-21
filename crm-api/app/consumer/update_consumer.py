@@ -6,6 +6,8 @@ from json import loads, dumps
 from typing import Any
 
 from crm_orm.models.consumer import Consumer
+from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.session_config import DBSession
 
 from utils import get_restricted_query
@@ -30,11 +32,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
         ]
 
         with DBSession() as session:
-            consumer = (get_restricted_query(session, integration_partner)
-                        .filter(Consumer.id == consumer_id)
-                        .first())
+            consumer_query = session.query(
+                Consumer
+            ).join(
+                DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
+            ).join(
+                IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).filter(
+                Consumer.id == consumer_id
+            )
 
-            if not consumer:
+            consumer_query = get_restricted_query(consumer_query, integration_partner)
+            consumer_db = consumer_query.first()
+
+            if not consumer_db:
                 logger.error(f"Consumer {consumer_id} not found")
                 return {
                     "statusCode": 404,
@@ -43,7 +54,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             for field in fields_to_update:
                 if field in body:
-                    setattr(consumer, field, body[field])
+                    setattr(consumer_db, field, body[field])
 
             session.commit()
 
