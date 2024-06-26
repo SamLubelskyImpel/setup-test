@@ -1,7 +1,6 @@
 """Format tekion historical csv data to unified format."""
 import logging
 import urllib.parse
-from datetime import datetime
 from json import dumps, loads
 from os import environ
 import csv
@@ -24,22 +23,25 @@ def parse_csv_to_entries(csv_data, s3_uri):
     dms_id = None
     reader = csv.DictReader(csv_data.splitlines())
 
-    db_dealer_integration_partner = {}
-    db_vehicle_sale = {}
-    db_vehicle = {}
-    db_consumer = {}
-
     db_metadata = {
         "Region": REGION,
-        "PartitionYear": s3_uri.split("/")[2],
-        "PartitionMonth": s3_uri.split("/")[3],
-        "PartitionDate": s3_uri.split("/")[4],
+        "PartitionYear": s3_uri.split("/")[4],
+        "PartitionMonth": s3_uri.split("/")[5],
+        "PartitionDate": s3_uri.split("/")[6],
         "s3_url": s3_uri,
     }
 
     for row in reader:
-        # db_dealer_integration_partner["dms_id"] = row["dealerid"]
-        db_dealer_integration_partner["dms_id"] = '109967'
+        db_dealer_integration_partner = {}
+        db_vehicle_sale = {}
+        db_vehicle = {}
+        db_consumer = {}
+
+        dms_id = row["dealerid"]
+
+        db_dealer_integration_partner = {
+            'dms_id': dms_id
+        }
 
         db_vehicle_sale["sale_date"] = row["dealCreatedTime"]
         db_vehicle_sale["listed_price"] = row["retailprice"]
@@ -53,7 +55,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale["vehicle_gross"] = row["retailprice"]
         db_vehicle_sale["vin"] = row["vin"]
         db_vehicle_sale["finance_rate"] = row["apr"]
-        # db_vehicle_sale["finance_amount"] = row["amountfinanced"]
 
         db_vehicle["vin"] = row["vin"]
         db_vehicle["year"] = row["year"]
@@ -62,7 +63,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle["oem_name"] = row["make"]
         db_vehicle["type"] = row["bodytype"]
         db_vehicle["vehicle_class"] = row["bodyclass"]
-        db_vehicle["mileage"] = row["mileage"]
+        db_vehicle["mileage"] = int((row["mileage"]))
         db_vehicle["new_or_used"] = row["vehicletype"]
 
         db_consumer["first_name"] = row["buyer_firstName"]
@@ -110,9 +111,9 @@ def lambda_handler(event, context):
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                 csv_data = response["Body"].read().decode('utf-8')
                 entries, dms_id = parse_csv_to_entries(csv_data, decoded_key)
-                # if not dms_id:
-                #     raise RuntimeError("No dms_id found")
-                # upload_unified_json(entries, "fi_closed_deal", decoded_key, dms_id)
+                if not dms_id:
+                    raise RuntimeError("No dms_id found")
+                upload_unified_json(entries, "fi_closed_deal", decoded_key, dms_id)
     except Exception:
         logger.exception(f"Error transforming tekion historical repair order file {event}")
         raise

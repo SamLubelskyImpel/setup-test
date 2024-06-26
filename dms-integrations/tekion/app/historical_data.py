@@ -31,6 +31,8 @@ def parse_data(data):
     """Parse and handle SQS Message."""
     logger.info(data)
     dealer_id = data["dealer_id"]
+    end_dt = data["end_dt_str"]
+    s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%m/%d")
     ftp_session = FtpToS3(**get_ftp_credentials())
     ftp = ftp_session.connect_to_ftp()
     s3_client = boto3.client('s3')
@@ -66,9 +68,9 @@ def parse_data(data):
 
                         # Determine S3 key based on file name
                         if "RepairOrder" in file:
-                            s3_key = f"tekion/historical/repair_order/{dealer_id}/{file}"
+                            s3_key = f"tekion/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
                         elif "VehicleSales" in file:
-                            s3_key = f"tekion/historical/fi_closed_deal/{dealer_id}/{file}"
+                            s3_key = f"tekion/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
                         else:
                             raise ValueError(f"Unknown file type for file {file}")
 
