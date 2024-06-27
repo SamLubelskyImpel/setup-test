@@ -85,134 +85,173 @@ s3_client = boto3.client("s3")
 #     return unified_crm_lead_id
 
 
-# def format_ts(input_ts: str) -> str:
-#     """
-#     Format a timestamp string into a db format.
+def format_ts(input_ts: str) -> str:
+    """
+    Format a timestamp string into a db format.
 
-#     Assumes the input timestamp is in the format "November, 17 2023 18:57:17".
-#     """
-#     dt = datetime.strptime(input_ts, "%B, %d %Y %H:%M:%S")
+    Assumes the input timestamp is either:
+    - A timestamp string in milliseconds since the epoch, e.g., "1719257050849"
+    - An empty string, in which case the current datetime will be used.
+    """
+    if not input_ts:
+        dt = datetime.utcnow()
+    else:
+        # Assume the input is a timestamp in milliseconds
+        dt = datetime.utcfromtimestamp(int(input_ts) / 1000)
 
-#     # Format the datetime object to ISO 8601 UTC format
-#     output_format = "%Y-%m-%dT%H:%M:%SZ"
-#     return dt.strftime(output_format)
+    output_format = "%Y-%m-%dT%H:%M:%SZ"
+    return dt.strftime(output_format)
 
 
-# def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> None:
-#     """Extract contact information from the dealerpeak json data."""
-#     db_entity[f'crm_{item_name}_id'] = item.get('userID')
-#     db_entity["first_name"] = item.get('givenName')
-#     db_entity["last_name"] = item.get('familyName')
-#     emails = item.get('contactInformation', {}).get('emails', [])
-#     db_entity["email"] = emails[0].get('address', '') if emails else ''
-#     phone_numbers = item.get('contactInformation', {}).get('phoneNumbers', [])
-#     phone_number = phone_numbers[0].get("number") if phone_numbers and "number" in phone_numbers[0] else ''
+def parse_email(emails):
+    """Parse the emails."""
+    if not emails:
+        return None
 
-#     # Iterate to find a mobile, cell or main phone number
-#     for phone in phone_numbers:
-#         if phone.get("type", "").lower() in ["mobile", "cell", "main"] and phone.get("number"):
-#             phone_number = phone.get('number', '')
-#             break
+    preferred_email = emails[0]
 
-#     db_entity["phone"] = phone_number
+    for email in emails:
+        if email.get('isPrimary') is True:
+            preferred_email = email
+            break
 
-#     if item_name == 'consumer':
-#         addresses = item.get('contactInformation', {}).get('addresses', [])
-#         address = addresses[0] if addresses else None
+    return preferred_email
 
-#         if addresses:
-#             for addr in addresses:
-#                 if addr.get("type", "").lower() == "main":
-#                     address = addr
-#                     break
 
-#         if address:
-#             line1 = address.get('line1', '')
-#             if not line1:
-#                 line1 = address.get('lineOne', '')
-#             line2 = address.get('line2', '')
-#             db_entity["address"] = f"{line1} {line2}".strip() if line1 or line2 else None
-#             db_entity["city"] = address.get('city', None)
-#             db_entity["postal_code"] = address.get('postcode', None)
+def parse_phone_number(phones):
+    """Parse the phone number."""
+    if not phones:
+        return None
 
-#         communication_preferences = item.get('contactInformation', {}).get('allowed', {})
+    preferred_phone = phones[0]
+    for phone in phones:
+        if phone.get('type') == 'CELL':
+            preferred_phone = phone
+            break
 
-#         if communication_preferences:
-#             db_entity["email_optin_flag"] = communication_preferences.get('email', True)
+    return preferred_phone
 
-#     # Remove None values from db_entity without reassignment
-#     keys_to_remove = [key for key, value in db_entity.items() if value is None]
-#     for key in keys_to_remove:
-#         del db_entity[key]
 
-# def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
-#     """Format dealerpeak json data to unified format."""
-#     entries = []
-#     try:
-#         for item in json_data:
-#             db_lead = {}
-#             db_vehicles = []
-#             db_consumer = {}
-#             db_salesperson = {}
+def parse_address(addresses):
+    """Parse the address."""
+    if not addresses:
+        return None
 
-#             lead_origin = item.get('source', {}).get('source', '')
-#             if lead_origin not in ['Internet', 'Third Party']:
-#                 logger.info(f"Skipping lead with origin: {lead_origin}")
-#                 continue
+    preferred_address = addresses[0]
+    for address in addresses:
+        if address.get('addressType') == "CURRENT":
+            preferred_address = address
+            break
 
-#             crm_lead_id = item.get('leadID', '')
-#             db_lead["crm_lead_id"] = crm_lead_id
-#             db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
-#             db_lead["lead_status"] = item.get('status', {}).get('status', '')
-#             db_lead["lead_substatus"] = ''
-#             db_lead["lead_comment"] = item.get('firstNote', {}).get('note', '')
-#             db_lead["lead_origin"] = lead_origin.upper()
+    return preferred_address
 
-#             provider_name = (
-#                 item.get('costItem', {}).get('provider', {}).get('provider') or
-#                 item.get('manufacturer', {}).get('name')
-#             )
 
-#             db_lead["lead_source"] = provider_name if provider_name else None
-#             vehicles = item.get('vehiclesOfInterest', [])
-#             for vehicle in vehicles:
-#                 is_new = vehicle.get("isNew")
-#                 db_vehicle = {
-#                     "crm_vehicle_id": vehicle.get('carID'),
-#                     "vin": vehicle.get('vin'),
-#                     "year": int(vehicle.get('year')) if vehicle.get('year') else None,
-#                     "make": vehicle.get('make'),
-#                     "model": vehicle.get('model'),
-#                     "condition": 'New' if is_new is True else ('Used' if is_new is False else None)
-#                 }
-#                 db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+def extract_salesperson(salespersons):
+    """Extract salesperson data."""
+    if not salespersons:
+        return None
 
-#                 db_vehicles.append(db_vehicle)
+    primary_salesperson = salespersons[0]
+    for salesperson in salespersons:
+        if salesperson.get("isPrimary") is True:
+            primary_salesperson = salesperson
+            break
 
-#             db_lead["vehicles_of_interest"] = db_vehicles
+    return {
+        "crm_salesperson_id": str(primary_salesperson.get("arcId")),
+        "is_primary": True,
+        "position_name": primary_salesperson.get("type"),
+    }
 
-#             consumer = item.get('customer', None)
-#             extract_contact_information('consumer', consumer, db_consumer)
 
-#             if not db_consumer["email"] and not db_consumer["phone"]:
-#                 logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
-#                 continue
+def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
+    """Format tekion crm json data to unified format."""
+    entries = []
+    raw_items = json_data.get('data', [])
+    try:
+        for item in raw_items:
+            db_lead = {}
+            db_vehicles = []
+            db_consumer = {}
+            db_salesperson = {}
 
-#             salesperson = item.get('agent', None)
-#             extract_contact_information('salesperson', salesperson, db_salesperson)
-#             db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
+            lead_origin = item.get('source', {}).get('sourceType', '')
+            if lead_origin not in ['Internet']:
+                logger.info(f"Skipping lead with origin: {lead_origin}")
+                continue
 
-#             entry = {
-#                 "product_dealer_id": product_dealer_id,
-#                 "lead": db_lead,
-#                 "consumer": db_consumer
-#             }
+            crm_lead_id = item.get('id', '')
 
-#             entries.append(entry)
-#         return entries
-#     except Exception as e:
-#         logger.error(f"Error processing record: {e}")
-#         raise
+            db_lead["crm_lead_id"] = crm_lead_id
+            db_lead["lead_ts"] = format_ts(item.get('createdTime', ''))
+            db_lead["lead_status"] = item.get('status')
+            db_lead["lead_substatus"] = ''
+            db_lead["lead_comment"] = item.get('notes', [{}])[0].get('description', '') if item.get('notes') else ''
+            db_lead["lead_origin"] = lead_origin.upper()
+            db_lead["lead_source"] = item.get('source', {}).get('sourceName', '')
+            db_lead["lead_source_detail"] = item.get('source', {}).get('subSource', '')
+
+            vehicles = item.get('vehicles', [])
+            trade_ins = item.get('tradeIns', [{}])[0]
+            for vehicle in vehicles:
+                db_vehicle = {
+                    "vin": vehicle.get('vin', ''),
+                    "year": int(vehicle.get('year')) if vehicle.get('year') else None,
+                    "make": vehicle.get('make', ''),
+                    "model": vehicle.get('model', ''),
+                    "condition": vehicle.get('stockType', ''),
+                    "oem_name": vehicle.get('trimDetails', {}).get('oem', ''),
+                    "type": vehicle.get('trimDetails', {}).get('bodyType', ''),
+                    "class": vehicle.get('trimDetails', {}).get('bodyClass', ''),
+                    "transmission": vehicle.get('trimDetails', {}).get('transmissionControlType', ''),
+                    "interior_color": vehicle.get('interiorColor', ''),
+                    "exterior_color": vehicle.get('exteriorColor', ''),
+                    "trim": vehicle.get('trimDetails', {}).get('trim', ''),
+                    "trade_in_vin": trade_ins.get('vehicle', {}).get('vin', ''),
+                    "trade_in_year": trade_ins.get('vehicle', {}).get('year', ''),
+                    "trade_in_make": trade_ins.get('vehicle', {}).get('make', ''),
+                    "trade_in_model": trade_ins.get('vehicle', {}).get('model', ''),
+                }
+
+                db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+
+                db_vehicles.append(db_vehicle)
+
+            db_lead["vehicles_of_interest"] = db_vehicles
+
+            consumer = item.get('customers', [{}])[0]
+            db_consumer = {
+                "first_name": consumer.get('firstName', ''),
+                "last_name": consumer.get('lastName', ''),
+                "middle_name": consumer.get('middleName', ''),
+                "email": parse_email(consumer.get('emails', [])).get("emailId"),
+                "phone": parse_phone_number(consumer.get('phones', [])).get("number"),
+                "address": parse_address(consumer.get('addresses', [])).get("line1") + " " + parse_address(consumer.get('addresses', [])).get("line2"),
+                "city": parse_address(consumer.get('addresses', [])).get("city"),
+                "country": parse_address(consumer.get('addresses', [])).get("country"),
+                "postal_code": parse_address(consumer.get('addresses', [])).get("zip"),
+                "email_optin_flag": parse_email(consumer.get('emails', [])).get("optedForCommunication"),
+                "sms_optin_flag": parse_phone_number(consumer.get('phones', [])).get("optedForCommunication"),
+            }
+
+            if not db_consumer["email"] and not db_consumer["phone"]:
+                logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
+                continue
+
+            db_salesperson = extract_salesperson(item.get('assignees', None))
+            db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
+
+            entry = {
+                "product_dealer_id": product_dealer_id,
+                "lead": db_lead,
+                "consumer": db_consumer
+            }
+
+            entries.append(entry)
+        return entries
+    except Exception as e:
+        logger.error(f"Error processing record: {e}")
+        raise
 
 
 # def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
@@ -240,19 +279,19 @@ s3_client = boto3.client("s3")
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
-    # try:
-    #     message = loads(record["body"])
-    #     bucket = message["detail"]["bucket"]["name"]
-    #     key = message["detail"]["object"]["key"]
-    #     product_dealer_id = key.split('/')[2]
+    try:
+        message = loads(record["body"])
+        bucket = message["detail"]["bucket"]["name"]
+        key = message["detail"]["object"]["key"]
+        product_dealer_id = key.split('/')[2]
 
-    #     response = s3_client.get_object(Bucket=bucket, Key=key)
-    #     content = response['Body'].read()
-    #     json_data = loads(content)
-    #     logger.info(f"Raw data: {json_data}")
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        content = response['Body'].read()
+        json_data = loads(content)
+        logger.info(f"Raw data: {json_data}")
 
-    #     entries = parse_json_to_entries(product_dealer_id, json_data)
-    #     logger.info(f"Transformed entries: {entries}")
+        entries = parse_json_to_entries(product_dealer_id, json_data)
+        logger.info(f"Transformed entries: {entries}")
 
     #     crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
@@ -271,9 +310,9 @@ def record_handler(record: SQSRecord) -> None:
     #         if not result:
     #             raise Exception("Error detected posting and forwarding an entry")
 
-    # except Exception as e:
-    #     logger.error(f"Error transforming dealerpeak record - {record}: {e}")
-    #     raise
+    except Exception as e:
+        logger.error(f"Error transforming tekion crm record - {record}: {e}")
+        raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
