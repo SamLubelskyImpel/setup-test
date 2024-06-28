@@ -29,60 +29,60 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
-# def get_secret(secret_name, secret_key) -> Any:
-#     """Get secret from Secrets Manager."""
-#     secret = sm_client.get_secret_value(
-#         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-#     )
-#     secret = loads(secret["SecretString"])[str(secret_key)]
-#     secret_data = loads(secret)
+def get_secret(secret_name, secret_key) -> Any:
+    """Get secret from Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret = loads(secret["SecretString"])[str(secret_key)]
+    secret_data = loads(secret)
 
-#     return secret_data
-
-
-# def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
-#     """Upload consumer to the database through CRM API."""
-#     logger.info(f"Consumer data to send: {consumer}")
-#     response = requests.post(
-#         f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
-#         json=consumer,
-#         headers={
-#             "x_api_key": api_key,
-#             "partner_id": UPLOAD_SECRET_KEY,
-#         },
-#     )
-#     logger.info(
-#         f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
-#     )
-#     response.raise_for_status()
-#     unified_crm_consumer_id = response.json().get("consumer_id")
-
-#     if not unified_crm_consumer_id:
-#         logger.error(f"Error creating consumer: {consumer}")
-#         raise Exception(f"Error creating consumer: {consumer}")
-
-#     return unified_crm_consumer_id
+    return secret_data
 
 
-# def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
-#     """Upload lead to the database through CRM API."""
-#     logger.info(f"Lead data to send: {lead}")
-#     response = requests.post(
-#         f"https://{CRM_API_DOMAIN}/leads",
-#         json=lead,
-#         headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
-#     )
-#     logger.info(
-#         f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
-#     )
-#     response.raise_for_status()
-#     unified_crm_lead_id = response.json().get("lead_id")
+def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
+    """Upload consumer to the database through CRM API."""
+    logger.info(f"Consumer data to send: {consumer}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
+        json=consumer,
+        headers={
+            "x_api_key": api_key,
+            "partner_id": UPLOAD_SECRET_KEY,
+        },
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
+    )
+    response.raise_for_status()
+    unified_crm_consumer_id = response.json().get("consumer_id")
 
-#     if not unified_crm_lead_id:
-#         logger.error(f"Error creating lead: {lead}")
-#         raise Exception(f"Error creating lead: {lead}")
+    if not unified_crm_consumer_id:
+        logger.error(f"Error creating consumer: {consumer}")
+        raise Exception(f"Error creating consumer: {consumer}")
 
-#     return unified_crm_lead_id
+    return unified_crm_consumer_id
+
+
+def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
+    """Upload lead to the database through CRM API."""
+    logger.info(f"Lead data to send: {lead}")
+    response = requests.post(
+        f"https://{CRM_API_DOMAIN}/leads",
+        json=lead,
+        headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
+    )
+    logger.info(
+        f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
+    )
+    response.raise_for_status()
+    unified_crm_lead_id = response.json().get("lead_id")
+
+    if not unified_crm_lead_id:
+        logger.error(f"Error creating lead: {lead}")
+        raise Exception(f"Error creating lead: {lead}")
+
+    return unified_crm_lead_id
 
 
 def format_ts(input_ts: str) -> str:
@@ -208,7 +208,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                     "exterior_color": vehicle.get('exteriorColor', ''),
                     "trim": vehicle.get('trimDetails', {}).get('trim', ''),
                     "trade_in_vin": trade_ins.get('vehicle', {}).get('vin', ''),
-                    "trade_in_year": trade_ins.get('vehicle', {}).get('year', ''),
+                    "trade_in_year": int(vehicle.get('year')) if vehicle.get('year') else None,
                     "trade_in_make": trade_ins.get('vehicle', {}).get('make', ''),
                     "trade_in_model": trade_ins.get('vehicle', {}).get('model', ''),
                 }
@@ -254,26 +254,26 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         raise
 
 
-# def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
-#     """Process a single entry."""
-#     logger.info(f"[THREAD {index}] Processing entry {entry}")
-#     try:
-#         product_dealer_id = entry["product_dealer_id"]
-#         consumer = entry["consumer"]
-#         lead = entry["lead"]
-#         unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
-#         lead["consumer_id"] = unified_crm_consumer_id
-#         unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
-#         logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
-#     except Exception as e:
-#         if '409' in str(e):
-#             # Log the 409 error and continue with the next entry
-#             logger.warning(f"[THREAD {index}] {e}")
-#         else:
-#             logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
-#             return False
+def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
+    """Process a single entry."""
+    logger.info(f"[THREAD {index}] Processing entry {entry}")
+    try:
+        product_dealer_id = entry["product_dealer_id"]
+        consumer = entry["consumer"]
+        lead = entry["lead"]
+        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
+        lead["consumer_id"] = unified_crm_consumer_id
+        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
+        logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
+    except Exception as e:
+        if '409' in str(e):
+            # Log the 409 error and continue with the next entry
+            logger.warning(f"[THREAD {index}] {e}")
+        else:
+            logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
+            return False
 
-#     return True
+    return True
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -293,22 +293,22 @@ def record_handler(record: SQSRecord) -> None:
         entries = parse_json_to_entries(product_dealer_id, json_data)
         logger.info(f"Transformed entries: {entries}")
 
-    #     crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-    #     results = []
-    #     # Process each entry in parallel, each entry takes about 8 seconds to process.
-    #     with ThreadPoolExecutor() as executor:
-    #         futures = [
-    #             executor.submit(post_entry,
-    #                             entry, crm_api_key, idx)
-    #             for idx, entry in enumerate(entries)
-    #         ]
-    #         for future in as_completed(futures):
-    #             results.append(future.result())
+        results = []
+        # Process each entry in parallel, each entry takes about 8 seconds to process.
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(post_entry,
+                                entry, crm_api_key, idx)
+                for idx, entry in enumerate(entries)
+            ]
+            for future in as_completed(futures):
+                results.append(future.result())
 
-    #     for result in results:
-    #         if not result:
-    #             raise Exception("Error detected posting and forwarding an entry")
+        for result in results:
+            if not result:
+                raise Exception("Error detected posting and forwarding an entry")
 
     except Exception as e:
         logger.error(f"Error transforming tekion crm record - {record}: {e}")
