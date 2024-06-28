@@ -115,9 +115,9 @@ class RDSInstance:
         # Use a simple SQL query for debugging
         query = f"""
         SELECT received_datetime
-        FROM {self.schema}.inv_inventory
-        JOIN {self.schema}.inv_dealer_integration_partner ON inv_dealer_integration_partner.provider_dealer_id = '{provider_dealer_id}'
-        WHERE inv_inventory.on_lot = TRUE
+        FROM {self.schema}.inv_inventory ii
+        JOIN {self.schema}.inv_dealer_integration_partner idip ON idip.id = ii.dealer_integration_partner_id
+        WHERE idip.provider_dealer_id = '{provider_dealer_id}' and ii.on_lot = TRUE
         ORDER BY received_datetime DESC LIMIT 1;
         """
         try:
