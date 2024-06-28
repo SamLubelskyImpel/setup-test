@@ -4,7 +4,7 @@ import boto3
 import logging
 import requests
 from os import environ
-from json import loads, dumps
+from json import loads
 from typing import Any, Dict
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -40,49 +40,28 @@ def get_secret(secret_name, secret_key) -> Any:
     return secret_data
 
 
-def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
-    """Upload consumer to the database through CRM API."""
-    logger.info(f"Consumer data to send: {consumer}")
+def upload_to_db(data: Dict[str, Any], endpoint: str, api_key: str, index: int, id_key: str) -> Any:
+    """Upload data to the database through CRM API."""
+    logger.info(f"Data to send: {data}")
     response = requests.post(
-        f"https://{CRM_API_DOMAIN}/consumers?dealer_id={product_dealer_id}",
-        json=consumer,
+        f"https://{CRM_API_DOMAIN}/{endpoint}",
+        json=data,
         headers={
             "x_api_key": api_key,
             "partner_id": UPLOAD_SECRET_KEY,
         },
     )
     logger.info(
-        f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
+        f"[THREAD {index}] Response from Unified Layer Create {endpoint.capitalize()} {response.status_code} {response.text}",
     )
     response.raise_for_status()
-    unified_crm_consumer_id = response.json().get("consumer_id")
+    unified_crm_id = response.json().get(id_key)
 
-    if not unified_crm_consumer_id:
-        logger.error(f"Error creating consumer: {consumer}")
-        raise Exception(f"Error creating consumer: {consumer}")
+    if not unified_crm_id:
+        logger.error(f"Error creating {endpoint}: {data}")
+        raise Exception(f"Error creating {endpoint}: {data}")
 
-    return unified_crm_consumer_id
-
-
-def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
-    """Upload lead to the database through CRM API."""
-    logger.info(f"Lead data to send: {lead}")
-    response = requests.post(
-        f"https://{CRM_API_DOMAIN}/leads",
-        json=lead,
-        headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
-    )
-    logger.info(
-        f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
-    )
-    response.raise_for_status()
-    unified_crm_lead_id = response.json().get("lead_id")
-
-    if not unified_crm_lead_id:
-        logger.error(f"Error creating lead: {lead}")
-        raise Exception(f"Error creating lead: {lead}")
-
-    return unified_crm_lead_id
+    return unified_crm_id
 
 
 def format_ts(input_ts: str) -> str:
@@ -213,7 +192,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                     "trade_in_model": trade_ins.get('vehicle', {}).get('model', ''),
                 }
 
-                db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+                db_vehicle = {key: value for key, value in db_vehicle.items() if value not in [None, ""]}
 
                 db_vehicles.append(db_vehicle)
 
@@ -261,9 +240,9 @@ def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
         product_dealer_id = entry["product_dealer_id"]
         consumer = entry["consumer"]
         lead = entry["lead"]
-        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
+        unified_crm_consumer_id = upload_to_db(consumer, f"consumers?dealer_id={product_dealer_id}", crm_api_key, index, "consumer_id")
         lead["consumer_id"] = unified_crm_consumer_id
-        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
+        unified_crm_lead_id = upload_to_db(lead, "leads", crm_api_key, index, "lead_id")
         logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
