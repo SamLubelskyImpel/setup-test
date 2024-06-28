@@ -221,7 +221,7 @@ def parse_lead(product_dealer_id, data):
             elif vehicle.get("type") == "exchange":
                 db_vehicle = {
                     "trade_in_vin": vehicle.get("vin"),
-                    "trade_in_year": vehicle.get("year"),
+                    "trade_in_year": int(vehicle.get('year')) if vehicle.get('year') and vehicle.get('year').isdigit() else None,
                     "trade_in_make": vehicle.get("make"),
                     "trade_in_model": vehicle.get("model"),
                     "status": vehicle.get("type")
