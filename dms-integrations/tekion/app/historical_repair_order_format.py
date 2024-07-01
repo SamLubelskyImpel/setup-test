@@ -33,19 +33,22 @@ def parse_csv_to_entries(csv_data, s3_uri):
     }
 
     for row in reader:
+        # Convert all keys to lowercase
+        normalized_row = {k.lower(): v for k, v in row.items()}
+
         db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
         db_op_codes = []
 
         # dms_id = row['dealerid']
-        dms_id = '967'  # ???
+        dms_id = '1086'  # hardcoded for testing
 
         db_dealer_integration_partner = {
             'dms_id': dms_id
         }
 
-        repair_order_no = row['roNo']
+        repair_order_no = normalized_row["rono"]
 
         # Check if the repair order has already been processed
         if repair_order_no in entries_lookup:
@@ -53,47 +56,47 @@ def parse_csv_to_entries(csv_data, s3_uri):
             # Create a dictionary for the current operation code and its description
             db_op_code = {
                 "op_code|op_code": row['opcode'],
-                "op_code|op_code_desc": row['opcodeDescription']
+                "op_code|op_code_desc": row['opcodedescription']
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
             # add new repair order
-            db_service_repair_order["repair_order_no"] = row["roNo"]
-            db_service_repair_order["ro_open_date"] = row["roCreatedTime"]
-            db_service_repair_order["ro_close_date"] = row["closedTime"]
-            db_service_repair_order["txn_pay_type"] = row["payType"]
-            db_service_repair_order["advisor_name"] = row["AdvisorName"]
-            db_service_repair_order["total_amount"] = row["amount"]
-            db_service_repair_order["comment"] = row["concern"]
+            db_service_repair_order["repair_order_no"] = repair_order_no
+            db_service_repair_order["ro_open_date"] = normalized_row["rocreatedtime"]
+            db_service_repair_order["ro_close_date"] = normalized_row["closedtime"]
+            db_service_repair_order["txn_pay_type"] = normalized_row["paytype"]
+            db_service_repair_order["advisor_name"] = normalized_row["advisorname"]
+            db_service_repair_order["total_amount"] = normalized_row["amount"]
+            db_service_repair_order["comment"] = normalized_row["concern"]
 
             # add new vehicle
-            db_vehicle["vin"] = row["vin"]
-            db_vehicle["year"] = row["year"]
-            db_vehicle["make"] = row["make"]
-            db_vehicle["model"] = row["model"]
-            db_vehicle["oem_name"] = row["make"]
-            db_vehicle["type"] = row["bodyType"]
-            db_vehicle["vehicle_class"] = row["bodyClass"]
-            db_vehicle["mileage"] = int(row["mileageIn"])
-            db_vehicle["new_or_used"] = row["vehicleType"]
+            db_vehicle["vin"] = normalized_row["vin"]
+            db_vehicle["year"] = normalized_row["year"]
+            db_vehicle["make"] = normalized_row["make"]
+            db_vehicle["model"] = normalized_row["model"]
+            db_vehicle["oem_name"] = normalized_row["make"]
+            db_vehicle["type"] = normalized_row["bodytype"]
+            db_vehicle["vehicle_class"] = normalized_row["bodyclass"]
+            db_vehicle["mileage"] = int(float(normalized_row["mileagein"])) if normalized_row["mileagein"] else None
+            db_vehicle["new_or_used"] = normalized_row["vehicletype"]
 
             # add new consumer
-            db_consumer["first_name"] = row["firstName"]
-            db_consumer["last_name"] = row["lastName"]
-            db_consumer["email"] = row["email"]
-            db_consumer["cell_phone"] = row["mobilePhone"]
-            db_consumer["home_phone"] = row["homePhone"]
-            db_consumer["state"] = row["state"]
-            db_consumer["city"] = row["city"]
-            db_consumer["postal_code"] = row["postalCode"]
-            db_consumer["address"] = row["streetAddress1"] + row["streetAddress2"]
-            db_consumer["email_optin_flag"] = True if row["email"] else False
+            db_consumer["first_name"] = normalized_row["firstname"]
+            db_consumer["last_name"] = normalized_row["lastname"]
+            db_consumer["email"] = normalized_row["email"]
+            db_consumer["cell_phone"] = normalized_row["mobilephone"]
+            db_consumer["home_phone"] = normalized_row["homephone"]
+            db_consumer["state"] = normalized_row["state"]
+            db_consumer["city"] = normalized_row["city"]
+            db_consumer["postal_code"] = normalized_row["postalcode"]
+            db_consumer["address"] = normalized_row["streetaddress1"] + normalized_row["streetaddress2"]
+            db_consumer["email_optin_flag"] = True if normalized_row["email"] else False
             db_consumer["sms_optin_flag"] = False
 
             # add new op code
             db_op_code = {
-                "op_code|op_code": row['opcode'],
-                "op_code|op_code_desc": row['opcodeDescription']
+                "op_code|op_code": normalized_row['opcode'],
+                "op_code|op_code_desc": normalized_row['opcodedescription']
             }
             db_op_codes.append(db_op_code)
 

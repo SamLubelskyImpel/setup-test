@@ -63,7 +63,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle["oem_name"] = row["make"]
         db_vehicle["type"] = row["bodytype"]
         db_vehicle["vehicle_class"] = row["bodyclass"]
-        db_vehicle["mileage"] = int((row["mileage"]))
+        db_vehicle["mileage"] = int(float(row["mileage"])) if row["mileage"] else None
         db_vehicle["new_or_used"] = row["vehicletype"]
 
         db_consumer["first_name"] = row["buyer_firstName"]
