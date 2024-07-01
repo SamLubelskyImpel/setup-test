@@ -17,7 +17,7 @@ Conditions:
 
 Globals:
   Function:
-    Runtime: python3.12
+    Runtime: python3.9
     Environment:
       Variables:
         # Common vars
@@ -88,12 +88,12 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                  - "logs:DescribeLogStreams"
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
                 Resource: "arn:aws:logs:*:*:*"
         - PolicyName: S3Policy
           PolicyDocument:
@@ -101,116 +101,101 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - "s3:PutObject"
-                  - "s3:DeleteObject"
+                  - s3:PutObject
+                  - s3:DeleteObject
                 Resource:
                   - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
               - Effect: Allow
                 Action:
-                  - "s3:GetObject"
-                  - "s3:PutObject"
+                  - s3:GetObject
+                  - s3:PutObject
                 Resource:
                   - !If [
-                    IsProd,
-                    !Sub "arn:aws:s3:::crm-integrations-prod*",
-                    !Sub "arn:aws:s3:::crm-integrations-test*"
-                  ]
+                      IsProd,
+                      !Sub "arn:aws:s3:::crm-integrations-prod*",
+                      !Sub "arn:aws:s3:::crm-integrations-test*"
+                    ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
-                Resource:
-                  - "*"
-              - Effect: "Allow"
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: "*"
+              - Effect: Allow
                 Action:
-                  - "sqs:SendMessage"
+                  - sqs:SendMessage
                 Resource: "arn:aws:sqs:*:*:*"
-              - PolicyName: SNSPolicy
-                PolicyDocument:
-                  Version: "2012-10-17"
-                  Statement:
-                    - Effect: "Allow"
-                      Action:
-                        - "sns:Publish"
-                      Resource:
-                        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-                        - !If [
-                          IsProd,
-                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
-                          !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
-                        ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "sns:Publish"
+                  - sns:Publish
                 Resource:
-                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-                - !If [
-                    IsProd,
-                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
-                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
-                  ]
+                  - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                  - !If [
+                      IsProd,
+                      !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                      !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                    ]
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
+              - Effect: Allow
                 Action:
-                  - "lambda:InvokeFunction"
+                  - lambda:InvokeFunction
                 Resource: "*"
 
-  # Token Rotation
-  TekionTokenRotationQueueDLQ:
+  # Tekion CRM Token Rotation
+  TekionCRMTokenRotationQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: TekionTokenRotationQueueDLQ
+      QueueName: !Sub "tekion-crm-${Environment}-TekionCRMTokenRotationQueueDLQ"
 
-  TekionTokenRotationQueue:
+  TekionCRMTokenRotationQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'tekion-token-rotation-failures-queue-${Environment}'
       VisibilityTimeout: 3600
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt TekionTokenRotationQueueDLQ.Arn
+        deadLetterTargetArn: !GetAtt TekionCRMTokenRotationQueueDLQ.Arn
         maxReceiveCount: 1
 
-  TekionTokenRotationFunctionRule:
+  TekionCRMTokenRotationFunctionRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Nightly trigger for InvokeTekionTokenRotationFunction
+      Description: Nightly trigger for InvokeTekionCRMTokenRotationFunction
       ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
       State: !If [ IsProd, "ENABLED", "DISABLED" ]
       Targets:
-        - Id: "TekionTokenRotationQueue"
-          Arn: !GetAtt TekionTokenRotationQueue.Arn
+        - Id: "TekionCRMTokenRotationQueue"
+          Arn: !GetAtt TekionCRMTokenRotationQueue.Arn
 
-  TekionTokenRotationEventMapping:
+  TekionCRMTokenRotationEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 1
-      EventSourceArn: !GetAtt TekionTokenRotationQueue.Arn
+      EventSourceArn: !GetAtt TekionCRMTokenRotationQueue.Arn
       MaximumBatchingWindowInSeconds: 1
-      FunctionName: !GetAtt InvokeTekionTokenRotationFunction.Arn
+      FunctionName: !GetAtt InvokeTekionCRMTokenRotationFunction.Arn
 
-  InvokeTekionTokenRotationFunction:
+  InvokeTekionCRMTokenRotationFunction:
     Type: AWS::Serverless::Function
     Properties:
       Description: Invoke Tekion's token rotation
-      Role: !GetAtt TekionTokenRotationRole.Arn
+      Role: !GetAtt LambdaRole.Arn
       CodeUri: app/
-      Runtime: python3.12
+      Runtime: python3.9
       Handler: access_token.lambda_handler
       Timeout: 180
 
-  InvokeTekionTokenRotationErrorAlarm:
+  InvokeTekionCRMTokenRotationErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub tekion-token-rotation-error-${Environment}
@@ -220,7 +205,7 @@ Resources:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
         - Name: FunctionName
-          Value: !Ref InvokeTekionTokenRotationFunction
+          Value: !Ref InvokeTekionCRMTokenRotationFunction
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -230,18 +215,18 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
 
-  TekionTokenRotationQueueDLQAlarm:
+  TekionCRMTokenRotationQueueDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionTokenRotationQueueDLQ-${Environment}
+      AlarmName: !Sub TekionCRMTokenRotationQueueDLQ-${Environment}
       AlarmDescription: There are messages in the Tekion token rotation order DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt TekionTokenRotationQueueDLQ.QueueName
+          Value: !GetAtt TekionCRMTokenRotationQueueDLQ.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -250,6 +235,102 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
+
+  # Transform new leads
+  TransformNewLeadsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-TransformNewLeads
+      CodeUri: app/
+      Handler: transform_new_leads.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformNewLeadsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/tekion-crm-${Environment}-TransformNewLeads"
+
+  TransformNewLeadsEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformNewLeadsQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformNewLeadsFunction.Arn
+
+  TransformNewLeadsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-crm-${Environment}-TransformNewLeadsQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformNewLeadsDLQ.Arn
+        maxReceiveCount: 3
+
+  TransformNewLeadsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-crm-${Environment}-TransformNewLeadsDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  TransformNewLeadsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "tekion-crm-${Environment}-TransformNewLeadsDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Tekion CRM Transform New Leads DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformNewLeadsDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformNewLeadsQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformNewLeadsQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformNewLeadsQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/tekion/" }
+      Targets:
+        - Id: "TransformNewLeadsTarget"
+          Arn: !GetAtt TransformNewLeadsQueue.Arn
 
   # Lead updates
   GetLeadUpdatesFunction:
