@@ -24,3 +24,7 @@ CRM_INTEGRATION_SECRETS_ID = environ.get(
 CRM_TEKION_AUTH_ENDPOINT = environ.get(
     "CRM_TEKION_AUTH_ENDPOINT", "/openapi/public/tokens"
 )
+
+# Crm API
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "impel")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN", "crm-api-test.testenv.impel.io")
