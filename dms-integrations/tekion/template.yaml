@@ -59,6 +59,7 @@ Globals:
                         !Sub "integrations-${AWS::Region}-prod",
                         !Sub "integrations-${AWS::Region}-test"
                       ]
+        FTP_FOLDER: !If [ IsProd, "prod_tekion_dms", "test_tekion_dms"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref TekionSecurityGroup

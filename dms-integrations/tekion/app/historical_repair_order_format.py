@@ -115,10 +115,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
             entries.append(entry)
             entries_lookup[repair_order_no] = entry
 
-    # Log the first 10 entries. Remove after testing
-    for entry in entries[:10]:
-        logger.info(f"Entries: {entry}")
-
     return entries, dms_id
 
 

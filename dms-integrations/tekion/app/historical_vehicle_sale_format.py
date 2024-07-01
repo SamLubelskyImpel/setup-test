@@ -91,9 +91,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
         }
         entries.append(entry)
 
-    for entry in entries[:10]:
-        logger.info(f"Entries: {entry}")
-
     return entries, dms_id
 
 
