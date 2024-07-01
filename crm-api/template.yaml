@@ -707,7 +707,7 @@ Resources:
       Statistic: Average
       Period: 60  # 1 minute
       EvaluationPeriods: 1
-      Threshold: 60
+      Threshold: 75
       ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
