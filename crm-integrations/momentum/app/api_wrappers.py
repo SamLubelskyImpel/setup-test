@@ -221,9 +221,9 @@ class MomentumApiWrapper:
                 "pattern": r'(?i)link to reply as assistant:\s+(https?://\S+)'
             }
         ]
-        
+
         extracted = []
-        
+
         for m in extraction_map:
             regex_match = re.search(m["pattern"], self.__activity["notes"])
             if regex_match:
@@ -232,27 +232,25 @@ class MomentumApiWrapper:
                     "link": regex_match.group(1),
                     "description": self.__activity["notes"]
                 })
-        
+
         return extracted
-        
+
     def __insert_note(self):
         """Insert note on CRM."""
         action_links = self.__extract_action_links()
-        
-        url = "{}/lead/{}".format(self.__api_url, self.__activity["crm_lead_id"])
-        
+
+        url = "{}/lead/{}/contact/remark".format(self.__api_url, self.__activity["crm_lead_id"])
+
         if len(action_links):
-            url += "/contact/remark/clockstop"
             payload = {
                 "remark": "Communication Sent/Received",
                 "actionLinks": action_links
             }
         else:
-            url += "/contact/remark"
             payload = {
                 "remark": self.__activity["notes"]
             }
-        
+
         logger.info(f"Request URL to CRM: {url}")
         logger.info(f"Payload to CRM: {payload}")
         response = self.__call_api(url, payload)
