@@ -64,32 +64,48 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
         "dealer_id": crm_dealer_id,
         "Authorization": f"Bearer {token}",
     }
-    params = {"createdStartTime": convert_to_epoch(start_time), "createdEndTime": convert_to_epoch(end_time)}
-    # params = {"createdStartTime": '1719256525145', "createdEndTime": '1719257125145'}   #hardcoded for testing
+    params = {
+        "createdStartTime": convert_to_epoch(start_time),
+        "createdEndTime": convert_to_epoch(end_time),
+        "page": 1
+    }
 
     api_url = f"{url}/openapi/v3.1.0/crm-leads"
     logger.info(f"Calling Tekion API: {api_url}", extra={"params": params})
 
-    # Get inital list of leads
-    try:
-        response = requests.get(
-            url=api_url,
-            params=params,
-            headers=headers,
-            timeout=5
-        )
-        response.raise_for_status()
-        raw_data = response.json()
-        initial_leads = raw_data["data"]
+    all_leads = []
 
-    except Exception as e:
-        logger.error(f"Error occured calling Tekion API: {e}")
-        raise
+    while True:
+        try:
+            response = requests.get(
+                url=api_url,
+                params=params,
+                headers=headers,
+                timeout=5
+            )
+            response.raise_for_status()
+            raw_data = response.json()
+            leads = raw_data["data"]
+            all_leads.extend(leads)
 
-    logger.info(f"Total initial leads found {len(initial_leads)}")
+            # Check pagination info
+            total_pages = raw_data["meta"]["pages"]
+            current_page = raw_data["meta"]["currentPage"]
+
+            if current_page >= total_pages:
+                break
+
+            # Update params for the next page
+            params["page"] += 1
+
+        except Exception as e:
+            logger.error(f"Error occurred calling Tekion API: {e}")
+            raise
+
+    logger.info(f"Total leads found {len(all_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(initial_leads, start_time)
+    filtered_leads = filter_leads(all_leads, start_time)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
     return filtered_leads
 
