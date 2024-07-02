@@ -17,7 +17,7 @@ TOKEN_FILE = environ.get("TOKEN_FILE", f"{PARTNER_KEY.lower()}_crm/token.json")
 # Secrets Manager
 CRM_INTEGRATION_SECRETS_ID = environ.get(
     "CRM_INTEGRATION_SECRETS_ID",
-    f"{"prod" if ENV == "prod" else "test"}/crm-integrations-partner"
+    f"{'prod' if ENV == 'prod' else 'test'}/crm-integrations-partner"
 )
 
 # Tekion API
