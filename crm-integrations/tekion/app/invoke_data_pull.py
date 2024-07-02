@@ -76,6 +76,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     all_leads = []
 
     while True:
+        logger.info(f"Getting leads with these parameters: {params}")
         try:
             response = requests.get(
                 url=api_url,
@@ -111,13 +112,13 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
 
 
 def filter_leads(leads: list, start_time: str):
-    """Filter leads by dateCreated."""
+    """Filter leads by data source."""
     filtered_leads = []
     logger.info(leads)
     for lead in leads:
         try:
-            lead_source = lead.get("source", {}).get("sourceType", "")
-            if lead_source == "Internet":
+            lead_source = lead.get("source", {}).get("sourceType", "").upper()
+            if lead_source == "INTERNET":
                 filtered_leads.append(lead)
         except Exception as e:
             logger.error(f"Error parsing lead source for lead {lead.get('id')}. Skipping lead: {e}")
