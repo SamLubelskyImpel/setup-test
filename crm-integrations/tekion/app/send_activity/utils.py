@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime
+from typing import Optional
 
 import boto3
 
@@ -25,7 +26,7 @@ def get_credentials_from_secrets() -> TekionCredentials:
     return TekionCredentials(**partner_content)
 
 
-def get_token_from_s3() -> Token | None:
+def get_token_from_s3() -> Optional[Token]:
     logger.info(
         "Getting token from S3: bucket=%s, key=%s",
         INTEGRATIONS_BUCKET, TOKEN_FILE
@@ -60,3 +61,6 @@ def get_token_from_s3() -> Token | None:
         if err.response["Error"]["Code"] == "404":
             logger.info("Token file not found in S3")
             return None
+        else:
+            logger.error("ClientError: %s", err)
+            raise
