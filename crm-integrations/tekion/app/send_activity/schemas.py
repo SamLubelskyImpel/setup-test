@@ -1,5 +1,5 @@
-import json
-from dataclasses import dataclass, field
+from json import dumps
+from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from urllib.parse import urljoin
 from typing import Optional
@@ -9,9 +9,6 @@ from .envs import CRM_TEKION_AUTH_ENDPOINT
 @dataclass
 class Token:
     token: str
-    expires_in_seconds: Optional[int] = field(default=86400)
-    created_at: Optional[datetime] = field(default_factory=datetime.now)
-    token_type: Optional[str] = field(default="Bearer")
     expires_in_seconds: Optional[int] = field(default=86400)
     created_at: Optional[datetime] = field(default_factory=datetime.now)
     token_type: Optional[str] = field(default="Bearer")
@@ -33,7 +30,7 @@ class Token:
         }
 
     def as_json(self) -> str:
-        return json.dumps(self.as_dict())
+        return dumps(self.as_dict())
 
 
 @dataclass
@@ -70,4 +67,37 @@ class TekionCredentials:
         }
 
     def as_json(self) -> str:
-        return json.dumps(self.as_dict())
+        return dumps(self.as_dict())
+
+
+@dataclass
+class SendActivityEvent:
+    lead_id: str
+    crm_lead_id: str
+    dealer_integration_partner_id: str
+    crm_dealer_id: str
+    consumer_id: str
+    crm_consumer_id: str
+
+    activity_id: str
+    notes: str
+    activity_due_ts: str
+    activity_requested_ts: str
+    dealer_timezone: str
+    activity_type: str
+    contact_method: str
+
+    @property
+    def start_time_dt(self) -> datetime:
+        return datetime.strptime(self.start_time, '%Y-%m-%dT%H:%M:%SZ')
+
+    @property
+    def end_time_dt(self) -> datetime:
+        return datetime.strptime(self.end_time, '%Y-%m-%dT%H:%M:%SZ')
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+    def as_json(self) -> str:
+        return dumps(asdict(self))
+    

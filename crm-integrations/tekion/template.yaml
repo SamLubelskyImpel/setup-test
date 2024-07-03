@@ -448,6 +448,66 @@ Resources:
       Threshold: 3
       TreatMissingData: notBreaching
 
+  # Create activity
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the Tekion SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/tekion-${Environment}-SendActivity"
+
   # Monitoring
   MonitoringTekionCRM:
     Type: AWS::Serverless::Function
@@ -494,13 +554,13 @@ Resources:
       DestinationArn: !GetAtt MonitoringTekionCRM.Arn
       FilterPattern: "SUPPORT ALERT"
 
-  # MonitoringSendActivitySubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringTekionCRM
-  #     - SendActivityLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref SendActivityLogGroup
-  #     DestinationArn: !GetAtt MonitoringTekionCRM.Arn
-  #     FilterPattern: "SUPPORT ALERT"
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"
