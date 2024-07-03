@@ -49,10 +49,10 @@ class CrmApiWrapper:
         return secret_data["api_key"]
 
     def __call_api(self, url, payload=None, method="POST"):
-        headers={
+        headers = {
             "x_api_key": self.api_key,
             "partner_id": self.partner_id,
-        },
+        }
         response = requests.request(
             method=method,
             url=url,
@@ -73,6 +73,7 @@ class CrmApiWrapper:
             return response
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
+
 
 class TekionApiWrapper:
     """Tekion API Wrapper."""

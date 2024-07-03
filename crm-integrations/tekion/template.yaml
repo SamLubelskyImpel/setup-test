@@ -24,7 +24,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         REGION: !Sub "${AWS::Region}"
-        LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
+        LOG_LEVEL: "INFO"
         POWERTOOLS_SERVICE_NAME: token-rotation
         INTEGRATIONS_BUCKET: !If [
           IsProd,

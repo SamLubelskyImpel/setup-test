@@ -23,7 +23,7 @@ class TekionTokenWrapper:
         if self.token and not self.token.expired:  # pragma: no cover
             logger.info("Renewing valid token")
 
-        logger.debug("Requesting new token")
+        logger.info("Requesting new token")
 
         resp = requests.post(
             url=self.credentials.auth_uri,
