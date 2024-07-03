@@ -12,9 +12,6 @@ class Token:
     expires_in_seconds: Optional[int] = field(default=86400)
     created_at: Optional[datetime] = field(default_factory=datetime.now)
     token_type: Optional[str] = field(default="Bearer")
-    expires_in_seconds: Optional[int] = field(default=86400)
-    created_at: Optional[datetime] = field(default_factory=datetime.now)
-    token_type: Optional[str] = field(default="Bearer")
 
     @property
     def expires_at(self) -> datetime:
