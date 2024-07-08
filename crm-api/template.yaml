@@ -700,7 +700,7 @@ Resources:
   SharedLayerDBAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: SharedLayerDBAlarm
+      AlarmName: !Sub "crm-api-${Environment}-SharedLayerDBAlarm"
       AlarmDescription: Alarm for the Shared Layer DB when CPU usage exceeds 60%
       MetricName: CPUUtilization
       Namespace: AWS/RDS
