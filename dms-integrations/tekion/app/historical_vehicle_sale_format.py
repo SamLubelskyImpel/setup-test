@@ -1,4 +1,4 @@
-"""Format tekion historical csv data to unified format."""
+"""Format tekion historical csv vehicle sale data to unified format."""
 import logging
 import urllib.parse
 from json import dumps, loads
@@ -16,6 +16,14 @@ REGION = environ.get("REGION", "us-east-1")
 IS_PROD = ENVIRONMENT == "prod"
 INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
+
+
+def convert_to_float(value):
+    return float(value) if value and value.replace('.', '', 1).isdigit() else None
+
+
+def convert_to_int(value):
+    return int(float(value)) if value and value.replace('.', '', 1).isdigit() else None
 
 
 def parse_csv_to_entries(csv_data, s3_uri):
@@ -43,28 +51,28 @@ def parse_csv_to_entries(csv_data, s3_uri):
             'dms_id': dms_id
         }
 
-        db_vehicle_sale["sale_date"] = row["dealCreatedTime"]
-        db_vehicle_sale["listed_price"] = row["retailprice"]
-        db_vehicle_sale["mileage_on_vehicle"] = row["mileage"]
-        db_vehicle_sale["deal_type"] = row["paymenttype"]
-        db_vehicle_sale["cost_of_vehicle"] = row["finalcost"]
-        db_vehicle_sale["oem_msrp"] = row["msrp"]
-        db_vehicle_sale["payoff_on_trade"] = row["tradein1_payoff"]
-        db_vehicle_sale["miles_per_year"] = row["yrlymiles_basevalue"]
-        db_vehicle_sale["profit_on_sale"] = row["profit"]
-        db_vehicle_sale["vehicle_gross"] = row["retailprice"]
-        db_vehicle_sale["vin"] = row["vin"]
-        db_vehicle_sale["finance_rate"] = row["apr"]
+        db_vehicle_sale["sale_date"] = row.get("dealCreatedTime")
+        db_vehicle_sale["listed_price"] = convert_to_float(row.get("retailprice"))
+        db_vehicle_sale["mileage_on_vehicle"] = convert_to_int(row.get("mileage"))
+        db_vehicle_sale["deal_type"] = row.get("paymenttype")
+        db_vehicle_sale["cost_of_vehicle"] = convert_to_float(row.get("finalcost"))
+        db_vehicle_sale["oem_msrp"] = convert_to_float(row.get("msrp"))
+        db_vehicle_sale["payoff_on_trade"] = convert_to_float(row.get("tradein1_payoff"))
+        db_vehicle_sale["miles_per_year"] = convert_to_int(row.get("yrlymiles_basevalue"))
+        db_vehicle_sale["profit_on_sale"] = convert_to_float(row.get("profit"))
+        db_vehicle_sale["vehicle_gross"] = convert_to_float(row.get("retailprice"))
+        db_vehicle_sale["vin"] = row.get("vin")
+        db_vehicle_sale["finance_rate"] = row.get("apr")
 
         db_vehicle["vin"] = row["vin"]
-        db_vehicle["year"] = row["year"]
+        db_vehicle["year"] = convert_to_int(row.get("year"))
         db_vehicle["make"] = row["make"]
         db_vehicle["model"] = row["model"]
         db_vehicle["oem_name"] = row["make"]
         db_vehicle["type"] = row["bodytype"]
         db_vehicle["vehicle_class"] = row["bodyclass"]
-        db_vehicle["mileage"] = int(float(row["mileage"])) if row["mileage"] else None
-        db_vehicle["new_or_used"] = row["vehicletype"]
+        db_vehicle["mileage"] = convert_to_int(row.get("mileage"))
+        db_vehicle["new_or_used"] = "N" if row["vehicletype"] == "NEW" else "U" if row["vehicletype"] == "USED" else None
 
         db_consumer["first_name"] = row["buyer_firstName"]
         db_consumer["last_name"] = row["buyer_lastName"]

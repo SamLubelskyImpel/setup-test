@@ -23,13 +23,4 @@ class FtpToS3:
             return ftp
         except (error_perm, error_temp) as e:
             logger.error("Error connecting to FTP: %s", e)
-            return None
-
-    def check_folder_exists(self, ftp, dealer_id):
-        try:
-            directory = f"/{FTP_FOLDER}/{dealer_id}"
-            ftp.cwd(directory)
-            return True
-        except error_perm as e:
-            logger.info(f"Folder not found: {directory}. Error: {e}")
-            return False
+            raise
