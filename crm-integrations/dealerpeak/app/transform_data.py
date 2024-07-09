@@ -277,6 +277,9 @@ def record_handler(record: SQSRecord) -> None:
 
     except Exception as e:
         logger.error(f"Error transforming dealerpeak record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, product_dealer_id, entries[0]['lead']['crm_lead_id'], e)
+            )
         raise
 
 
