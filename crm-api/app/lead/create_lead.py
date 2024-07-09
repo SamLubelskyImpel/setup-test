@@ -186,6 +186,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     }
 
                 consumer_db, dip_db, dealer_db, integration_partner_db = db_results
+                product_dealer_id = dealer_db.product_dealer_id
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
@@ -193,7 +194,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
                 else:
-                    logger.warning(f"No metadata found for dealer: {dealer_db.product_dealer_id}. Defaulting to UTC.")
+                    logger.warning(f"No metadata found for dealer: {product_dealer_id}. Defaulting to UTC.")
                     dealer_timezone = "UTC"
                 logger.info(f"Dealer timezone: {dealer_timezone}")
 
@@ -335,7 +336,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 adf_recipients = dip_metadata.get("adf_email_recipients", [])
                 sftp_config = dip_metadata.get("adf_sftp_config", {})
             else:
-                logger.warning(f"No metadata found for dealer: {dip_db.id}")
+                logger.warning(f"No metadata found for dealer: {product_dealer_id}")
 
             make_adf_assembler_request({
                 "lead_id": lead_id,
