@@ -75,6 +75,7 @@ class SendActivityEvent:
     lead_id: str
     crm_lead_id: str
     dealer_integration_partner_id: str
+    dealer_integration_partner_metadata: dict
     crm_dealer_id: str
     consumer_id: str
     crm_consumer_id: str

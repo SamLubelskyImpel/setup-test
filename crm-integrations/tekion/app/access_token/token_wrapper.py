@@ -5,6 +5,7 @@ import requests
 from .envs import LOG_LEVEL
 from .s3 import save_token_to_s3
 from .schemas import Token, TekionCredentials
+from typing import Optional
 
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
@@ -13,7 +14,7 @@ logger.setLevel(LOG_LEVEL)
 class TekionTokenWrapper:
     """Wrapper class to handle Tekion Access Token."""
 
-    def __init__(self, credentials: TekionCredentials, token: Token | None = None):
+    def __init__(self, credentials: TekionCredentials, token: Optional[Token] = None):
         self.credentials = credentials
         self.token = token
 
@@ -22,7 +23,7 @@ class TekionTokenWrapper:
         if self.token and not self.token.expired:  # pragma: no cover
             logger.info("Renewing valid token")
 
-        logger.debug("Requesting new token")
+        logger.info("Requesting new token")
 
         resp = requests.post(
             url=self.credentials.auth_uri,

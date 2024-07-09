@@ -24,7 +24,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         REGION: !Sub "${AWS::Region}"
-        LOG_LEVEL: !If [ IsProd, "INFO", "DEBUG" ]
+        LOG_LEVEL: "INFO"
         POWERTOOLS_SERVICE_NAME: token-rotation
         INTEGRATIONS_BUCKET: !If [
           IsProd,
@@ -40,7 +40,7 @@ Globals:
           "prod/crm-integrations-partner",
           "test/crm-integrations-partner"
         ]
-        CRM_TEKION_AUTH_ENDPOINT: "/oauth2/token"
+        CRM_TEKION_AUTH_ENDPOINT: "/openapi/public/tokens"
         # Update leads
         UPLOAD_SECRET_KEY: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
@@ -172,7 +172,7 @@ Resources:
     Properties:
       Description: Nightly trigger for InvokeTekionCRMTokenRotationFunction
       ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
-      State: !If [ IsProd, "ENABLED", "DISABLED" ]
+      State: !If [ IsProd, "ENABLED", "ENABLED" ] # Change to DISABLED on test after testing
       Targets:
         - Id: "TekionCRMTokenRotationQueue"
           Arn: !GetAtt TekionCRMTokenRotationQueue.Arn
@@ -234,6 +234,86 @@ Resources:
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
+      TreatMissingData: notBreaching
+
+  # Tekion Data pull
+  InvokeDataPull:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-Invoke
+      CodeUri: app/
+      Handler: invoke_data_pull.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  InvokeDataPullLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/tekion-crm-${Environment}-Invoke"
+
+  InvokeDataPullErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-crm-${Environment}-Invoke
+      AlarmDescription: Tekion CRM Invoke failed 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeDataPull
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+
+  InvokeDataPullEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt InvokeDataPull.Arn
+
+  InvokeDataPullQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-crm-${Environment}-InvokeQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  InvokeDataPullDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-crm-${Environment}-InvokeDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  InvokeDataPullDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "tekion-crm-${Environment}-InvokeDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Tekion CRM Invoke DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
       TreatMissingData: notBreaching
 
   # Transform new leads
@@ -427,3 +507,60 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/tekion-${Environment}-SendActivity"
+
+  # Monitoring
+  MonitoringTekionCRM:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  MonitoringTekionCRMLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/tekion-crm-${Environment}-Monitoring"
+
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringTekionCRM.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
+  MonitoringInvokeDataPullSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - InvokeDataPullLogGroup
+    Properties:
+      LogGroupName: !Ref InvokeDataPullLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringGetLeadUpdatesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - GetLeadUpdatesLogGroup
+    Properties:
+      LogGroupName: !Ref GetLeadUpdatesLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"

@@ -99,7 +99,7 @@ def send_sqs_message(message_body: Dict[str, Any]) -> None:
             QueueUrl=queue_url,
             MessageBody=dumps(message_body)
         )
-    except:
+    except Exception:
         logger.exception("Error sending SQS message")
 
 
@@ -148,7 +148,7 @@ def lambda_handler(event: Dict[str, Any], _: Any) -> Dict[str, Any]:
     try:
         res = get_lead_update_from_crm(crm_dealer_id=crm_dealer_id, crm_lead_id=crm_lead_id, lead_id=lead_id, dealer_partner_id=dealer_partner_id)
         return res.to_json()
-    except:
+    except Exception:
         logger.exception(
             f"[SUPPORT ALERT] Failed to Get Lead Update\n"
             f"[CONTENT] DealerIntegrationPartnerId: {dealer_partner_id}\n"

@@ -10,7 +10,7 @@ logger.setLevel(LOG_LEVEL)
 
 
 def create_wrapper() -> TekionTokenWrapper:
-    logger.debug("Creating Token Wrapper")
+    logger.info("Creating Token Wrapper")
     creds = get_credentials_from_secrets()
     last_token = get_token_from_s3()
 

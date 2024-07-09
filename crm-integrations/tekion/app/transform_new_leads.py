@@ -146,9 +146,8 @@ def extract_salesperson(salespersons):
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format tekion crm json data to unified format."""
     entries = []
-    raw_items = json_data.get('data', [])
     try:
-        for item in raw_items:
+        for item in json_data:
             db_lead = {}
             db_vehicles = []
             db_consumer = {}

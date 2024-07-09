@@ -3,15 +3,17 @@ import logging
 from datetime import datetime
 
 import boto3
+from typing import Optional
 
 from .envs import INTEGRATIONS_BUCKET, TOKEN_FILE, LOG_LEVEL
 from .schemas import Token
+
 
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
 
 
-def get_token_from_s3() -> Token | None:
+def get_token_from_s3() -> Optional[Token]:
     logger.info(
         "Getting token from S3: bucket=%s, key=%s",
         INTEGRATIONS_BUCKET, TOKEN_FILE
