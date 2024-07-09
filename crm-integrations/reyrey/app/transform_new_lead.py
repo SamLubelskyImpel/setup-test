@@ -427,18 +427,18 @@ def record_handler(record: SQSRecord) -> None:
         unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
         logger.info(f"Lead successfully created: {unified_crm_lead_id}")
     except ConsumerCreationException as e:
-        logger.error("[SUPPORT ALERT] Failed to create customer [CONTENT] ProductDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, e)
+        logger.error("[SUPPORT ALERT] Failed to create customer [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
             )
         raise
     except LeadExistsException as e:
-        logger.error("[SUPPORT ALERT] Lead with the same ID already exists [CONTENT] ProductDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, e)
+        logger.error("[SUPPORT ALERT] Lead with the same ID already exists [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
             )
         raise
     except LeadCreationException as e:
-        logger.error("[SUPPORT ALERT] Failed to Create Lead [CONTENT] ProductDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, e)
+        logger.error("[SUPPORT ALERT] Failed to Create Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, e)
             )
         raise
     except CustomerContactInfoError:
@@ -460,12 +460,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        # processor = BatchProcessor(event_type=EventType.SQS)
-        record_handler(event)
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
-            # processor=processor,
+            processor=processor,
             context=context
         )
         return result
