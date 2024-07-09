@@ -112,7 +112,7 @@ def parse_data(data):
 
 def lambda_handler(event, context):
     try:
-        for event in [e for e in event["Records"]]:
+        for event in event["Records"]:
             parse_data(loads(event["body"]))
     except Exception as e:
         logger.exception(f"Error running historical data lambda: {e}")
