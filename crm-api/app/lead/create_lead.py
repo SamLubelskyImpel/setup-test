@@ -66,7 +66,7 @@ def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     try:
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json",
         )
         config = loads(response["Body"].read())
         logger.info(f"Config: {config}")

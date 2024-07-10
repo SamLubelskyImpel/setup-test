@@ -135,7 +135,7 @@ class CrmApiWrapper:
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
-        
+
     def get_lead_status(self, lead_id):
         try:
             res = requests.get(
@@ -175,7 +175,7 @@ class ReyreyApiWrapper:
         payload = payload.replace(self.__password, "********")
         return payload
 
-    def retrieve_bad_lead_statuses(self) -> bool:
+    def retrieve_bad_lead_statuses(self) -> list:
         """Retrieve the bad lead statuses"""
         try:
             s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_REYREY.json"
