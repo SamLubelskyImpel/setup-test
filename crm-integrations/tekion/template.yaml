@@ -167,12 +167,26 @@ Resources:
         deadLetterTargetArn: !GetAtt TekionCRMTokenRotationQueueDLQ.Arn
         maxReceiveCount: 1
 
+  TekionCRMTokenRotationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionCRMTokenRotationQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 'events.amazonaws.com'
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt TekionCRMTokenRotationQueue.Arn
+
   TekionCRMTokenRotationFunctionRule:
     Type: AWS::Events::Rule
     Properties:
       Description: Nightly trigger for InvokeTekionCRMTokenRotationFunction
       ScheduleExpression: cron(0 8,12,16 * * ? *)  # 3x/day at 8am, 12pm, 4pm UTC
-      State: !If [ IsProd, "ENABLED", "ENABLED" ] # Change to DISABLED on test after testing
+      State: !If [ IsProd, "ENABLED", "DISABLED" ]
       Targets:
         - Id: "TekionCRMTokenRotationQueue"
           Arn: !GetAtt TekionCRMTokenRotationQueue.Arn
