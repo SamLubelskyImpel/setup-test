@@ -32,15 +32,6 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-class LeadExistsException(Exception):
-    pass
-
-class ConsumerCreationException(Exception):
-    pass
-
-class LeadCreationException(Exception):
-    pass
-
 class NotInternetLeadException(Exception):
     pass
 
@@ -351,7 +342,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:
             logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
-            raise LeadExistsException(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+            raise Exception(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
     logger.info(f"Consumer data to send: {consumer}")
     response = requests.post(
@@ -370,7 +361,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
 
     if not unified_crm_consumer_id:
         logger.error(f"Error creating the consumer: {consumer}")
-        raise ConsumerCreationException(f"Error creating consumer: {consumer}")
+        raise Exception(f"Error creating consumer: {consumer}")
 
     return unified_crm_consumer_id
 
@@ -391,7 +382,7 @@ def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product
 
     if not unified_crm_lead_id:
         logger.error(f"Error creating lead: {lead}")
-        raise LeadCreationException(f"Error creating lead: {lead}")
+        raise Exception(f"Error creating lead: {lead}")
 
     return unified_crm_lead_id
 
@@ -404,8 +395,6 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split("/")[2]
-        logger.info(f"product dealer id {product_dealer_id}")
-        logger.info(f"KEY: {key}")
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response["Body"].read()
         xml_data = content
@@ -426,21 +415,6 @@ def record_handler(record: SQSRecord) -> None:
 
         unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
         logger.info(f"Lead successfully created: {unified_crm_lead_id}")
-    except ConsumerCreationException as e:
-        logger.error("[SUPPORT ALERT] Failed to create customer [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, e)
-            )
-        raise
-    except LeadExistsException as e:
-        logger.error("[SUPPORT ALERT] Lead with the same ID already exists [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, e)
-            )
-        raise
-    except LeadCreationException as e:
-        logger.error("[SUPPORT ALERT] Failed to Create Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, e)
-            )
-        raise
     except CustomerContactInfoError:
         logger.warning("Email or phone number is required. Skipping lead.")
     except NotInternetLeadException:
