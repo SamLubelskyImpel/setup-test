@@ -25,7 +25,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
         CRM_API_URL:
-          !If [IsProd, "https://crm-api.impel.io/", "https://riy7jz6jg2.execute-api.us-east-1.amazonaws.com/srwoods-ce-1572/"]
+          !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
         PARTNER_ID: "impel"
 
 Resources:

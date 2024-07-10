@@ -55,7 +55,7 @@ Globals:
         LOGLEVEL: INFO
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "riy7jz6jg2.execute-api.us-east-1.amazonaws.com/srwoods-ce-1572"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         REYREY_PARTNER_NAME: "reyrey"
         PARTNER_ID: "impel"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
