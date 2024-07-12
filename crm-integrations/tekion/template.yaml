@@ -462,6 +462,42 @@ Resources:
       Threshold: 3
       TreatMissingData: notBreaching
 
+  # Dealer's Salespersons
+  GetDealerSalespersonsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-get-dealer-salespersons
+      CodeUri: app/
+      Handler: get_dealer_salespersons.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+
+  GetDealerSalespersonsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-get-dealer-salespersons
+
+  GetDealerSalespersonsErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-crm-${Environment}-get-dealer-salespersons
+      AlarmDescription: Tekion Lead Updates failed 3 times within 15 minutes
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetLeadUpdatesFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+
   # Create activity
   SendActivityQueue:
     Type: AWS::SQS::Queue
