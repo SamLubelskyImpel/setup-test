@@ -172,9 +172,6 @@ def parse_lead(product_dealer_id, data):
                               (data.get('unsubscribe_sms_date') is None or data.get('unsubscribe_sms_date') == '')
         }
 
-        if not db_consumer["email"] and not db_consumer["phone"]:
-            raise Exception("Email or phone number is required")
-
         db_consumer = {key: value for key, value in db_consumer.items() if value}
 
         lead_status = data.get("status", "")
@@ -276,6 +273,11 @@ def record_handler(record: SQSRecord) -> None:
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
+
+        consumer = parsed_lead["consumer"]
+        if consumer.get("email") is None and consumer.get("phone") is None:
+            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
+            return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
