@@ -131,6 +131,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "LastName": salesperson.get('last_name'),
                     "Phones": salesperson.get('phone', []),
                     "UserId": salesperson.get('crm_salesperson_id'),
+                    "Role": salesperson.get('role')
                 }
             )
 
