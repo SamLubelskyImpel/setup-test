@@ -66,14 +66,14 @@ def get_dealer_salespersons(crm_dealer_id):
 
         # Parse the response and filter for salespersons
         for user in response["data"]:
-            if user["role"] == "SALES_PERSON" and user["isActive"]:
+            if user["role"] in ["SALES_ROLES", "SALES_PERSON", "SALES_MANAGER", "BDCManager"] and user["isActive"]:
                 salesperson = {
                     "crm_salesperson_id": user["id"],
                     "first_name": user["fname"],
                     "last_name": user["lname"],
                     "email": user["email"],
                     "phone": None,  # Phone number is not provided in the response
-                    "position_name": user["role"]
+                    "role": user["role"]
                 }
                 salespersons.append(salesperson)
 
