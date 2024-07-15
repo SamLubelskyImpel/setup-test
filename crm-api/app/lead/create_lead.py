@@ -23,6 +23,7 @@ from crm_orm.models.integration_partner import IntegrationPartner
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
+ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
@@ -43,6 +44,11 @@ salesperson_attrs = [
     "position_name",
     "is_primary",
 ]
+
+
+class ADFAssemblerSyndicationError(Exception):
+    """Custom exception for ADF Assembler syndication errors."""
+    pass
 
 
 class DASyndicationError(Exception):
@@ -66,7 +72,7 @@ def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     try:
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json",
         )
         config = loads(response["Body"].read())
         logger.info(f"Config: {config}")
@@ -126,26 +132,6 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
             f"Error processing timestamp: {input_ts}, Dealer timezone: {dealer_timezone}. Error: {e}"
         )
         return None
-
-
-def make_adf_assembler_request(data: Any):
-    secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/adf-assembler"
-    )
-    secret = loads(secret["SecretString"])["create_adf"]
-    api_url, api_key = loads(secret).values()
-
-    response = post(
-        url=api_url,
-        data=dumps(data),
-        headers={
-            "x_api_key": api_key,
-            "action_id": "create_adf",
-            'Content-Type': 'application/json'
-        }
-    )
-
-    logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -332,18 +318,28 @@ def lambda_handler(event: Any, context: Any) -> Any:
             adf_recipients = []
             sftp_config = {}
 
-            if dip_metadata:
-                adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                sftp_config = dip_metadata.get("adf_sftp_config", {})
-            else:
-                logger.warning(f"No metadata found for dealer: {product_dealer_id}")
+            try:
+                if dip_metadata:
+                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    sftp_config = dip_metadata.get("adf_sftp_config", {})
+                else:
+                    logger.warning(f"No metadata found for dealer: {product_dealer_id}")
 
-            make_adf_assembler_request({
-                "lead_id": lead_id,
-                "recipients": adf_recipients,
-                "partner_name": integration_partner_name,
-                "sftp_config": sftp_config
-            })
+                payload = {
+                    "lead_id": lead_id,
+                    "recipients": adf_recipients,
+                    "partner_name": integration_partner_name,
+                    "sftp_config": sftp_config
+                }
+                sqs_client = boto3.client('sqs')
+
+                sqs_client.send_message(
+                    QueueUrl=ADF_ASSEMBLER_QUEUE,
+                    MessageBody=dumps(payload)
+                )
+            except Exception as e:
+                raise ADFAssemblerSyndicationError(e)
+
         elif notify_listener:
             try:
                 sqs_client = boto3.client('sqs')
@@ -354,6 +350,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 )
             except Exception as e:
                 raise DASyndicationError(e)
+
+    except ADFAssemblerSyndicationError as e:
+        logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while sending lead {lead_id} to ADF Assembler: {e}",
+            subject="Lead Syndication Failure Alert - CreateLead"
+        )
 
     except DASyndicationError as e:
         logger.error(f"Error syndicating lead: {e}.")
