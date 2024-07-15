@@ -54,7 +54,7 @@ def get_dealer_salespersons(crm_dealer_id):
     next_fetch_key = None
 
     while True:
-        params = {"role": "SALES_PERSON", "isActive": "true"}
+        params = {"isActive": "true"}
         if next_fetch_key:
             params["nextFetchKey"] = next_fetch_key
 
@@ -73,7 +73,7 @@ def get_dealer_salespersons(crm_dealer_id):
                     "last_name": user["lname"],
                     "email": user["email"],
                     "phone": None,  # Phone number is not provided in the response
-                    "role": user["role"]
+                    "position_name": user["role"]
                 }
                 salespersons.append(salesperson)
 
