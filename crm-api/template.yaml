@@ -700,7 +700,7 @@ Resources:
   NotifyADFAssemblerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 5
+      BatchSize: 1
       EventSourceArn: !GetAtt NotifyADFAssemblerQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt NotifyADFAssembler.Arn
@@ -755,7 +755,7 @@ Resources:
   SharedLayerDBAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "crm-api-${Environment}-SharedLayerDBAlarm"
+      AlarmName: !Sub "SharedLayerDBAlarm-${Environment}"
       AlarmDescription: Alarm for the Shared Layer DB when CPU usage exceeds 60%
       MetricName: CPUUtilization
       Namespace: AWS/RDS
