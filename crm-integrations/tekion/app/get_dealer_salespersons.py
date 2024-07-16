@@ -51,36 +51,39 @@ def get_dealer_salespersons(crm_dealer_id):
     """Get dealer's salespersons list from Tekion."""
 
     salespersons = []
-    next_fetch_key = None
+    roles = ["SALES_PERSON", "SALES_MANAGER", "BDCManager"]
 
-    while True:
-        params = {"isActive": "true"}
-        if next_fetch_key:
-            params["nextFetchKey"] = next_fetch_key
+    for role in roles:
+        next_fetch_key = None
 
-        response = hit_tekion_api("openapi/v3.1.0/employees", params, crm_dealer_id)
+        while True:
+            params = {"isActive": "true", "role": role}
+            if next_fetch_key:
+                params["nextFetchKey"] = next_fetch_key
 
-        if response.get("status") == "Failed":
-            logger.error(response["message"]["reasons"])
-            break
+            response = hit_tekion_api("openapi/v3.1.0/employees", params, crm_dealer_id)
 
-        # Parse the response and filter for salespersons
-        for user in response["data"]:
-            if user["role"] in ["SALES_ROLES", "SALES_PERSON", "SALES_MANAGER", "BDCManager"] and user["isActive"]:
-                salesperson = {
-                    "crm_salesperson_id": user["id"],
-                    "first_name": user["fname"],
-                    "last_name": user["lname"],
-                    "email": user["email"],
-                    "phone": None,  # Phone number is not provided in the response
-                    "position_name": user["role"]
-                }
-                salespersons.append(salesperson)
+            if response.get("status") == "Failed":
+                logger.error(response["message"]["reasons"])
+                break
 
-        # Check if there are more pages
-        next_fetch_key = response["meta"]["nextFetchKey"]
-        if next_fetch_key is None:
-            break
+            # Parse the response and filter for active users with the current role
+            for user in response["data"]:
+                if user.get("role") == role and user.get("isActive"):
+                    salesperson = {
+                        "crm_salesperson_id": user["id"],
+                        "first_name": user["fname"],
+                        "last_name": user["lname"],
+                        "email": user["email"],
+                        "phone": None,  # Phone number is not provided in the response
+                        "position_name": user["role"]
+                    }
+                    salespersons.append(salesperson)
+
+            # Check if there are more pages
+            next_fetch_key = response["meta"]["nextFetchKey"]
+            if next_fetch_key is None:
+                break
 
     logger.info(f"Found {len(salespersons)} salespersons: {salespersons}")
     return salespersons

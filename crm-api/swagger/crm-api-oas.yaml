@@ -848,7 +848,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ExtendedSalesperson'
+                  $ref: '#/components/schemas/SalespersonFromCRM'
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -1282,29 +1282,53 @@ components:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
   
-    ExtendedSalesperson:
-      allOf:
-        - $ref: '#/components/schemas/Salesperson'
-        - type: object
-          properties:
-            email:
-              type: array
-              description: Email addresses of the salesperson
-              items:
-                type: string
-              example: 
-                - "john.smith@example.com"
-                - "jsmith@example.com"
-              maxLength: 50
-            phone:
-              type: array
-              description: Phone numbers of the salesperson
-              items:
-                type: string
-              example: 
-                - "123-456-7890"
-                - "987-654-3210"
-              maxLength: 20
+    SalespersonFromCRM:
+        description: An object containing extending information about a salesperson
+        type: object
+        properties:
+          Emails:
+            type: array
+            description: Email addresses of the salesperson
+            items:
+              type: string
+            example:
+              - "john.smith@example.com"
+              - "jsmith@example.com"
+            maxLength: 50
+          FirstName:
+            type: string
+            description: First name of the salesperson
+            example: "John"
+            maxLength: 50
+          LastName:
+            type: string
+            description: Last name of the salesperson
+            example: "Smith"
+            maxLength: 50
+          FullName:
+            type: string
+            description: Full name of the salesperson
+            example: "John Smith"
+            maxLength: 100
+          Phones:
+            type: array
+            description: Phone numbers of the salesperson
+            items:
+              type: string
+            example:
+              - "123-456-7890"
+              - "987-654-3210"
+            maxLength: 20
+          UserId:
+            type: string
+            description: The ID of the salesperson in the CRM
+            example: "123abc-1234ab-123abc"
+            maxLength: 100
+          PositionName:
+            type: string
+            description: Salesperson position or role
+            example: "Sales Manager"
+            maxLength: 50
 
   responses:
     '201':
