@@ -3,7 +3,6 @@ import logging
 import os
 import json
 import requests
-from os import environ
 from typing import Any
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -16,8 +15,6 @@ from utils import send_email_notification, get_secret
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
-
 
 class EventListenerError(Exception):
     """An exception indicating a failure to send a lead to the DA Event Listener."""
@@ -28,7 +25,7 @@ def send_to_event_listener(lead_id: int) -> None:
     """Send notification to DA Event listener."""
     try:
         listener_secrets = get_secret(
-            secret_name="crm-integrations-partner", secret_key=DA_SECRET_KEY
+            secret_name="crm-integrations-partner", secret_key="DA_EVENT_LISTENER"
         )
 
         data = {
@@ -72,7 +69,7 @@ def record_handler(record: SQSRecord) -> None:
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """Transform raw reyrey lead update data to the unified format."""
+    """Process and syndicate event notification downstream."""
     logger.info(f"Event: {event}")
 
     try:

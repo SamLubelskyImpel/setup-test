@@ -25,10 +25,16 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 secret_client = boto3.client("secretsmanager")
+
+
+class ADFAssemblerSyndicationError(Exception):
+    """Custom exception for ADF Assembler syndication errors."""
+    pass
 
 
 class ValidationError(Exception):
@@ -242,26 +248,37 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
             if request_product == "chat_ai" and activity_type == "appointment":
-                adf_recipients = []
-                sftp_config = {}
+                try:
+                    adf_recipients = []
+                    sftp_config = {}
 
-                if dip_metadata:
-                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                    sftp_config = dip_metadata.get("adf_sftp_config", {})
-                else:
-                    logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
+                    if dip_metadata:
+                        adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                        sftp_config = dip_metadata.get("adf_sftp_config", {})
+                    else:
+                        logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
 
-                # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                activity_due_dealer_ts = apply_dealer_timeszone(
-                    activity_due_ts, dealer_timezone, dealer_partner_db.id
-                )
-                make_adf_assembler_request({
-                    "lead_id": lead_id,
-                    "recipients": adf_recipients,
-                    "activity_time": activity_due_dealer_ts,
-                    "partner_name": partner_name,
-                    "sftp_config": sftp_config
-                })
+                    # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
+                    activity_due_dealer_ts = apply_dealer_timeszone(
+                        activity_due_ts, dealer_timezone, dealer_partner_db.id
+                    )
+                    payload = {
+                        "lead_id": lead_id,
+                        "recipients": adf_recipients,
+                        "activity_time": activity_due_dealer_ts,
+                        "partner_name": partner_name,
+                        "sftp_config": sftp_config
+                    }
+
+                    sqs_client = boto3.client('sqs')
+
+                    sqs_client.send_message(
+                        QueueUrl=ADF_ASSEMBLER_QUEUE,
+                        MessageBody=dumps(payload)
+                    )
+                except Exception as e:
+                    raise ADFAssemblerSyndicationError(e)
+
             elif writeback_disabled:
                 logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
             else:
@@ -271,6 +288,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "statusCode": 201,
             "body": dumps({"activity_id": activity_id})
         }
+
+    except ADFAssemblerSyndicationError as e:
+        logger.error(f"Error syndicating activity {activity_id} to ADF Assembler: {e}.")
+        send_alert_notification(activity_id, e)
 
     except ValidationError as e:
         logger.error(f"Error creating activity: {str(e)}")
