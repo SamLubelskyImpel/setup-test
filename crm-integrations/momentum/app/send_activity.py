@@ -62,8 +62,8 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         salesperson = crm_api.get_salesperson(activity["lead_id"])
         if not salesperson and activity.get("activity_type", "") == "appointment":
-            logger.error(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
-            raise Exception(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
+            logger.warning(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
+            return
 
         logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
 
