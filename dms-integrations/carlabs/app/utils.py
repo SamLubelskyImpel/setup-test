@@ -2,8 +2,13 @@ from datetime import datetime, date
 import boto3
 import os
 from orm.models.shared_dms import DealerIntegrationPartner, IntegrationPartner, Dealer
+from orm.models.carlabs import DataImports
 from orm.connection.session import SQLSession
+import logging
 
+
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 BUCKET = os.environ.get('BUCKET')
 FAILURES_QUEUE = os.environ.get('FAILURES_QUEUE')
@@ -64,9 +69,9 @@ class DealerIntegrationNotFound(Exception):
     ...
 
 
-def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> DealerIntegrationPartner:
-    with SQLSession(db='SHARED_DMS') as dms_session:
-        dip = dms_session.query(
+def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int:
+    with SQLSession(db='SHARED_DMS') as session:
+        dip = session.query(
             DealerIntegrationPartner
         ).join(
             IntegrationPartner,
@@ -74,13 +79,56 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> Dea
         ).join(
             Dealer,
             DealerIntegrationPartner.dealer_id == Dealer.id
-        ).where(
+        ).filter(
             (IntegrationPartner.impel_integration_partner_id.ilike(data_source)) &
             (DealerIntegrationPartner.is_active) &
             (Dealer.impel_dealer_id == dealer_code)
         ).first()
-
         if not dip:
-            raise DealerIntegrationNotFound(f"No active dealer {dealer_code} found.")
+            _logger.info('START OF IF NOT DIP')
+            # If dealer is not found, dynamically insert them here
+            with SQLSession(db='CARLABS_DATA_INTEGRATIONS') as dms_session:
+                record = dms_session.query(
+                    DataImports.dealerCode.distinct(),
+                    DataImports.dataSource
+                ).filter(
+                    DataImports.dealerCode == dealer_code
+                ).filter(
+                    DataImports.dataType == 'SALES'
+                ).first()
+
+                if not record:
+                    _logger.info(f"No active dealer {dealer_code} found in dataImports.")
+                
+                ip = dms_session.query(
+                    IntegrationPartner
+                ).filter(
+                    IntegrationPartner.impel_integration_partner_id.ilike(record[1])
+                ).first()
+
+                if not ip:
+                    _logger.info(f'Integration partner not found for {record}')
+                    return None
+
+                # Create new dealer and DealerIntegrationPartner if IntegrationPartner is found
+                new_dealer = Dealer(
+                    impel_dealer_id=dealer_code,
+                    db_creation_date=datetime.utcnow()
+                )
+
+                dms_session.add(new_dealer)
+                dms_session.commit()
+
+                new_dip = DealerIntegrationPartner(
+                    integration_partner_id=ip.id,
+                    dealer_id=new_dealer.id,
+                    dms_id=record[0],
+                    is_active=True,
+                    db_creation_date=datetime.utcnow()
+                )
+
+                dms_session.add(new_dip)
+                dms_session.commit()
+                return new_dip.id
 
         return dip.id
