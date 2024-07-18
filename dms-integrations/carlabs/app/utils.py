@@ -84,6 +84,9 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
             (DealerIntegrationPartner.is_active) &
             (Dealer.impel_dealer_id == dealer_code)
         ).first()
+        _logger.info('dip in first with')
+        _logger.info(dip)
+
         if not dip:
             _logger.info('START OF IF NOT DIP')
             # If dealer is not found, dynamically insert them here
@@ -100,11 +103,17 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
                 if not record:
                     _logger.info(f"No active dealer {dealer_code} found in dataImports.")
                 
+                print('record is:')
+                print(record)
+                
                 ip = dms_session.query(
                     IntegrationPartner
                 ).filter(
                     IntegrationPartner.impel_integration_partner_id.ilike(record[1])
                 ).first()
+                _logger.info('ip issssss')
+                _logger.info(ip.id)
+
 
                 if not ip:
                     _logger.info(f'Integration partner not found for {record}')
@@ -118,6 +127,8 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
 
                 dms_session.add(new_dealer)
                 dms_session.commit()
+                _logger.info('new_dealer issssss')
+                _logger.info(new_dealer)
 
                 new_dip = DealerIntegrationPartner(
                     integration_partner_id=ip.id,
@@ -129,6 +140,8 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
 
                 dms_session.add(new_dip)
                 dms_session.commit()
+                _logger.info('NEW DEALER INT PARTNER ISSSSS')
+                _logger.info(new_dip.id)
                 return new_dip.id
 
         return dip.id
