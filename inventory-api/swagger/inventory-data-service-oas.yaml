@@ -1,0 +1,424 @@
+openapi: 3.0.1
+info:
+  title: inventory data service
+  version: 1.0.0
+  description: |-
+    All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
+servers:
+  - url: https://inventory-service.testenv.impel.ai
+    description: Impel test environment endpoint.
+  - url: https://inventory-service.impel.ai
+    description: Impel prod environment endpoint.
+
+#{{INVENTORY_DATA_SERVICE_AWS_VALIDATION}}
+paths:
+  /inventory/v1:
+    get:
+      summary: Get inventory data.
+      operationId: get-inventory
+      description: |-
+        This API endpoint enables the retrieval of inventory data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel of the inventory to query for.
+      - schema:
+          type: string
+        in: query
+        name: provider_dealer_id
+        required: false
+        description: The id of the dealer assigned by the provider of the inventory to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the inventory provider assigned by Impel of the inventory to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_start
+        required: false
+        description: The earliest db_creation_date of the inventory to query for.
+      - schema:
+          type: string
+          format: date-time
+          example: 2023-05-25T06:35:34
+        in: query
+        name: db_creation_date_end
+        required: false
+        description: The latest db_creation_date of the inventory to query for.
+      - schema:
+          type: boolean
+        in: query
+        name: only_on_lot
+        required: false
+        description: Set true to only query for vehicles the dealership currently has on lot.
+      - schema:
+          type: string
+        in: query
+        name: vin
+        description: The Vehicle Identification Number of the inventory to query for.
+      - schema:
+          type: string
+        in: query
+        name: stock_num
+        description: The Stock Number of the inventory to query for.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/InventoryResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{INVENTORY_LAMBDA_INFO}}
+  /dealer/v1:
+    get:
+      summary: Get inventory dealer data.
+      operationId: get-dealer
+      description: |-
+        This API endpoint enables the retrieval of inventory dealer data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: string
+        in: query
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by impel of the dealer to query for.
+      - schema:
+          type: string
+        in: query
+        name: provider_dealer_id
+        required: false
+        description: The id of the dealer assigned by the inventory provider to query for.
+      - schema:
+          type: string
+        in: query
+        name: impel_integration_partner_id
+        required: false
+        description: The id of the inventory provider assigned by Impel to query for.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DealerResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{DEALER_LAMBDA_INFO}}
+components:
+  schemas:
+    InventoryResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Inventory'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+              - type: object
+                properties:
+                  op_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Option'
+              - type: object
+                properties:
+                  op_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Equipment'
+        has_next_page:
+          type: boolean
+    DealerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+        has_next_page:
+          type: boolean
+    IntegrationPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        impel_integration_partner_id:
+          type: string
+        type:
+          type: string
+        db_creation_date:
+          type: string
+          format: date-time
+    Dealer:
+      type: object
+      properties:
+        id:
+          type: integer
+        impel_dealer_id:
+          type: string
+        location_name:
+          type: string
+        state:
+          type: string
+        city:
+          type: string
+        zip_code:
+          type: string
+        db_creation_date:
+          type: string
+          format: date-time
+        name:
+          type: string
+    DealerIntegrationPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        integration_partner_id:
+          type: integer
+        dealer_id:
+          type: integer
+        provider_dealer_id:
+          type: string
+        is_active:
+          type: boolean
+        db_creation_date:
+          type: string
+          format: date-time
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: integer
+        vin:
+            type: string
+        oem_name:
+            type: string
+        type:
+            type: string
+        vehicle_class:
+            type: string
+        mileage:
+            type: string
+        make:
+            type: string
+        model:
+            type: string
+        year:
+            type: string
+        db_creation_date:
+            type: string
+            format: date-time
+        dealer_integration_partner_id:
+            type: integer
+        new_or_used:
+            type: string
+        metadata:
+            type: string
+    Inventory:
+        type: object
+        properties:
+          id:
+            type: integer
+          vehicle_id:
+            type: integer
+          db_creation_datetime:
+            type: string
+            format: date-time
+            example: '2021-11-19T16:57:31+0000'
+          list_price:
+            type: number
+            format: float
+          cost_price:
+            type: number
+            format: float
+          fuel_type:
+            type: string
+          exterior_color:
+            type: string
+          interior_color:
+            type: string
+          doors:
+            type: integer
+          seats:
+            type: integer
+          transmission:
+            type: string
+          photo_url:
+            type: string
+          comments:
+            type: string
+          drive_train:
+            type: string
+          cylinders:
+            type: integer
+          body_style:
+            type: string
+          series:
+            type: string
+          on_lot:
+            type: boolean
+          inventory_status:
+            type: string
+          vin:
+            type: string
+          dealer_integration_partner_id:
+            type: integer
+          interior_material:
+            type: string
+          source_data_drive_train:
+            type: string
+          source_data_interior_material_description:
+            type: string
+          source_data_transmission:
+            type: string
+          source_data_transmission_speed:
+            type: string
+          transmission_speed:
+            type: string
+          build_data:
+            type: string
+          region:
+            type: string
+          highway_mpg:
+            type: integer
+          city_mpg:
+            type: integer
+          vdp:
+            type: string
+          trim:
+            type: string
+          special_price:
+            type: number
+            format: float
+          engine:
+            type: string
+          engine_displacement:
+            type: string
+          factory_certified:
+            type: boolean
+    Equipment:
+      type: object
+      properties:
+        id:
+          type: integer
+        db_creation_date:
+          type: string
+          format: date-time
+        equipment_description:
+          type: string
+        is_optional:
+          type: boolean
+    Option:
+      type: object
+      properties:
+        id:
+          type: integer
+        db_creation_date:
+          type: string
+          format: date-time
+        option_description:
+          type: string
+        is_priority:
+          type: boolean

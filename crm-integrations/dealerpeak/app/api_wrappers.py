@@ -40,19 +40,23 @@ class CrmApiWrapper:
 
         return secret_data["api_key"]
 
-    def __run_get(self, endpoint: str):
-        res = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
+    def get_salesperson(self, lead_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}/salespersons",
             headers={
                 "x_api_key": self.api_key,
                 "partner_id": self.partner_id,
             }
         )
-        res.raise_for_status()
-        return res.json()
+        response.raise_for_status()
+        logger.info(f"CRM API responded with: {response.status_code}")
+        if response.status_code != 200:
+            raise Exception(f"Error getting salespersons for lead {lead_id}: {response.text}")
 
-    def get_salesperson(self, lead_id: int):
-        return self.__run_get(f"leads/{lead_id}/salespersons")[0]
+        salespersons = response.json()
+        if not salespersons:
+            raise Exception(f"No salespersons found for lead {lead_id}")
+        return salespersons[0]
 
     def update_activity(self, activity_id, crm_activity_id):
         try:

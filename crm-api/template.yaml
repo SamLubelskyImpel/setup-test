@@ -55,6 +55,8 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
+        ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -113,6 +115,16 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/adf-assembler*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/adf-assembler*",
+                  ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -156,8 +168,16 @@ Resources:
             Statement:
               - Effect: "Allow"
                 Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt NotifyEventListenerQueue.Arn
+                  - !GetAtt NotifyADFAssemblerQueue.Arn
+              - Effect: "Allow"
+                Action:
                   - "sqs:SendMessage"
-                Resource: "*"
+                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -167,6 +187,7 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
 
   CrmApiGateway:
     Type: AWS::Serverless::Api
@@ -254,6 +275,7 @@ Resources:
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 120
+      MemorySize: 1024
       Policies:
         - Id: AuthorizerPermissions
           Version: "2012-10-17"
@@ -276,6 +298,7 @@ Resources:
       CodeUri: app/lead/
       Handler: create_lead.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -294,6 +317,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_leads.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -312,6 +336,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -323,6 +348,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveLeadByCrmIds:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadByCrmIds"
+      CodeUri: app/lead/
+      Handler: retrieve_lead_by_crm_ids.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /leads/crm/{crm_lead_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UpdateLead:
     Type: AWS::Serverless::Function
     Properties:
@@ -330,6 +374,7 @@ Resources:
       CodeUri: app/lead/
       Handler: update_lead.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -348,6 +393,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_status.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -366,6 +412,7 @@ Resources:
       CodeUri: app/lead/
       Handler: retrieve_lead_salespersons.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -377,6 +424,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveLeadActivities:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadActivities"
+      CodeUri: app/lead/
+      Handler: retrieve_lead_activities.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /leads/{lead_id}/activities
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   CreateConsumer:
     Type: AWS::Serverless::Function
     Properties:
@@ -384,6 +450,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: create_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -402,6 +469,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: retrieve_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -413,6 +481,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveConsumerByCrmIds:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveConsumerByCrmIds"
+      CodeUri: app/consumer/
+      Handler: retrieve_consumer_by_crm_ids.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /consumers/crm/{crm_consumer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UpdateConsumer:
     Type: AWS::Serverless::Function
     Properties:
@@ -420,6 +507,7 @@ Resources:
       CodeUri: app/consumer/
       Handler: update_consumer.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -438,6 +526,7 @@ Resources:
       CodeUri: app/activity/
       Handler: create_activity.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -448,7 +537,7 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
-  
+
   UpdateActivity:
     Type: AWS::Serverless::Function
     Properties:
@@ -456,6 +545,7 @@ Resources:
       CodeUri: app/activity/
       Handler: update_activity.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Put:
@@ -466,7 +556,7 @@ Resources:
             Method: PUT
       Layers:
         - !Ref CrmOrmLayer
-  
+
   RetrieveDealers:
     Type: AWS::Serverless::Function
     Properties:
@@ -474,6 +564,7 @@ Resources:
       CodeUri: app/dealer/
       Handler: retrieve_dealers.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -485,6 +576,44 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveDealerById:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveDealerById"
+      CodeUri: app/dealer/
+      Handler: retrieve_dealer_by_id.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/{dealer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
+  RetrieveSalespersonsByDealerId:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveSalespersonsByDealerId"
+      CodeUri: app/dealer/
+      Handler: retrieve_salespersons_by_dealer_id.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/{dealer_id}/salespersons
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UploadData:
     Type: AWS::Serverless::Function
     Properties:
@@ -492,6 +621,7 @@ Resources:
       CodeUri: app/upload/
       Handler: upload_data.lambda_handler
       Timeout: 30
+      MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
       Events:
         Post:
@@ -503,6 +633,114 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  NotifyEventListener:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-NotifyEventListener"
+      CodeUri: app/notifications/
+      Handler: notify_event_listener.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+
+  NotifyEventListenerEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 5
+      EventSourceArn: !GetAtt NotifyEventListenerQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt NotifyEventListener.Arn
+
+  NotifyEventListenerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotifyEventListenerDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  NotifyEventListenerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  NotifyEventListenerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Notification To Event Listener DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt NotifyEventListenerDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+  
+  NotifyADFAssembler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-NotifyADFAssembler"
+      CodeUri: app/notifications/
+      Handler: notify_adf_assembler.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+
+  NotifyADFAssemblerEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt NotifyADFAssemblerQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt NotifyADFAssembler.Arn
+
+  NotifyADFAssemblerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyADFAssemblerQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotifyADFAssemblerDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  NotifyADFAssemblerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-api-${Environment}-NotifyADFAssemblerDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  NotifyADFAssemblerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-api-${Environment}-NotifyADFAssemblerDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Event To ADF Assmebler DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt NotifyADFAssemblerDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   CrmOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -513,3 +751,21 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
+
+  SharedLayerDBAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "SharedLayerDBAlarm-${Environment}"
+      AlarmDescription: Alarm for the Shared Layer DB when CPU usage exceeds 60%
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 60  # 1 minute
+      EvaluationPeriods: 1
+      Threshold: 75
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !If [ IsProd, unified-data-prod-2, unified-data-test-2 ]

@@ -238,11 +238,12 @@ Resources:
     Properties:
       AlarmDescription: "Alarm for SalesHistoryETLStateMachine failures"
       ComparisonOperator: GreaterThanThreshold
-      EvaluationPeriods: 1
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 1
       MetricName: ExecutionsFailed
       Namespace: AWS/States
-      Period: 86400 # 24 hours
-      Statistic: SampleCount
+      Period: 43200 # 12 hours
+      Statistic: Sum
       Threshold: 1
       Dimensions:
         - Name: StateMachineArn
@@ -256,11 +257,12 @@ Resources:
     Properties:
       AlarmDescription: "Alarm for RepairOrderETLStateMachine failures"
       ComparisonOperator: GreaterThanThreshold
-      EvaluationPeriods: 1
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 1
       MetricName: ExecutionsFailed
       Namespace: AWS/States
-      Period: 86400 # 24 hours
-      Statistic: SampleCount
+      Period: 43200 # 24 hours
+      Statistic: Sum
       Threshold: 1
       Dimensions:
         - Name: StateMachineArn

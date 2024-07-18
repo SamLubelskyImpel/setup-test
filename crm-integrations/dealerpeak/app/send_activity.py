@@ -6,7 +6,8 @@ from typing import Any
 from os import environ
 from json import loads
 from aws_lambda_powertools.utilities.batch import (
-    SqsFifoPartialProcessor,
+    BatchProcessor,
+    EventType,
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
@@ -39,8 +40,11 @@ def record_handler(record: SQSRecord):
 
     except CRMApiError:
         return
-    except Exception:
+    except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Dealerpeak")
+        logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            )
         raise
 
 
@@ -49,7 +53,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = SqsFifoPartialProcessor()
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,

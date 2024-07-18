@@ -1,0 +1,7 @@
+venv
+env
+template.yaml
+.gitignore
+__pycache__
+bootstrap
+*.pyc

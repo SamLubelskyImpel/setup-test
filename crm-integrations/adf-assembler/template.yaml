@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: adf assembler
+
+Parameters:
+    Environment:
+        Description: The name of the runtime environment
+        Type: String
+        AllowedPattern: "^[a-zA-Z0-9-]+$"
+        ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+
+Conditions:
+    IsProd:
+        Fn::Equals:
+            - Ref: AWS::AccountId
+            - "196800776222"
+    IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Mappings:
+    SslCertificates:
+        us-east-1:
+            "143813444726": "arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d"
+            "196800776222": "arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be"
+    Subnets:
+        us-east-1:
+            "196800776222":
+                - subnet-0d29a385efe83bf1c
+                - subnet-0e88ecdd743701e96
+                - subnet-00291e028e21cb78f
+                - subnet-0b1555d5fa3c8ba8e
+            "143813444726":
+                - subnet-030d57e39ec0df603
+                - subnet-01044d580678ea63c
+                - subnet-0b29db0aeb6cdabec
+                - subnet-0e28d592f2ca28fb7
+
+Globals:
+    Function:
+        Runtime: python3.9
+        Environment:
+            Variables:
+                AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+                ENVIRONMENT: !Ref Environment
+                LOGLEVEL: INFO
+                SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                INTEGRATIONS_BUCKET: 
+                    !If [
+                        IsProd,
+                        "crm-integrations-prod",
+                        "crm-integrations-test",
+                    ]
+                ADF_SENDER_EMAIL_ADDRESS: 
+                    !If [
+                        IsProd,
+                        "crm.adf@impel.ai",
+                        "lesakia@impel.ai",
+                    ]
+                UPLOAD_SECRET_KEY: "impel"
+                CRM_API_DOMAIN:
+                    !If [
+                        IsProd,
+                        "crm-api.impel.io",
+                        "crm-api-test.testenv.impel.io",
+                    ]
+
+Resources:
+    LambdaRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            Policies:
+                - PolicyName: CloudWatchLogsPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "logs:CreateLogGroup"
+                                - "logs:CreateLogStream"
+                                - "logs:PutLogEvents"
+                            Resource: "arn:aws:logs:*:*:*"
+                - PolicyName: AccessSecretsManager
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - secretsmanager:GetSecretValue
+                            Resource:
+                                - !If [
+                                      IsProd,
+                                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                                  ]
+                - PolicyName: LambdaPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "lambda:InvokeFunction"
+                            Resource: "*"
+                - PolicyName: S3Policy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "s3:GetObject"
+                                - "s3:PutObject"
+                            Resource:
+                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                                - !Sub "arn:aws:s3:::email-service-store-${Environment}*"
+                - PolicyName: SNSPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "sns:Publish"
+                            Resource:
+                                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+
+    AdfAssemblerApiGateway:
+        Type: AWS::Serverless::Api
+        Properties:
+            Name: !Sub "adf-assembler-${Environment}"
+            StageName: !Ref Environment
+            Auth:
+                DefaultAuthorizer: DefaultAuth
+                Authorizers:
+                    DefaultAuth:
+                        FunctionPayloadType: REQUEST
+                        FunctionArn: !GetAtt Authorizer.Arn
+                        Identity:
+                            Headers:
+                                - action_id
+                                - x_api_key
+                        Context:
+                            - resourcePath
+                        ReauthorizeEvery: 0
+            AccessLogSetting:
+                DestinationArn: !GetAtt APILogGroup.Arn
+                Format: >-
+                    {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+            GatewayResponses:
+                BAD_REQUEST_PARAMETERS:
+                    ResponseTemplates:
+                        application/json: '{"message": "$context.error.validationErrorString"}'
+                BAD_REQUEST_BODY:
+                    ResponseTemplates:
+                        application/json: '{"message": "$context.error.validationErrorString"}'
+                UNAUTHORIZED:
+                    ResponseTemplates:
+                        application/json: '{"message": "This request is unauthorized."}'
+                    StatusCode: "401"
+                ACCESS_DENIED:
+                    ResponseTemplates:
+                        application/json: '{"message": "$context.authorizer.key"}'
+                    StatusCode: "403"
+                DEFAULT_5xx:
+                    ResponseTemplates:
+                        application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+    APILogGroup:
+        Type: AWS::Logs::LogGroup
+
+    APICloudWatchRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - apigateway.amazonaws.com
+                      Action: "sts:AssumeRole"
+            Path: /
+            ManagedPolicyArns:
+                - >-
+                    arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+    APIGatewayAccount:
+        Type: "AWS::ApiGateway::Account"
+        Properties:
+            CloudWatchRoleArn: !GetAtt APICloudWatchRole.Arn
+
+    Authorizer:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub "adf-assembler-${Environment}-Authorizer"
+            CodeUri: app/
+            Handler: authorizer.lambda_handler
+            Timeout: 120
+            Policies:
+                - Id: AuthorizerPermissions
+                  Version: "2012-10-17"
+                  Statement:
+                      - Sid: AllowGetAPIKeys
+                        Effect: Allow
+                        Action:
+                            - secretsmanager:GetSecretValue
+                        Resource:
+                            !If [
+                                IsProd,
+                                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/adf-assembler*",
+                                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/adf-assembler*",
+                            ]
+
+    AdfAssembler:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub "adf-assemble-${Environment}"
+            CodeUri: app/create-adf
+            Handler: adf_assemble.lambda_handler
+            Timeout: 30
+            Role: !GetAtt LambdaRole.Arn
+            Events:
+                Post:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref AdfAssemblerApiGateway
+                        Path: /create_adf
+                        Method: POST
+
+    AdfAssemblerErrorAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmName: !Sub adf-assemble-${Environment}-AdfAssemblerAlarm
+            AlarmDescription: ADF assembler failed to process incoming data
+            ActionsEnabled: true
+            AlarmActions:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            ComparisonOperator: GreaterThanThreshold
+            Dimensions:
+                - Name: FunctionName
+                  Value: !Ref AdfAssembler
+            EvaluationPeriods: 1
+            MetricName: Errors
+            Namespace: AWS/Lambda
+            Period: 900
+            Statistic: Sum
+            Threshold: 1
+            TreatMissingData: notBreaching

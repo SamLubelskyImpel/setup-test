@@ -1,0 +1,1195 @@
+openapi: 3.0.0
+servers:
+  - description: Impel Stage Environment
+    url: https://crm.testenv.impel.io
+  - description: Impel Prod Environment
+    url: https://crm.impel.io
+info:
+  version: "1.0.0"
+  title: CRM Partner API
+  description: This API allows CRM Partners to post records for new leads and lead updates.
+security:
+  - basicAuth: []
+#{{CRM_PARTNER_API_AWS_VALIDATION}}
+paths:
+  /reyrey/crm-upload/v1/leads:
+    post:
+      summary: Post ReyRey CRM new leads.
+      #{{REYREY_CREATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - ReyRey
+      operationId: reyrey-post-lead
+      description: |-
+        This API endpoint creates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of XML properties in the request body."
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/ImpelCRMSalesLead'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request XML is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+          
+  /reyrey/crm-upload/v1/lead-updates:
+    post:
+      summary: Post ReyRey CRM lead updates.      
+      #{{REYREY_UPDATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - ReyRey
+      operationId: reyrey-post-lead-update
+      description: |-
+        This API endpoint updates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of XML properties in the request body."
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/ImpelCRMPublishLeadDisposition'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request XML is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+  /momentum/crm-upload/v1/leads:
+    post:
+      summary: Post Momentum CRM new leads.
+      #{{MOMENTUM_CREATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Momentum
+      operationId: momentum-post-lead
+      description: |-
+        This API endpoint creates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MomentumLead'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+          
+  /momentum/crm-upload/v1/lead-updates:
+    post:
+      summary: Post Momentum CRM lead updates.      
+      #{{MOMENTUM_UPDATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Momentum
+      operationId: momentum-post-lead-update
+      description: |-
+        This API endpoint updates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MomentumLeadUpdate'
+      responses:
+        '200':
+          description: Success.
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+  /activix/crm-upload/v1/leads:
+    post:
+      security:
+        - SHA256Auth: []
+      summary: Post Activix CRM new leads.
+      #{{ACTIVIX_CREATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Activix
+      operationId: activix-post-lead
+      description: |-
+        This API endpoint creates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivixLead'
+      responses:
+        '200':
+          description: Success.
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+  /activix/crm-upload/v1/lead-updates:
+    post:
+      security:
+        - SHA256Auth: []
+      summary: Post Activix CRM lead updates.
+      #{{ACTIVIX_UPDATE_LEAD_LAMBDA_INFO}}
+      tags:
+        - Activix
+      operationId: activix-post-lead-update
+      description: |-
+        This API endpoint updates a CRM lead record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivixLead'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Basic Authentication
+    SHA256Auth:
+      type: apiKey
+      in: header
+      name: X-Activix-Signature
+      description: Provide a SHA256 encrypted signature as part of the request headers.
+  schemas:
+    ImpelCRMSalesLead:
+      type: object
+      required:
+        - ApplicationArea
+        - Record
+      properties:
+        ApplicationArea:
+          $ref: '#/components/schemas/ApplicationArea'
+        Record:
+          $ref: '#/components/schemas/Record'
+      xml:
+        namespace: http://www.starstandards.org/STAR
+    ApplicationArea:
+      type: object
+      required:
+        - Sender
+      properties:
+        Sender:
+          $ref: '#/components/schemas/Sender'
+        CreationDateTime:
+          description: Publish – Local time of the dealer server in the format of YYYY-MM-DD'T'HH:mm:ss
+          format: date-time
+          example: 2017-01-23T10:23:45
+        BODId:
+          type: string
+          description: Unique Identifier for the transaction generated by Sender
+          minLength: 1
+          maxLength: 50
+          example: ef097f3a-01b2-1eca-b12a-80048cbb74f3
+        Destination:
+          type: object
+          properties:
+            DestinationNameCode:
+              type: string
+              description: A code representing the name of the destination
+              example: RCI
+    Sender:
+      type: object
+      properties:
+        Component:
+          type: string
+          description: Creator Software Code Name
+          maxLength: 20
+          minLength: 1
+          example: RRCRM
+        Task:
+          type: string
+          description: Transaction Code
+          maxLength: 3
+          minLength: 1
+          example: OSL
+        TransType:
+          type: string
+          description: Transaction Type Indicator
+          maxLength: 1
+          minLength: 1
+          example: O
+        DealerNumber:
+          type: string
+          description: The Performance Path system id
+          maxLength: 30
+          minLength: 1
+          example: "8011602QAPCCURU"
+        StoreNumber:
+          type: string
+          description: The DMS Store Number
+          maxLength: 10
+          minLength: 1
+          example: "02"
+        AreaNumber:
+          type: string
+          description: The branch of the Store
+          maxLength: 10
+          minLength: 1
+          example: "01"
+        BusinessUnitName:
+          type: string
+          description: Business Unit Name
+          maxLength: 80
+          minLength: 1
+          example: Voss Chevrolet
+    Record:
+      type: object
+      properties:
+        Prospect:
+          $ref: '#/components/schemas/Prospect'
+        IndividualCustomer:
+          $ref: '#/components/schemas/IndividualCustomer'
+        PhoneNumbers:
+          type: object
+          properties:
+            Phone:
+              type: array
+              description: "List of phone numbers."
+              items:
+                type: object
+                properties:
+                  Type:
+                    type: string
+                    description: '"Type of phone number. "H"= Home Phone "B"= Business Phone "C"= Cell Phone "F"= Fax Number "P"= Pager Number "U"= Unlisted Number "O"= Other Number"'
+                    maxLength: 1
+                    minLength: 1
+                    example: "C"
+                  Num:
+                    type: integer
+                    description: "Phone number."
+                    example: "9874565876"
+        Email:
+          type: object
+          properties:
+            MailTo:
+              type: string
+              description: "Email address."
+              maxLength: 100
+              minLength: 3
+              example: "brian.jura@example.com"
+        Consent:
+          $ref: '#/components/schemas/Consent'
+        DesiredVehicle:
+          $ref: '#/components/schemas/DesiredVehicle'
+        PotentialTrade:
+          $ref: '#/components/schemas/PotentialTrade'
+    Prospect:
+      type: object
+      properties:
+        ProspectCategory:
+          type: string
+          description: Will always be Sales
+          maxLength: 5
+          minLength: 1
+          example: Sales
+        ProviderName:
+          type: string
+          description: Prospect Provider Name
+          maxLength: 100
+          minLength: 1
+          example: "Provider1"
+        ProviderService:
+          type: string
+          description: Prospect Provider Service
+          maxLength: 100
+          minLength: 1
+          example: "Service1"
+        IsCiLead:
+          type: boolean
+          description: "True = CI , False= NCI. Assumed True if not Specified"
+          example: True
+        ProspectType:
+          type: string
+          description: "Internet, Phone, Walk-In, Other, List, Fax, DMS Created."
+          maxLength: 128
+          minLength: 1
+          example: Internet
+        ProspectStatus:
+          type: string
+          description: "Business Unit specific"
+          maxLength: 70
+          minLength: 1
+          example: Status1
+        ProspectStatusType:
+          type: string
+          description: "Closed, CRM Sold, Deal Pending, Open, Sold"
+          maxLength: 60
+          minLength: 1
+          example: "Open"
+        PrimarySalesPerson:
+          type: string
+          description: "Full Name of the primary salesperson: Last Name, First Name."
+          maxLength: 84
+          minLength: 1
+          example: "Green, Tanner"
+        SecondarySalesPerson:
+          type: string
+          description: "Full Name of the secondary salesperson: Last Name, First Name."
+          maxLength: 84
+          minLength: 1
+          example: "Doe, Jane"
+        Manager:
+          type: string
+          description: "Full Name of the manager: Last Name, First Name."
+          maxLength: 84
+          minLength: 1
+          example: "Doe, John"
+        BDCUser:
+          type: string
+          description: "Name of the BDC user: Last Name, First Name"
+          maxLength: 84
+          minLength: 1
+          example: "Smith, Jane"
+        ProspectId:
+          type: integer
+          description: Unique prospect Id generated by the system
+          maxLength: 19
+          minLength: 1
+          example: 123567890
+        LeadId:
+          type: string
+          description: Unique lead Id generated by the OEM lead processor
+          maxLength: 256
+          minLength: 1
+          example: "Lead456"
+        InsertedBy:
+          type: string
+          description: "Lead date/time or last, first Name of User date/time"
+          maxLength: 100
+          minLength: 1
+          example: "Smith, Bob 6/16/2021 1:44 PM"
+        ProspectNote:
+          type: string
+          description: "Note about the prospect."
+          maxLength: 10000
+          minLength: 1
+          example: "Note about the prospect"
+    IndividualCustomer:
+      type: object
+      properties:
+        NameRecId:
+          type: integer
+          description: Customer ID in the DMS
+          example: 51207
+        IBFlag:
+          type: string
+          description: "Individual/Business Flag"
+          maxLength: 1
+          minLength: 1
+          example: "I"
+        LastName:
+          type: string
+          description: "Last name of the customer."
+          maxLength: 30
+          minLength: 1
+          example: "Jura"
+        FirstName:
+          type: string
+          description: "First name of the customer."
+          maxLength: 30
+          minLength: 1
+          example: "Brian"
+        PrefContact:
+          type: string
+          description: "Cell, Direct Mail, Email, Fax, Home, Other, Pager, Text, Unlisted, Work"
+          maxLength: 11
+          minLength: 1
+          example: "Email"
+        SendTextsTo:
+          type: string
+          description: '"H"= Home Phone "B"= Business Phone "C"= Cell Phone "F"= Fax Number "P"= Pager Number "U"= Unlisted Number "O"= Other Number Defines the phone type selected to be either opted in or out of."'
+          maxLength: 1
+          minLength: 1
+          example: "C"
+    Consent:
+      type: object
+      properties:
+        Email:
+          type: string
+          description: "Consent for Email communication. Must be Y or N or Null Null = Not Set"
+          maxLength: 1
+          minLength: 1
+          example: "Y"
+        Text:
+          type: string
+          description: "Consent for Text communication. Must be Y or N or Null Null = Not Set"
+          maxLength: 1
+          minLength: 1
+          example: "N"
+        Phone:
+          type: string
+          description: "Consent for Phone communication. Must be Y or N or Null Null = Not Set"
+          maxLength: 1
+          minLength: 1
+          example: "Y"
+        OptOut:
+          type: string
+          description: "Indicates whether or not the dealership may share the customer information. Must be Y or N or Null Null = Not Set"
+          maxLength: 1
+          minLength: 1
+          example: "N"
+        OptOutUse:
+          type: string
+          description: "Indicates whether or not the dealership may use the customer information."
+          maxLength: 1
+          minLength: 1
+          example: "Y"
+    DesiredVehicle:
+      type: object
+      properties:
+        StockType:
+          type: string
+          description: "Condition of the desired vehicle. New, Used, CPO"
+          maxLength: 4
+          minLength: 1
+          example: "New"
+        Vin:
+          type: string
+          description: "VIN of the desired vehicle."
+          maxLength: 17
+          minLength: 17
+          example: "1HGBH41JXMN109186"
+        VehicleYear:
+          type: integer
+          description: "Year of the desired vehicle."
+          example: 2023
+        VehicleMake:
+          type: string
+          description: "Make of the desired vehicle."
+          maxLength: 32
+          minLength: 1
+          example: "Toyota"
+        VehicleModel:
+          type: string
+          description: "Model of the desired vehicle."
+          maxLength: 100
+          minLength: 1
+          example: "Camry"
+        VehicleStyle:
+          type: string
+          description: "Style of the desired vehicle."
+          maxLength: 100
+          minLength: 1
+          example: "SE Sedan 4D"
+        StockId:
+          type: string
+          description: "Stock ID of the desired vehicle."
+          maxLength: 8
+          minLength: 1
+          example: "Stock123"
+    PotentialTrade:
+      type: object
+      properties:
+        TradeVehicleVin:
+          type: string
+          description: "VIN of the potential trade vehicle."
+          maxLength: 17
+          minLength: 17
+          example: "1HGCM82633A004352"
+        TradeVehicleYear:
+          type: integer
+          description: "Year of the potential trade vehicle."
+          example: 2017
+        TradeVehicleMake:
+          type: string
+          description: "Make of the potential trade vehicle."
+          maxLength: 30
+          minLength: 1
+          example: "Honda"
+        TradeVehicleModel:
+          type: string
+          description: "Model of the potential trade vehicle."
+          maxLength: 100
+          minLength: 1
+          example: "Accord"
+    
+    ImpelCRMPublishLeadDisposition:
+      type: object
+      required:
+        - ApplicationArea
+        - Record
+      properties:
+        ApplicationArea:
+          $ref: '#/components/schemas/ApplicationAreaUpdate'
+        Record:
+          $ref: '#/components/schemas/RecordUpdate'
+      xml:
+        namespace: http://www.starstandards.org/STAR
+    ApplicationAreaUpdate:
+      type: object
+      required:
+        - Sender
+      properties:
+        Sender:
+          $ref: '#/components/schemas/SenderUpdate'
+        CreationDateTime:
+          description: Publish - Local time of the dealer server in the format of YYYY-MM-DD'T'HH:mm:ss
+          format: date-time
+          example: 2017-01-23T10:23:45
+        BODId:
+          type: string
+          description: Unique Identifier for the transaction generated by Sender
+          minLength: 1
+          maxLength: 50
+          example: ef097f3a-01b2-1eca-b12a-80048cbb74f3
+        Destination:
+          type: object
+          properties:
+            DestinationNameCode:
+              type: string
+              description: A code representing the name of the destination
+              example: RCI
+    SenderUpdate:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/Sender'
+        - type: object
+          properties:
+            DealerId:
+              type: string
+              description: Dealer Franchise Code
+              maxLength: 256
+              minLength: 1
+              example: "DEALER12345"
+    RecordUpdate:
+      type: object
+      required:
+        - Identifier
+      properties:
+        Identifier:
+          type: object
+          required:
+            - ProspectId
+          properties:
+            ProspectId:
+              type: integer
+              description: "Unique prospect Id generated by the system, In lead Merge Scenario, this will be the Prospect being merged Id."
+              example: 12345112233
+            LeadId:
+              type: string
+              description: "Unique lead Id generated by the OEM lead processor. In a Lead merge scenario, the lead being merged will have its OEM Lead Id displayed if present."
+              maxLength: 256
+              minLength: 1
+              example: LD-556677
+            NameRecId:
+              type: integer
+              description: "Customer Id in the DMS"
+              example: 51207
+        RCIDispositionEventId:
+          type: integer
+          description: Unique disposition event Id that corresponds to the disposition event name
+          example: 12
+        RCIDispositionEventName:
+          type: string
+          description: Disposition Event Name
+          maxLength: 200
+          minLength: 1
+          example: Contacted - Email
+        RCIDispositionCompletedByUserId:
+          type: string
+          description: First Name space Last Name or System
+          maxLength: 84
+          minLength: 1
+          example: Jane Smith
+        RCIDispositionCompletedOn:
+          type: string
+          description: Disposition Completed Date/Time YYYY-MM-DD'T'HH:mm:ss
+          format: date-time
+          example: 2023-12-28T16:00:00Z
+        RCIDispositionMergedProspectId:
+          type: integer
+          description: For Lead Merged, this is the Id of the remaining lead.
+          example: 778899
+        RCIDispositionVin:
+          type: string
+          description: Included in Sold and Deal Unwind dispositions
+          maxLength: 17
+          minLength: 17
+          example: 1HGBH41JXMN109186
+        RCIDispositionStockType:
+          type: string
+          description: New, Used, CPO. Included in Sold and Deal Unwind dispositions
+          maxLength: 4
+          minLength: 1
+          example: New
+        RCIDispositionPrimarySalesperson:
+          type: string
+          description: First Name space Last Name
+          maxLength: 84
+          minLength: 1
+          example: John Doe
+    MomentumLeadUpdate:
+      description: Request body for Momentum lead updates
+      type: object
+      required:
+        - id
+        - dealerID
+      properties:
+        id:
+          type: string
+          description: ID of the lead
+          minLength: 1
+          maxLength: 50
+          example: "D973DAF4-D0F2124-389FC"
+        dealerID:
+          type: string
+          description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        date:
+          type: string
+          format: date-time
+          description: Timestamp of the lead in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        leadStatus:
+          type: string
+          description: Status of the lead
+          minLength: 1
+          maxLength: 50
+          example: "New"
+        leadStatusTimestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the lead status update in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        contactID:
+          type: string
+          description: ID of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        contactName:
+          type: string
+          description: Name of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Jane Smith"
+        bdcID:
+          type: string
+          description: ID of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        bdcName:
+          type: string
+          description: Name of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Richard Roe"
+    MomentumLead:
+      description: Request body for Momentum leads
+      type: object
+      required:
+        - id
+        - dealerID
+        - firstName
+        - lastName
+        - leadStatus
+        - leadType
+      properties:
+        id:
+          type: string
+          description: ID of the lead
+          minLength: 1
+          maxLength: 50
+          example: "D973DAF4-D0F2124-389FC"
+        dealerID:
+          type: string
+          description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        date:
+          type: string
+          format: date-time
+          description: Timestamp of the lead in UTC format with offset.
+          example: "2023-09-22T14:00:00-0800"
+        leadStatus:
+          type: string
+          description: Status of the lead
+          minLength: 1
+          maxLength: 50
+          example: "New"
+        leadType:
+          type: string
+          description: Type of the lead
+          minLength: 1
+          maxLength: 50
+          example: "Internet"
+        comments:
+          type: string
+          description: Comment about the lead
+          minLength: 1
+          maxLength: 2048
+          example: "Does this car have a sunroof?"
+        providerName:
+          type: string
+          description: Source of the lead
+          minLength: 1
+          maxLength: 40
+          example: "Momentum lead source"
+        contactID:
+          type: string
+          description: ID of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        contactName:
+          type: string
+          description: Name of the Momentum user assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Jane Smith"
+        bdcID:
+          type: string
+          description: ID of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "C98SD-SK930F"
+        bdcName:
+          type: string
+          description: Name of the BDC rep assigned to the lead
+          minLength: 1
+          maxLength: 50
+          example: "Richard Roe"
+        firstName:
+          type: string
+          description: Customer first name
+          minLength: 1
+          maxLength: 50
+          example: John
+        lastName:
+          type: string
+          description: Customer last name
+          minLength: 1
+          maxLength: 50
+          example: Doe
+        email:
+          type: string
+          format: email
+          description: Customer primary email address
+          minLength: 1
+          maxLength: 50
+          example: john.doe@example.com
+        homePhone:
+          type: string
+          description: Customer home phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        workPhone:
+          type: string
+          description: Customer work phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        cellPhone:
+          type: string
+          description: Customer cell phone number
+          minLength: 1
+          maxLength: 20
+          example: "(111) 222-3333"
+        address1:
+          type: string
+          description: Customer address line 1
+          minLength: 1
+          maxLength: 255
+          example: "123 Main St"
+        address2:
+          type: string
+          description: Customer address line 2
+          minLength: 1
+          maxLength: 255
+          example: "Apt 4B"
+        country:
+          type: string
+          description: Country where the customer resides
+          minLength: 1
+          maxLength: 100
+          example: USA
+        city:
+          type: string
+          description: City where the customer resides
+          minLength: 1
+          maxLength: 100
+          example: New York
+        zip:
+          type: string
+          description: Postal or ZIP code for the customer's address
+          minLength: 1
+          maxLength: 20
+          example: "10001"
+        vin:
+          type: string
+          description: Vehicle Identification Number
+          minLength: 1
+          maxLength: 17
+          example: "1HGBH41JXMN109186"
+        stock:
+          type: string
+          description: Vehicle stock number
+          minLength: 1
+          maxLength: 50
+          example: SN12345
+        year:
+          type: string
+          description: The sales model year of the vehicle
+          minLength: 1
+          maxLength: 10
+          example: 2023
+        make:
+          type: string
+          description: The brand or make of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: Ford
+        model:
+          type: string
+          description: The model name of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: F-150
+        color:
+          type: string
+          description: Exterior color of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: White
+        trim:
+          type: string
+          description: Trim of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: GT
+        vehicleType:
+          type: string
+          description: Condition of the vehicle
+          minLength: 1
+          maxLength: 50
+          example: Used
+    ActivixLead:
+      description: Request body for Activix leads
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID of the lead
+          example: 12345
+        account_id:
+          type: integer
+          description: ID of the dealer
+          example: 14210
+        customer_id:
+          type: integer
+          description: ID of the customer
+          example: 11234
+        created_at:
+          type: string
+          format: date-time
+          description: ISO datetime representing when the lead was created.
+          example: "2024-04-19T19:08:44+00:00"
+        unsubscribe_all_date:
+          type: string
+          description: ISO datetime representing the "Do not disturb" date (equivalent to unsubscribing simultaneously from calls, emails and sms messages).
+          minLength: 1
+          maxLength: 50
+          example: "2024-04-19T19:08:44+00:00"
+        unsubscribe_email_date:
+          type: string
+          description: ISO datetime representing when the unsubscribe email date was set.
+          minLength: 1
+          maxLength: 50
+          example: "2024-04-19T19:08:44+00:00"
+        unsubscribe_sms_date:
+          type: string
+          description: ISO datetime representing when the unsubscribe sms date was set.
+          minLength: 1
+          maxLength: 50
+          example: "2024-04-19T19:08:44+00:00"
+        address_line1:
+          type: string
+          description: Customer address line 1
+          minLength: 1
+          maxLength: 255
+          example: "123 Main St"
+        address_line2:
+          type: string
+          description: Customer address line 2
+          minLength: 1
+          maxLength: 255
+          example: "Apt 4B"
+        city:
+          type: string
+          description: City of the lead
+          minLength: 1
+          maxLength: 100
+          example: New York
+        country:
+          type: string
+          description: Two-letter ISO code representing the country of the lead.
+          minLength: 1
+          maxLength: 2
+          example: US
+        first_name:
+          type: string
+          description: First name of the lead.
+          minLength: 1
+          maxLength: 50
+          example: John
+        last_name:
+          type: string
+          description: Last name of the lead.
+          minLength: 1
+          maxLength: 50
+          example: Doe
+        postal_code:
+          type: string
+          description: Postal code of the lead.
+          minLength: 1
+          maxLength: 20
+          example: "10001"
+        provider:
+          type: string
+          description: The lead source provider.
+          minLength: 1
+          maxLength: 50
+          example: "Bosch"
+        source:
+          type: string
+          description: The source where the lead originated from.
+          minLength: 1
+          maxLength: 50
+          example: "Activix lead source"
+        status:
+          type: string
+          description: The lead status. Possible values are active, duplicate, invalid or lost.
+          minLength: 1
+          maxLength: 20
+          example: "duplicate"
+        type:
+          type: string
+          description: The type of lead. Possible values are email, phone, walk_in, loyalty, renewal, sms, event, web_order or pre_booking.
+          minLength: 1
+          maxLength: 20
+          example: "web_order"
+        comment:
+          type: string
+          description: The comment that the lead has made in the initial request.
+          minLength: 1
+          maxLength: 2048
+          example: "Does this car have a sunroof?"
+        bdc:
+          type: object
+          description: User object representing the associated BDC agent.
+          properties:
+            id:
+              type: integer
+              description: ID of the BDC
+              example: 9987
+            email:
+              type: string
+              description: Email address of the BDC
+              minLength: 1
+              maxLength: 100
+              example: "bdc@example.com"
+            first_name:
+              type: string
+              description: First name of the BDC
+              minLength: 1
+              maxLength: 50
+              example: "Alice"
+            last_name:
+              type: string
+              description: Last name of the BDC
+              minLength: 1
+              maxLength: 50
+              example: "Johnson"
+        advisor:
+          type: object
+          description: User object representing the associated advisor.
+          properties:
+            id:
+              type: integer
+              description: ID of the advisor
+              example: 9988
+            email:
+              type: string
+              description: Email address of the advisor
+              minLength: 1
+              maxLength: 100
+              example: "advisor@example.com"
+            first_name:
+              type: string
+              description: First name of the advisor
+              minLength: 1
+              maxLength: 50
+              example: "John"
+            last_name:
+              type: string
+              description: Last name of the advisor
+              minLength: 1
+              maxLength: 50
+              example: "Johnson"
+        emails:
+          type: array
+          description: List of email addresses associated with the lead.
+          items:
+            type: object
+            properties:
+              address:
+                type: string
+                description: The email address
+                minLength: 5
+                maxLength: 100
+                example: "example@example.com"
+              type:
+                type: string
+                description: The type of email (e.g., home, work)
+                minLength: 1
+                maxLength: 30
+                example: "home"
+              valid:
+                type: boolean
+                description: Indicator if the email is valid
+                example: true
+        phones:
+          type: array
+          description: List of phone numbers associated with the lead.
+          items:
+            type: object
+            properties:
+              number:
+                type: string
+                description: The phone number
+                minLength: 1
+                maxLength: 15
+                example: "555-1234"
+              type:
+                type: string
+                description: The type of phone number (e.g., mobile, home, work)
+                minLength: 3
+                maxLength: 20
+                example: "mobile"
+              valid:
+                type: boolean
+                description: Indicator if the phone number is valid
+                example: true
+        vehicles:
+          type: array
+          description: List of vehicles associated with the lead.
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                description: ID of the vehicle
+                example: 2345
+              color_exterior:
+                type: string
+                description: Exterior color of the vehicle
+                minLength: 3
+                maxLength: 50
+                example: "Red"
+              color_interior:
+                type: string
+                description: Interior color of the vehicle
+                minLength: 3
+                maxLength: 50
+                example: "Black"
+              comment:
+                type: string
+                description: Comment about the vehicle.
+                minLength: 1
+                maxLength: 2048
+                example: "Leather seats"
+              vin:
+                type: string
+                description: Vehicle Identification Number
+                minLength: 1
+                maxLength: 17
+                example: "1HGBH41JXMN109186"
+              stock:
+                type: string
+                description: The dealers's stock number of the vehicle.
+                minLength: 1
+                maxLength: 50
+                example: "S1234"
+              odometer:
+                type: string
+                description: Current odometer value the vehicle.
+                minLength: 1
+                maxLength: 20
+                example: "25000"
+              year:
+                type: string
+                description: The sales model year of the vehicle
+                minLength: 1
+                maxLength: 10
+                example: 2023
+              make:
+                type: string
+                description: The brand or make of the vehicle
+                minLength: 1
+                maxLength: 50
+                example: Ford
+              model:
+                type: string
+                description: The model name of the vehicle
+                minLength: 1
+                maxLength: 50
+                example: F-150
+              transmission:
+                type: string
+                description: Type of transmission
+                minLength: 1
+                maxLength: 50
+                example: "Automatic"
+              trim:
+                type: string
+                description: The trim of the vehicle.
+                minLength: 1
+                maxLength: 50
+                example: "SE"
+              price:
+                type: integer
+                description: Price of the vehicle
+                example: 25000
+              type:
+                type: string
+                description: The type of vehicle. Possible values are wanted or exchange.
+                minLength: 1
+                maxLength: 50
+                example: "wanted"

@@ -40,6 +40,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+RETRIEVE_LEAD_BY_CRM_IDS_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveLeadByCrmIds.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 UPDATE_LEAD_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -53,6 +62,15 @@ RETRIEVE_LEAD_STATUS_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
     Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveLeadStatus.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveLeadActivities.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
@@ -85,6 +103,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+RETRIEVE_CONSUMER_BY_CRM_IDS_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveConsumerByCrmIds.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 UPDATE_CONSUMER_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -98,6 +125,24 @@ RETRIEVE_DEALERS_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
     Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveDealers.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+RETRIEVE_DEALER_BY_ID_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveDealerById.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveSalespersonsByDealerId.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
@@ -135,14 +180,19 @@ CRM_API_INTERPOLATION_DATA = {
     "CREATE_LEAD_LAMBDA_INFO": CREATE_LEAD_LAMBDA_INFO,
     "RETRIEVE_LEADS_LAMBDA_INFO": RETRIEVE_LEADS_LAMBDA_INFO,
     "RETRIEVE_LEAD_LAMBDA_INFO": RETRIEVE_LEAD_LAMBDA_INFO,
+    "RETRIEVE_LEAD_BY_CRM_IDS_LAMBDA_INFO": RETRIEVE_LEAD_BY_CRM_IDS_LAMBDA_INFO,
     "UPDATE_LEAD_LAMBDA_INFO": UPDATE_LEAD_LAMBDA_INFO,
     "RETRIEVE_LEAD_STATUS_LAMBDA_INFO": RETRIEVE_LEAD_STATUS_LAMBDA_INFO,
     "RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO": RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO,
+    "RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO": RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO,
     "CREATE_CONSUMER_LAMBDA_INFO": CREATE_CONSUMER_LAMBDA_INFO,
     "RETRIEVE_CONSUMER_LAMBDA_INFO": RETRIEVE_CONSUMER_LAMBDA_INFO,
+    "RETRIEVE_CONSUMER_BY_CRM_IDS_LAMBDA_INFO": RETRIEVE_CONSUMER_BY_CRM_IDS_LAMBDA_INFO,
     "UPDATE_CONSUMER_LAMBDA_INFO": UPDATE_CONSUMER_LAMBDA_INFO,
     "CREATE_ACTIVITY_LAMBDA_INFO": CREATE_ACTIVITY_LAMBDA_INFO,
     "UPLOAD_DATA_LAMBDA_INFO": UPLOAD_DATA_LAMBDA_INFO,
     "RETRIEVE_DEALERS_LAMBDA_INFO": RETRIEVE_DEALERS_LAMBDA_INFO,
+    "RETRIEVE_DEALER_BY_ID_LAMBDA_INFO": RETRIEVE_DEALER_BY_ID_LAMBDA_INFO,
+    "RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO": RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO,
     "UPDATE_ACTIVITY_LAMBDA_INFO": UPDATE_ACTIVITY_LAMBDA_INFO,
 }

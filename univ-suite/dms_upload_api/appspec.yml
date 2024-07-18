@@ -29,7 +29,7 @@ hooks:
       timeout: 10
       runas: root
     - location: codedeploy/compile_universal_integrations/config.sh
-      timeout: 10
+      timeout: 50
   ApplicationStart:
     - location: codedeploy/start_app.sh
       timeout: 10

@@ -89,7 +89,7 @@ Resources:
             Bucket: !Ref DeploymentBucket
             Key: !Ref CodeArtifactKey
             BundleType: tgz
-      DeploymentConfigName: !If [ IsProd, CodeDeployDefault.HalfAtATime, CodeDeployDefault.AllAtOnce ]
+      DeploymentConfigName: !If [ IsProd, CodeDeployDefault.AllAtOnce, CodeDeployDefault.AllAtOnce ]
       DeploymentStyle:
         DeploymentType: IN_PLACE
         # DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -200,6 +200,7 @@ Resources:
               - s3:DeleteObject
               - s3:DeleteObjectTagging
               - s3:DeleteObjectVersion
+              - s3:ListBucket
               - s3:GetObject
               - s3:GetObjectAcl
               - s3:GetObjectVersion
@@ -210,7 +211,7 @@ Resources:
               - s3:PutObjectRetention
               - s3:PutObjectTagging
               - s3:PutObjectVersionAcl
-            Resource: !
+            Resource:
               - !Sub arn:aws:s3:::spincar-deploy-${AWS::Region}/*
               - !Sub 'arn:aws:s3:::integrations-${AWS::Region}-${Environment}/*'
               - !Sub 'arn:aws:s3:::crm-integrations-${Environment}/*'
@@ -252,6 +253,11 @@ Resources:
               - sns:Publish
             Resource:
               - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+          - Sid: LambdaPolicy
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: "*"
 
   LifecycleHookTerminate:
     Type: AWS::AutoScaling::LifecycleHook

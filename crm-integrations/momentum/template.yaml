@@ -1,0 +1,446 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: momentum crm integration
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - 196800776222
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        SECRET_KEY: "MOMENTUM"
+        UPLOAD_SECRET_KEY: "impel"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        REPORTING_TOPIC_ARN: !If [
+            IsProd,
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+          ]
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt SendActivityQueue.Arn
+                  - !GetAtt TransformNewLeadQueue.Arn
+                  - !GetAtt TransformLeadUpdateQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
+                    IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+
+  TransformNewLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-TransformNewLead
+      CodeUri: app/
+      Handler: transform_new_lead.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformNewLeadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-TransformNewLead"
+
+  TransformNewLeadEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformNewLeadQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformNewLead.Arn
+
+  TransformNewLeadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
+        maxReceiveCount: 3
+        
+  TransformNewLeadDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  TransformNewLeadDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "momentum-${Environment}-TransformNewLeadDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Momentum Transform New Lead DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformNewLeadDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformNewLeadQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformNewLeadQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformNewLeadQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
+  
+  EventBridgeRuleNewLead:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/momentum/" }
+      Targets:
+        - Id: "TransformNewLeadTarget"
+          Arn: !GetAtt TransformNewLeadQueue.Arn
+  
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 2
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  RetrieveSalespersons:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-RetrieveSalespersons
+      CodeUri: app/
+      Handler: send_activity.get_salespersons_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-SendActivity"
+
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub momentum-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the Momentum SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformLeadUpdate:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-TransformLeadUpdate
+      CodeUri: app/
+      Handler: transform_lead_update.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformLeadUpdateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-TransformLeadUpdate"
+
+  TransformLeadUpdateEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformLeadUpdateQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformLeadUpdate.Arn
+
+  TransformLeadUpdateQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformLeadUpdateDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformLeadUpdateDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  TransformLeadUpdateDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "momentum-${Environment}-TransformLeadUpdateDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Momentum Transform Lead Update DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformLeadUpdateDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformLeadUpdateQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformLeadUpdateQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformLeadUpdateQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRuleUpdateLead.Arn
+
+  EventBridgeRuleUpdateLead:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw_updates/momentum/" }
+      Targets:
+        - Id: "TransformLeadUpdateTarget"
+          Arn: !GetAtt TransformLeadUpdateQueue.Arn
+
+  MonitoringMomentum:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  MonitoringMomentumLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-Monitoring"
+  
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringMomentum.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+  
+  MonitoringTransformNewLeadSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - TransformNewLeadLogGroup
+    Properties:
+      LogGroupName: !Ref TransformNewLeadLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringTransformLeadUpdateSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - TransformLeadUpdateLogGroup
+    Properties:
+      LogGroupName: !Ref TransformLeadUpdateLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"

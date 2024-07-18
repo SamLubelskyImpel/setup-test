@@ -1,0 +1,29 @@
+[
+    {
+        "SummaryMetricTeamId": 100000,
+        "LoginUserId": 406809,
+        "DMSStoreId": 102792,
+        "DMSBranchId": 103456,
+        "DateRangeType": 0,
+        "SelectedLoginUserId": 9999,
+        "Something That Will Cause an Error": "Esakia, Luka",
+        "TeamResponseTime": 0.2,
+        "TeamAppts": 0,
+        "TeamUps": 0.0,
+        "TeamLost": 0.0,
+        "TeamApptsScheduled": 0,
+        "TeamApptsConfirmed": 0,
+        "TeamApptsMissed": 0,
+        "TeamApptsCompleted": 0,
+        "TeamApptsSold": 0,
+        "TeamScheduled": 10,
+        "TeamComplete": 0,
+        "TeamIncomplete": 10,
+        "TeamOverdue": 0,
+        "InsertedOn": "2024-02-21T13:26:39.86",
+        "InsertedBy": 406809,
+        "UpdatedOn": "2024-02-21T13:26:39.86",
+        "UpdatedBy": 406809,
+        "TeamCompletionRate": 0.0
+    }
+]

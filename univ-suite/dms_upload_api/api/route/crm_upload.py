@@ -1,6 +1,9 @@
 """Routes for uploading crm files."""
 import uuid
+import boto3
 from datetime import datetime, timezone
+from os import environ
+from json import loads, dumps
 
 from api.cloudwatch import get_logger
 from api.flask_common import log_and_return_response
@@ -12,6 +15,7 @@ from flask import Blueprint, jsonify, request
 _logger = get_logger()
 
 crm_upload_api = Blueprint("crm_upload_api", __name__)
+s3_client = boto3.client("s3")
 
 
 def get_reyrey_file_type(filename: str):
@@ -25,6 +29,49 @@ def get_reyrey_file_type(filename: str):
     if len(filename_sections) >= 3:
         file_type = reyrey_file_type_mappings.get(filename_sections[2])
     return file_type
+
+
+def get_lambda_arn():
+    """Get lambda ARN from S3."""
+    ENVIRONMENT = environ.get("ENV", "test")
+    CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
+    s3_key = f"configurations/{ENVIRONMENT}_REYREY.json"
+    try:
+        s3_object = loads(
+                s3_client.get_object(
+                    Bucket=CRM_UPLOAD_BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )
+        lambda_arn = s3_object.get("process_historical_data_arn")
+    except Exception as e:
+        _logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: REYREY, {e}")
+        raise
+    return lambda_arn
+
+
+def process_historical_data(key: str):
+    """Process historical data."""
+    ENVIRONMENT = environ.get("ENV", "test")
+    CRM_UPLOAD_BUCKET = f"crm-integrations-{ENVIRONMENT}"
+    REGION_NAME = environ.get("REGION_NAME", "us-east-1")
+    try:
+        lambda_client = boto3.client("lambda", region_name=REGION_NAME)
+        payload = {
+            "bucket_name": CRM_UPLOAD_BUCKET,
+            "file_name": key,
+        }
+
+        lambda_arn = get_lambda_arn()
+
+        response = lambda_client.invoke(
+            FunctionName=lambda_arn,
+            InvocationType='Event',
+            Payload=dumps(payload).encode('utf-8')
+        )
+    except Exception:
+        _logger.exception(f"Error processing historical data for {key}")
+        raise
 
 
 @crm_upload_api.route("/v1", methods=["POST"])
@@ -81,7 +128,10 @@ def post_crm_upload():
             }
             return log_and_return_response(jsonify(response), 400)
 
-        upload_crm_data(client_id, file_type, filename, data)
+        key = upload_crm_data(client_id, file_type, filename, data)
+
+        if client_id == "reyrey_crm" or client_id == "test_client":
+            process_historical_data(key)
 
         response = {
             "file_name": filename,

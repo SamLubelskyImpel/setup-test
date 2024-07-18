@@ -83,8 +83,12 @@ def lambda_handler(event, context):
     bucket_name = "integrations-us-east-1-prod" if env == 'prod' else 'integrations-us-east-1-test'
     yesterday = get_yesterday_date()
 
-    for partner in partners:      
-        for file_type in ['fi_closed_deal', 'repair_order']:
+    for partner in partners:
+        # sidekick doesn't have 'fi_closed_deal' files
+        file_types = ['repair_order'] if partner == 'sidekick' else ['fi_closed_deal', 'repair_order']
+        if partner in ['sidekick', 'tekion']:
+            continue  # sidekick and tekion are not live yet, so just skip them for now
+        for file_type in file_types:
             file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'   
             if not check_folder_has_files(bucket_name, file_key):
                 alert_topic(partner, file_type, yesterday)

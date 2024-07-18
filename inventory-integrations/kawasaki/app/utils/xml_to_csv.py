@@ -52,6 +52,24 @@ def parse_tag_data(child, provider_config):
             if len(specifications_text) <= 0:
                 return ""
             return "|".join(specifications_text)
+    if provider_config["provider"] == "psxdigital":
+        if 'Photo' in child.tag:
+            return format_string(child.text) if format_string(child.text) else ""
+        if child.tag == "Specifications":
+            specifications_text = []
+            for specification_tag in child.findall(".//"):
+                specification_name = format_string(
+                    specification_tag.tag
+                )
+                specification_value = format_string(
+                    specification_tag.text
+                )
+                specifications_text.append(
+                    f"specification_name: {specification_name} specification_value: {specification_value}"
+                )
+            if len(specifications_text) <= 0:
+                return ""
+            return "|".join(specifications_text)
     return format_string(child.text)
 
 
@@ -73,6 +91,9 @@ def parse_xml(xml_string, provider_config):
             if child.tag in provider_config["headers"]:
                 tag_data = parse_tag_data(child, provider_config)
                 item_data[child.tag] = tag_data
+            elif provider_config["provider"] == "psxdigital" and 'Photo' in child.tag:
+                tag_data = parse_tag_data(child, provider_config)
+                item_data["Photos"] = tag_data if "Photos" not in item_data else "|".join([item_data["Photos"], tag_data])
             else:
                 unexpected_tags.add(child.tag)
         all_item_data.append(item_data)

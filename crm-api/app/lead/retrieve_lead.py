@@ -12,6 +12,8 @@ from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.session_config import DBSession
 
+from utils import get_restricted_query
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -33,10 +35,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
+        integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
         lead_id = event["pathParameters"]["lead_id"]
 
         with DBSession() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
+            lead_db = (
+                get_restricted_query(session, integration_partner)
+                .filter(Lead.id == lead_id)
+                .first()
+            )
+
+            if not lead_db:
+                logger.error(f"Lead not found {lead_id}")
+                return {
+                    "statusCode": 404,
+                    "body": json.dumps({"error": f"Lead not found {lead_id}"})
+                }
+
             vehicles_db = (
                 session.query(Vehicle)
                 .filter(Vehicle.lead_id == lead_id)
@@ -44,14 +59,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 .all()
             )
 
-        if not lead:
-            logger.error(f"Lead not found {lead_id}")
-            return {
-                "statusCode": 404,
-                "body": json.dumps({"error": f"Lead not found {lead_id}"})
-            }
-
-        logger.info(f"Found lead {lead.as_dict()}")
+        logger.info(f"Found lead {lead_db.as_dict()}")
 
         vehicles = []
         for vehicle in vehicles_db:
@@ -75,21 +83,28 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "condition": vehicle.condition,
                 "odometer_units": vehicle.odometer_units,
                 "vehicle_comments": vehicle.vehicle_comments,
+                "trade_in_vin": vehicle.trade_in_vin,
+                "trade_in_year": vehicle.trade_in_year,
+                "trade_in_make": vehicle.trade_in_make,
+                "trade_in_model": vehicle.trade_in_model,
+                "metadata": vehicle.metadata_,
                 "db_creation_date": vehicle.db_creation_date
             }
             vehicles.append(vehicle_record)
             logger.info(f"Found vehicle {vehicle.as_dict()}")
 
         lead_record = {
-            "consumer_id": lead.consumer_id,
-            "lead_status": lead.status,
-            "lead_substatus": lead.substatus,
-            "lead_comment": lead.comment,
-            "lead_origin": lead.origin_channel,
-            "lead_source": lead.source_channel,
+            "consumer_id": lead_db.consumer_id,
+            "lead_status": lead_db.status,
+            "lead_substatus": lead_db.substatus,
+            "lead_comment": lead_db.comment,
+            "lead_origin": lead_db.origin_channel,
+            "lead_source": lead_db.source_channel,
+            "lead_source_detail": lead_db.source_detail,
             "vehicles_of_interest": vehicles,
-            "lead_ts": lead.lead_ts,
-            "db_creation_date": lead.db_creation_date
+            "metadata": lead_db.metadata_,
+            "lead_ts": lead_db.lead_ts,
+            "db_creation_date": lead_db.db_creation_date
         }
 
         return {

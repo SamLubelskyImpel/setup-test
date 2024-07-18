@@ -11,7 +11,8 @@ from uuid import uuid4
 from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
-    SqsFifoPartialProcessor,
+    BatchProcessor,
+    EventType,
     process_partial_response,
 )
 
@@ -137,6 +138,9 @@ def record_handler(record: SQSRecord):
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, start_time, end_time, e)
+            )
         raise
 
 
@@ -145,7 +149,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     try:
-        processor = SqsFifoPartialProcessor()
+        processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
             record_handler=record_handler,
