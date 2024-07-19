@@ -114,8 +114,8 @@ Resources:
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
                 # - !Ref CarlabsDataIntegrationsSecrets
                 # - !Ref CarlabsAnalyticsSecrets
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_prod', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_test*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_prod', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_test*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_prod*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_test*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_prod*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_test*']
 
   RepairOrderETLFunction:
     Type: AWS::Serverless::Function
@@ -147,8 +147,8 @@ Resources:
                 - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*']
                 # - !Ref CarlabsDataIntegrationsSecrets
                 # - !Ref CarlabsAnalyticsSecrets
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_prod', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_test*']
-                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_prod', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_test*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_prod*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/data_integrations_test*']
+                - !If [IsProd, !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_prod*', !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:carlabs/analytics_test*']
 
   CarlabsETLBucket:
     Type: AWS::S3::Bucket
@@ -318,17 +318,17 @@ Resources:
           Id: RepairOrderETLStateMachine
           RoleArn: !GetAtt StateMachineTriggerRole.Arn
 
-  # CarlabsDataIntegrationsSecrets:
-  #   Type: AWS::SecretsManager::Secret
-  #   Properties:
-  #     Name: !Sub 'carlabs/data_integrations_${Environment}'
-  #     Description: 'Credentials to Carlabs data_integrations database.'
+  CarlabsDataIntegrationsSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'carlabs/data_integrations_${Environment}'
+      Description: 'Credentials to Carlabs data_integrations database.'
 
-  # CarlabsAnalyticsSecrets:
-  #   Type: AWS::SecretsManager::Secret
-  #   Properties:
-  #     Name: !Sub 'carlabs/analytics_${Environment}'
-  #     Description: 'Credentials to Carlabs platform_analytics_db database.'
+  CarlabsAnalyticsSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'carlabs/analytics_${Environment}'
+      Description: 'Credentials to Carlabs platform_analytics_db database.'
 
   ETLFailuresQueuelarm:
     Type: AWS::CloudWatch::Alarm
