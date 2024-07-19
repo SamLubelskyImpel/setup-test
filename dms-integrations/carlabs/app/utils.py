@@ -70,6 +70,9 @@ def publish_failure(record: dict, err: str, table: str):
 class DealerIntegrationNotFound(Exception):
     ...
 
+class IntegrationNotActive(Exception):
+    pass
+
 
 def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> DealerIntegrationPartner:
     with SQLSession(db='SHARED_DMS') as session:
@@ -87,6 +90,10 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> Dea
             (Dealer.impel_dealer_id == dealer_code)
         ).first()
         
+        if dip and not dip.is_active:
+            _logger.info(f"Found inactive DealerIntegrationPartner for dealer {dealer_code} and data source {data_source}.")
+            raise IntegrationNotActive(f"DealerIntegrationPartner for dealer {dealer_code} and data source {data_source} is inactive.")
+
         if not dip:
             ip = session.query(
                 IntegrationPartner

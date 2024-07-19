@@ -4,9 +4,13 @@ from orm.connection.session import SQLSession
 from orm.models.carlabs import RepairOrder
 from orm.models.shared_dms import ServiceRepairOrder, Consumer, Vehicle
 from mapping.repair_order import map_service_repair_order, map_consumer, map_vehicle
-from utils import save_progress, publish_failure, get_dealer_integration_partner_id
+from utils import save_progress, publish_failure, get_dealer_integration_partner_id, IntegrationNotActive
 import traceback
+import logging
+import os
 
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 @dataclass
 class TransformedData:
@@ -76,6 +80,8 @@ class RepairOrderETL:
                 transformed = self._transform(r)
                 self._load_into_dms(transformed)
                 self._loaded += 1
+            except IntegrationNotActive as e:
+                _logger.info(str(e))
             except Exception:
                 publish_failure(
                     record=r.as_dict(),
