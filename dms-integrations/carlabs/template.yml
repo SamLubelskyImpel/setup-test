@@ -330,12 +330,12 @@ Resources:
       Name: !Sub 'carlabs/analytics_${Environment}'
       Description: 'Credentials to Carlabs platform_analytics_db database.'
 
-  ETLFailuresQueuelarm:
+  ETLFailuresQueueAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub elt-failures-${Environment}-placeholder
-      AlarmDescription: There are messages in the ETLFailuresQueue Alarm
+      AlarmName: !Sub "carlabs-etl-failures-queue-alarm-${Environment}"
+      AlarmDescription: "Alarm when there are messages in the ETLFailuresQueue."
       ActionsEnabled: true
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
