@@ -69,7 +69,7 @@ class DealerIntegrationNotFound(Exception):
     ...
 
 
-def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int:
+def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> DealerIntegrationPartner:
     with SQLSession(db='SHARED_DMS') as session:
         dip = session.query(
             DealerIntegrationPartner
@@ -84,9 +84,6 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
             (DealerIntegrationPartner.is_active) &
             (Dealer.impel_dealer_id == dealer_code)
         ).first()
-        _logger.info('dip in first with')
-        _logger.info(dip)
-
         if not dip:
             _logger.info('START OF IF NOT DIP')
             # If dealer is not found, dynamically insert them here
@@ -102,46 +99,51 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> int
 
                 if not record:
                     _logger.info(f"No active dealer {dealer_code} found in dataImports.")
-                
-                print('record is:')
-                print(record)
-                
-                ip = dms_session.query(
+                    return None
+                ip = session.query(
                     IntegrationPartner
                 ).filter(
                     IntegrationPartner.impel_integration_partner_id.ilike(record[1])
                 ).first()
-                _logger.info('ip issssss')
-                _logger.info(ip.id)
-
 
                 if not ip:
                     _logger.info(f'Integration partner not found for {record}')
                     return None
 
-                # Create new dealer and DealerIntegrationPartner if IntegrationPartner is found
-                new_dealer = Dealer(
-                    impel_dealer_id=dealer_code,
-                    db_creation_date=datetime.utcnow()
-                )
+                # Check if the dealer already exists
+                existing_dealer = session.query(Dealer).filter(Dealer.impel_dealer_id == dealer_code).first()
+                if existing_dealer:
+                    _logger.info(f"Dealer {dealer_code} already exists.")
+                    new_dealer = existing_dealer
+                else:
+                    new_dealer = Dealer(
+                        impel_dealer_id=dealer_code,
+                    )
+                    session.add(new_dealer)
+                    session.commit()
 
-                dms_session.add(new_dealer)
-                dms_session.commit()
-                _logger.info('new_dealer issssss')
-                _logger.info(new_dealer)
+                # Check if the dealer integration partner already exists
+                existing_dip = session.query(
+                    DealerIntegrationPartner
+                ).filter(
+                    DealerIntegrationPartner.integration_partner_id == ip.id,
+                    DealerIntegrationPartner.dealer_id == new_dealer.id,
+                    DealerIntegrationPartner.dms_id == record[0]
+                ).first()
+                if existing_dip:
+                    _logger.info(f"DealerIntegrationPartner already exists for dealer {dealer_code} and integration partner {ip.id}.")
+                    return existing_dip.id
+                else:
+                    new_dip = DealerIntegrationPartner(
+                        integration_partner_id=ip.id,
+                        dealer_id=new_dealer.id,
+                        dms_id=record[0],
+                        is_active=True,
+                        db_creation_date=datetime.utcnow()  # Ensure db_creation_date is set
+                    )
 
-                new_dip = DealerIntegrationPartner(
-                    integration_partner_id=ip.id,
-                    dealer_id=new_dealer.id,
-                    dms_id=record[0],
-                    is_active=True,
-                    db_creation_date=datetime.utcnow()
-                )
-
-                dms_session.add(new_dip)
-                dms_session.commit()
-                _logger.info('NEW DEALER INT PARTNER ISSSSS')
-                _logger.info(new_dip.id)
-                return new_dip.id
+                    session.add(new_dip)
+                    session.commit()
+                    return new_dip.id
 
         return dip.id
