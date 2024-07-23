@@ -28,7 +28,7 @@ def convert_to_int(value):
 
 def parse_csv_to_entries(csv_data, s3_uri):
     entries = []
-    dms_id = None
+    dms_id = s3_uri.split('/')[3]
     reader = csv.DictReader(csv_data.splitlines())
 
     db_metadata = {
@@ -44,8 +44,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale = {}
         db_vehicle = {}
         db_consumer = {}
-
-        dms_id = row["dealerid"]
 
         db_dealer_integration_partner = {
             'dms_id': dms_id
