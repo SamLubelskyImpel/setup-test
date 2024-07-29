@@ -94,23 +94,23 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-        # - PolicyName: SQSPolicy
-        #   PolicyDocument:
-        #     Version: "2012-10-17"
-        #     Statement:
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:ReceiveMessage"
-        #           - "sqs:DeleteMessage"
-        #           - "sqs:GetQueueAttributes"
-        #         Resource:
-        #           - !GetAtt InvokeDataPullQueue.Arn
-        #           - !GetAtt TransformDealerpeakDataQueue.Arn
-        #           - !GetAtt SendActivityQueue.Arn
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:SendMessage"
-        #         Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt InvokeDataPullQueue.Arn
+                  # - !GetAtt TransformDealerpeakDataQueue.Arn
+                  # - !GetAtt SendActivityQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -134,20 +134,20 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource: "*"
 
-  # InvokeDataPull:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-Invoke
-  #     CodeUri: app/
-  #     Handler: invoke_data_pull.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
+  InvokeDataPull:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-Invoke
+      CodeUri: app/
+      Handler: invoke_data_pull.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
   
-  # InvokeDataPullLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Invoke"
+  InvokeDataPullLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Invoke"
 
   # InvokeDataPullErrorAlarm:
   #   Type: AWS::CloudWatch::Alarm
@@ -169,29 +169,29 @@ Resources:
   #     Threshold: 3
   #     TreatMissingData: notBreaching
 
-  # InvokeDataPullEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt InvokeDataPull.Arn
+  InvokeDataPullEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt InvokeDataPull.Arn
 
-  # InvokeDataPullQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
+  InvokeDataPullQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-InvokeQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
+        maxReceiveCount: 3
 
-  # InvokeDataPullDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
+  InvokeDataPullDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-InvokeDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
 
   # InvokeDataPullDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
