@@ -112,7 +112,7 @@ def record_handler(record):
         upload_to_s3(combined_csv_content, provider_dealer_id, modificiation_time)
 
     except Exception as e:
-        logger.error(f"Error transforming csv to json - {record}: {e}")
+        logger.error(f"Error merging files - {record}: {e}")
         raise
 
 
