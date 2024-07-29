@@ -102,8 +102,13 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> Dea
             ).first()
 
             if not ip:
-                _logger.info(f'Integration partner not found for')
-                return None
+                _logger.info(f'Integration partner not found for {data_source}, creating a new one.')
+                ip = IntegrationPartner(
+                    impel_integration_partner_id=data_source,
+                    db_creation_date=datetime.utcnow()
+                )
+                session.add(ip)
+                session.flush()
 
             dealer = session.query(Dealer).filter(Dealer.impel_dealer_id == dealer_code).first()
             if not dealer:
