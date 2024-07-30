@@ -31,6 +31,7 @@ FIELD_MAPPINGS = {
     },
     "inv_inventory": {
         "list_price": "AdvertisedPrice",
+        "special_price": "EGCPrice",
         "fuel_type": "FuelType",
         "exterior_color": "BodyColour",
         "interior_color": "TrimColour",
@@ -48,6 +49,7 @@ FIELD_MAPPINGS = {
         "source_data_drive_train": "DriveType",
         "trim": "Badge",
         "source_data_interior_material_description": "TrimColour",
+        "vdp": "VDP",
     },
     "inv_options.inv_options": {
         "option_description": "RedbookCode",
@@ -77,7 +79,14 @@ def transform_csv_to_entries(csv_content, received_datetime, s3_uri):
             if table != "inv_options.inv_options":  # Handle options separately
                 entry[table] = {}
                 for impel_field, cox_au_field in table_mapping.items():
-                    entry[table][impel_field] = row.get(cox_au_field, None)
+                    if cox_au_field == "Condition":
+                        entry[table][impel_field] = "Used" if row.get(cox_au_field, "") == "Demo" else row.get(cox_au_field, None)
+                    elif cox_au_field == "PhotoURL":
+                        entry[table][impel_field] = row.get(cox_au_field, ",").split(',')[0]
+                    elif cox_au_field == "AdvertisedPrice":
+                        entry[table][impel_field] = row.get(cox_au_field) if row.get(cox_au_field) else row.get("DriveAwayPrice", None)
+                    else:
+                        entry[table][impel_field] = row.get(cox_au_field, None)
             else:
                 # Split the RedbookCode string on pipe delimiter and skip the first entry
                 option_descriptions = row.get('RedbookCode', '').split('|')[1:]  # Skip the Redbook code itself
@@ -129,6 +138,7 @@ def record_handler(record):
         logger.info(f"Provider dealer id: {provider_dealer_id}, Received time: {received_datetime}")
 
         entries = transform_csv_to_entries(csv_content, received_datetime, decoded_key)
+        logger.info(f"Entries: {entries}")
         upload_unified_json(entries, provider_dealer_id)
     except Exception as e:
         logger.error(f"Error transforming csv to json - {record}: {e}")
