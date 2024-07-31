@@ -29,61 +29,77 @@ def send_to_download_queue(message):
         raise e
 
 
-def get_file_modification_time(sftp, file_name):
-    """Get the modification time of a file on the SFTP server."""
-    attrs = sftp.stat(file_name)
-    modification_time = datetime.fromtimestamp(attrs.st_mtime, tz=timezone.utc)
-    return modification_time
+def get_modified_sftp_files(sftp, folder_name, last_modified_time) -> list:
+    """Get files modified after the last_modified_time."""
+    return [
+        {
+            'file_name': file_attr.filename,
+            'modification_time': int(datetime.fromtimestamp(file_attr.st_mtime, tz=timezone.utc).timestamp())
+        }
+        for file_attr in sftp.listdir_attr(folder_name)
+        if datetime.fromtimestamp(file_attr.st_mtime, tz=timezone.utc) >= last_modified_time
+    ]
 
 
-def list_and_filter(sftp, folder_name, active_dealers, last_modified_time):
-    """List and filter files in the folder."""
-    files = sftp.listdir(folder_name)
-    logger.info(f"Files in the folder: {files}")
+def sort_modified_files(modified_files, active_dealers):
+    """Sort modified files into inventory and VDP files."""
+    inventory_files = {}
+    vdp_files = {}
 
-    # Filename format: {dealer_id}_Inventory_{timestamp}.csv
-    selected_files = {}
-    for file in files:
-        # Filter files by active dealers
-        try:
-            dealer_id = file.split('_Inventory_')[0]
-            file_name, extension = file.rsplit('.', 1)
-            if extension != "csv":
-                logger.warning(f"Invalid file extension: {file}")
-                continue
-        except Exception:
-            logger.warning(f"Invalid file name: {file}")
+    for file_info in modified_files:
+        file_name = file_info["file_name"].lower()
+        modification_time = file_info["modification_time"]
+
+        if "_inventory_" in file_name:
+            dealer_id = file_name.split('_inventory_')[0]
+            is_inventory = True
+        elif "_vdp" in file_name:
+            dealer_id = file_name.split('_vdp')[0]
+            is_inventory = False
+        else:
+            logger.warning(f"Error parsing file name: {file_name}. Invalid file name")
+            continue
+
+        if not file_name.endswith(".csv"):
+            logger.warning(f"Error parsing file name: {file_name}. Invalid file extension")
             continue
 
         if dealer_id not in active_dealers:
             continue
 
-        # Filter files modified before the last_modified_time
-        modification_time = get_file_modification_time(sftp, folder_name + file)
-        logger.info(f"File {file} was last modified on {modification_time}")
-
-        if modification_time < last_modified_time:
-            continue
-
-        # Select most recent file for each dealer
-        if dealer_id in selected_files:
-            if selected_files[dealer_id]["modification_time"] < int(modification_time.timestamp()):
-                selected_files[dealer_id] = {
-                    "provider_dealer_id": dealer_id,
-                    "modification_time": int(modification_time.timestamp()),
-                    "file_name": file
+        if is_inventory:
+            if dealer_id not in inventory_files or inventory_files[dealer_id]["modification_time"] < modification_time:
+                inventory_files[dealer_id] = {
+                    "modification_time": modification_time,
+                    "file_name": file_name
                 }
         else:
-            selected_files[dealer_id] = {
-                "provider_dealer_id": dealer_id,
-                "modification_time": int(modification_time.timestamp()),
-                "file_name": file
+            vdp_files[dealer_id] = {
+                "modification_time": modification_time,
+                "file_name": file_name
             }
 
-    # Extract the selected files from the selected_files dictionary
-    selected_files_list = list(selected_files.values())
-    logger.info(f"Selected files: {selected_files_list}")
-    return selected_files_list
+    return inventory_files, vdp_files
+
+
+def get_new_files(sftp, folder_name, active_dealers, last_modified_time) -> list:
+    """Get new files from the SFTP server."""
+    modified_files = get_modified_sftp_files(sftp, folder_name, last_modified_time)
+    inventory_files, vdp_files = sort_modified_files(modified_files, active_dealers)
+
+    selected_files = [
+        {
+            "provider_dealer_id": dealer_id,
+            "inventory_file": inventory_files[dealer_id]["file_name"] if dealer_id in inventory_files else None,
+            "inventory_modification_time": inventory_files[dealer_id]["modification_time"] if dealer_id in inventory_files else None,
+            "vdp_file": vdp_files[dealer_id]["file_name"] if dealer_id in vdp_files else None,
+            "vdp_modification_time": vdp_files[dealer_id]["modification_time"] if dealer_id in vdp_files else None
+        }
+        for dealer_id in active_dealers
+        if dealer_id in inventory_files or dealer_id in vdp_files
+    ]
+
+    return selected_files
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -103,9 +119,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)
         sftp_conn = connect_sftp_server(hostname, port, username, password)
 
-        # List files in the folder
         folder_name = "coxau/"
-        files = list_and_filter(sftp_conn, folder_name, active_dealers, last_modified_time)
+        files = get_new_files(sftp_conn, folder_name, active_dealers, last_modified_time)
 
         sftp_conn.close()
 

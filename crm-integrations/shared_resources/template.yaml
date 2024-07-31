@@ -149,6 +149,8 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
 
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function

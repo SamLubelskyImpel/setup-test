@@ -1163,7 +1163,7 @@ components:
         email:
           type: string
           description: Consumer primary email address
-          maxLength: 50
+          maxLength: 100
           example: john.doe@example.com
         phone:
           type: string
@@ -1232,7 +1232,7 @@ components:
           type: string
           description: The specific channel through which the lead was generated.
           minLength: 1
-          maxLength: 100
+          maxLength: 200
           example: cars.com
         lead_source_detail:
           type: string
