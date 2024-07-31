@@ -19,6 +19,8 @@ from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
 
+from event_service.events import dispatch_event, Event, Resource
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -170,7 +172,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         with DBSession() as session:
             # Check lead existence
             db_results = session.query(
-                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, IntegrationPartner.impel_integration_partner_name
+                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, Dealer.id, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -197,7 +199,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Activity type {activity_type} not found."})
                 }
 
-            lead_db, consumer_db, dealer_partner_db, dealer_metadata, partner_name = db_results
+            lead_db, consumer_db, dealer_partner_db, dealer_metadata, dealer_id, partner_name = db_results
             dip_metadata = dealer_partner_db.metadata_
 
             # Create activity
@@ -216,6 +218,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
             session.commit()
             activity_id = activity.id
             logger.info(f"Created activity {activity_id}")
+
+            dispatch_event(
+                request_product=request_product,
+                partner=partner_name,
+                event=Event.Created,
+                resource=Resource.Activity,
+                content={
+                    'message': 'Activity Created',
+                    'activity_id': activity_id,
+                    'lead_id': lead_id,
+                    'dealer_id': dealer_id,
+                    'activity_type': activity_type
+                })
 
             if dealer_metadata:
                 dealer_timezone = dealer_metadata.get("timezone", "")
