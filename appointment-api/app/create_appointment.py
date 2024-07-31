@@ -19,7 +19,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 consumer_attrs = ['dealer_integration_partner_id', 'first_name', 'last_name', 'email_address', 'phone_number']
-required_params = ["op_code", "timeslot", {"consumer": ["first_name", "last_name", "email_address", "phone_number"]}, "vehicle"]
+required_params = ["op_code", "timeslot", {"consumer": ["first_name", "last_name"]}, "vehicle"]
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
@@ -51,12 +51,18 @@ def lambda_handler(event, context):
         consumer = body["consumer"]
         vehicle = body["vehicle"]
 
+        # Optional parameter validation
         vin = vehicle.get("vin")
         year = vehicle.get("year")
         make = vehicle.get("make")
         model = vehicle.get("model")
         if not vin and not (year and make and model):
             raise ValidationError("VIN or Year, Make, Model must be provided")
+
+        email_address = consumer.get("email_address")
+        phone_number = consumer.get("phone_number")
+        if not email_address and not phone_number:
+            raise ValidationError("Email address or phone number must be provided")
 
         with DBSession() as session:
             dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
@@ -101,8 +107,8 @@ def lambda_handler(event, context):
             "comment": body.get("comment"),
             "first_name": consumer["first_name"],
             "last_name": consumer["last_name"],
-            "email_address": consumer["email_address"],
-            "phone_number": consumer["phone_number"],
+            "email_address": consumer.get("email_address"),
+            "phone_number": consumer.get("phone_number"),
             "vin": vehicle.get("vin"),
             "year": vehicle.get("year"),
             "make": vehicle.get("make"),

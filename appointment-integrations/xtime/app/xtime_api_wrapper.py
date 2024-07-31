@@ -21,7 +21,7 @@ class XTimeApiWrapper:
     """XTime API Wrapper."""
 
     def __init__(self):
-        self.__authorization_data, self.__x_api_key, self.__api_url, self.__dealer_code = self.__get_secrets()
+        self.__authorization_data, self.__x_api_key, self.__api_url = self.__get_secrets()
 
         self.__authorization_token = self.__get_token()
 
@@ -34,8 +34,7 @@ class XTimeApiWrapper:
         return (
             secret_data["authorization_token_config"],
             secret_data["x_api_key"],
-            secret_data["api_url"],
-            secret_data["dealer_code"]
+            secret_data["api_url"]
         )
 
     def __get_token(self):
@@ -99,12 +98,22 @@ class XTimeApiWrapper:
         self._add_optional_params(params=params, data_instance=create_appt_data)
         logger.info(f"Params for XTime: {params}")
 
+        email_address = create_appt_data.email_address
+        phone_number = create_appt_data.phone_number
+
+        if not email_address:
+            email_address = "not-available@email.com"  # Default email address
+        elif not phone_number:
+            phone_number = "0005550000"  # Default phone number
+        elif not email_address and not phone_number:
+            raise ValueError("Email address or phone number is required.")
+
         payload = {
             "appointmentDateTimeLocal": self.__localize_time(create_appt_data.timeslot, create_appt_data.dealer_timezone),
             "firstName": create_appt_data.first_name,
             "lastName": create_appt_data.last_name,
-            "emailAddress": create_appt_data.email_address,
-            "phoneNumber": create_appt_data.phone_number.replace("-", ""),
+            "emailAddress": email_address,
+            "phoneNumber": phone_number.replace("-", ""),
             "comment": create_appt_data.comment,
             "services": [
                 {
@@ -125,7 +134,7 @@ class XTimeApiWrapper:
         url = "{}/service/appointments".format(self.__api_url)
 
         params = {
-            "dealerCode": self.__dealer_code,
+            "dealerCode": appointments.integration_dealer_id,
             "vin": appointments.vin
         }
 

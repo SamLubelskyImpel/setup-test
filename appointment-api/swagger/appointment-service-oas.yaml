@@ -17,7 +17,7 @@ paths:
       #{{CREATE_APPOINTMENT_INFO}}
       tags:
         - Appointments
-      description: Create new appointment in shared layer. Must provide either VIN or YMM combination.
+      description: Create new appointment in shared layer. Must provide either VIN or YMM combination. Must provide either Email or Phone number.
       operationId: createAppointment
       parameters:
         - "$ref": "#/components/parameters/partnerId"
@@ -77,7 +77,7 @@ paths:
       #{{RETRIEVE_APPOINTMENTS_INFO}}
       tags:
         - Appointments
-      description: Get existing appointments from shared layer
+      description: Get existing appointments from shared layer and vendor
       operationId: getAppointments
       parameters:
         - "$ref": "#/components/parameters/partnerId"
@@ -200,7 +200,7 @@ paths:
           description: The products op code for the appointment
           schema:
             type: string
-            example: "ABCDEFG"
+            example: "GENERAL_SERVICE"
             maxLength: 255
         - in: query
           name: vin
@@ -274,7 +274,7 @@ components:
         op_code:
           type: string
           description: The products op code for the appointment
-          example: "ABCDEFG"
+          example: "GENERAL_SERVICE"
           maxLength: 255
         timeslot:
           type: string
@@ -380,8 +380,6 @@ components:
       required:
         - first_name
         - last_name
-        - email_address
-        - phone_number
       properties:
         first_name:
           type: string
@@ -453,7 +451,7 @@ components:
         description: ID of dealer integration partner in the shared layer
         schema:
           type: number
-          example: 12345
+          example: 1
     partnerId:
       name: partner_id
       in: header
