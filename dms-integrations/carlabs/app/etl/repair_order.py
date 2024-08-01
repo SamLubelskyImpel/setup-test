@@ -83,6 +83,7 @@ class RepairOrderETL:
             except IntegrationNotActive as e:
                 _logger.info(str(e))
             except Exception:
+                _logger.exception(f'Failed to process {r.id}')
                 publish_failure(
                     record=r.as_dict(),
                     err=traceback.format_exc(),

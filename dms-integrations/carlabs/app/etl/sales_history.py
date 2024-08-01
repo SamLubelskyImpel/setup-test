@@ -7,7 +7,12 @@ from dataclasses import dataclass, field
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
 from datetime import datetime
+import logging
+import os
 
+
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 @dataclass
 class TransformedData:
@@ -105,6 +110,7 @@ class SalesHistoryETL:
                 self._load_into_dms(transformed)
                 self._loaded += 1
             except Exception:
+                _logger.exception(f'Failed to process {r.id}')
                 publish_failure(
                     record=r.as_dict(),
                     err=traceback.format_exc(),

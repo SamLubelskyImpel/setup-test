@@ -160,6 +160,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'carlabs-etl-failures-queue-${Environment}'
+      MessageRetentionPeriod: 1209600
 
   StepFunctionRole:
     Type: 'AWS::IAM::Role'
