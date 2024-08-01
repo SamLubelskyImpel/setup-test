@@ -38,8 +38,28 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "wbns-dlq-${Environment}"
-      MessageRetentionPeriod: 604800
-      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  EventBusDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "wbns-dlq-${Environment}"
+      AlarmDescription: Events failed to be processed by the WBNS
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventBusDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   MonitoringRule:
     Type: AWS::Events::Rule
