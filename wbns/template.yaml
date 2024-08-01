@@ -97,33 +97,6 @@ Resources:
       Principal: !Ref AWS::AccountId
       StatementId: 'EventBusStatement'
 
-  DefaultEventRuleDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'wbns-${Environment}-DefaultEventRuleDLQ'
-      VisibilityTimeout: 300
-      MessageRetentionPeriod: 1209600
-
-  DefaultEventRuleDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "wbns-${Environment}-DefaultEventRuleDLQ"
-      AlarmDescription: There is over 1 unprocessed message in the WBNS Default Event Rule DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt DefaultEventRuleDLQ.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
-
   WebhookWritebackQueue:
     Type: AWS::SQS::Queue
     Properties:
