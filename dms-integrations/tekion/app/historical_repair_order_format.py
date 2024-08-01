@@ -21,7 +21,7 @@ s3_client = boto3.client("s3")
 def parse_csv_to_entries(csv_data, s3_uri):
     entries = []
     entries_lookup = {}
-    dms_id = None
+    dms_id = s3_uri.split('/')[3]
     reader = csv.DictReader(csv_data.splitlines())
 
     db_metadata = {
@@ -41,8 +41,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_consumer = {}
         db_op_codes = []
 
-        dms_id = row['dealerid']
-
         db_dealer_integration_partner = {
             'dms_id': dms_id
         }
@@ -54,8 +52,8 @@ def parse_csv_to_entries(csv_data, s3_uri):
             matching_entry = entries_lookup[repair_order_no]
             # Create a dictionary for the current operation code and its description
             db_op_code = {
-                "op_code|op_code": normalized_row.get('opcode'),
-                "op_code|op_code_desc": normalized_row.get('opcodedescription')
+                "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
+                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:255]
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
@@ -94,8 +92,8 @@ def parse_csv_to_entries(csv_data, s3_uri):
 
             # add new op code
             db_op_code = {
-                "op_code|op_code": normalized_row.get('opcode'),
-                "op_code|op_code_desc": normalized_row.get('opcodedescription')
+                "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
+                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:255]
             }
             db_op_codes.append(db_op_code)
 
