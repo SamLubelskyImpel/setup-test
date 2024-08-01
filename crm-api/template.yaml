@@ -195,7 +195,7 @@ Resources:
                 Action:
                   - "events:PutEvents"
                 Resource:
-                  - !If [ IsProd, !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-bus-prod", !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-bus-test" ]
+                  - !If [ IsProd, !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-prod-EventBus", !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-test-EventBus" ]
 
 
   CrmApiGateway:
@@ -784,8 +784,8 @@ Resources:
   EventServiceLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: !Sub "wbns-lib-${Environment}"
-      Description: WBNS Lib Layer
+      LayerName: !Sub "event-service-${Environment}"
+      Description: WBNS Event Service Layer
       ContentUri: ./layers/event_service
       CompatibleRuntimes:
         - python3.9

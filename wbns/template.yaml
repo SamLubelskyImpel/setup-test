@@ -24,7 +24,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
-        LOGLEVEL: INFO 
+        LOGLEVEL: INFO
 
 Resources:
   LambdaRole:
@@ -47,7 +47,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*" 
+                Resource: "arn:aws:logs:*:*:*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -88,7 +88,63 @@ Resources:
     Type: AWS::Events::EventBus
     Properties:
       Name: !Sub 'wbns-${Environment}-EventBus'
-  
+      DeadLetterConfig:
+        Arn: !GetAtt EventBusDLQ.Arn
+      Description: Event bus for the write-back notification service
+
+  EventBusDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "wbns-${Environment}-EventBusDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  EventBusDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "wbns-${Environment}-EventBusDLQAlarm"
+      AlarmDescription: Events failed to be processed by the WBNS
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventBusDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  MonitoringRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub wbns-${Environment}-MonitoringRule
+      EventPattern: '{"source":[{"prefix":""}]}'  # This matches any event sent to the event bus
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: Lambda
+          Arn: !GetAtt MonitoringLambda.Arn
+
+  MonitoringInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MonitoringLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt MonitoringRule.Arn
+
+  MonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "wbns-${Environment}-MonitoringLambda"
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+
   EventBusPolicy:
     Type: AWS::Events::EventBusPolicy
     Properties:
@@ -106,14 +162,14 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt WebhookWritebackDLQ.Arn
         maxReceiveCount: 5
-  
+
   WebhookWritebackDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'wbns-${Environment}-WebhookWritebackDLQ'
       VisibilityTimeout: 300
       MessageRetentionPeriod: 1209600
-  
+
   WebhookWritebackLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -140,7 +196,7 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
-  
+
   WebhookWritebackEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -148,7 +204,7 @@ Resources:
       EventSourceArn: !GetAtt WebhookWritebackQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt WebhookWritebackLambda.Arn
-  
+
   WebhookWritebackDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -168,7 +224,3 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
-
-  
-
-    

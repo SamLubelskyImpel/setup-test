@@ -1,7 +1,7 @@
 import boto3
 
 
-WBNS_LOG_GROUP = '/aws/lambda/wbns-monitoring-test'
+WBNS_LOG_GROUP = '/aws/lambda/wbns-test-MonitoringLambda'
 
 
 def get_wbns_log_events():
