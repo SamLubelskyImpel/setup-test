@@ -172,7 +172,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         with DBSession() as session:
             # Check lead existence
             db_results = session.query(
-                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, Dealer.id, IntegrationPartner.impel_integration_partner_name
+                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, Dealer.product_dealer_id, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -199,7 +199,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Activity type {activity_type} not found."})
                 }
 
-            lead_db, consumer_db, dealer_partner_db, dealer_metadata, dealer_id, partner_name = db_results
+            lead_db, consumer_db, dealer_partner_db, dealer_metadata, product_dealer_id, partner_name = db_results
             dip_metadata = dealer_partner_db.metadata_
 
             # Create activity
@@ -228,7 +228,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     'message': 'Activity Created',
                     'activity_id': activity_id,
                     'lead_id': lead_id,
-                    'dealer_id': dealer_id,
+                    'dealer_id': product_dealer_id,
                     'activity_type': activity_type
                 })
 
