@@ -52,6 +52,14 @@ Resources:
         - Id: Lambda
           Arn: !GetAtt MonitoringLambda.Arn
 
+  MonitoringInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MonitoringLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt MonitoringRule.Arn
+
   MonitoringLambda:
     Type: AWS::Serverless::Function
     Properties:
