@@ -3,9 +3,11 @@ import boto3
 
 WBNS_LOG_GROUP = '/aws/lambda/wbns-test-MonitoringLambda'
 
+unified_session = boto3.session.Session(profile_name='unified-test')
+
 
 def get_wbns_log_events():
-    client = boto3.client('logs')
+    client = unified_session.client('logs')
 
     response = client.describe_log_streams(
         logGroupName=WBNS_LOG_GROUP,
