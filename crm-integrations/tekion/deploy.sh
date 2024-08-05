@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the shared crm resources.
+    Deploy the tekion crm integration.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -63,8 +63,8 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "shared-crm-resources-$env" \
+    --stack-name "tekion-crm-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
+    --parameter-overrides "Environment=\"$env\""
 fi
