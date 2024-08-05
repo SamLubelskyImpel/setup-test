@@ -97,5 +97,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         return result
 
     except Exception as e:
-        logger.error(f"Error processing batch: {e}")
-        raise
+        if "No existing scheduled appointments found" in str(e):
+            logger.error(f"Error: {e}")
+            return {"statusCode": 500, "error": "No existing scheduled appointments found"}
+        else:
+            logger.error(f"Error processing batch: {e}")
+            raise
