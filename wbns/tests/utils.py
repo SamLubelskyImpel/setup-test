@@ -1,4 +1,6 @@
 import boto3
+from datetime import datetime, timezone
+import json
 
 
 WBNS_LOG_GROUP = '/aws/lambda/wbns-test-MonitoringLambda'
@@ -27,3 +29,18 @@ def get_wbns_log_events():
     )
 
     return [event['message'] for event in response['events']]
+
+
+def send_event(event: dict):
+    eventbridge = unified_session.client('events')
+    eventbridge.put_events(
+        Entries=[
+            {
+                'Time': datetime.now(timezone.utc).isoformat(),
+                'Source': 'com.impel.crm-api',
+                'DetailType': 'JSON',
+                'Detail': json.dumps(event),
+                'EventBusName': f'wbns-test-EventBus'
+            }
+        ]
+    )

@@ -1,7 +1,3 @@
-"""
-Usage: AWS_PROFILE=unified-test BASE_URL={CRM API URL for your environment} pytest
-"""
-
 import requests
 from os import environ
 from time import sleep

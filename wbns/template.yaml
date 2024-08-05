@@ -163,6 +163,20 @@ Resources:
         deadLetterTargetArn: !GetAtt WebhookWritebackDLQ.Arn
         maxReceiveCount: 5
 
+  WebhookWritebackQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref WebhookWritebackQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt WebhookWritebackQueue.Arn
+
   WebhookWritebackDLQ:
     Type: AWS::SQS::Queue
     Properties:

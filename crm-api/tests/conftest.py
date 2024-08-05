@@ -4,6 +4,9 @@ import boto3
 from uuid import uuid4
 
 
+unified_session = boto3.session.Session(profile_name='unified-test')
+
+
 @pytest.fixture()
 def lead_data():
     data = json.load(open('tests/lead_example.json'))
@@ -18,7 +21,7 @@ def activity_data():
 
 @pytest.fixture()
 def auth():
-    secret = boto3.client('secretsmanager').get_secret_value(SecretId='test/crm-api')
+    secret = unified_session.client('secretsmanager').get_secret_value(SecretId='test/crm-api')
     secret = json.loads(secret['SecretString'])['test']
     secret_data = json.loads(secret)
     return {
