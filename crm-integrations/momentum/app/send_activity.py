@@ -75,6 +75,9 @@ def record_handler(record: SQSRecord):
         crm_api.update_activity(activity["activity_id"], momentum_activity_id)
 
     except Exception as e:
+        if "No existing scheduled appointments found" in str(e):
+            logger.error(f"Error: {e}")
+            return 
         logger.exception(f"Failed to post activity {activity['activity_id']} to Momentum")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
             activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
@@ -97,9 +100,5 @@ def lambda_handler(event: Any, context: Any) -> Any:
         return result
 
     except Exception as e:
-        if "No existing scheduled appointments found" in str(e):
-            logger.error(f"Error: {e}")
-            return {"statusCode": 500, "error": "No existing scheduled appointments found"}
-        else:
-            logger.error(f"Error processing batch: {e}")
-            raise
+        logger.error(f"Error processing batch: {e}")
+        raise
