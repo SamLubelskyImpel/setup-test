@@ -7,7 +7,12 @@ from dataclasses import dataclass, field
 from utils import save_progress, publish_failure, get_dealer_integration_partner_id
 import traceback
 from datetime import datetime
+import logging
+import os
 
+
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 @dataclass
 class TransformedData:
@@ -71,9 +76,8 @@ class SalesHistoryETL:
             transformed.sale.vehicle = transformed.vehicle
             transformed.sale.consumer = transformed.consumer
 
-            transformed.service_contract.consumer = transformed.consumer
-            transformed.service_contract.vehicle = transformed.vehicle
-
+            transformed.service_contract.vehicle_sale = transformed.sale
+            
             dms_session.add(transformed.consumer)
             dms_session.add(transformed.vehicle)
             dms_session.add(transformed.sale)
@@ -105,6 +109,7 @@ class SalesHistoryETL:
                 self._load_into_dms(transformed)
                 self._loaded += 1
             except Exception:
+                _logger.exception(f'Failed to process {r.id}')
                 publish_failure(
                     record=r.as_dict(),
                     err=traceback.format_exc(),

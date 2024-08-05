@@ -3,18 +3,25 @@ import boto3
 import os
 from orm.models.shared_dms import DealerIntegrationPartner, IntegrationPartner, Dealer
 from orm.connection.session import SQLSession
+import logging
+from typing import Union
 
+
+_logger = logging.getLogger(__name__)
+_logger.setLevel(os.environ['LOGLEVEL'])
 
 BUCKET = os.environ.get('BUCKET')
 FAILURES_QUEUE = os.environ.get('FAILURES_QUEUE')
 
 
-def parsed_date(date_format: str, raw_date: str) -> date:
+def parsed_date(date_format: str, raw_value: str) -> Union[date, int, None]:
     try:
-        return datetime.strptime(raw_date, date_format)
-    except Exception:
+        if date_format == 'year':
+            return int(raw_value)
+        else:
+            return datetime.strptime(raw_value, date_format).date()
+    except (ValueError, TypeError) as e:
         return None
-
 
 def parsed_int(v) -> int:
     if isinstance(v, str):
@@ -63,10 +70,13 @@ def publish_failure(record: dict, err: str, table: str):
 class DealerIntegrationNotFound(Exception):
     ...
 
+class IntegrationNotActive(Exception):
+    pass
+
 
 def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> DealerIntegrationPartner:
-    with SQLSession(db='SHARED_DMS') as dms_session:
-        dip = dms_session.query(
+    with SQLSession(db='SHARED_DMS') as session:
+        dip = session.query(
             DealerIntegrationPartner
         ).join(
             IntegrationPartner,
@@ -74,13 +84,50 @@ def get_dealer_integration_partner_id(dealer_code: str, data_source: str) -> Dea
         ).join(
             Dealer,
             DealerIntegrationPartner.dealer_id == Dealer.id
-        ).where(
+        ).filter(
             (IntegrationPartner.impel_integration_partner_id.ilike(data_source)) &
             (DealerIntegrationPartner.is_active) &
             (Dealer.impel_dealer_id == dealer_code)
         ).first()
+        
+        if dip and not dip.is_active:
+            _logger.info(f"Found inactive DealerIntegrationPartner for dealer {dealer_code} and data source {data_source}.")
+            raise IntegrationNotActive(f"DealerIntegrationPartner for dealer {dealer_code} and data source {data_source} is inactive.")
 
         if not dip:
-            raise DealerIntegrationNotFound(f"No active dealer {dealer_code} found.")
+            ip = session.query(
+                IntegrationPartner
+            ).filter(
+                IntegrationPartner.impel_integration_partner_id.ilike(data_source)
+            ).first()
+
+            if not ip:
+                _logger.info(f'Integration partner not found for {data_source}, creating a new one.')
+                ip = IntegrationPartner(
+                    impel_integration_partner_id=data_source,
+                    db_creation_date=datetime.utcnow()
+                )
+                session.add(ip)
+                session.flush()
+
+            dealer = session.query(Dealer).filter(Dealer.impel_dealer_id == dealer_code).first()
+            if not dealer:
+                dealer = Dealer(
+                    impel_dealer_id=dealer_code,
+                )
+                session.add(dealer)
+                session.flush()
+
+            new_dip = DealerIntegrationPartner(
+                integration_partner_id=ip.id,
+                dealer_id=dealer.id,
+                dms_id=dealer_code,
+                is_active=True,
+                db_creation_date=datetime.utcnow()
+            )
+
+            session.add(new_dip)
+            session.commit()
+            return new_dip.id
 
         return dip.id
