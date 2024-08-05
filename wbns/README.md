@@ -31,5 +31,4 @@ pytest
 The test suite currently covers the following use cases:
 
 - Event sent to WBNS triggers the `WebhookWritebackLambda` and reaches the `event-logger` webhook
-- (TODO) Event sent to WBNS is logged by the monitoring Lambda
-- (TODO) Evente sent to WBNS fails to reach webhook and goes to DLQ
+- Event sent to WBNS is logged by the monitoring Lambda

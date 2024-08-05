@@ -1,28 +1,14 @@
 import boto3
-from datetime import datetime, timezone
-import json
 from time import sleep
+from utils import send_event
 
 
-unified_session = boto3.session.Session(profile_name='unified-test')
 spincar_session = boto3.session.Session(profile_name='test')
-
-eventbridge = unified_session.client('events')
 ddb = spincar_session.client('dynamodb')
 
 
 def test_event_sent_to_client_webhook(event):
-    eventbridge.put_events(
-        Entries=[
-            {
-                'Time': datetime.now(timezone.utc).isoformat(),
-                'Source': 'com.impel.crm-api',
-                'DetailType': 'JSON',
-                'Detail': json.dumps(event),
-                'EventBusName': f'wbns-test-EventBus'
-            }
-        ]
-    )
+    send_event(event)
 
     event_id = event['events'][0]['event_id']
     exp_attrs = {
