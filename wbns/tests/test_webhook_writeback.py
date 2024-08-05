@@ -7,10 +7,10 @@ spincar_session = boto3.session.Session(profile_name='test')
 ddb = spincar_session.client('dynamodb')
 
 
-def test_event_sent_to_client_webhook(event):
-    send_event(event)
+def test_event_sent_to_client_webhook(writeback_event):
+    send_event(writeback_event)
 
-    event_id = event['events'][0]['event_id']
+    event_id = writeback_event['events'][0]['event_id']
     exp_attrs = {
         ':cid': {'S': 'wbns'},
         ':event_id': {'S': event_id}

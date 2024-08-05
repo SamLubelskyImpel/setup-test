@@ -37,7 +37,6 @@ def send_webhook_notification(client_secrets: dict, event_content: dict) -> None
     headers = client_secrets.get("headers", {})
     params = client_secrets.get("params", {})
 
-    logger.info(f"Headers: {headers}")
     logger.info(f"Params: {params}")
     logger.info(f"Sending webhook notification: {event_content}")
 
@@ -49,10 +48,7 @@ def send_webhook_notification(client_secrets: dict, event_content: dict) -> None
         timeout=30,
     )
     logger.info(f"Webhook response: {response.status_code}")
-
-    if response.status_code != 200:
-        logger.error(f"Error response text: {response.text}")
-        response.raise_for_status()
+    response.raise_for_status()
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -73,7 +69,9 @@ def record_handler(record: SQSRecord) -> None:
             client_id = event['client_id']
             sort_key = f"{product_name}__{client_id}"
 
-            client_secrets = get_secret(secret_name=f"{ENVIRONMENT}/WBNS/client-credentials", secret_value=sort_key)
+            secret_name = "{}/WBNS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
+
+            client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
 
             send_webhook_notification(client_secrets, event_content)
 

@@ -1,17 +1,12 @@
 {
-    "events": [
-        {
-            "event_id": "5fb0c52c-a447-49e4-9fbf-ec5429349934",
-            "event_type": "integrations.crm.salesai.lead.created",
-            "product_name": "INTEGRATIONS_CRM",
-            "client_id": "TESTCRM",
-            "event_content": {
-                "message": "Sales AI: Lead Created",
-                "lead_id": 123,
-                "customer_id": 456,
-                "dealer_id": "test-dealer-id",
-                "created_ts": "2024-07-31T18:33:22.288896+00:00"
-            }
-        }
-    ]
+  "events": [
+    {
+      "event_id": "11844688-8d8f-4d4e-8e89-e1a7b985ca8e",
+      "event_type": "myteam.test.event",
+      "client_id": "test_event",
+      "event_content": {
+        "message": "My Test Event"
+      }
+    }
+  ]
 }
