@@ -76,9 +76,8 @@ class SalesHistoryETL:
             transformed.sale.vehicle = transformed.vehicle
             transformed.sale.consumer = transformed.consumer
 
-            transformed.service_contract.consumer = transformed.consumer
-            transformed.service_contract.vehicle = transformed.vehicle
-
+            transformed.service_contract.vehicle_sale = transformed.sale
+            
             dms_session.add(transformed.consumer)
             dms_session.add(transformed.vehicle)
             dms_session.add(transformed.sale)
