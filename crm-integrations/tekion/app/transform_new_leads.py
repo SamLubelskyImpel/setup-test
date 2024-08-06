@@ -83,38 +83,61 @@ def format_ts(input_ts: str) -> str:
 
 
 def parse_email(emails):
-    """Parse the emails."""
+    """Parse the email and return a dictionary with email details."""
+    default_email = {
+        "emailId": "",
+        "optedForCommunication": False
+    }
+
     if not emails:
-        return None
+        return default_email
 
     preferred_email = emails[0]
-
     for email in emails:
-        if email.get('isPrimary') is True:
+        if email.get('emailType') == "PRIMARY":
             preferred_email = email
             break
 
-    return preferred_email
+    return {
+        "emailId": preferred_email.get("emailId", ""),
+        "optedForCommunication": preferred_email.get("optedForCommunication", False)
+    }
 
 
 def parse_phone_number(phones):
-    """Parse the phone number."""
+    """Parse the phone number and return a dictionary with phone details."""
+    default_phone = {
+        "number": "",
+        "optedForCommunication": False
+    }
+
     if not phones:
-        return None
+        return default_phone
 
     preferred_phone = phones[0]
     for phone in phones:
-        if phone.get('type') == 'CELL':
+        if phone.get('phoneType') == "PRIMARY":
             preferred_phone = phone
             break
 
-    return preferred_phone
+    return {
+        "number": preferred_phone.get("number", ""),
+        "optedForCommunication": preferred_phone.get("optedForCommunication", False)
+    }
 
 
 def parse_address(addresses):
-    """Parse the address."""
+    """Parse the address and return a dictionary with address components."""
+    default_address = {
+        "line1": "",
+        "line2": "",
+        "city": "",
+        "country": "",
+        "zip": ""
+    }
+
     if not addresses:
-        return None
+        return default_address
 
     preferred_address = addresses[0]
     for address in addresses:
@@ -122,7 +145,13 @@ def parse_address(addresses):
             preferred_address = address
             break
 
-    return preferred_address
+    return {
+        "line1": preferred_address.get("line1", ""),
+        "line2": preferred_address.get("line2", ""),
+        "city": preferred_address.get("city", ""),
+        "country": preferred_address.get("country", ""),
+        "zip": preferred_address.get("zip", "")
+    }
 
 
 def extract_salesperson(salespersons):
@@ -154,7 +183,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_salesperson = {}
 
             lead_origin = item.get('source', {}).get('sourceType', '')
-            if lead_origin not in ['Internet']:
+            if lead_origin not in ['INTERNET']:
                 logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
@@ -164,13 +193,14 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_ts"] = format_ts(item.get('createdTime', ''))
             db_lead["lead_status"] = item.get('status')
             db_lead["lead_substatus"] = ''
-            db_lead["lead_comment"] = item.get('notes', [{}])[0].get('description', '') if item.get('notes') else ''
+            db_lead["lead_comment"] = (item.get('notes', [{}])[0].get('description', '')[:5000] if item.get('notes') else '')
             db_lead["lead_origin"] = lead_origin.upper()
             db_lead["lead_source"] = item.get('source', {}).get('sourceName', '')
             db_lead["lead_source_detail"] = item.get('source', {}).get('subSource', '')
 
             vehicles = item.get('vehicles', [])
-            trade_ins = item.get('tradeIns', [{}])[0]
+            trade_ins = item.get('tradeIns', [{}])[0] if item.get('tradeIns') else {}
+
             for vehicle in vehicles:
                 db_vehicle = {
                     "vin": vehicle.get('vin', ''),
@@ -198,18 +228,22 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["vehicles_of_interest"] = db_vehicles
 
             consumer = item.get('customers', [{}])[0]
+            address = parse_address(consumer.get('addresses', []))
+            email = parse_email(consumer.get('emails', []))
+            phone = parse_phone_number(consumer.get('phones', []))
+
             db_consumer = {
                 "first_name": consumer.get('firstName', ''),
                 "last_name": consumer.get('lastName', ''),
                 "middle_name": consumer.get('middleName', ''),
-                "email": parse_email(consumer.get('emails', [])).get("emailId"),
-                "phone": parse_phone_number(consumer.get('phones', [])).get("number"),
-                "address": parse_address(consumer.get('addresses', [])).get("line1") + " " + parse_address(consumer.get('addresses', [])).get("line2"),
-                "city": parse_address(consumer.get('addresses', [])).get("city"),
-                "country": parse_address(consumer.get('addresses', [])).get("country"),
-                "postal_code": parse_address(consumer.get('addresses', [])).get("zip"),
-                "email_optin_flag": parse_email(consumer.get('emails', [])).get("optedForCommunication"),
-                "sms_optin_flag": parse_phone_number(consumer.get('phones', [])).get("optedForCommunication"),
+                "email": email["emailId"],
+                "phone": phone["number"],
+                "address": f"{address['line1']} {address['line2']}".strip(),
+                "city": address["city"],
+                "country": address["country"],
+                "postal_code": address["zip"],
+                "email_optin_flag": email["optedForCommunication"],
+                "sms_optin_flag": phone["optedForCommunication"]
             }
 
             if not db_consumer["email"] and not db_consumer["phone"]:

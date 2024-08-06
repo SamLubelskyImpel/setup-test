@@ -29,10 +29,10 @@ secret_client = boto3.client("secretsmanager")
 
 
 def convert_to_epoch(timestamp_str):
-    """Convert a timestamp in the format YYYY-MM-DDTHH:MM:SSZ to epoch time."""
+    """Convert a timestamp in the format YYYY-MM-DDTHH:MM:SSZ to epoch time in milliseconds."""
     datetime_obj = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
-    epoch_time = int(datetime_obj.timestamp())
-    return epoch_time
+    epoch_time_milliseconds = int(datetime_obj.timestamp() * 1000)
+    return epoch_time_milliseconds
 
 
 def get_credentials_from_secrets():

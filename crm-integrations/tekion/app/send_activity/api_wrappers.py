@@ -130,9 +130,10 @@ class TekionApiWrapper:
     def get_lead_information(self) -> dict:
         url = f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}"
         lead_data = self.__call_api(url, method="GET")['data'][0]
-        if not lead_data.get('externalId'):
+        logger.info(f"Lead data: {lead_data}")
+        if not lead_data.get('id'):
             logger.warning("Activity type Note can't be created if lead was invalid")
-            raise f"This is lead: \n{dumps(lead_data, indent=2)}"
+            # (f"This is lead: \n{dumps(lead_data, indent=2)}")
         return lead_data
 
     def __create_outbound_call(self):
@@ -187,7 +188,7 @@ class TekionApiWrapper:
         lead_data = self.get_lead_information()
         if not self.__activity.notes:
             logger.warning("Activity type Note can't be created if note is empty")
-            raise InvalidNoteException(f"Note can't be empty or invalid")
+            raise InvalidNoteException("Note can't be empty or invalid")
         lead_data['notes'] = [{
             "description": self.__activity.notes,
             "name": "Sales AI",
