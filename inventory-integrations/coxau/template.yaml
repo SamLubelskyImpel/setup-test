@@ -139,6 +139,7 @@ Resources:
                   - !GetAtt FormatINVInsertQueue.Arn
                   - !GetAtt FormatINVInsertDeadLetterQueue.Arn
                   - !GetAtt DownloadSFTPFilesQueue.Arn
+                  - !GetAtt MergeINVFileQueue.Arn
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -226,6 +227,9 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Timeout: 60
       MemorySize: 1024
+      Environment:
+        Variables:
+          MERGE_QUEUE_URL: !GetAtt MergeINVFileQueue.QueueUrl
 
   DownloadSFTPFilesLogGroup:
     Type: AWS::Logs::LogGroup
@@ -409,3 +413,66 @@ Resources:
       EventSourceArn: !GetAtt FormatINVInsertQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt FormatINVInsert.Arn
+
+  MergeINVFileQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-MergeINVFileQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt MergeINVFileDeadLetterQueue.Arn
+          maxReceiveCount: 5
+  
+  MergeINVFileDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'coxau-inv-${Environment}-MergeINVFileDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+  
+  MergeINVFileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "coxau-inv-${Environment}-MergeINVFile"
+      Description: Merge the cox australia files into a single file.
+      Handler: merge_files_coxau.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+
+  MergeINVFileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-MergeINVFile'
+      RetentionInDays: 60
+  
+  MergeINVFileEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt MergeINVFileQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt MergeINVFileFunction.Arn
+  
+  MergeINVFileDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub coxau-inv-${Environment}-MergeINVFileDLQ
+      AlarmDescription: There are messages in the MergeINVFileDLQ Alarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt MergeINVFileDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching

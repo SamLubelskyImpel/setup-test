@@ -14,8 +14,8 @@ def __get_db_secret(secret_id):
 
 
 dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/DMSDB')
-carlabs_di_secret = __get_db_secret(f'carlabs/data_integrations_{ENVIRONMENT}')
-carlabs_analytics_secret = __get_db_secret(f'carlabs/analytics_{ENVIRONMENT}')
+carlabs_di_secret = __get_db_secret(f'carlabs/data_integrations_{"prod" if ENVIRONMENT == "prod" else "test"}')
+carlabs_analytics_secret = __get_db_secret(f'carlabs/analytics_{"prod" if ENVIRONMENT == "prod" else "test"}')
 
 
 DB = {

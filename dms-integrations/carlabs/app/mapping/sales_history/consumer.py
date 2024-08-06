@@ -6,7 +6,7 @@ def map_consumer(record: DataImports, dip_id: int):
     consumer = Consumer()
     imported_data = record.importedData
     if record.dataSource == 'CDK':
-        if isinstance(imported_data['user'], dict):
+        if 'user' in imported_data and isinstance(imported_data['user'], dict):
             consumer.first_name = imported_data['user']['firstName']
             consumer.last_name = imported_data['user']['lastName']
             consumer.cell_phone = imported_data['user']['sms']
