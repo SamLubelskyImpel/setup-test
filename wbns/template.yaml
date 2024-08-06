@@ -157,11 +157,11 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'wbns-${Environment}-WebhookWritebackQueue'
-      VisibilityTimeout: 300
+      VisibilityTimeout: 60
       MessageRetentionPeriod: 1209600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt WebhookWritebackDLQ.Arn
-        maxReceiveCount: 5
+        maxReceiveCount: 3
 
   WebhookWritebackQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -202,6 +202,9 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebhookWritebackLambda
       MetricName: Errors
       Namespace: AWS/Lambda
       Statistic: Sum
