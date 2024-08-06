@@ -86,9 +86,8 @@ def parse_json_to_entries(json_data, s3_uri):
                     db_service_contract[
                         "service_contracts|contract_name"
                     ] = default_get(fni, "name")
-                    db_service_contract["service_contracts|start_date"] = default_get(
-                        fni, "createdTime"
-                    )
+                    start_date = default_get(fni, "createdTime")
+                    db_service_contract["service_contracts|start_date"] = convert_unix_to_timestamp(start_date)
 
                     mileage = default_get(fni, "mileage", {})
                     db_service_contract[

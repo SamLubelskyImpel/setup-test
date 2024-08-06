@@ -53,7 +53,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             # Create a dictionary for the current operation code and its description
             db_op_code = {
                 "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:255]
+                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
@@ -93,7 +93,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             # add new op code
             db_op_code = {
                 "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:255]
+                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
             }
             db_op_codes.append(db_op_code)
 
