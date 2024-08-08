@@ -32,7 +32,7 @@ def get_secrets():
 
 
 def get_dealers(integration_partner_name: str) -> Any:
-    """Get dealers from CRM API."""
+    """Get active dealers from CRM API."""
     api_key = get_secrets()
     response = requests.get(
         url=f"{CRM_API_URL}dealers",
@@ -49,7 +49,12 @@ def get_dealers(integration_partner_name: str) -> Any:
         logger.error(f"Error getting dealers {integration_partner_name}: {response.text}")
         raise
 
-    return response.json()
+    dealers = response.json()
+
+    # Filter by active Sales AI dealers
+    dealers = list(filter(lambda dealer: dealer.get('is_active_salesai', False), dealers))
+
+    return dealers
 
 
 def send_dealer_event(partner_name: str, dealers: list, start_time: str, end_time: str) -> Any:
