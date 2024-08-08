@@ -54,7 +54,7 @@ def get_api_key(crm_dealer_id: str) -> str:
 
 
 def get_dealers(integration_partner_name: str) -> Any:
-    """Get dealers from CRM API."""
+    """Get active dealers from CRM API."""
     api_key = get_secrets()
     response = requests.get(
         url=f"https://{CRM_API_DOMAIN}/dealers",
@@ -68,7 +68,12 @@ def get_dealers(integration_partner_name: str) -> Any:
         )
         raise
 
-    return response.json()
+    dealers = response.json()
+
+    # Filter by active Sales AI dealers
+    dealers = list(filter(lambda dealer: dealer.get('is_active_salesai', False), dealers))
+
+    return dealers
 
 
 def save_raw_lead(lead: str, product_dealer_id: str):
@@ -101,7 +106,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 product_dealer_id = dealer["product_dealer_id"]
                 break
         else:
-            logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+            logger.error(f"Dealer {crm_dealer_id} not found in active SalesAI dealers.")
             return {
                 "statusCode": 422,
                 "body": dumps({
