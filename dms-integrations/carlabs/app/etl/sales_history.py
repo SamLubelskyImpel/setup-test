@@ -4,7 +4,7 @@ from datetime import date
 from mapping.sales_history import map_service_contract, map_consumer, map_sale, map_vehicle
 from orm.models.shared_dms import Consumer, Vehicle, VehicleSale, ServiceContract
 from dataclasses import dataclass, field
-from utils import save_progress, publish_failure, get_dealer_integration_partner_id
+from utils import save_progress, publish_failure, get_dealer_integration_partner_id, IntegrationNotActive
 import traceback
 from datetime import datetime
 import logging
@@ -77,7 +77,7 @@ class SalesHistoryETL:
             transformed.sale.consumer = transformed.consumer
 
             transformed.service_contract.vehicle_sale = transformed.sale
-            
+
             dms_session.add(transformed.consumer)
             dms_session.add(transformed.vehicle)
             dms_session.add(transformed.sale)
@@ -108,6 +108,8 @@ class SalesHistoryETL:
                 transformed = self._transform(r)
                 self._load_into_dms(transformed)
                 self._loaded += 1
+            except IntegrationNotActive as e:
+                _logger.info(str(e))
             except Exception:
                 _logger.exception(f'Failed to process {r.id}')
                 publish_failure(

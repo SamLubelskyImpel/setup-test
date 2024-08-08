@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any, List
+from sqlalchemy import or_
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -60,7 +61,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
             ).filter(
                 Dealer.product_dealer_id == product_dealer_id,
-                DealerIntegrationPartner.is_active == True
+                or_(DealerIntegrationPartner.is_active.is_(True),
+                    DealerIntegrationPartner.is_active_salesai.is_(True),
+                    DealerIntegrationPartner.is_active_chatai.is_(True))
             ).first()
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {product_dealer_id}. Consumer failed to be created.")

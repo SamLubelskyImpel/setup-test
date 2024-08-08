@@ -1,8 +1,7 @@
 """Daily check for s3 files from integration partners"""
 import boto3
 import logging
-from datetime import date, datetime, timezone, timedelta
-from json import dumps, loads
+from datetime import date, timedelta
 from os import environ
 import psycopg2
 from utils.db_config import get_connection
@@ -21,17 +20,17 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 def get_integration_partners():
     """Return all integration partners."""
     partners = []
-    
+
     conn = get_connection()
-    
+
     try:
         cursor = conn.cursor()
         cursor.execute(f"SELECT impel_integration_partner_id FROM {schema}.integration_partner")
         rows = cursor.fetchall()
-        
+
         for partner in rows:
             partner = partner[0]
-            if partner.lower() not in ['cdk', 'dealertrack', 'dealervault']:
+            if partner.lower() not in ['cdk', 'dealertrack', 'dealervault', 'sidekick', 'impel unified data']:
                 partners.append(partner)
 
         conn.commit()
@@ -46,8 +45,9 @@ def get_integration_partners():
             cursor.close()
         if conn:
             conn.close()
-    
+
     return partners
+
 
 def check_folder_has_files(bucket, prefix):
     """Check the existence of files in an S3 Folder."""
@@ -64,10 +64,11 @@ def get_yesterday_date():
     today = date.today()
     yesterday = today - timedelta(days=1)
     return yesterday
-    
+
+
 def alert_topic(partner, file_type, yesterday):
     """Notify Topic of missing S3 files."""
-    
+
     message = f'{partner}: No {file_type} files uploaded for {yesterday}'
     SNS_CLIENT.publish(
             TopicArn=SNS_TOPIC_ARN,
@@ -75,6 +76,7 @@ def alert_topic(partner, file_type, yesterday):
         )
 
     return 'ok'
+
 
 def lambda_handler(event, context):
     """Check integration partner for previous day data upload."""
@@ -84,12 +86,8 @@ def lambda_handler(event, context):
     yesterday = get_yesterday_date()
 
     for partner in partners:
-        # sidekick doesn't have 'fi_closed_deal' files
-        file_types = ['repair_order'] if partner == 'sidekick' else ['fi_closed_deal', 'repair_order']
-        if partner in ['sidekick', 'tekion']:
-            continue  # sidekick and tekion are not live yet, so just skip them for now
+        file_types = ['fi_closed_deal', 'repair_order']
         for file_type in file_types:
-            file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'   
+            file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'
             if not check_folder_has_files(bucket_name, file_key):
                 alert_topic(partner, file_type, yesterday)
-        
