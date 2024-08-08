@@ -1,14 +1,12 @@
 """Create activity."""
-
-import pytz
 import logging
 from os import environ
 from requests import post
 from json import dumps, loads
-from datetime import datetime
 from typing import Any
 import boto3
 import botocore.exceptions
+from utils import apply_dealer_timezone
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -119,22 +117,6 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
     except Exception as e:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)
-
-
-def apply_dealer_timeszone(input_ts, time_zone, dealer_partner_id) -> str:
-    """Convert UTC timestamp to dealer's local time."""
-    utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-    utc_datetime = pytz.utc.localize(utc_datetime)
-
-    if not time_zone:
-        logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
-        return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-
-    # Get the dealer timezone object, convert UTC datetime to dealer timezone
-    dealer_tz = pytz.timezone(time_zone)
-    dealer_datetime = utc_datetime.astimezone(dealer_tz)
-
-    return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
 
 def send_alert_notification(activity_id: int, e: Exception) -> None:
@@ -274,7 +256,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
 
                     # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                    activity_due_dealer_ts = apply_dealer_timeszone(
+                    activity_due_dealer_ts = apply_dealer_timezone(
                         activity_due_ts, dealer_timezone, dealer_partner_db.id
                     )
                     payload = {

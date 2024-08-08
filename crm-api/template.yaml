@@ -568,6 +568,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveActivity"
+      CodeUri: app/activity/
+      Handler: retrieve_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /activities/{activity_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   RetrieveDealers:
     Type: AWS::Serverless::Function
     Properties:
