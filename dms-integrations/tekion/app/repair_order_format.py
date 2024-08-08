@@ -101,7 +101,7 @@ def parse_json_to_entries(json_data, s3_uri):
             for operation in operations:
                 db_op_code = {}
                 db_op_code["op_code|op_code"] = default_get(operation, "opcode")
-                db_op_code["op_code|op_code_desc"] = default_get(operation, "opcodeDescription")
+                db_op_code["op_code|op_code_desc"] = (default_get(operation, "opcodeDescription") or "")[:305]
                 db_op_codes.append(db_op_code)
 
         db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
