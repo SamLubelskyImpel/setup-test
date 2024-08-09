@@ -94,23 +94,6 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-        # - PolicyName: SQSPolicy
-        #   PolicyDocument:
-        #     Version: "2012-10-17"
-        #     Statement:
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:ReceiveMessage"
-        #           - "sqs:DeleteMessage"
-        #           - "sqs:GetQueueAttributes"
-        #         Resource:
-        #           - !GetAtt InvokeDataPullQueue.Arn
-        #           - !GetAtt TransformDealerpeakDataQueue.Arn
-        #           - !GetAtt SendActivityQueue.Arn
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:SendMessage"
-        #         Resource: "arn:aws:sqs:*:*:*"
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -134,326 +117,37 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource: "*"
 
-  # InvokeDataPull:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-Invoke
-  #     CodeUri: app/
-  #     Handler: invoke_data_pull.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
+  GetLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-LeadUpdates
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
   
-  # InvokeDataPullLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Invoke"
+  GetLeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
 
-  # InvokeDataPullErrorAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-Invoke
-  #     AlarmDescription: DealerPeak Invoke failed 3 times within 15 minutes
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Dimensions:
-  #       - Name: FunctionName
-  #         Value: !Ref InvokeDataPull
-  #     EvaluationPeriods: 1
-  #     MetricName: Errors
-  #     Namespace: AWS/Lambda
-  #     Period: 900
-  #     Statistic: Sum
-  #     Threshold: 3
-  #     TreatMissingData: notBreaching
-
-  # InvokeDataPullEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt InvokeDataPull.Arn
-
-  # InvokeDataPullQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-InvokeQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
-
-  # InvokeDataPullDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
-
-  # InvokeDataPullDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Invoke DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
-
-  # TransformDealerpeakData:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-TransformData
-  #     CodeUri: app/
-  #     Handler: transform_data.lambda_handler
-  #     Timeout: 60
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
-    
-  # TransformDealerpeakDataLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-TransformData"
-
-  # TransformDealerpeakDataEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 1
-  #     EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt TransformDealerpeakData.Arn
-
-  # TransformDealerpeakDataQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-TransformQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
-
-  # TransformDealerpeakDataDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
-  
-  # TransformDealerpeakDataDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Transform DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt TransformDealerpeakDataDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
-
-  # TransformDealerpeakDataQueuePolicy:
-  #   Type: "AWS::SQS::QueuePolicy"
-  #   Properties:
-  #     Queues:
-  #       - !Ref TransformDealerpeakDataQueue
-  #     PolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: events.amazonaws.com
-  #           Action: sqs:SendMessage
-  #           Resource: !GetAtt TransformDealerpeakDataQueue.Arn
-  #           Condition:
-  #             ArnEquals:
-  #               aws:SourceArn: !GetAtt EventBridgeRule.Arn
-
-  # EventBridgeRule:
-  #   Type: AWS::Events::Rule
-  #   Properties:
-  #     EventPattern:
-  #       source:
-  #         - "aws.s3"
-  #       detail-type:
-  #         - "Object Created"
-  #       detail:
-  #         bucket:
-  #           name:
-  #             - !Sub "crm-integrations-${Environment}"
-  #         object:
-  #           key:
-  #             - { "prefix": "raw/dealerpeak/" }
-  #     Targets:
-  #       - Id: "TransformDealerpeakDataTarget"
-  #         Arn: !GetAtt TransformDealerpeakDataQueue.Arn
-
-  # GetLeadUpdates:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-LeadUpdates
-  #     CodeUri: app/
-  #     Handler: lead_updates.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
-  
-  # GetLeadUpdatesLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-LeadUpdates"
-
-  # GetLeadUpdatesErrorAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-LeadUpdates
-  #     AlarmDescription: DealerPeak Lead Updates failed 3 times within 15 minutes
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Dimensions:
-  #       - Name: FunctionName
-  #         Value: !Ref GetLeadUpdates
-  #     EvaluationPeriods: 1
-  #     MetricName: Errors
-  #     Namespace: AWS/Lambda
-  #     Period: 900
-  #     Statistic: Sum
-  #     Threshold: 3
-  #     TreatMissingData: notBreaching
-      
-  # SendActivityQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
-        
-  # SendActivityDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
-  
-  # SendActivityEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt SendActivityQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt SendActivity.Arn
-      
-  # SendActivity:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-SendActivity
-  #     CodeUri: app/
-  #     Handler: send_activity.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
-  
-  # SendActivityLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-SendActivity"
-            
-  # SendActivityDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-SendActivityDLQ
-  #     AlarmDescription: There are over 10 unprocessed messages in the DealerPeak SendActivity DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt SendActivityDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
-
-  # MonitoringDealerpeak:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-Monitoring
-  #     CodeUri: app/
-  #     Handler: monitoring.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
-  
-  # MonitoringDealerpeakLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Monitoring"
-  
-  # LogGroupInvokeLambdaPermission:
-  #   Type: AWS::Lambda::Permission
-  #   Properties:
-  #     FunctionName: !GetAtt MonitoringDealerpeak.Arn
-  #     Action: lambda:InvokeFunction
-  #     Principal: logs.amazonaws.com
-  #     SourceAccount: !Ref 'AWS::AccountId'
-  
-  # MonitoringInvokeDataPullSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
-  #     - InvokeDataPullLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref InvokeDataPullLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
-  #     FilterPattern: "SUPPORT ALERT"
-  
-  # MonitoringGetLeadUpdatesSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
-  #     - GetLeadUpdatesLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref GetLeadUpdatesLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
-  #     FilterPattern: "SUPPORT ALERT"
-
-  # MonitoringSendActivitySubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
-  #     - SendActivityLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref SendActivityLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
-  #     FilterPattern: "SUPPORT ALERT"
+  GetLeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-LeadUpdates
+      AlarmDescription: PBS Lead Updates failed 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetLeadUpdates
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
