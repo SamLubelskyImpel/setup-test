@@ -105,7 +105,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
-                  # - !GetAtt TransformDealerpeakDataQueue.Arn
+                  - !GetAtt TransformPBSDataQueue.Arn
                   # - !GetAtt SendActivityQueue.Arn
               - Effect: "Allow"
                 Action:
@@ -152,8 +152,8 @@ Resources:
   # InvokeDataPullErrorAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-Invoke
-  #     AlarmDescription: DealerPeak Invoke failed 3 times within 15 minutes
+  #     AlarmName: !Sub pbs-${Environment}-Invoke
+  #     AlarmDescription: PBS Invoke failed 3 times within 15 minutes
   #     ActionsEnabled: true
   #     AlarmActions:
   #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -196,8 +196,8 @@ Resources:
   # InvokeDataPullDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
-  #     AlarmName: !Sub "dealerpeak-${Environment}-InvokeDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Invoke DLQ
+  #     AlarmName: !Sub "pbs-${Environment}-InvokeDLQ"
+  #     AlarmDescription: There are over 1 unprocessed messages in the PBS Invoke DLQ
   #     ActionsEnabled: true
   #     AlarmActions:
   #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -213,56 +213,56 @@ Resources:
   #     Threshold: 1
   #     TreatMissingData: notBreaching
 
-  # TransformDealerpeakData:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-TransformData
-  #     CodeUri: app/
-  #     Handler: transform_data.lambda_handler
-  #     Timeout: 60
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
+  TransformPBSData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-TransformData
+      CodeUri: app/
+      Handler: transform_data.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
     
-  # TransformDealerpeakDataLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-TransformData"
+  TransformPBSDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-TransformData"
 
-  # TransformDealerpeakDataEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 1
-  #     EventSourceArn: !GetAtt TransformDealerpeakDataQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt TransformDealerpeakData.Arn
+  TransformPBSDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformPBSDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformPBSData.Arn
 
-  # TransformDealerpeakDataQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-TransformQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt TransformDealerpeakDataDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
+  TransformPBSDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-TransformQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformPBSDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
 
-  # TransformDealerpeakDataDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
+  TransformPBSDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-TransformDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
   
-  # TransformDealerpeakDataDLQAlarm:
+  # TransformPBSDataDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
-  #     AlarmName: !Sub "dealerpeak-${Environment}-TransformDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the DealerPeak Transform DLQ
+  #     AlarmName: !Sub "pbs-${Environment}-TransformDLQ"
+  #     AlarmDescription: There are over 1 unprocessed messages in the PBS Transform DLQ
   #     ActionsEnabled: true
   #     AlarmActions:
   #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
   #     Dimensions:
   #       - Name: QueueName
-  #         Value: !GetAtt TransformDealerpeakDataDeadLetterQueue.QueueName
+  #         Value: !GetAtt TransformPBSDataDeadLetterQueue.QueueName
   #     EvaluationPeriods: 1
   #     MetricName: ApproximateNumberOfMessagesVisible
   #     Namespace: AWS/SQS
@@ -272,46 +272,46 @@ Resources:
   #     Threshold: 1
   #     TreatMissingData: notBreaching
 
-  # TransformDealerpeakDataQueuePolicy:
-  #   Type: "AWS::SQS::QueuePolicy"
-  #   Properties:
-  #     Queues:
-  #       - !Ref TransformDealerpeakDataQueue
-  #     PolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: events.amazonaws.com
-  #           Action: sqs:SendMessage
-  #           Resource: !GetAtt TransformDealerpeakDataQueue.Arn
-  #           Condition:
-  #             ArnEquals:
-  #               aws:SourceArn: !GetAtt EventBridgeRule.Arn
+  TransformPBSDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformPBSDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformPBSDataQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
 
-  # EventBridgeRule:
-  #   Type: AWS::Events::Rule
-  #   Properties:
-  #     EventPattern:
-  #       source:
-  #         - "aws.s3"
-  #       detail-type:
-  #         - "Object Created"
-  #       detail:
-  #         bucket:
-  #           name:
-  #             - !Sub "crm-integrations-${Environment}"
-  #         object:
-  #           key:
-  #             - { "prefix": "raw/dealerpeak/" }
-  #     Targets:
-  #       - Id: "TransformDealerpeakDataTarget"
-  #         Arn: !GetAtt TransformDealerpeakDataQueue.Arn
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/pbs/" }
+      Targets:
+        - Id: "TransformPBSDataTarget"
+          Arn: !GetAtt TransformPBSDataQueue.Arn
 
   # GetLeadUpdates:
   #   Type: AWS::Serverless::Function
   #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-LeadUpdates
+  #     FunctionName: !Sub pbs-${Environment}-LeadUpdates
   #     CodeUri: app/
   #     Handler: lead_updates.lambda_handler
   #     Timeout: 30
@@ -321,13 +321,13 @@ Resources:
   # GetLeadUpdatesLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-LeadUpdates"
+  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
 
   # GetLeadUpdatesErrorAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-LeadUpdates
-  #     AlarmDescription: DealerPeak Lead Updates failed 3 times within 15 minutes
+  #     AlarmName: !Sub pbs-${Environment}-LeadUpdates
+  #     AlarmDescription: PBS Lead Updates failed 3 times within 15 minutes
   #     ActionsEnabled: true
   #     AlarmActions:
   #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -346,7 +346,7 @@ Resources:
   # SendActivityQueue:
   #   Type: AWS::SQS::Queue
   #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-SendActivityQueue"
+  #     QueueName: !Sub "pbs-${Environment}-SendActivityQueue"
   #     VisibilityTimeout: 60
   #     RedrivePolicy:
   #       deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -355,7 +355,7 @@ Resources:
   # SendActivityDeadLetterQueue:
   #   Type: AWS::SQS::Queue
   #   Properties:
-  #     QueueName: !Sub "dealerpeak-${Environment}-SendActivityDLQ"
+  #     QueueName: !Sub "pbs-${Environment}-SendActivityDLQ"
   #     MessageRetentionPeriod: 1209600
   #     VisibilityTimeout: 10
   
@@ -370,7 +370,7 @@ Resources:
   # SendActivity:
   #   Type: AWS::Serverless::Function
   #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-SendActivity
+  #     FunctionName: !Sub pbs-${Environment}-SendActivity
   #     CodeUri: app/
   #     Handler: send_activity.lambda_handler
   #     Timeout: 30
@@ -380,13 +380,13 @@ Resources:
   # SendActivityLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-SendActivity"
+  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
             
   # SendActivityDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
-  #     AlarmName: !Sub dealerpeak-${Environment}-SendActivityDLQ
-  #     AlarmDescription: There are over 10 unprocessed messages in the DealerPeak SendActivity DLQ
+  #     AlarmName: !Sub pbs-${Environment}-SendActivityDLQ
+  #     AlarmDescription: There are over 10 unprocessed messages in the pbs SendActivity DLQ
   #     ActionsEnabled: true
   #     AlarmActions:
   #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -402,25 +402,25 @@ Resources:
   #     Threshold: 1
   #     TreatMissingData: notBreaching
 
-  # MonitoringDealerpeak:
+  # MonitoringPBS:
   #   Type: AWS::Serverless::Function
   #   Properties:
-  #     FunctionName: !Sub dealerpeak-${Environment}-Monitoring
+  #     FunctionName: !Sub pbs-${Environment}-Monitoring
   #     CodeUri: app/
   #     Handler: monitoring.lambda_handler
   #     Timeout: 30
   #     MemorySize: 256
   #     Role: !GetAtt LambdaRole.Arn
   
-  # MonitoringDealerpeakLogGroup:
+  # MonitoringPBSLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/dealerpeak-${Environment}-Monitoring"
+  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Monitoring"
   
   # LogGroupInvokeLambdaPermission:
   #   Type: AWS::Lambda::Permission
   #   Properties:
-  #     FunctionName: !GetAtt MonitoringDealerpeak.Arn
+  #     FunctionName: !GetAtt MonitoringPBS.Arn
   #     Action: lambda:InvokeFunction
   #     Principal: logs.amazonaws.com
   #     SourceAccount: !Ref 'AWS::AccountId'
@@ -429,31 +429,31 @@ Resources:
   #   Type: AWS::Logs::SubscriptionFilter
   #   DependsOn:
   #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
+  #     - MonitoringPBS
   #     - InvokeDataPullLogGroup
   #   Properties:
   #     LogGroupName: !Ref InvokeDataPullLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
   #     FilterPattern: "SUPPORT ALERT"
   
   # MonitoringGetLeadUpdatesSubscription:
   #   Type: AWS::Logs::SubscriptionFilter
   #   DependsOn:
   #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
+  #     - MonitoringPBS
   #     - GetLeadUpdatesLogGroup
   #   Properties:
   #     LogGroupName: !Ref GetLeadUpdatesLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
   #     FilterPattern: "SUPPORT ALERT"
 
   # MonitoringSendActivitySubscription:
   #   Type: AWS::Logs::SubscriptionFilter
   #   DependsOn:
   #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringDealerpeak
+  #     - MonitoringPBS
   #     - SendActivityLogGroup
   #   Properties:
   #     LogGroupName: !Ref SendActivityLogGroup
-  #     DestinationArn: !GetAtt MonitoringDealerpeak.Arn
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
   #     FilterPattern: "SUPPORT ALERT"
