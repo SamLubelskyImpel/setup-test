@@ -209,7 +209,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 content={
                     'message': 'Activity Created',
                     'activity_id': activity_id,
-                    'lead_id': lead_id,
+                    'lead_id': lead_db.id,
                     'dealer_id': product_dealer_id,
                     'activity_type': activity_type
                 })
