@@ -9,6 +9,7 @@ from datetime import datetime
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
 from typing import Any, Optional, List, Dict
+from sqlalchemy import or_
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -43,7 +44,9 @@ def get_dealer_partner_id(session, product_dealer_id: str) -> Any:
         Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
     ).filter(
             Dealer.product_dealer_id == product_dealer_id,
-            DealerIntegrationPartner.is_active == True
+            or_(DealerIntegrationPartner.is_active.is_(True),
+                DealerIntegrationPartner.is_active_salesai.is_(True),
+                DealerIntegrationPartner.is_active_chatai.is_(True))
     ).first()
     if not dip_db:
         logger.error(f"No active dealer found with id {product_dealer_id}.")
