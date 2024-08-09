@@ -1,14 +1,13 @@
 {
-	"consumer_id": 6776,
-	"crm_lead_id": "123abc-1234ab-123abcde",
-	"lead_ts": "2023-09-22T14:00:00Z",
-	"lead_status": "ACTIVE",
-	"lead_substatus": "Appointment Set",
-	"lead_comment": "Does this car have a sunroof?",
-	"lead_origin": "INTERNET",
-	"lead_source": "cars.com",
-	"lead_source_detail": "Inventory Leads Website",
-	"vehicles_of_interest": [],
-	"salespersons": [],
-	"metadata": {}
+  "consumer_id": 6776,
+  "lead_ts": "2023-09-22T14:00:00Z",
+  "lead_status": "ACTIVE",
+  "lead_substatus": "Appointment Set",
+  "lead_comment": "Does this car have a sunroof?",
+  "lead_origin": "INTERNET",
+  "lead_source": "cars.com",
+  "lead_source_detail": "Inventory Leads Website",
+  "vehicles_of_interest": [],
+  "salespersons": [],
+  "metadata": {}
 }
