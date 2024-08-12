@@ -12,7 +12,7 @@ def test_event_sent_to_client_webhook(writeback_event):
 
     event_id = writeback_event['events'][0]['event_id']
     exp_attrs = {
-        ':cid': {'S': 'wbns'},
+        ':cid': {'S': 'ins'},
         ':event_id': {'S': event_id}
     }
 

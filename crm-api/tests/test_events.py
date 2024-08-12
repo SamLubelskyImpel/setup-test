@@ -1,7 +1,7 @@
 import requests
 from os import environ
 from time import sleep
-from utils import get_wbns_log_events
+from utils import get_ins_log_events
 
 
 BASE_URL = environ.get('BASE_URL')
@@ -19,7 +19,7 @@ def test_lead_created_event(lead_data, auth):
     attempts = 0
     while attempts < 6:
         sleep(5)
-        log = next(iter([log for log in get_wbns_log_events() if f"'lead_id': {lead_id}" in log]), None)
+        log = next(iter([log for log in get_ins_log_events() if f"'lead_id': {lead_id}" in log]), None)
         if log:
             break
         attempts += 1
@@ -39,7 +39,7 @@ def test_activity_created_event(activity_data, auth):
     attempts = 0
     while attempts < 6:
         sleep(5)
-        log = next(iter([log for log in get_wbns_log_events() if f"'activity_id': {activity_id}" in log]), None)
+        log = next(iter([log for log in get_ins_log_events() if f"'activity_id': {activity_id}" in log]), None)
         if log:
             break
         attempts += 1

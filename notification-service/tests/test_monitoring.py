@@ -1,5 +1,5 @@
 from time import sleep
-from utils import get_wbns_log_events, send_event
+from utils import get_ins_log_events, send_event
 
 
 def test_monitoring_lambda(event):
@@ -11,7 +11,7 @@ def test_monitoring_lambda(event):
 
     while attempts < 6:
         sleep(5)
-        log = next(iter([log for log in get_wbns_log_events() if f"'event_id': '{event_id}'" in log]), None)
+        log = next(iter([log for log in get_ins_log_events() if f"'event_id': '{event_id}'" in log]), None)
         if log:
             break
         attempts += 1

@@ -187,7 +187,7 @@ Resources:
                   - "sns:Publish"
                 Resource:
                   - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-        - PolicyName: WBNSAccess
+        - PolicyName: INSAccess
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -195,7 +195,11 @@ Resources:
                 Action:
                   - "events:PutEvents"
                 Resource:
-                  - !If [ IsProd, !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-prod-EventBus", !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/wbns-test-EventBus" ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/notification-service-prod-EventBus",
+                      !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/notification-service-test-EventBus"
+                    ]
 
 
   CrmApiGateway:
@@ -804,7 +808,7 @@ Resources:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: !Sub "event-service-${Environment}"
-      Description: WBNS Event Service Layer
+      Description: INS Event Service Layer
       ContentUri: ./layers/event_service
       CompatibleRuntimes:
         - python3.9

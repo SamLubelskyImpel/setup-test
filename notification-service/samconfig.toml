@@ -19,7 +19,7 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "wbns-test"
+stack_name = "notification-service-test"
 parameter_overrides = """\
     Environment=\"test\" \
 """
@@ -28,7 +28,7 @@ profile = "unified-prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
-stack_name = "wbns-prod"
+stack_name = "notification-service-prod"
 parameter_overrides = """\
     Environment=\"prod\" \
 """

@@ -69,7 +69,7 @@ def record_handler(record: SQSRecord) -> None:
             client_id = event['client_id']
             sort_key = f"{product_name}__{client_id}"
 
-            secret_name = "{}/WBNS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
+            secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
 
             client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
 

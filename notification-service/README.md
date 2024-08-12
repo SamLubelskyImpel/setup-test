@@ -1,4 +1,4 @@
-# Writeback Notification Service
+# Impel Notification Service
 
 This service aims to be a central notification service to integrate with multiple partners on the shared layer and other Impel products.
 
@@ -23,12 +23,12 @@ pytest
 
 ## Requirements
 
-- WBNS deployed to `test`
+- INS deployed to `test`
 - `unified-test` and `test` profiles configured in your AWS local config
 
 ## Use cases
 
 The test suite currently covers the following use cases:
 
-- Event sent to WBNS triggers the `WebhookWritebackLambda` and reaches the `event-logger` webhook
-- Event sent to WBNS is logged by the monitoring Lambda
+- Event sent to INS triggers the `WebhookWritebackLambda` and reaches the `event-logger` webhook
+- Event sent to INS is logged by the monitoring Lambda

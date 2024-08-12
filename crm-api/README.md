@@ -38,8 +38,8 @@ BASE_URL={CRM API URL for your environment} pytest
 
 The test suite currently covers the following use cases:
 
-- Create lead endpoint sends event to WBNS
-- Create activity endpoint sends event to WBNS
+- Create lead endpoint sends event to INS
+- Create activity endpoint sends event to INS
 
 ## License
 
