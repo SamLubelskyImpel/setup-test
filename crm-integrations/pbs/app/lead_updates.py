@@ -34,7 +34,6 @@ def get_secrets():
         secret_data["API_PASSWORD"],
         secret_data["SERIAL_NUMBER"],
     )
-    # {"API_URL":"https://partnerhub.pbsdealers.com", "API_USERNAME":"Impel","API_PASSWORD":"fV4*eW39!#","SERIAL_NUMBER":"2004.QA"}
 
 
 def get_lead(crm_dealer_id, crm_lead_id):
@@ -43,7 +42,7 @@ def get_lead(crm_dealer_id, crm_lead_id):
     auth = HTTPBasicAuth(username, password)
     response = post(
         url=f"{url}/json/reply/DealContactVehicleGet",
-        params={"SerialNumber": serial_number, "DealerId": crm_lead_id},
+        params={"SerialNumber": serial_number, "DealId": crm_lead_id},
         auth=auth,
     )
     logger.info(f"PBS responded with: {response.status_code}")
