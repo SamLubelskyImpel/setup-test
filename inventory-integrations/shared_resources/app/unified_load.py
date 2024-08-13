@@ -53,6 +53,7 @@ def extract_vehicle_data(json_data):
 def extract_inventory_data(json_data):
     inventory_data = {
         'list_price': None if not json_data.get('inv_inventory|list_price', '').strip() else float(json_data['inv_inventory|list_price']),
+        'special_price': None if not json_data.get('inv_inventory|special_price', '').strip() else float(json_data['inv_inventory|special_price']),
         'fuel_type': json_data.get('inv_inventory|fuel_type', '').strip() or None,
         'exterior_color': json_data.get('inv_inventory|exterior_color', '').strip() or None,
         'interior_color': json_data.get('inv_inventory|interior_color', '').strip() or None,
@@ -72,6 +73,7 @@ def extract_inventory_data(json_data):
         'on_lot': json_data.get('inv_inventory|on_lot', True),
         'metadata': json_data.get('inv_inventory|metadata', '').strip() or None,
         'received_datetime': json_data.get('inv_inventory|received_datetime', '').strip() or None,
+        'vdp': json_data.get('inv_inventory|vdp', '').strip() or None,
     }
     return inventory_data
 

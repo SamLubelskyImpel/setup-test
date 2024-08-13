@@ -99,6 +99,11 @@ def parse_csv_to_entries(df, s3_uri):
                 db_vehicle["model"] = row.get('Vehicle Model')
                 year = int(pd.to_numeric(row.get('Vehicle Year'), errors='coerce')) if pd.notnull(row.get('Vehicle Year')) else None
                 mileage = int(pd.to_numeric(row.get('Vehicle Mileage'), errors='coerce')) if pd.notnull(row.get('Vehicle Mileage')) else None
+
+                if mileage is not None and mileage > 2147483647:  # Max value for PostgreSQL integer
+                    logging.warning(f"Invalid mileage value: {mileage}")
+                    mileage = None
+
                 db_vehicle["year"] = year
                 db_vehicle["mileage"] = mileage
                 if mileage and year:
@@ -126,7 +131,7 @@ def parse_csv_to_entries(df, s3_uri):
                 }
                 entries.append(entry)
                 entries_lookup[repair_order_no] = entry
-        
+
         logger.info(f"Entries: {entries}")
         return entries, dms_id
 

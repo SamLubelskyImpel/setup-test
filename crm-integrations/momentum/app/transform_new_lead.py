@@ -155,9 +155,6 @@ def parse_lead(product_dealer_id, data):
             "postal_code": str(data.get("zip", "")) if data.get("zip") else None
         }
 
-        if not db_consumer["email"] and not db_consumer["phone"]:
-            raise Exception("Email or phone number is required")
-
         db_consumer = {key: value for key, value in db_consumer.items() if value}
 
         db_lead = {
@@ -177,13 +174,13 @@ def parse_lead(product_dealer_id, data):
                 logger.warning(f"Unexpected vehicle type: {vehicleType}")
 
         db_vehicle = {
-            "vin": data.get("vin"),
-            "stock_num": data.get("stock"),
-            "make": data.get("make"),
-            "model": data.get("model"),
+            "vin": data.get("vin")[:20] if data.get("vin") is not None else None,
+            "stock_num": data.get("stock")[:50] if data.get("stock") is not None else None,
+            "make": data.get("make")[:80] if data.get("make") is not None else None,
+            "model": data.get("model")[:100] if data.get("model") is not None else None,
             "year": data.get("year"),
-            "exterior_color": data.get("color"),
-            "trim": data.get("trim"),
+            "exterior_color": data.get("color")[:80] if data.get("color") is not None else None,
+            "trim": data.get("trim")[:100] if data.get("trim") is not None else None,
             "condition": vehicleType
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
@@ -243,11 +240,15 @@ def record_handler(record: SQSRecord) -> None:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
 
+        consumer = parsed_lead["consumer"]
+        if consumer.get("email") is None and consumer.get("phone") is None:
+            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
+            return
+
         consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
         lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]
 
         logger.info(f"New lead created: {lead_id}")
-
     except Exception as e:
         logger.error(f"Error transforming momentum record - {record}: {e}")
         logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
@@ -269,7 +270,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise

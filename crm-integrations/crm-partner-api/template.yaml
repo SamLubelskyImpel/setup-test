@@ -127,6 +127,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/activix*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/activix*",
+                  ]
         - PolicyName: LambdaPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -174,12 +179,16 @@ Resources:
         DefaultAuthorizer: DefaultAuth
         Authorizers:
           DefaultAuth:
+            FunctionPayloadType: REQUEST
             FunctionArn: !GetAtt Authorizer.Arn
             Identity:
-              Headers:
-                - Authorization
-              ValidationExpression: ^Basic.*$
+              Headers: []
               ReauthorizeEvery: 0
+        AddDefaultAuthorizerToCorsPreflight: False
+      Cors:
+        AllowMethods: "'GET,POST,PUT,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,x-api-key,X-Amz-Security-Token,X-Activix-Signature'"
+        AllowOrigin: "'*'"
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-
@@ -357,3 +366,75 @@ Resources:
             RestApiId: !Ref CrmPartnerApiGateway
             Path: /momentum/crm-upload/v1/lead-updates
             Method: POST
+
+  ActivixCreateLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-partner-api-${Environment}-ActivixCreateLead"
+      CodeUri: app/activix/
+      Handler: create_lead.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /activix/crm-upload/v1/leads
+            Method: POST
+  
+  ActivixCreateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ActivixCreateLead
+      AlarmDescription: Activix Create Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ActivixCreateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  ActivixUpdateLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-partner-api-${Environment}-ActivixUpdateLead"
+      CodeUri: app/activix/
+      Handler: update_lead.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmPartnerApiGateway
+            Path: /activix/crm-upload/v1/lead-updates
+            Method: POST
+
+  ActivixUpdateLeadErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub crm-partner-api-${Environment}-ActivixUpdateLead
+      AlarmDescription: Activix Update Lead failed to process incoming data
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ActivixUpdateLead
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching

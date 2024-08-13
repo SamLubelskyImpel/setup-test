@@ -41,6 +41,7 @@ def parse_json_to_entries(json_data, s3_uri):
         db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
+        db_op_codes = []
 
         db_metadata = {
             "Region": REGION,
@@ -96,6 +97,12 @@ def parse_json_to_entries(json_data, s3_uri):
             concern = default_get(job, "concern")
             if concern:
                 comment.add(concern)
+            operations = default_get(job, "operations", [])
+            for operation in operations:
+                db_op_code = {}
+                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
+                db_op_code["op_code|op_code_desc"] = (default_get(operation, "opcodeDescription") or "")[:305]
+                db_op_codes.append(db_op_code)
 
         db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
         db_service_repair_order["comment"] = ",".join(list(txn_pay_type_arr))
@@ -142,6 +149,7 @@ def parse_json_to_entries(json_data, s3_uri):
             "service_repair_order": db_service_repair_order,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
+            "op_codes.op_codes": db_op_codes
         }
         entries.append(entry)
     return entries, dms_id

@@ -4,7 +4,6 @@ import pytz
 import boto3
 import logging
 from os import environ
-from requests import post
 from dateutil import parser
 from datetime import datetime
 from json import dumps, loads
@@ -21,8 +20,11 @@ from crm_orm.session_config import DBSession
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 
+from event_service.events import dispatch_event, Event, Resource
+
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
+ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
@@ -45,21 +47,23 @@ salesperson_attrs = [
 ]
 
 
+class ADFAssemblerSyndicationError(Exception):
+    """Custom exception for ADF Assembler syndication errors."""
+    pass
+
+
 class DASyndicationError(Exception):
     """Custom exception for DA syndication errors."""
     pass
 
 
-def send_alert_notification(lead_id: int, e: Exception) -> None:
+def send_alert_notification(message, subject) -> None:
     """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred while sending lead {lead_id} to EventListener: {e}",
-    }
     sns_client = boto3.client('sns')
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps(data)}),
-        Subject='CRM API: Lead Syndication Failure Alert - CreateLead',
+        Message=dumps({'default': dumps({"message": message})}),
+        Subject=f'CRM API: {subject}',
         MessageStructure='json'
     )
 
@@ -69,7 +73,7 @@ def send_notification_to_event_listener(integration_partner_name: str) -> bool:
     try:
         response = s3_client.get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{ENVIRONMENT}_GENERAL.json",
+            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json",
         )
         config = loads(response["Body"].read())
         logger.info(f"Config: {config}")
@@ -131,26 +135,6 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
         return None
 
 
-def make_adf_assembler_request(data: Any):
-    secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/adf-assembler"
-    )
-    secret = loads(secret["SecretString"])["create_adf"]
-    api_url, api_key = loads(secret).values()
-
-    response = post(
-        url=api_url,
-        data=dumps(data),
-        headers={
-            "x_api_key": api_key,
-            "action_id": "create_adf",
-            'Content-Type': 'application/json'
-        }
-    )
-
-    logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
-
-
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
@@ -189,13 +173,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     }
 
                 consumer_db, dip_db, dealer_db, integration_partner_db = db_results
+                product_dealer_id = dealer_db.product_dealer_id
+                dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
                 else:
-                    logger.warning(f"No metadata found for dealer: {dealer_db.product_dealer_id}. Defaulting to UTC.")
+                    logger.warning(f"No metadata found for dealer: {product_dealer_id}. Defaulting to UTC.")
                     dealer_timezone = "UTC"
                 logger.info(f"Dealer timezone: {dealer_timezone}")
 
@@ -311,7 +297,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                             is_primary=salesperson.get("is_primary", False),
                         )
                         lead_salesperson.salesperson = salesperson_db
-                        lead.lead_salespersons.append(lead_salesperson)
+                        lead_salesperson.lead = lead
+                        session.add(lead_salesperson)
 
                 session.commit()
                 logger.info("Transactions committed")
@@ -325,6 +312,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
+        dispatch_event(
+            request_product=request_product,
+            partner=integration_partner_name,
+            event=Event.Created,
+            resource=Resource.Lead,
+            content={
+                'message': 'Lead Created',
+                'lead_id': lead_id,
+                'consumer_id': consumer_id,
+                'dealer_id': product_dealer_id,
+            })
+
         notify_listener = send_notification_to_event_listener(integration_partner_name)
 
         # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
@@ -332,19 +331,28 @@ def lambda_handler(event: Any, context: Any) -> Any:
             adf_recipients = []
             sftp_config = {}
 
-            dip_metadata = dip_db.metadata_
-            if dip_metadata:
-                adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                sftp_config = dip_metadata.get("adf_sftp_config", {})
-            else:
-                logger.warning(f"No metadata found for dealer: {dip_db.id}")
+            try:
+                if dip_metadata:
+                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    sftp_config = dip_metadata.get("adf_sftp_config", {})
+                else:
+                    logger.warning(f"No metadata found for dealer: {product_dealer_id}")
 
-            make_adf_assembler_request({
-                "lead_id": lead_id,
-                "recipients": adf_recipients,
-                "partner_name": integration_partner_name,
-                "sftp_config": sftp_config
-            })
+                payload = {
+                    "lead_id": lead_id,
+                    "recipients": adf_recipients,
+                    "partner_name": integration_partner_name,
+                    "sftp_config": sftp_config
+                }
+                sqs_client = boto3.client('sqs')
+
+                sqs_client.send_message(
+                    QueueUrl=ADF_ASSEMBLER_QUEUE,
+                    MessageBody=dumps(payload)
+                )
+            except Exception as e:
+                raise ADFAssemblerSyndicationError(e)
+
         elif notify_listener:
             try:
                 sqs_client = boto3.client('sqs')
@@ -356,15 +364,31 @@ def lambda_handler(event: Any, context: Any) -> Any:
             except Exception as e:
                 raise DASyndicationError(e)
 
+    except ADFAssemblerSyndicationError as e:
+        logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while sending lead {lead_id} to ADF Assembler: {e}",
+            subject="Lead Syndication Failure Alert - CreateLead"
+        )
+
     except DASyndicationError as e:
         logger.error(f"Error syndicating lead: {e}.")
-        send_alert_notification(lead_id, e)
+        send_alert_notification(
+            message=f"Error occurred while sending lead {lead_id} to EventListener: {e}",
+            subject="Lead Syndication Failure Alert - CreateLead"
+        )
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
+        send_alert_notification(
+            message=f"Error occurred while creating lead: {e}",
+            subject="Lead Creation Failure Alert - CreateLead"
+        )
         return {
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."}),
         }
+
+    # TODO add exception for events
 
     return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}

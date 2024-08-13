@@ -20,10 +20,13 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
+s3_client = boto3.client('s3')
 
 
 REYREY_XML_TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
@@ -133,6 +136,22 @@ class CrmApiWrapper:
             logger.error(f"Error occured calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
 
+    def get_lead_status(self, lead_id):
+        try:
+            res = requests.get(
+                url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}/status",
+                headers={
+                    "x_api_key": self.api_key,
+                    "partner_id": self.partner_id,
+                }
+            )
+            res.raise_for_status()
+            lead_status = res.json().get('lead_status')
+            logger.info(f"Lead status: {lead_status}")
+            return lead_status
+        except Exception as e:
+            raise Exception(f"Error occurred calling CRM API: {e}")
+
 
 class ReyreyApiWrapper:
     """ReyRey API Wrapper."""
@@ -155,6 +174,20 @@ class ReyreyApiWrapper:
         payload = payload.replace(self.__username, "********")
         payload = payload.replace(self.__password, "********")
         return payload
+
+    def retrieve_bad_lead_statuses(self) -> list:
+        """Retrieve the bad lead statuses"""
+        try:
+            s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_REYREY.json"
+            s3_object = loads(
+                s3_client.get_object(
+                    Bucket=BUCKET,
+                    Key=s3_key
+                )['Body'].read().decode('utf-8')
+            )
+            return s3_object["bad_lead_status"]
+        except Exception as e:
+            raise Exception(e)
 
     def __call_api(self, payload):
         headers = {

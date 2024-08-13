@@ -1,14 +1,12 @@
 """Create activity."""
-
-import pytz
 import logging
 from os import environ
 from requests import post
 from json import dumps, loads
-from datetime import datetime
 from typing import Any
 import boto3
 import botocore.exceptions
+from utils import apply_dealer_timezone
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -19,16 +17,24 @@ from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
 
+from event_service.events import dispatch_event, Event, Resource
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 secret_client = boto3.client("secretsmanager")
+
+
+class ADFAssemblerSyndicationError(Exception):
+    """Custom exception for ADF Assembler syndication errors."""
+    pass
 
 
 class ValidationError(Exception):
@@ -65,6 +71,28 @@ def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
             raise ValidationError("Activity due timestamp is required for an appointment or phone_call_task activity")
 
 
+def is_writeback_disabled(partner_name: str, activity_id: int) -> bool:
+    """Check if writeback is disabled for the partner."""
+    try:
+        s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json"
+        config = loads(
+            s3_client.get_object(
+                Bucket=INTEGRATIONS_BUCKET,
+                Key=s3_key
+            )["Body"].read().decode("utf-8")
+        )
+        logger.info(f"Config: {config}")
+        disabled_partners = config["writeback_disabled_partners"]
+        if partner_name in disabled_partners:
+            return True
+
+    except Exception as e:
+        logger.error(f"Error checking writeback status for {partner_name}: {str(e)}")
+        send_alert_notification(activity_id, e)
+
+    return False
+
+
 def create_on_crm(partner_name: str, payload: dict) -> None:
     """Create activity on CRM."""
     try:
@@ -89,22 +117,6 @@ def create_on_crm(partner_name: str, payload: dict) -> None:
     except Exception as e:
         logger.error(f"Error sending activity {payload['activity_id']} to CRM: {str(e)}")
         send_alert_notification(payload['activity_id'], e)
-
-
-def apply_dealer_timeszone(input_ts, time_zone, dealer_partner_id) -> str:
-    """Convert UTC timestamp to dealer's local time."""
-    utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-    utc_datetime = pytz.utc.localize(utc_datetime)
-
-    if not time_zone:
-        logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
-        return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-
-    # Get the dealer timezone object, convert UTC datetime to dealer timezone
-    dealer_tz = pytz.timezone(time_zone)
-    dealer_datetime = utc_datetime.astimezone(dealer_tz)
-
-    return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
 
 def send_alert_notification(activity_id: int, e: Exception) -> None:
@@ -142,7 +154,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         with DBSession() as session:
             # Check lead existence
             db_results = session.query(
-                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, IntegrationPartner.impel_integration_partner_name
+                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, Dealer.product_dealer_id, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -169,7 +181,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Activity type {activity_type} not found."})
                 }
 
-            lead_db, consumer_db, dealer_partner_db, dealer_metadata, partner_name = db_results
+            lead_db, consumer_db, dealer_partner_db, dealer_metadata, product_dealer_id, partner_name = db_results
+            dip_metadata = dealer_partner_db.metadata_
 
             # Create activity
             activity = Activity(
@@ -188,7 +201,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
             activity_id = activity.id
             logger.info(f"Created activity {activity_id}")
 
-            dip_metadata = dealer_partner_db.metadata_
+            dispatch_event(
+                request_product=request_product,
+                partner=partner_name,
+                event=Event.Created,
+                resource=Resource.Activity,
+                content={
+                    'message': 'Activity Created',
+                    'activity_id': activity_id,
+                    'lead_id': lead_db.id,
+                    'dealer_id': product_dealer_id,
+                    'activity_type': activity_type
+                })
 
             if dealer_metadata:
                 dealer_timezone = dealer_metadata.get("timezone", "")
@@ -204,6 +228,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "crm_dealer_id": dealer_partner_db.crm_dealer_id,
                 "consumer_id": consumer_db.id,
                 "crm_consumer_id": consumer_db.crm_consumer_id,
+                "dealer_integration_partner_metadata": dip_metadata,
                 # Activity info
                 "activity_id": activity_id,
                 "notes": activity.notes,
@@ -216,28 +241,43 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Payload to CRM: {dumps(payload)}")
 
+            writeback_disabled = is_writeback_disabled(partner_name, activity_id)
+
             # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
             if request_product == "chat_ai" and activity_type == "appointment":
-                adf_recipients = []
-                sftp_config = {}
+                try:
+                    adf_recipients = []
+                    sftp_config = {}
 
-                if dip_metadata:
-                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                    sftp_config = dip_metadata.get("adf_sftp_config", {})
-                else:
-                    logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
+                    if dip_metadata:
+                        adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                        sftp_config = dip_metadata.get("adf_sftp_config", {})
+                    else:
+                        logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
 
-                # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                activity_due_dealer_ts = apply_dealer_timeszone(
-                    activity_due_ts, dealer_timezone, dealer_partner_db.id
-                )
-                make_adf_assembler_request({
-                    "lead_id": lead_id,
-                    "recipients": adf_recipients,
-                    "activity_time": activity_due_dealer_ts,
-                    "partner_name": partner_name,
-                    "sftp_config": sftp_config
-                })
+                    # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
+                    activity_due_dealer_ts = apply_dealer_timezone(
+                        activity_due_ts, dealer_timezone, dealer_partner_db.id
+                    )
+                    payload = {
+                        "lead_id": lead_id,
+                        "recipients": adf_recipients,
+                        "activity_time": activity_due_dealer_ts,
+                        "partner_name": partner_name,
+                        "sftp_config": sftp_config
+                    }
+
+                    sqs_client = boto3.client('sqs')
+
+                    sqs_client.send_message(
+                        QueueUrl=ADF_ASSEMBLER_QUEUE,
+                        MessageBody=dumps(payload)
+                    )
+                except Exception as e:
+                    raise ADFAssemblerSyndicationError(e)
+
+            elif writeback_disabled:
+                logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
             else:
                 create_on_crm(partner_name=partner_name, payload=payload)
 
@@ -245,6 +285,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "statusCode": 201,
             "body": dumps({"activity_id": activity_id})
         }
+
+    except ADFAssemblerSyndicationError as e:
+        logger.error(f"Error syndicating activity {activity_id} to ADF Assembler: {e}.")
+        send_alert_notification(activity_id, e)
 
     except ValidationError as e:
         logger.error(f"Error creating activity: {str(e)}")

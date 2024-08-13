@@ -48,10 +48,30 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+ACTIVIX_CREATE_LEAD_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ActivixCreateLead.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
+ACTIVIX_UPDATE_LEAD_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ActivixUpdateLead.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 CRM_PARTNER_API_INTERPOLATION_DATA = {
     "CRM_PARTNER_API_AWS_VALIDATION": CRM_PARTNER_API_AWS_VALIDATION,
     "REYREY_CREATE_LEAD_LAMBDA_INFO": REYREY_CREATE_LEAD_LAMBDA_INFO,
     "REYREY_UPDATE_LEAD_LAMBDA_INFO": REYREY_UPDATE_LEAD_LAMBDA_INFO,
     "MOMENTUM_CREATE_LEAD_LAMBDA_INFO": MOMENTUM_CREATE_LEAD_LAMBDA_INFO,
     "MOMENTUM_UPDATE_LEAD_LAMBDA_INFO": MOMENTUM_UPDATE_LEAD_LAMBDA_INFO,
+    "ACTIVIX_CREATE_LEAD_LAMBDA_INFO": ACTIVIX_CREATE_LEAD_LAMBDA_INFO,
+    "ACTIVIX_UPDATE_LEAD_LAMBDA_INFO": ACTIVIX_UPDATE_LEAD_LAMBDA_INFO
 }

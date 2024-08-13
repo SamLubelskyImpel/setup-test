@@ -32,21 +32,14 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 
 
-class LeadExistsException(Exception):
-    pass
-
-class ConsumerCreationException(Exception):
-    pass
-
-class LeadCreationException(Exception):
-    pass
-
 class NotInternetLeadException(Exception):
     pass
 
 class NoCustomerInitiatedLeadException(Exception):
     pass
 
+class CustomerContactInfoError(Exception):
+    pass
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -100,7 +93,7 @@ def extract_consumer(root: ET.Element, namespace: dict) -> dict:
             extracted_data[key] = value
 
     if not extracted_data.get("email") and not extracted_data.get("phone"):
-        logger.warning(f"Consumer {fields['crm_consumer_id']} does not have an email or phone number.")
+        raise CustomerContactInfoError("Email or phone number is required.")
 
     return extracted_data
 
@@ -138,9 +131,9 @@ def extract_lead(root: ET.Element, namespace: dict, crm_dealer_id: str) -> dict:
         if len(notes) > 0:
             for note in notes:
                 if "Best Time" not in note.text:
-                    return note.text
+                    return note.text[:5000]
             # If no note without "Best Time" is found, return first note.
-            return notes[0].text
+            return notes[0].text[:5000]
         else:
             return ""
 
@@ -349,7 +342,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:
             logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
-            raise LeadExistsException(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+            raise Exception(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
     logger.info(f"Consumer data to send: {consumer}")
     response = requests.post(
@@ -368,7 +361,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
 
     if not unified_crm_consumer_id:
         logger.error(f"Error creating the consumer: {consumer}")
-        raise ConsumerCreationException(f"Error creating consumer: {consumer}")
+        raise Exception(f"Error creating consumer: {consumer}")
 
     return unified_crm_consumer_id
 
@@ -389,7 +382,7 @@ def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product
 
     if not unified_crm_lead_id:
         logger.error(f"Error creating lead: {lead}")
-        raise LeadCreationException(f"Error creating lead: {lead}")
+        raise Exception(f"Error creating lead: {lead}")
 
     return unified_crm_lead_id
 
@@ -402,7 +395,6 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split("/")[2]
-
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response["Body"].read()
         xml_data = content
@@ -423,12 +415,8 @@ def record_handler(record: SQSRecord) -> None:
 
         unified_crm_lead_id = create_lead_in_unified_layer(lead, crm_api_key, product_dealer_id)
         logger.info(f"Lead successfully created: {unified_crm_lead_id}")
-    except ConsumerCreationException:
-        raise
-    except LeadExistsException:
-        raise
-    except LeadCreationException:
-        raise
+    except CustomerContactInfoError:
+        logger.warning("Email or phone number is required. Skipping lead.")
     except NotInternetLeadException:
         logger.info("Lead type is not Internet")
     except NoCustomerInitiatedLeadException:
@@ -454,7 +442,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-
     except Exception as e:
         logger.error(f"Error processing ReyRey new lead: {e}")
         raise

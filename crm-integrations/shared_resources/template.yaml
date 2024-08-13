@@ -133,6 +133,9 @@ Resources:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers_dealerpeak"
           Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+        - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_tekion"
+          Input: '{"impel_integration_partner_name": "TEKION"}'
   
   ScheduledCRMDataPullLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -149,6 +152,8 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
 
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function

@@ -164,7 +164,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
-            db_lead["crm_lead_id"] = item.get('leadID', '')
+            crm_lead_id = item.get('leadID', '')
+            db_lead["crm_lead_id"] = crm_lead_id
             db_lead["lead_ts"] = format_ts(item.get('dateCreated'))
             db_lead["lead_status"] = item.get('status', {}).get('status', '')
             db_lead["lead_substatus"] = ''
@@ -196,6 +197,10 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             consumer = item.get('customer', None)
             extract_contact_information('consumer', consumer, db_consumer)
+
+            if not db_consumer["email"] and not db_consumer["phone"]:
+                logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
+                continue
 
             salesperson = item.get('agent', None)
             extract_contact_information('salesperson', salesperson, db_salesperson)
@@ -272,6 +277,9 @@ def record_handler(record: SQSRecord) -> None:
 
     except Exception as e:
         logger.error(f"Error transforming dealerpeak record - {record}: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, product_dealer_id, entries[0]['lead']['crm_lead_id'], e)
+            )
         raise
 
 
@@ -288,7 +296,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             context=context
         )
         return result
-
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise

@@ -7,6 +7,7 @@ from ftplib import FTP, error_perm, error_temp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class FtpToS3:
     def __init__(self, host, user, password):
         self.host = host
@@ -23,33 +24,19 @@ class FtpToS3:
             logger.error("Error connecting to FTP: %s", e)
             return None
 
-    def transfer_file_from_ftp_to_s3(self, filename, date_path, bucket_name, parent_store, child_store):
+    def check_directory_exists(self, directory):
         try:
-            self.connected_ftp = self.connect_to_ftp()
-            if not self.connected_ftp:
-                raise ConnectionError("Problem with connection to the FTP server")
+            self.connected_ftp.cwd(directory)
+            return True
+        except error_perm as e:
+            logger.info(f"Directory {directory} does not exist. Error: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error while checking directory {directory}: {e}")
+            return False
 
-            remote_path = f"/{parent_store}/{date_path}/{filename}"
-            directory = f"/{parent_store}/{date_path}"
-            logger.info(f"Checking for file {remote_path} in FTP directory.")
-
-            # Determine the appropriate S3 key and check for file existence if historical
-            if 'historical' in date_path:
-                try:
-                    self.connected_ftp.cwd(directory)
-                    files = self.connected_ftp.nlst()
-                except error_perm as e:
-                    logger.info(f"Folder not found: {directory}. Error: {e}")
-                    return  # Exit the function if the directory does not exist
-
-                # Check if the file is present in the directory
-                if filename not in files:
-                    logger.info(f"Historical file {filename} not found in FTP directory. Skipping transfer.")
-                    return
-                s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
-            else:
-                s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
-
+    def process_and_upload_file(self, filename, directory, s3_key, bucket_name, parent_store, child_store):
+        try:
             # Proceed with file retrieval and processing
             buffer = io.BytesIO()
             self.connected_ftp.cwd(directory)
@@ -80,6 +67,45 @@ class FtpToS3:
                 Key=s3_key,
             )
             logger.info("Filtered file %s uploaded to S3 bucket %s", filename, bucket_name)
+        except Exception as e:
+            logger.error(f"Error processing file {filename}: {e}")
+            raise
+
+    def transfer_file_from_ftp_to_s3(self, date_paths, bucket_name, parent_store, child_store):
+        try:
+            self.connected_ftp = self.connect_to_ftp()
+            if not self.connected_ftp:
+                raise ConnectionError("Problem with connection to the FTP server")
+
+            for date_path in date_paths:
+                directory = f"/{parent_store}/{date_path}"
+                logger.info(f"Checking for files in FTP directory: {directory}")
+
+                if not self.check_directory_exists(directory):
+                    continue  # Try the next directory if this one does not exist
+
+                try:
+                    files = self.connected_ftp.nlst()
+                    if not files:
+                        logger.info(f"No files found in the directory: {directory}")
+                        continue  # Try the next directory if no files found
+
+                    for filename in files:
+                        if 'historical' in date_path:
+                            s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
+                        else:
+                            s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
+
+                        self.process_and_upload_file(filename, directory, s3_key, bucket_name, parent_store, child_store)
+                    break  # Exit the loop after successfully processing the files in a directory
+
+                except error_perm as e:
+                    logger.info(f"Folder not found: {directory}. Error: {e}")
+                    continue  # Try the next directory if this one does not exist
+                except Exception as e:
+                    logger.error(f"Unexpected error during file listing: {e}")
+                    raise
+
         except (error_perm, error_temp) as e:
             logger.error(f"FTP transfer error: {e}")
             raise ConnectionError(f"FTP transfer error: {e}")

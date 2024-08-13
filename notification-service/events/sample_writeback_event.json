@@ -1,0 +1,24 @@
+{
+  "Time": "2024-07-30T17:25:53Z",
+  "Source": "com.impel.shared-layer.crm",
+  "detail-type": "object",
+  "detail": {
+    "events": [
+      {
+        "event_id": "5fb0c52c-a447-49e4-9fbf-ec5429349934",
+        "event_type": "shared-layer.crm.salesai.lead.created",
+        "product_name": "SHARED_LAYER_CRM",
+        "client_id": "TESTCRM",
+        "event_content": {
+          "message": "Sales AI: Lead Created",
+          "lead_id": 123,
+          "customer_id": 456,
+          "dealer_id": "test-dealer-id",
+          "created_ts": "2024-07-31T18:33:22.288896+00:00"
+        }
+      }
+    ]
+  },
+  "EventBusName": "notification-service-test-EventBus",
+  "Resources": []
+}

@@ -115,9 +115,9 @@ class RDSInstance:
         # Use a simple SQL query for debugging
         query = f"""
         SELECT received_datetime
-        FROM {self.schema}.inv_inventory
-        JOIN {self.schema}.inv_dealer_integration_partner ON inv_dealer_integration_partner.provider_dealer_id = '{provider_dealer_id}'
-        WHERE inv_inventory.on_lot = TRUE
+        FROM {self.schema}.inv_inventory ii
+        JOIN {self.schema}.inv_dealer_integration_partner idip ON idip.id = ii.dealer_integration_partner_id
+        WHERE idip.provider_dealer_id = '{provider_dealer_id}' and ii.on_lot = TRUE
         ORDER BY received_datetime DESC LIMIT 1;
         """
         try:
@@ -236,10 +236,10 @@ class RDSInstance:
         existing_inventory_id = self.check_existing_record("inv_inventory", list(check_data.keys()), check_data)
         if existing_inventory_id:
             update_columns = {
-                'list_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
+                'list_price', 'special_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
                 'seats', 'transmission', 'drive_train', 'cylinders', 'body_style',
                 'series', 'vin', 'interior_material', 'trim', 'factory_certified',
-                'region', 'on_lot', 'metadata', 'received_datetime'
+                'region', 'on_lot', 'metadata', 'received_datetime', 'photo_url', 'vdp'
             }
             set_clause = ', '.join([f"{col} = %s" for col in update_columns if col in inventory_data])
             update_query = f"""
