@@ -35,7 +35,7 @@ def get_secrets():
 
 
 # TODO: Api URL pattern for pbs?
-def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
+def fetch_new_leads(start_time: str, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
     api_url, username, password, serialnumber = get_secrets()
     auth = HTTPBasicAuth(username, password)
@@ -48,7 +48,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
             params={
                 "SerialNumber": serialnumber
             },
-            body={
+            json={
                 "ModifiedSince": start_time
             },
             auth=auth,
@@ -68,25 +68,31 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
 
     # Get new lead records
-    new_leads = []
-    for lead in filtered_leads:
-        lead_id = lead.get("DealId")
-        try:
-            response = requests.get(
-                url=f"{api_url}/dealergroup/{dealer_group_id}/lead/{lead_id}",
-                auth=auth,
-                timeout=3,
-            )
-            response.raise_for_status()
-            lead_record = response.json()
+    # new_leads = []
+    # for lead in filtered_leads:
+    #     lead_id = lead.get("DealId")
+    #     try:
+    #         response = requests.post(
+    #             url=f"{api_url}/json/reply/DealContactVehicleGet",
+    #             params={
+    #                 "SerialNumber": serialnumber
+    #             },
+    #             json={
+    #                 "DealId": lead_id
+    #             },
+    #             auth=auth,
+    #             timeout=3,
+    #         )
+    #         response.raise_for_status()
+    #         lead_record = response.json().get("Items")
 
-            new_leads.append(lead_record)
-        except Exception as e:
-            logger.error(f"Error fetching lead {lead_id}. Skipping lead: {e}")
-            continue
+    #         new_leads.append(lead_record)
+    #     except Exception as e:
+    #         logger.error(f"Error fetching lead {lead_id}. Skipping lead: {e}")
+    #         continue
 
-    logger.info(f"Total leads saved {len(new_leads)}")
-    return new_leads
+    logger.info(f"Total leads saved {len(filtered_leads)}")
+    return filtered_leads
 
 def filter_leads(leads: list, start_time: str):
     """Filter leads by DealCreationDate."""
@@ -94,7 +100,7 @@ def filter_leads(leads: list, start_time: str):
     start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
     for lead in leads:
         try:
-            created_date = datetime.strptime(lead["DealCreationDate"], "%B, %d %Y %H:%M:%S")
+            created_date = datetime.strptime(lead["DealCreationDate"][:25]+'Z', "%Y-%m-%dT%H:%M:%S.%fZ")
             if created_date >= start_date:
                 filtered_leads.append(lead)
         except Exception as e:
@@ -122,24 +128,25 @@ def record_handler(record: SQSRecord):
     """Invoke PBS data pull."""
     logger.info(f"Record: {record}")
     try:
-        body = loads(record['body'])
+        body = loads(record["body"])
+        logger.info(body)
 
-        start_time = body['start_time']
-        end_time = body['end_time']
-        crm_dealer_id = body['crm_dealer_id']
-        product_dealer_id = body['product_dealer_id']
+        start_time = body["start_time"]
+        # end_time = body["end_time"] if body["end_time"] else start_time
+        crm_dealer_id = body["crm_dealer_id"]
+        product_dealer_id = body["product_dealer_id"] if body["product_dealer_id"] else "missing"
 
-        leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
+        leads = fetch_new_leads(start_time, crm_dealer_id)
         if not leads:
-            logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
+            logger.info(f"No new leads found for dealer {crm_dealer_id} for {start_time}")
             return
 
         save_raw_leads(leads, product_dealer_id)
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
-        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, start_time, end_time, e)
+        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\n\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, start_time, e)
             )
         raise
 

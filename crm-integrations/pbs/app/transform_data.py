@@ -93,7 +93,7 @@ def format_ts(input_ts: str) -> str:
 
     Assumes the input timestamp is in the format "November, 17 2023 18:57:17".
     """
-    dt = datetime.strptime(input_ts, "%B, %d %Y %H:%M:%S")
+    dt = datetime.strptime(input_ts, "%Y-%m-%dT%H:%M:%S.%fZ")
 
     # Format the datetime object to ISO 8601 UTC format
     output_format = "%Y-%m-%dT%H:%M:%SZ"
@@ -106,12 +106,12 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
     if item_name == 'consumer':
         # db_entity[f'crm_{item_name}_id'] = item.get('userID')
         db_entity["first_name"] = item.get('ContactFirstName')
-        db_entity["middle_name"] = item.get('ContactMiddleName')
+        db_entity["middle_name"] = item.get('ContactMiddleName', '')
         db_entity["last_name"] = item.get('ContactLastName')
         # emails = item.get('contactInformation', {}).get('emails', [])
         db_entity["email"] = item.get('ContactEmailAddress', '')
         # phone_numbers = item.get('contactInformation', {}).get('phoneNumbers', [])
-        db_entity["phone"] = item.get("ContactCellPhone")
+        db_entity["phone"] = item.get("ContactCellPhone", '')
         
         # addresses = item.get('contactInformation', {}).get('addresses', [])
         # address = addresses[0] if addresses else None
@@ -123,7 +123,7 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
         # communication_preferences = item.get('ContactPreferredContactMethods', [])
         communication_preferences = item.get('ContactCommunicationPreferences', {})
 
-        #TODO: Determine if there are pasitive values besides Implied Consent
+        #TODO: Determine if there are positive values besides Implied Consent
         if communication_preferences:
             db_entity["email_optin_flag"] = True if communication_preferences.get('Email') == "ImpliedConsent" else False
             db_entity["sms_optin_flag"] = True if communication_preferences.get('TextMessage') == "ImpliedConsent" else False
@@ -143,26 +143,26 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format pbs json data to unified format."""
     entries = []
     try:
-        for item in json_data.get("Items"):
+        for item in json_data:
             db_lead = {}
             db_vehicles = []
             db_consumer = {}
             db_salesperson = {}
 
             #TODO: Clarify lead origins
-            lead_origin = item.get('source', {}).get('source', '')
-            if lead_origin not in ['Internet', 'Third Party']:
-                logger.info(f"Skipping lead with origin: {lead_origin}")
-                continue
+            # lead_origin = item.get('source', {}).get('source', '')
+            # if lead_origin not in ['Internet', 'Third Party']:
+            #     logger.info(f"Skipping lead with origin: {lead_origin}")
+            #     continue
 
             crm_lead_id = item.get('DealId', '')
             db_lead["crm_lead_id"] = crm_lead_id
-            db_lead["lead_ts"] = format_ts(item.get('DealCreationDate'))
+            db_lead["lead_ts"] = format_ts(item.get('DealCreationDate')[:25]+'Z')
 
             db_lead["lead_status"] = item.get('DealStatus')
             db_lead["lead_substatus"] = item.get('SystemStatus')
             db_lead["lead_comment"] = item.get('ContactNotes')
-            db_lead["lead_origin"] = lead_origin.upper()
+            # db_lead["lead_origin"] = lead_origin.upper()
 
             # provider_name = (
             #     item.get('costItem', {}).get('provider', {}).get('provider') or
