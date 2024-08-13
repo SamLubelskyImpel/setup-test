@@ -102,9 +102,9 @@ class XTimeApiWrapper:
         phone_number = create_appt_data.phone_number
 
         if not email_address:
-            email_address = "not-available@email.com"  # Default email address
+            email_address = "not-available@noemail.com"  # Default email address
         elif not phone_number:
-            phone_number = "0005550000"  # Default phone number
+            phone_number = "5550000000"  # Default phone number
         elif not email_address and not phone_number:
             raise ValueError("Email address or phone number is required.")
 
