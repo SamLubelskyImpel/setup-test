@@ -47,9 +47,9 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str):
             params={
                 "SerialNumber": serialnumber
             },
-            json={
-                "ModifiedSince": start_time
-            },
+            # json={
+            #     "ModifiedSince": start_time
+            # },
             auth=auth,
             timeout=3,
         )
