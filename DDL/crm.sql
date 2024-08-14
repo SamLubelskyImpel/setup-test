@@ -105,6 +105,8 @@ CREATE TABLE prod.crm_dealer_integration_partner (
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
 	metadata jsonb NULL,
+	is_active_salesai bool DEFAULT false NULL,
+	is_active_chatai bool DEFAULT false NULL,
 	CONSTRAINT pk_crm_dealer_integration_partner PRIMARY KEY (id),
 	CONSTRAINT uq_dealer_id UNIQUE (dealer_id),
 	CONSTRAINT fk_crm_dealer_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES prod.crm_integration_partner(id),
@@ -182,6 +184,7 @@ CREATE TABLE prod.crm_consumer (
 	db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
+	source_system varchar NULL,
 	CONSTRAINT pk_crm_consumer PRIMARY KEY (id),
 	CONSTRAINT uq_consumer UNIQUE (crm_consumer_id, dealer_integration_partner_id),
 	CONSTRAINT fk_crm_consumer_dealer_integration_partner FOREIGN KEY (dealer_integration_partner_id) REFERENCES prod.crm_dealer_integration_partner(id)
@@ -221,6 +224,7 @@ CREATE TABLE prod.crm_lead (
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
 	source_detail varchar(100) NULL,
+	source_system varchar NULL,
 	CONSTRAINT pk_crm_lead PRIMARY KEY (id),
 	CONSTRAINT uq_lead UNIQUE (consumer_id, crm_lead_id),
 	CONSTRAINT fk_crm_consumer FOREIGN KEY (consumer_id) REFERENCES prod.crm_consumer(id) ON DELETE RESTRICT ON UPDATE RESTRICT

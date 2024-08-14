@@ -236,10 +236,10 @@ class RDSInstance:
         existing_inventory_id = self.check_existing_record("inv_inventory", list(check_data.keys()), check_data)
         if existing_inventory_id:
             update_columns = {
-                'list_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
+                'list_price', 'special_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
                 'seats', 'transmission', 'drive_train', 'cylinders', 'body_style',
                 'series', 'vin', 'interior_material', 'trim', 'factory_certified',
-                'region', 'on_lot', 'metadata', 'received_datetime'
+                'region', 'on_lot', 'metadata', 'received_datetime', 'photo_url', 'vdp'
             }
             set_clause = ', '.join([f"{col} = %s" for col in update_columns if col in inventory_data])
             update_query = f"""

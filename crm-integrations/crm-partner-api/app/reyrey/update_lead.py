@@ -23,13 +23,13 @@ def redact_sensitive_info(event):
     # Redacting Authorization header
     if 'headers' in event and 'Authorization' in event['headers']:
         event['headers']['Authorization'] = 'Basic ******'
-    
+
     if 'multiValueHeaders' in event and 'Authorization' in event['multiValueHeaders']:
         event['multiValueHeaders']['Authorization'] = ['Basic ******']
 
     if 'body' in event:
         root = ET.fromstring(event['body'])
-        
+
         namespaces = {'wsse': 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd'}
         for username in root.findall('.//wsse:Username', namespaces):
             username.text = '******'
@@ -64,7 +64,7 @@ def get_secrets():
 
 
 def get_dealers(integration_partner_name: str) -> Any:
-    """Get dealers from CRM API."""
+    """Get active dealers from CRM API."""
     api_key = get_secrets()
     url = f"https://{CRM_API_DOMAIN}/dealers"
 
@@ -80,7 +80,12 @@ def get_dealers(integration_partner_name: str) -> Any:
         )
         raise
 
-    return response.json()
+    dealers = response.json()
+
+    # Filter by active Sales AI dealers
+    dealers = list(filter(lambda dealer: dealer.get('is_active_salesai', False), dealers))
+
+    return dealers
 
 
 def save_raw_lead(lead: str, product_dealer_id: str):
@@ -97,7 +102,7 @@ def save_raw_lead(lead: str, product_dealer_id: str):
     )
 
 
-def extract_crm_ids(lead_xml_body: str) -> str:
+def extract_crm_ids(lead_xml_body: str) -> tuple:
     """Extract CRM dealer ID from incoming xml."""
     try:
         root = ET.fromstring(lead_xml_body)
@@ -109,7 +114,7 @@ def extract_crm_ids(lead_xml_body: str) -> str:
         area_number = root.find(".//ns:AreaNumber", namespace).text
 
         concatenated_dealer_id = f"{store_number}_{area_number}_{dealer_number}"
-        
+
         record = root.find(".//ns:Record", namespaces=namespace)
         identifier = record.find(".//ns:Identifier", namespaces=namespace)
         crm_lead_id = identifier.find(".//ns:ProspectId", namespaces=namespace).text
@@ -139,7 +144,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 break
 
         if not product_dealer_id:
-            logger.error(f"Dealer {crm_dealer_id} not found in active dealers.")
+            logger.error(f"Dealer {crm_dealer_id} not found in active SalesAI dealers.")
             error_message = f"The dealer_id {crm_dealer_id} provided hasn't been configured with Impel."
             soap_response = create_soap_response(error_message)
             return {
