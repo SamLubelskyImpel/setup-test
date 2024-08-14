@@ -149,12 +149,15 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             crm_lead_id = item.get('DealId', '')
             db_lead["crm_lead_id"] = crm_lead_id
+            
+            # Trim off extra digit because our version of python does not support 7 digit microseconds
             db_lead["lead_ts"] = format_ts(item.get('DealCreationDate')[:25]+'Z')
 
             db_lead["lead_status"] = item.get('DealStatus')
             db_lead["lead_substatus"] = item.get('SystemStatus')
             db_lead["lead_comment"] = item.get('ContactNotes')
-            # db_lead["lead_origin"] = lead_origin.upper()
+            #TODO: Change lead origin when we get answers from PBS
+            db_lead["lead_origin"] = None
 
             # provider_name = (
             #     item.get('costItem', {}).get('provider', {}).get('provider') or
@@ -202,7 +205,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "lead": db_lead,
                 "consumer": db_consumer
             }
-            
+
             entries.append(entry)
         return entries
     except Exception as e:
