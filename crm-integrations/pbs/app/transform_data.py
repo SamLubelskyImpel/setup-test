@@ -104,23 +104,15 @@ def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> No
     """Extract contact information from the pbs json data."""
 
     if item_name == 'consumer':
-        # db_entity[f'crm_{item_name}_id'] = item.get('userID')
         db_entity["first_name"] = item.get('ContactFirstName')
         db_entity["middle_name"] = item.get('ContactMiddleName', '')
         db_entity["last_name"] = item.get('ContactLastName')
-        # emails = item.get('contactInformation', {}).get('emails', [])
         db_entity["email"] = item.get('ContactEmailAddress', '')
-        # phone_numbers = item.get('contactInformation', {}).get('phoneNumbers', [])
         db_entity["phone"] = item.get("ContactCellPhone", '')
-        
-        # addresses = item.get('contactInformation', {}).get('addresses', [])
-        # address = addresses[0] if addresses else None
-
         db_entity["address"] = item.get('ContactAddress')
         db_entity["city"] = item.get('ContactCity')
         db_entity["postal_code"] = item.get('ContactZipCode')
 
-        # communication_preferences = item.get('ContactPreferredContactMethods', [])
         communication_preferences = item.get('ContactCommunicationPreferences', {})
 
         #TODO: Determine if there are positive values besides Implied Consent
@@ -171,8 +163,6 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             # db_lead["lead_source"] = provider_name if provider_name else None
 
-            # vehicles = item.get('Vehicles', [])
-            # for vehicle in vehicles:
             is_new = False if item.get("VehicleStatus")=="Used" else True
             db_vehicle = {
                 "crm_vehicle_id": item.get('carID'),
@@ -188,7 +178,6 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             db_lead["vehicles_of_interest"] = db_vehicles
 
-            # consumer = item.get('customer', None)
             extract_contact_information('consumer', item, db_consumer)
 
             if not db_consumer["email"] and not db_consumer["phone"]:
@@ -213,7 +202,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "lead": db_lead,
                 "consumer": db_consumer
             }
-
+            
             entries.append(entry)
         return entries
     except Exception as e:

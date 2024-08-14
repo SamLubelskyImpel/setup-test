@@ -128,11 +128,14 @@ Resources:
     Properties:
       Description: "Scheduled CRM Data Pull"
       ScheduleExpression: "cron(*/5 * * * ? *)"
-      State: !If [IsProd, "ENABLED", "DISABLED"]
+      State: !If [IsProd, "ENABLED", "ENABLED"]
       Targets:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers_dealerpeak"
           Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+        - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_pbs"
+          Input: '{"impel_integration_partner_name": "PBS"}'
   
   ScheduledCRMDataPullLambdaPermission:
     Type: AWS::Lambda::Permission

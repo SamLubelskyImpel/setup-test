@@ -39,7 +39,6 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
     api_url, username, password, serialnumber = get_secrets()
     auth = HTTPBasicAuth(username, password)
-    dealer_group_id, location_id = crm_dealer_id.split("__")
 
     # Get inital list of leads
     try:
@@ -66,30 +65,6 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str):
     # Filter leads
     filtered_leads = filter_leads(inital_leads, start_time)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
-
-    # Get new lead records
-    # new_leads = []
-    # for lead in filtered_leads:
-    #     lead_id = lead.get("DealId")
-    #     try:
-    #         response = requests.post(
-    #             url=f"{api_url}/json/reply/DealContactVehicleGet",
-    #             params={
-    #                 "SerialNumber": serialnumber
-    #             },
-    #             json={
-    #                 "DealId": lead_id
-    #             },
-    #             auth=auth,
-    #             timeout=3,
-    #         )
-    #         response.raise_for_status()
-    #         lead_record = response.json().get("Items")
-
-    #         new_leads.append(lead_record)
-    #     except Exception as e:
-    #         logger.error(f"Error fetching lead {lead_id}. Skipping lead: {e}")
-    #         continue
 
     logger.info(f"Total leads saved {len(filtered_leads)}")
     return filtered_leads
