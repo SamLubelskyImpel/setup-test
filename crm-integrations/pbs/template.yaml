@@ -148,25 +148,25 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Invoke"
 
-  # InvokeDataPullErrorAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub pbs-${Environment}-Invoke
-  #     AlarmDescription: PBS Invoke failed 3 times within 15 minutes
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Dimensions:
-  #       - Name: FunctionName
-  #         Value: !Ref InvokeDataPull
-  #     EvaluationPeriods: 1
-  #     MetricName: Errors
-  #     Namespace: AWS/Lambda
-  #     Period: 900
-  #     Statistic: Sum
-  #     Threshold: 3
-  #     TreatMissingData: notBreaching
+  InvokeDataPullErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-Invoke
+      AlarmDescription: PBS Invoke failed 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeDataPull
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
 
   InvokeDataPullEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -192,25 +192,25 @@ Resources:
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
-  # InvokeDataPullDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "pbs-${Environment}-InvokeDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the PBS Invoke DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
+  InvokeDataPullDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "pbs-${Environment}-InvokeDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the PBS Invoke DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   TransformPBSData:
     Type: AWS::Serverless::Function
@@ -251,25 +251,25 @@ Resources:
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
-  # TransformPBSDataDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "pbs-${Environment}-TransformDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the PBS Transform DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt TransformPBSDataDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
+  TransformPBSDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "pbs-${Environment}-TransformDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the PBS Transform DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformPBSDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   TransformPBSDataQueuePolicy:
     Type: "AWS::SQS::QueuePolicy"
