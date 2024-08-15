@@ -94,6 +94,7 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -322,7 +323,6 @@ Resources:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
   #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
-
   # GetLeadUpdatesErrorAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
@@ -380,6 +380,7 @@ Resources:
   # SendActivityLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
+
   #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
             
   # SendActivityDLQAlarm:
