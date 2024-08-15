@@ -1,0 +1,243 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Impel Notification Service (INS)
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt WebhookWritebackQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SecretsManagerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !If [ IsProd,
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/INS/client-credentials*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/INS/client-credentials*"
+                      ]
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub 'notification-service-${Environment}-EventBus'
+      DeadLetterConfig:
+        Arn: !GetAtt EventBusDLQ.Arn
+      Description: Event bus for the Impel Notification Service
+
+  EventBusDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "notification-service-${Environment}-EventBusDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  EventBusDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "notification-service-${Environment}-EventBusDLQAlarm"
+      AlarmDescription: Events failed to be processed by the INS
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventBusDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  MonitoringRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub notification-service-${Environment}-MonitoringRule
+      EventPattern: '{"source":[{"prefix":""}]}'  # This matches any event sent to the event bus
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: Lambda
+          Arn: !GetAtt MonitoringLambda.Arn
+
+  MonitoringInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MonitoringLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt MonitoringRule.Arn
+
+  MonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "notification-service-${Environment}-MonitoringLambda"
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+
+  EventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      Action: events:PutEvents
+      EventBusName: !Ref EventBus
+      Principal: !Ref AWS::AccountId
+      StatementId: 'EventBusStatement'
+
+  WebhookWritebackQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'notification-service-${Environment}-WebhookWritebackQueue'
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt WebhookWritebackDLQ.Arn
+        maxReceiveCount: 3
+
+  WebhookWritebackQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref WebhookWritebackQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt WebhookWritebackQueue.Arn
+
+  WebhookWritebackDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'notification-service-${Environment}-WebhookWritebackDLQ'
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+
+  WebhookWritebackLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'notification-service-${Environment}-WebhookWriteback'
+      Handler: webhook_writeback.lambda_handler
+      CodeUri: app/
+      Timeout: 60
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+
+  WebhookWritebackLambdaAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "notification-service-${Environment}-WebhookWriteback"
+      AlarmDescription: The INS Webhook Writeback Lambda is failing
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WebhookWritebackLambda
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WebhookWritebackEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt WebhookWritebackQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt WebhookWritebackLambda.Arn
+
+  WebhookWritebackDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "notification-service-${Environment}-WebhookWritebackDLQ"
+      AlarmDescription: There is over 1 unprocessed message in the INS Webhook Writeback DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt WebhookWritebackDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
