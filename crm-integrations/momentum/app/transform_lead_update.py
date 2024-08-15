@@ -158,7 +158,7 @@ def record_handler(record: SQSRecord) -> None:
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
         if not lead_id:
-            logger.error(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
+            logger.warning(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
             return
 
         data = {'metadata': {}}
