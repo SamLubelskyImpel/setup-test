@@ -27,8 +27,6 @@ SECRET_KEY = environ.get("SECRET_KEY")
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
-class LeadNotFoundError(Exception):
-    pass
 
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
@@ -161,7 +159,7 @@ def record_handler(record: SQSRecord) -> None:
 
         if not lead_id:
             logger.error(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
-            raise LeadNotFoundError("Lead ID could not be retrieved.")
+            return
 
         data = {'metadata': {}}
 
@@ -187,9 +185,6 @@ def record_handler(record: SQSRecord) -> None:
             logger.info(f"Lead {crm_lead_id} updated successfully.")
         else:
             logger.info(f"No updates to apply for lead {crm_lead_id}.")
-
-    except LeadNotFoundError as e:
-        logger.error(f"Lead can't be found for crm_dealer_id: {crm_dealer_id} and lead_id: {crm_lead_id}")
 
     except Exception as e:
         logger.error(f"Error transforming momentum lead update record - {record}: {e}")
