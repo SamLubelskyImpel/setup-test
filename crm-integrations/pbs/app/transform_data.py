@@ -20,8 +20,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
-SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -155,8 +153,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
                 continue
 
-            # Trim off extra digit because our version of python does not support 7 digit microseconds
-            db_lead["lead_ts"] = format_ts(item.get('DealCreationDate')[:25]+'Z')
+        
+            db_lead["lead_ts"] = datetime.strptime(item.get('DealCreationDate')[:25]+'Z', "%Y-%m-%dT%H:%M:%S.%fZ")
             
             db_lead["lead_status"] = item.get('DealStatus', '')
             db_lead["lead_substatus"] = item.get('SystemStatus', '')
@@ -178,8 +176,29 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "manufactured_year": int(item.get('VehicleYear', '')) if item.get('VehicleYear', '') else None,
                 "make": item.get('VehicleMake', None),
                 "model": item.get('VehicleModel', None),
-                "condition": item.get("VehicleStatus", None)
+                "status": item.get("VehicleStatus", None),
+                "stock_num": item.get('VehicleStockNumber', None),
+                "type": item.get('VehicleType', None),
+                "mileage": item.get('VehicleOdometer', None),
+                "transmission": item.get('VehicleTransmission', None),
+                "interior_color": item.get('VehicleInteriorColor', {}).get('Description', None),
+                "exterior_color": item.get('VehicleExteriorColor', {}).get('Description', None),
+                "trim": item.get('VehicleTrim', None),
+                "vehicle_comments": item.get('VehicleNotes', None)
             }
+
+            vehicles = item.get('Vehicles', [])
+            trades = item.get('Trades', [])
+
+            if len(vehicles) > 0:
+                vehicle = vehicles[0]
+                db_vehicle["price"] = vehicle.get('Cost', None)
+                db_vehicle["condition"] = vehicle.get('IsNewVehicle', None)
+                
+            if len(trades) > 0:
+                trade = trades[0]
+                db_vehicle["trade_in_vin"] = trade.get('VIN', None)
+            
             db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
             db_vehicles.append(db_vehicle)
