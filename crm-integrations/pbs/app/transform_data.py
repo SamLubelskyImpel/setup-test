@@ -181,7 +181,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "manufactured_year": int(item.get('VehicleYear', '')) if item.get('VehicleYear', '') else None,
                 "make": item.get('VehicleMake', None),
                 "model": item.get('VehicleModel', None),
-                "condition": item.get("VehicleStatus", '')
+                "condition": item.get("VehicleStatus", None)
             }
             db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
