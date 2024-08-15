@@ -31,22 +31,21 @@ def get_secrets():
     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
     secret_data = loads(secret)
 
-    return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"], secret_data["SERIAL_NUMBER"]
+    return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
 
-def fetch_new_leads(start_time: str, crm_dealer_id: str):
+def fetch_new_leads(start_time: str, serial_number: str):
     """Fetch new leads from PBS CRM."""
-    api_url, username, password, serialnumber = get_secrets()
+    api_url, username, password= get_secrets()
     auth = HTTPBasicAuth(username, password)
 
     # Get inital list of leads
     # TODO: Figure out how to filter by dealcreationdate on request
-    # TODO: Determine if serialnumber should be passed through function or grabbed from secrets
     try:
         response = requests.post(
             url=f"{api_url}/json/reply/DealContactVehicleGet",
             params={
-                "SerialNumber": serialnumber
+                "SerialNumber": serial_number
             },
             # json={
             #     "ModifiedSince": start_time
@@ -108,12 +107,12 @@ def record_handler(record: SQSRecord):
         logger.info(body)
 
         start_time = body["start_time"]
-        crm_dealer_id = body["crm_dealer_id"]
+        serial_number = body["crm_dealer_id"]
         product_dealer_id = body["product_dealer_id"] if body["product_dealer_id"] else "missing"
 
-        leads = fetch_new_leads(start_time, crm_dealer_id)
+        leads = fetch_new_leads(start_time, serial_number)
         if not leads:
-            logger.info(f"No new leads found for dealer {crm_dealer_id} for {start_time}")
+            logger.info(f"No new leads found for dealer with serial number {serial_number} for {start_time}")
             return
 
         save_raw_leads(leads, product_dealer_id)
@@ -121,7 +120,7 @@ def record_handler(record: SQSRecord):
     except Exception as e:
         logger.error(f"Error processing record: {e}")
         logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\n\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, start_time, e)
+            product_dealer_id, serial_number, start_time, e)
             )
         raise
 
