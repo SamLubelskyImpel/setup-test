@@ -27,9 +27,6 @@ sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
 
 
-class EventListenerError(Exception):
-    pass
-
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
