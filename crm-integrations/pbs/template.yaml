@@ -133,6 +133,38 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+  GetDealerSalespersons:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-GetDealerSalespersons
+      CodeUri: app/
+      Handler: get_dealer_salespersons_handler.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+  GetDealerSalespersonsErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-GetDealerSalespersons-Error
+      AlarmDescription: PBS GetDealerSalespersons Lambda failed 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetDealerSalespersons
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900  # 15 minutes (in seconds)
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+
 
   # InvokeDataPull:
   #   Type: AWS::Serverless::Function
