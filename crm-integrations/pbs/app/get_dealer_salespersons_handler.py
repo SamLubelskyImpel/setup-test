@@ -16,7 +16,7 @@ def lambda_handler(event, context):
 def main():
     # Dummy event to simulate an AWS Lambda event
     dummy_event = {
-        "EmployeeId": "00000000000000000000000000000000"  # Replace with a valid EmployeeId if available
+        "employee_id": "00000000000000000000000000000000"  # Replace with a valid EmployeeId if available
     }
 
     # Since we're testing locally, context can be None
