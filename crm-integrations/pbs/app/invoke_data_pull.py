@@ -34,13 +34,14 @@ def get_secrets():
     return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"], secret_data["SERIAL_NUMBER"]
 
 
-# TODO: Api URL pattern for pbs?
 def fetch_new_leads(start_time: str, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
     api_url, username, password, serialnumber = get_secrets()
     auth = HTTPBasicAuth(username, password)
 
     # Get inital list of leads
+    # TODO: Figure out how to filter by dealcreationdate on request
+    # TODO: Determine if serialnumber should be passed through function or grabbed from secrets
     try:
         response = requests.post(
             url=f"{api_url}/json/reply/DealContactVehicleGet",
@@ -107,7 +108,6 @@ def record_handler(record: SQSRecord):
         logger.info(body)
 
         start_time = body["start_time"]
-        # end_time = body["end_time"] if body["end_time"] else start_time
         crm_dealer_id = body["crm_dealer_id"]
         product_dealer_id = body["product_dealer_id"] if body["product_dealer_id"] else "missing"
 

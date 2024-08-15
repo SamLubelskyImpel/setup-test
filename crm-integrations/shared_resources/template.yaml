@@ -128,7 +128,7 @@ Resources:
     Properties:
       Description: "Scheduled CRM Data Pull"
       ScheduleExpression: "cron(*/5 * * * ? *)"
-      State: !If [IsProd, "ENABLED", "ENABLED"]
+      State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers_dealerpeak"

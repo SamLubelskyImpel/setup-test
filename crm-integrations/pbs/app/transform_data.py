@@ -148,14 +148,22 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             #     continue
 
             crm_lead_id = item.get('DealId', '')
+            if not crm_lead_id:
+                logger.warning(f"DealId is required. Skipping lead.")
+                continue
+
             db_lead["crm_lead_id"] = crm_lead_id
             
+            if not item.get('DealCreationDate', ''):
+                logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
+                continue
+
             # Trim off extra digit because our version of python does not support 7 digit microseconds
             db_lead["lead_ts"] = format_ts(item.get('DealCreationDate')[:25]+'Z')
-
-            db_lead["lead_status"] = item.get('DealStatus')
-            db_lead["lead_substatus"] = item.get('SystemStatus')
-            db_lead["lead_comment"] = item.get('ContactNotes')
+            
+            db_lead["lead_status"] = item.get('DealStatus', '')
+            db_lead["lead_substatus"] = item.get('SystemStatus', '')
+            db_lead["lead_comment"] = item.get('ContactNotes', '')
             #TODO: Change lead origin when we get answers from PBS
             db_lead["lead_origin"] = None
 
@@ -165,15 +173,15 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             # )
 
             # db_lead["lead_source"] = provider_name if provider_name else None
+            db_lead["lead_source"] = None
 
-            is_new = False if item.get("VehicleStatus")=="Used" else True
             db_vehicle = {
-                "crm_vehicle_id": item.get('carID'),
-                "vin": item.get('VehicleVIN'),
-                "manufactured_year": int(item.get('VehicleYear')) if item.get('VehicleYear') else None,
-                "make": item.get('VehicleMake'),
-                "model": item.get('VehicleModel'),
-                "condition": 'New' if is_new is True else ('Used' if is_new is False else None)
+                "crm_vehicle_id": item.get('VehicleID', None),
+                "vin": item.get('VehicleVIN', None),
+                "manufactured_year": int(item.get('VehicleYear', '')) if item.get('VehicleYear', '') else None,
+                "make": item.get('VehicleMake', None),
+                "model": item.get('VehicleModel', None),
+                "condition": item.get("VehicleStatus", '')
             }
             db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
@@ -193,7 +201,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 salesperson = salespersons[0]
             else:
                 for person in salespersons:
-                    if person.get('Primary') == True:
+                    if person.get('Primary', '') == True:
                         salesperson = person
                         break
 
