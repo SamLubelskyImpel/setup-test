@@ -10,7 +10,7 @@ is_prod = os.environ.get("Environment", "test") == "prod"
 SECRET_NAME = "prod/crm-integrations-partner" if is_prod else "test/crm-integrations-partner"
 REGION_NAME = "us-east-1"
 
-class PartnerHubAPI:
+class APIWrapper:
     def __init__(self):
         self.secret_name = SECRET_NAME
         self.region_name = REGION_NAME

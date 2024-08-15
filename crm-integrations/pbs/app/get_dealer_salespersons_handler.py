@@ -1,8 +1,8 @@
-from pbs_api_wrapper import PartnerHubAPI
+from pbs_api_wrapper import APIWrapper
 import json
 
 def lambda_handler(event, context):
-    api = PartnerHubAPI()
+    api = APIWrapper()
 
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
     result = api.call_employee_get(employee_id)
