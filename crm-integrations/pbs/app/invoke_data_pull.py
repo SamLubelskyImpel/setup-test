@@ -54,6 +54,8 @@ def fetch_new_leads(start_time: str, serial_number: str):
             timeout=3,
         )
         response.raise_for_status()
+
+        logger.info(f"Response from PBS API:{response}")
         inital_leads = response.json().get("Items")
 
     except Exception as e:
