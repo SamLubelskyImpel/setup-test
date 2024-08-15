@@ -1,15 +1,17 @@
 import boto3
 import logging
 from os import environ
-from requests import post
+from requests import post, put
 from json import dumps, loads
 from typing import Dict, Any, Tuple
 from requests.auth import HTTPBasicAuth
 
 # Configuration
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
+SECRET_KEY = environ.get("SECRET_KEY")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 # Logging configuration
 logger = logging.getLogger(__name__)
@@ -21,22 +23,21 @@ sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
 
 
-def get_secrets() -> Tuple[str, str, str, str]:
-    """Retrieve PBS API secrets."""
-    secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
+def get_secret(secret_name: str, secret_key: str = None) -> Any:
+    """Retrieve a secret or specific key from Secrets Manager."""
+    secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     secret = secret_client.get_secret_value(SecretId=secret_id)
-    secret_data = loads(secret["SecretString"])[SECRET_KEY]
-    return (
-        secret_data["API_URL"],
-        secret_data["API_USERNAME"],
-        secret_data["API_PASSWORD"],
-        secret_data["SERIAL_NUMBER"],
-    )
+    return loads(secret["SecretString"])[secret_key]
 
 
 def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
     """Fetch lead information from PBS."""
-    url, username, password, serial_number = get_secrets()
+    secret_data = get_secret("crm-integrations-partner", SECRET_KEY)
+    url = secret_data["API_URL"]
+    username = secret_data["API_USERNAME"]
+    password = secret_data["API_PASSWORD"]
+    serial_number = secret_data["SERIAL_NUMBER"]
+    
     auth = HTTPBasicAuth(username, password)
     response = post(
         url=f"{url}/json/reply/DealContactVehicleGet",
@@ -48,17 +49,30 @@ def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
     return response.json()
 
 
+def update_lead_data(lead_id: str, data: Dict[str, Any], crm_api_key: str) -> Any:
+    """Update lead status through CRM API."""
+    url = f"https://{CRM_API_DOMAIN}/leads/{lead_id}"
+    headers = {
+        "partner_id": UPLOAD_SECRET_KEY,
+        "x_api_key": crm_api_key
+    }
+    response = put(url, headers=headers, json=data)
+    logger.info("CRM API Put Lead responded with: %s", response.status_code)
+    response.raise_for_status()
+    return response.json()
+
+
 def parse_salesperson(lead: Dict[str, Any]) -> list:
     """Extract salesperson details from lead information."""
     return [
         {
-            "crm_salesperson_id": salesperson["EmployeeRef"],
-            "first_name": salesperson["Name"].split(" ")[0],
-            "last_name": salesperson["Name"].split(" ")[1] if len(salesperson["Name"].split(" ")) > 1 else "",
-            "position_name": salesperson["Role"],
-            "is_primary": salesperson["Primary"],
+            "crm_salesperson_id": sp["EmployeeRef"],
+            "first_name": sp["Name"].split(" ")[0],
+            "last_name": sp["Name"].split(" ")[1] if len(sp["Name"].split(" ")) > 1 else "",
+            "position_name": sp["Role"],
+            "is_primary": sp["Primary"],
         }
-        for salesperson in lead["DealUserRoles"]
+        for sp in lead["DealUserRoles"]
     ]
 
 
@@ -84,6 +98,16 @@ def get_salesperson_by_lead_id(
     lead_item = lead["Items"][0]
     salesperson = parse_salesperson(lead_item)
     status = lead_item["DealStatus"]
+
+    crm_api_key = get_secret("crm-api", UPLOAD_SECRET_KEY)["api_key"]
+    update_lead_data(
+        lead_id=lead_id,
+        data={
+            "lead_status": status,
+            "salespersons": salesperson
+        },
+        crm_api_key=crm_api_key
+    )
 
     logger.info(
         "Found lead %s, dealer_integration_partner %s, with status %s and salesperson %s",
