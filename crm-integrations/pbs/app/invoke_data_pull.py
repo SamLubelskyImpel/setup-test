@@ -7,6 +7,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from uuid import uuid4
 from datetime import datetime
+import pandas as pd
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -74,10 +75,11 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str):
 def filter_leads(leads: list, start_time: str):
     """Filter leads by DealCreationDate."""
     filtered_leads = []
-    start_date = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%SZ")
+    start_date = pd.to_datetime(start_time, format="%Y-%m-%dT%H:%M:%SZ")
     for lead in leads:
         try:
-            created_date = datetime.strptime(lead["DealCreationDate"][:25]+'Z', "%Y-%m-%dT%H:%M:%S.%fZ")
+            # Using pandas instead of datetime so we can handle 7 digit precision microseconds
+            created_date = pd.to_datetime(lead["DealCreationDate"], format="%Y-%m-%dT%H:%M:%S.%fZ")
             if created_date >= start_date:
                 filtered_leads.append(lead)
         except Exception as e:

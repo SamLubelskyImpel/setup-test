@@ -5,6 +5,7 @@ from os import environ
 from json import loads, dumps
 from typing import Any, Dict
 from datetime import datetime
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -81,20 +82,6 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
     return unified_crm_lead_id
 
-
-def format_ts(input_ts: str) -> str:
-    """
-    Format a timestamp string into a db format.
-
-    Assumes the input timestamp is in the format "November, 17 2023 18:57:17".
-    """
-    dt = datetime.strptime(input_ts, "%Y-%m-%dT%H:%M:%S.%fZ")
-
-    # Format the datetime object to ISO 8601 UTC format
-    output_format = "%Y-%m-%dT%H:%M:%SZ"
-    return dt.strftime(output_format)
-
-
 def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> None:
     """Extract contact information from the pbs json data."""
 
@@ -153,8 +140,10 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
                 continue
 
-        
-            db_lead["lead_ts"] = datetime.strptime(item.get('DealCreationDate')[:25]+'Z', "%Y-%m-%dT%H:%M:%S.%fZ")
+            # Format timestamp to database accepted format
+            output_format = "%Y-%m-%dT%H:%M:%SZ"
+            db_lead["lead_ts"] = pd.to_datetime(item.get('DealCreationDate'), format="%Y-%m-%dT%H:%M:%S.%fZ").strftime(output_format)
+            
             
             db_lead["lead_status"] = item.get('DealStatus', '')
             db_lead["lead_substatus"] = item.get('SystemStatus', '')
