@@ -8,7 +8,7 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     logger.info("Lambda function invoked with event: %s", event)
-    
+
     api = APIWrapper()
 
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
@@ -33,12 +33,12 @@ def lambda_handler(event, context):
 def main():
     # Dummy event to simulate an AWS Lambda event
     dummy_event = {
-        "employee_id": "00000000000000000000000000000000"  # Replace with a valid EmployeeId if available
+        "employee_id": "00000000000000000000000000000000"
     }
 
     # Since we're testing locally, context can be None
     response = lambda_handler(dummy_event, None)
-    
+
     # Print the response to verify the output
     print("Response:", response)
 

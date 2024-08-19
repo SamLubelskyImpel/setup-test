@@ -35,7 +35,7 @@ class APIWrapper:
             raise e
         else:
             # The secret is stored under the 'PBS' key in the retrieved dictionary
-            return json.loads(get_secret_value_response['SecretString'])['PBS']
+            return json.loads(json.loads(get_secret_value_response['SecretString'])['PBS'])
 
     def call_employee_get(self, employee_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
