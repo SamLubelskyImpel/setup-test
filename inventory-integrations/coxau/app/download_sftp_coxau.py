@@ -4,7 +4,6 @@ import logging
 import os
 import tempfile
 from typing import Any
-from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -16,39 +15,66 @@ from utils import get_sftp_secrets, connect_sftp_server
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
 SECRET_KEY = os.environ["SFTP_SECRET_KEY"]
+MERGE_QUEUE_URL = os.environ["MERGE_QUEUE_URL"]
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
+sqs_client = boto3.client("sqs")
 
 
-def download_and_process_file(sftp, file, local_folder):
-    """Download and process a file from the SFTP server."""
-    provider_dealer_id = file["provider_dealer_id"]
-    remote_file_path = file["file_name"]
-    modification_time = file["modification_time"]
-
-    # Change to the local folder where you want to save the file
-    os.chdir(local_folder)
-
-    # Use get method to download the file
+def download_file(sftp, remote_file_path, local_folder, provider_dealer_id, export_file_name):
+    """Download a file from the SFTP server."""
     local_file_name = os.path.basename(remote_file_path)
     sftp.get(remote_file_path, local_file_name)
 
     logger.info(f"File {local_file_name} downloaded successfully.")
 
-    upload_to_s3(local_file_name, provider_dealer_id, modification_time)
-
+    upload_to_s3(local_file_name, provider_dealer_id, export_file_name)
     os.remove(local_file_name)
 
 
-def upload_to_s3(local_filename, provider_dealer_id, modification_time):
-    """Upload files to S3."""
-    format_string = '%Y/%m/%d/%H'
-    date_key = datetime.utcnow().strftime(format_string)
-    s3_file_name = f"{provider_dealer_id}_{modification_time}.csv"
+def download_and_process_file(sftp, file, local_folder):
+    """Download and process a file from the SFTP server."""
+    provider_dealer_id = file["provider_dealer_id"]
+    remote_inv_file_path = file["inventory_file"]
+    remote_vdp_file_path = file["vdp_file"]
+    inv_modification_time = file["inventory_modification_time"]
+    vdp_modification_time = file["vdp_modification_time"]
 
-    s3_key = f"raw/coxau/{date_key}/{s3_file_name}"
+    if not inv_modification_time and not vdp_modification_time:
+        logger.error("Invalid modification time found for downloaded files.")
+        raise ValueError("Both modification times are missing.")
+    else:
+        modification_time = max(inv_modification_time or vdp_modification_time, vdp_modification_time or inv_modification_time)
+
+    # Change to the local folder where you want to save the file
+    os.chdir(local_folder)
+
+    # Use get method to download the file
+    if remote_inv_file_path:
+        download_file(sftp, remote_inv_file_path, local_folder, provider_dealer_id, "inventory")
+
+    if remote_vdp_file_path:
+        download_file(sftp, remote_vdp_file_path, local_folder, provider_dealer_id, "vdp")
+
+    # Notify merge process
+    message = {
+        "provider_dealer_id": provider_dealer_id,
+        "modification_time": modification_time,
+    }
+
+    sqs_client.send_message(
+        QueueUrl=MERGE_QUEUE_URL,
+        MessageBody=json.dumps(message),
+    )
+
+
+def upload_to_s3(local_filename, provider_dealer_id, export_file_name):
+    """Upload files to S3."""
+    s3_file_name = f"{export_file_name}.csv"
+
+    s3_key = f"landing-zone/coxau/{provider_dealer_id}/{s3_file_name}"
     s3_client.upload_file(
         Filename=local_filename,
         Bucket=INVENTORY_BUCKET,

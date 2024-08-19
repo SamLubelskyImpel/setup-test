@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import dumps
 from typing import Any
+from sqlalchemy import or_
 
 from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -30,7 +31,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
             ).filter(
                 Dealer.product_dealer_id == product_dealer_id,
-                DealerIntegrationPartner.is_active == True
+                or_(DealerIntegrationPartner.is_active.is_(True),
+                    DealerIntegrationPartner.is_active_salesai.is_(True),
+                    DealerIntegrationPartner.is_active_chatai.is_(True))
             ).first()
 
             if not db_results:
@@ -55,7 +58,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "dealer_integration_partner_id": dip_db.id,
                 "dealer_name": dealer_db.dealer_name,
                 "timezone": timezone,
-                "integration_partner_name": partner_name
+                "integration_partner_name": partner_name,
+                # Activation flags
+                "is_active": dip_db.is_active,
+                "is_active_salesai": dip_db.is_active_salesai,
+                "is_active_chatai": dip_db.is_active_chatai
             }
 
         return {

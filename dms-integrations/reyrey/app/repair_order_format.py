@@ -69,6 +69,12 @@ def parse_xml_to_entries(xml_string, s3_uri):
         if ro_record is not None:
             rogen = ro_record.find(".//ns:Rogen", namespaces=ns)
             if rogen is not None:
+                if dms_id == '01_01_305921288342276':  # classic_chevorlet
+                    department_type = rogen.get("DeptType", "")
+                    if department_type != "S":
+                        logger.info(f"Skipping repair order with department type {department_type}")
+                        continue
+
                 db_service_repair_order["repair_order_no"] = rogen.get("RoNo")
                 db_service_repair_order["ro_open_date"] = rogen.get("RoCreateDate")
                 db_service_repair_order["advisor_name"] = rogen.get("AdvName")

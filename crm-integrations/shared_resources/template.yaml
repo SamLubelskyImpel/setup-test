@@ -133,6 +133,12 @@ Resources:
         - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers_dealerpeak"
           Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
+        - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_pbs"
+          Input: '{"impel_integration_partner_name": "PBS"}'
+        - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_tekion"
+          Input: '{"impel_integration_partner_name": "TEKION"}'
   
   ScheduledCRMDataPullLambdaPermission:
     Type: AWS::Lambda::Permission

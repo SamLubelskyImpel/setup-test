@@ -21,6 +21,26 @@ These folders include `activity`, `consumer`, `lead`, etc.
 
 For database interactions, the CRM API defines various ORM classes. In order to support the folder structure, these classes have been made accessible through the `data_layer` lambda layer.
 
+## Testing
+
+To execute the local testing suite, run the following in this root folder:
+
+```
+BASE_URL={CRM API URL for your environment} pytest
+```
+
+## Requirements
+
+- CRM API and related resources deployed to a testenv
+- `unified-test` profile configured in your AWS local config
+
+## Use cases
+
+The test suite currently covers the following use cases:
+
+- Create lead endpoint sends event to INS
+- Create activity endpoint sends event to INS
+
 ## License
 
 This software is proprietary, Augmented Reality Concepts Inc., d.b.a SpinCar.

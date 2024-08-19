@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "event_id": "11844688-8d8f-4d4e-8e89-e1a7b985ca8e",
+      "event_type": "myteam.test.event",
+      "client_id": "test_event",
+      "event_content": {
+        "message": "My Test Event"
+      }
+    }
+  ]
+}

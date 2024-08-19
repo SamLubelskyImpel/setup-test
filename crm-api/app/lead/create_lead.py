@@ -4,7 +4,6 @@ import pytz
 import boto3
 import logging
 from os import environ
-from requests import post
 from dateutil import parser
 from datetime import datetime
 from json import dumps, loads
@@ -20,6 +19,8 @@ from crm_orm.models.lead_salesperson import Lead_Salesperson
 from crm_orm.session_config import DBSession
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
+
+from event_service.events import dispatch_event, Event, Resource
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
@@ -311,6 +312,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
+        dispatch_event(
+            request_product=request_product,
+            partner=integration_partner_name,
+            event=Event.Created,
+            resource=Resource.Lead,
+            content={
+                'message': 'Lead Created',
+                'lead_id': lead_id,
+                'consumer_id': consumer_id,
+                'dealer_id': product_dealer_id,
+            })
+
         notify_listener = send_notification_to_event_listener(integration_partner_name)
 
         # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
@@ -375,5 +388,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."}),
         }
+
+    # TODO add exception for events
 
     return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}
