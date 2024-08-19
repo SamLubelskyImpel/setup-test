@@ -3,45 +3,45 @@ import logging
 from os import environ
 from requests import post, put
 from json import dumps, loads
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from requests.auth import HTTPBasicAuth
 
-# Configuration
+# Configuration Constants
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SECRET_KEY = environ.get("SECRET_KEY")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
-# Logging configuration
+# Logging Configuration
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
 
-# AWS clients
+# AWS Clients
 secret_client = boto3.client("secretsmanager")
 sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
 
 
-def get_secret(secret_name: str, secret_key: str = None) -> Any:
+def get_secret(secret_name: str, secret_key: Optional[str] = None) -> Any:
     """Retrieve a secret or specific key from Secrets Manager."""
     secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     secret = secret_client.get_secret_value(SecretId=secret_id)
-    return loads(secret["SecretString"])[secret_key]
+    secret_data = loads(secret["SecretString"])
+    return secret_data if secret_key is None else secret_data.get(secret_key)
 
 
 def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
     """Fetch lead information from PBS."""
-    secret_data = get_secret("crm-integrations-partner", SECRET_KEY)
+    secret_data = get_secret("crm-integrations-partner")
     url = secret_data["API_URL"]
     username = secret_data["API_USERNAME"]
     password = secret_data["API_PASSWORD"]
-    serial_number = secret_data["SERIAL_NUMBER"]
     
     auth = HTTPBasicAuth(username, password)
     response = post(
         url=f"{url}/json/reply/DealContactVehicleGet",
-        params={"SerialNumber": serial_number, "DealId": crm_lead_id},
+        params={"SerialNumber": crm_dealer_id, "DealId": crm_lead_id},
         auth=auth,
     )
     logger.info("PBS responded with status code: %s", response.status_code)
@@ -62,24 +62,35 @@ def update_lead_data(lead_id: str, data: Dict[str, Any], crm_api_key: str) -> An
     return response.json()
 
 
+def parse_sp_name(salesperson_name: str) -> Tuple[str, str]:
+    """Parse the salesperson's name into first and last name."""
+    try:
+        first_name, last_name = salesperson_name.split()
+    except ValueError:
+        logger.warning("Unexpected salesperson name format: %s", salesperson_name)
+        first_name = salesperson_name.strip().replace(" ", "")
+        last_name = ""
+    return first_name, last_name
+
+
 def parse_salesperson(lead: Dict[str, Any]) -> list:
     """Extract salesperson details from lead information."""
     return [
         {
             "crm_salesperson_id": sp["EmployeeRef"],
-            "first_name": sp["Name"].split(" ")[0],
-            "last_name": sp["Name"].split(" ")[1] if len(sp["Name"].split(" ")) > 1 else "",
+            "first_name": parse_sp_name(sp["Name"])[0],
+            "last_name": parse_sp_name(sp["Name"])[1],
             "position_name": sp["Role"],
-            "is_primary": sp["Primary"],
+            "is_primary": True,
         }
-        for sp in lead["DealUserRoles"]
+        for sp in lead.get("DealUserRoles", [])
     ]
 
 
-def get_salesperson_by_lead_id(
+def get_lead_update(
     crm_dealer_id: str, crm_lead_id: str, lead_id: str, dealer_partner_id: str
 ) -> Tuple[int, Dict[str, Any]]:
-    """Retrieve salesperson details by lead ID."""
+    """Retrieve and update lead information."""
     try:
         lead = get_lead(crm_dealer_id, crm_lead_id)
     except Exception as e:
@@ -126,7 +137,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     lead_id = event.get("lead_id", "")
     crm_lead_id = event.get("crm_lead_id", "")
 
-    status_code, body = get_salesperson_by_lead_id(
+    status_code, body = get_lead_update(
         crm_dealer_id=crm_dealer_id,
         crm_lead_id=crm_lead_id,
         lead_id=lead_id,
