@@ -7,15 +7,13 @@ from typing import Dict, Any, Tuple, Optional
 from requests.auth import HTTPBasicAuth
 
 # Configuration Constants
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
-SECRET_KEY = environ.get("SECRET_KEY")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 # Logging Configuration
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 # AWS Clients
 secret_client = boto3.client("secretsmanager")
@@ -23,17 +21,17 @@ sqs_client = boto3.client("sqs")
 s3_client = boto3.client("s3")
 
 
-def get_secret(secret_name: str, secret_key: Optional[str] = None) -> Any:
+def get_secret(secret_name: str, secret_key: Any) -> Any:
     """Retrieve a secret or specific key from Secrets Manager."""
     secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     secret = secret_client.get_secret_value(SecretId=secret_id)
-    secret_data = loads(secret["SecretString"])
-    return secret_data if secret_key is None else secret_data.get(secret_key)
+    secret = loads(secret["SecretString"])[str(secret_key)]
+    return loads(secret)
 
 
 def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
     """Fetch lead information from PBS."""
-    secret_data = get_secret("crm-integrations-partner")
+    secret_data = get_secret("crm-integrations-partner", "PBS")
     url = secret_data["API_URL"]
     username = secret_data["API_USERNAME"]
     password = secret_data["API_PASSWORD"]
@@ -55,7 +53,7 @@ def update_lead_data(lead_id: str, data: Dict[str, Any], crm_api_key: str) -> An
     headers = {
         "partner_id": UPLOAD_SECRET_KEY,
         "x_api_key": crm_api_key
-    }
+    }   
     response = put(url, headers=headers, json=data)
     logger.info("CRM API Put Lead responded with: %s", response.status_code)
     response.raise_for_status()
