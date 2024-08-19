@@ -1,11 +1,28 @@
-from pbs_api_wrapper import APIWrapper
 import json
+import logging
+from pbs_api_wrapper import APIWrapper
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
+    logger.info("Lambda function invoked with event: %s", event)
+    
     api = APIWrapper()
 
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
-    result = api.call_employee_get(employee_id)
+    logger.info("Fetching employee data for EmployeeId: %s", employee_id)
+
+    try:
+        result = api.call_employee_get(employee_id)
+        logger.info("Successfully received response from API: %s", result)
+    except Exception as e:
+        logger.error("Failed to retrieve employee data: %s", e)
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
 
     return {
         "statusCode": 200,

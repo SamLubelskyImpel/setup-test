@@ -4,6 +4,10 @@ import json
 from requests.auth import HTTPBasicAuth
 from botocore.exceptions import ClientError
 import os
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Configuration
 is_prod = os.environ.get("Environment", "test") == "prod"
@@ -25,12 +29,13 @@ class APIWrapper:
 
         try:
             get_secret_value_response = client.get_secret_value(SecretId=self.secret_name)
+            logger.info("Successfully retrieved secrets from Secrets Manager.")
         except ClientError as e:
-            print(f"Error retrieving secret: {e}")
+            logger.error(f"Error retrieving secret: {e}")
             raise e
         else:
             # The secret is stored under the 'PBS' key in the retrieved dictionary
-            return json.loads(json.loads(get_secret_value_response['SecretString'])['PBS'])
+            return json.loads(get_secret_value_response['SecretString'])['PBS']
 
     def call_employee_get(self, employee_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
@@ -46,11 +51,11 @@ class APIWrapper:
         try:
             response = requests.post(endpoint, params=params, json=payload, auth=self.auth, timeout=3)
             response.raise_for_status()
+            logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
-            print(f"HTTP error occurred: {err}")
+            logger.error(f"HTTP error occurred: {err}")
             raise
         except Exception as err:
-            print(f"Other error occurred: {err}")
+            logger.error(f"Other error occurred: {err}")
             raise
-            
