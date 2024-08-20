@@ -2,9 +2,8 @@ import boto3
 import logging
 import requests
 from os import environ
-from json import loads, dumps
+from json import loads
 from typing import Any, Dict
-from datetime import datetime
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
@@ -82,102 +81,70 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
     return unified_crm_lead_id
 
-def extract_contact_information(item_name: str, item: Any, db_entity: Any) -> None:
-    """Extract contact information from the pbs json data."""
-
-    if item_name == 'consumer':
-        db_entity["first_name"] = item.get('ContactFirstName')
-        db_entity["middle_name"] = item.get('ContactMiddleName', '')
-        db_entity["last_name"] = item.get('ContactLastName')
-        db_entity["email"] = item.get('ContactEmailAddress', '')
-        db_entity["phone"] = item.get("ContactCellPhone", '')
-        db_entity["address"] = item.get('ContactAddress')
-        db_entity["city"] = item.get('ContactCity')
-        db_entity["postal_code"] = item.get('ContactZipCode')
-
-        communication_preferences = item.get('ContactCommunicationPreferences', {})
-
-        #TODO: Determine if there are positive values besides Implied Consent
-        if communication_preferences:
-            db_entity["email_optin_flag"] = True if communication_preferences.get('Email') == "ImpliedConsent" else False
-            db_entity["sms_optin_flag"] = True if communication_preferences.get('TextMessage') == "ImpliedConsent" else False
-
-    if item_name == 'salesperson':
-        db_entity["crm_salesperson_id"] = item.get('EmployeeRef')
-        db_entity["first_name"] = item.get('Name')
-        db_entity["position_name"] = item.get('Role')
-
-    # Remove None values from db_entity without reassignment
-    keys_to_remove = [key for key, value in db_entity.items() if value is None]
-    for key in keys_to_remove:
-        del db_entity[key]
-
-#TODO: Clarify field transformations
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format pbs json data to unified format."""
     entries = []
     try:
-        for item in json_data:
+        for deal in json_data:
+
+            contact = deal.get("Contact_Info", {})
+            vehicle = deal.get("Vehicle_Info", {})
+
             db_lead = {}
             db_vehicles = []
             db_consumer = {}
             db_salesperson = {}
 
-            #TODO: Clarify lead origins
-            # lead_origin = item.get('source', {}).get('source', '')
-            # if lead_origin not in ['Internet', 'Third Party']:
-            #     logger.info(f"Skipping lead with origin: {lead_origin}")
-            #     continue
+            # Skip leads missing critical data
 
-            crm_lead_id = item.get('DealId', '')
+            crm_lead_id = deal.get('DealId', '')
             if not crm_lead_id:
                 logger.warning(f"DealId is required. Skipping lead.")
                 continue
-
-            db_lead["crm_lead_id"] = crm_lead_id
             
-            if not item.get('DealCreationDate', ''):
+            if not deal.get('CreationDate', ''):
                 logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
                 continue
 
+            if not deal.get('LeadType', ''):
+                logger.warning(f"Lead Type is required. Skipping lead {crm_lead_id}")
+                continue
+
+            # Parse Lead Data
+            
             # Format timestamp to database accepted format
             output_format = "%Y-%m-%dT%H:%M:%SZ"
-            db_lead["lead_ts"] = pd.to_datetime(item.get('DealCreationDate'), format="%Y-%m-%dT%H:%M:%S.%fZ").strftime(output_format)
+            db_lead["lead_ts"] = pd.to_datetime(deal.get('CreationDate'), format="%Y-%m-%dT%H:%M:%S.%fZ").strftime(output_format)
             
-            
-            db_lead["lead_status"] = item.get('DealStatus', '')
-            db_lead["lead_substatus"] = item.get('SystemStatus', '')
-            db_lead["lead_comment"] = item.get('ContactNotes', '')
-            #TODO: Change lead origin when we get answers from PBS
-            db_lead["lead_origin"] = None
+            db_lead["crm_lead_id"] = crm_lead_id
+            db_lead["lead_status"] = deal.get('Status', '')
+            db_lead["lead_substatus"] = deal.get('SystemStatus', '')
+            db_lead["lead_comment"] = deal.get('Notes', '')
+            db_lead["lead_origin"] = deal.get('LeadType')
+            db_lead["lead_source"] = deal.get('LeadSource', '')
 
-            # provider_name = (
-            #     item.get('costItem', {}).get('provider', {}).get('provider') or
-            #     item.get('manufacturer', {}).get('name')
-            # )
 
-            # db_lead["lead_source"] = provider_name if provider_name else None
-            db_lead["lead_source"] = None
+            # Parse Vehicle Data 
 
             db_vehicle = {
-                "crm_vehicle_id": item.get('VehicleID', None),
-                "vin": item.get('VehicleVIN', None),
-                "manufactured_year": int(item.get('VehicleYear', '')) if item.get('VehicleYear', '') else None,
-                "make": item.get('VehicleMake', None),
-                "model": item.get('VehicleModel', None),
-                "status": item.get("VehicleStatus", None),
-                "stock_num": item.get('VehicleStockNumber', None),
-                "type": item.get('VehicleType', None),
-                "mileage": item.get('VehicleOdometer', None),
-                "transmission": item.get('VehicleTransmission', None),
-                "interior_color": item.get('VehicleInteriorColor', {}).get('Description', None),
-                "exterior_color": item.get('VehicleExteriorColor', {}).get('Description', None),
-                "trim": item.get('VehicleTrim', None),
-                "vehicle_comments": item.get('VehicleNotes', None)
+                "crm_vehicle_id": vehicle.get('VehicleID', None),
+                "vin": vehicle.get('VIN', None),
+                "manufactured_year": int(vehicle.get('Year', '')) if vehicle.get('Year', '') else None,
+                "make": vehicle.get('Make', None),
+                "model": vehicle.get('Model', None),
+                "status": vehicle.get("Status", None),
+                "stock_num": vehicle.get('StockNumber', None),
+                "type": vehicle.get('Type', None),
+                "mileage": vehicle.get('Odometer', None),
+                "transmission": vehicle.get('Transmission', None),
+                "interior_color": vehicle.get('InteriorColor', {}).get('Description', None),
+                "exterior_color": vehicle.get('ExteriorColor', {}).get('Description', None),
+                "trim": vehicle.get('Trim', None),
+                "vehicle_comments": vehicle.get('Notes', None)
             }
 
-            vehicles = item.get('Vehicles', [])
-            trades = item.get('Trades', [])
+            vehicles = deal.get('Vehicles', [])
+            trades = deal.get('Trades', [])
 
             if len(vehicles) > 0:
                 vehicle = vehicles[0]
@@ -194,13 +161,34 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             db_lead["vehicles_of_interest"] = db_vehicles
 
-            extract_contact_information('consumer', item, db_consumer)
+            # Parse Consumer Data
+
+            db_consumer = {
+                "first_name": contact.get('FirstName'),
+                "middle_name": contact.get('MiddleName', ''),
+                "last_name":contact.get('LastName'),
+                "email": contact.get('EmailAddress', ''),
+                "phone": contact.get("CellPhone", ''),
+                "address": contact.get('Address'),
+                "city": contact.get('City'),
+                "postal_code": contact.get('ContactZipCode')
+            }
+
+            communication_preferences = contact.get('ContactCommunicationPreferences', {})
+
+            if communication_preferences:
+                db_consumer["email_optin_flag"] = True if communication_preferences.get('Email') == "ImpliedConsent" or communication_preferences.get('Email') == "ExpressedConsent" else False
+                db_consumer["sms_optin_flag"] = True if communication_preferences.get('TextMessage') == "ExpressedConsent" else False
 
             if not db_consumer["email"] and not db_consumer["phone"]:
                 logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
                 continue
 
-            salespersons = item.get('DealUserRoles', [])
+            db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
+
+            # Parse Salesperson Data
+
+            salespersons = deal.get('DealUserRoles', [])
             salesperson = {}
             if len(salespersons) == 1:
                 salesperson = salespersons[0]
@@ -210,7 +198,14 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                         salesperson = person
                         break
 
-            extract_contact_information('salesperson', salesperson, db_salesperson)
+            db_salesperson = {
+                    "crm_salesperson_id": salesperson.get('EmployeeRef', None),
+                    "first_name": salesperson.get('Name', None),
+                    "position_name": salesperson.get('Role', None)
+            }
+
+            db_salesperson = {key: value for key, value in db_salesperson.items() if value is not None}
+
             db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
 
             entry = {

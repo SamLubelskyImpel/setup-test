@@ -14,6 +14,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from pbs_api_wrapper import APIWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -24,40 +25,24 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
-def get_secrets():
-    """Get PBS API secrets."""
-    secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
-    )
-    secret = loads(secret["SecretString"])[str(SECRET_KEY)]
-    secret_data = loads(secret)
+# def get_secrets():
+#     """Get PBS API secrets."""
+#     secret = secret_client.get_secret_value(
+#         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
+#     )
+#     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
+#     secret_data = loads(secret)
 
-    return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
+#     return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
 
-def fetch_new_leads(start_time: str, crm_dealer_id: str):
+def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
     """Fetch new leads from PBS CRM."""
-    api_url, username, password= get_secrets()
-    auth = HTTPBasicAuth(username, password)
+    api = APIWrapper()
 
     # Get inital list of leads
-    # TODO: Figure out how to filter by dealcreationdate on request
     try:
-        response = requests.post(
-            url=f"{api_url}/json/reply/DealContactVehicleGet",
-            params={
-                "SerialNumber": crm_dealer_id
-            },
-            # json={
-            #     "ModifiedSince": start_time
-            # },
-            auth=auth,
-            timeout=3,
-        )
-        response.raise_for_status()
-
-        logger.info(f"Response from PBS API:{response}")
-        inital_leads = response.json().get("Items")
+        inital_leads = api.call_deal_get(start_time, crm_dealer_id).get("Deals")
 
     except Exception as e:
         logger.error(f"Error occured calling PBS APIs: {e}")
@@ -66,24 +51,49 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str):
     logger.info(f"Total initial leads found {len(inital_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(inital_leads, start_time)
+    filtered_leads = filter_leads(inital_leads, start_time, filtered_lead_types)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
+
+    for lead in filtered_leads:
+        contactId = lead.get("BuyerRef", None)
+        vehicleId = None
+
+        vehicles = lead.get("Vehicles", [])
+        if len(vehicles) > 0:
+            vehicleId = vehicles[0].get("VehicleRef", None)
+
+        if contactId:
+            try:
+                lead["Contact_Info"] = api.call_contact_get(contactId, crm_dealer_id).get("Contacts")[0]
+            except Exception as e:
+                logger.warn(f"Error getting contact info, skipping lead {lead.get("DealId")}")
+                continue
+
+        if vehicleId:
+            try:
+                lead["Vehicle_Info"] = api.call_vehicle_get(vehicleId, crm_dealer_id).get("Vehicles")[0]
+            except Exception as e:
+                logger.warn(f"Error getting vehicle info, skipping lead {lead.get("DealId")}")
+                continue
 
     logger.info(f"Total leads saved {len(filtered_leads)}")
     return filtered_leads
 
-def filter_leads(leads: list, start_time: str):
+def filter_leads(leads: list, filtered_lead_types: list):
     """Filter leads by DealCreationDate."""
     filtered_leads = []
-    start_date = pd.to_datetime(start_time, format="%Y-%m-%dT%H:%M:%SZ")
     for lead in leads:
         try:
-            # Using pandas instead of datetime so we can handle 7 digit precision microseconds
-            created_date = pd.to_datetime(lead["DealCreationDate"], format="%Y-%m-%dT%H:%M:%S.%fZ")
-            if created_date >= start_date:
-                filtered_leads.append(lead)
+           lead_type = lead.get("LeadType", "")
+
+           # TODO: Uncomment next two lines when ready to implement source filtering
+           # if lead_type in filtered_lead_types:
+           #     filtered_leads.append(lead)
+
+           # TODO: remove next line when ready to implement source filtering
+           filtered_leads.append(lead)
         except Exception as e:
-            logger.error(f"Error parsing DealCreationDate for lead {lead.get('DealId')}. Skipping lead: {e}")
+            logger.error(f"Error parsing Lead type for lead {lead.get('DealId')}. Skipping lead: {e}")
             continue
 
     return filtered_leads
@@ -110,11 +120,15 @@ def record_handler(record: SQSRecord):
         body = loads(record["body"])
         logger.info(body)
 
-        start_time = body["start_time"]
-        crm_dealer_id = body["crm_dealer_id"]
-        product_dealer_id = body["product_dealer_id"] if body["product_dealer_id"] else "missing"
+        start_time = body.get("start_time")
+        crm_dealer_id = body.get("crm_dealer_id")
+        product_dealer_id = body.get("product_dealer_id", "missing_product_dealer")
 
-        leads = fetch_new_leads(start_time, crm_dealer_id)
+        #TODO: pass in valid lead types to save as a list in the input event
+        filtered_lead_types = body.get("filtered_lead_types", [])
+
+
+        leads = fetch_new_leads(start_time, crm_dealer_id, filtered_lead_types)
         if not leads:
             logger.info(f"No new leads found for dealer with serial number {crm_dealer_id} for {start_time}")
             return
