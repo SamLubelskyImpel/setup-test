@@ -85,7 +85,7 @@ class APIWrapper:
         try:
             response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched new Deal data created since {contactId}")
+            logger.info(f"Successfully fetched Contact with Id {contactId}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -103,7 +103,7 @@ class APIWrapper:
         try:
             response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched new Deal data created since {vehicleId}")
+            logger.info(f"Successfully fetched Vehicle with Id {vehicleId}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
