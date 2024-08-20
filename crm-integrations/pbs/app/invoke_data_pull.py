@@ -23,17 +23,6 @@ BUCKET = environ.get("INTEGRATIONS_BUCKET")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
-secret_client = boto3.client("secretsmanager")
-
-# def get_secrets():
-#     """Get PBS API secrets."""
-#     secret = secret_client.get_secret_value(
-#         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
-#     )
-#     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
-#     secret_data = loads(secret)
-
-#     return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
 
 def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
@@ -51,12 +40,13 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
     logger.info(f"Total initial leads found {len(inital_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(inital_leads, start_time, filtered_lead_types)
+    filtered_leads = filter_leads(inital_leads, filtered_lead_types)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
 
     for lead in filtered_leads:
         contactId = lead.get("BuyerRef", None)
         vehicleId = None
+        dealId = lead.get("DealId")
 
         vehicles = lead.get("Vehicles", [])
         if len(vehicles) > 0:
@@ -66,14 +56,14 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
             try:
                 lead["Contact_Info"] = api.call_contact_get(contactId, crm_dealer_id).get("Contacts")[0]
             except Exception as e:
-                logger.warn(f"Error getting contact info, skipping lead {lead.get("DealId")}")
+                logger.warn(f"Error getting contact info, skipping lead {dealId}")
                 continue
 
         if vehicleId:
             try:
                 lead["Vehicle_Info"] = api.call_vehicle_get(vehicleId, crm_dealer_id).get("Vehicles")[0]
             except Exception as e:
-                logger.warn(f"Error getting vehicle info, skipping lead {lead.get("DealId")}")
+                logger.warn(f"Error getting vehicle info, skipping lead {dealId}")
                 continue
 
     logger.info(f"Total leads saved {len(filtered_leads)}")
