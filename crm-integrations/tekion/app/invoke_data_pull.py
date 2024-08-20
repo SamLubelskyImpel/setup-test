@@ -118,7 +118,7 @@ def filter_leads(leads: list, start_time: str):
     for lead in leads:
         try:
             lead_source = lead.get("source", {}).get("sourceType", "").upper()
-            if lead_source == "INTERNET":
+            if lead_source == "INTERNET" or lead_source == "OEM":
                 filtered_leads.append(lead)
         except Exception as e:
             logger.error(f"Error parsing lead source for lead {lead.get('id')}. Skipping lead: {e}")

@@ -183,7 +183,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_salesperson = {}
 
             lead_origin = item.get('source', {}).get('sourceType', '')
-            if lead_origin not in ['INTERNET']:
+            if lead_origin not in ['INTERNET', 'OEM']:
                 logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
