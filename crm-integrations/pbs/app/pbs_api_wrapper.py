@@ -37,19 +37,17 @@ class APIWrapper:
             # The secret is stored under the 'PBS' key in the retrieved dictionary
             return json.loads(json.loads(get_secret_value_response['SecretString'])['PBS'])
 
-    def call_employee_get(self, employee_id):
+    def call_employee_get(self, employee_id, crm_dealer_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
         endpoint = f"{self.base_url}/json/reply/EmployeeGet"
         params = {
-            "SerialNumber": self.credentials["SERIAL_NUMBER"]
-        }
-        payload = {
+            "SerialNumber": crm_dealer_id,
             "EmployeeId": employee_id,
             "IncludeInactive": False
         }
 
         try:
-            response = requests.post(endpoint, params=params, json=payload, auth=self.auth, timeout=3)
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
             logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
             return response.json()
@@ -59,3 +57,58 @@ class APIWrapper:
         except Exception as err:
             logger.error(f"Other error occurred: {err}")
             raise
+
+    def call_deal_get(self, start_time, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/DealGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "ContractSince": start_time
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched new Deal data created since {start_time}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
+    def call_contact_get(self, contactId, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/ContactGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "ContactId": contactId
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched new Deal data created since {contactId}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
+    def call_vehicle_get(self, vehicleId, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/VehicleGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "VehicleId": vehicleId
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched new Deal data created since {vehicleId}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
