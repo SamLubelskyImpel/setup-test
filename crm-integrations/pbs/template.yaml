@@ -133,7 +133,49 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
-
+  GetDealerSalespersons:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-GetDealerSalespersons
+      CodeUri: app/
+      Handler: get_dealer_salespersons_handler.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+  GetDealerSalespersons500ErrorMetricFilter:
+    Type: "AWS::Logs::MetricFilter"
+    DependsOn: GetDealerSalespersonsLogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-GetDealerSalespersons"
+      FilterPattern: '{ $.statusCode = 500 }'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "PBS/Lambda"
+          MetricName: "GetDealerSalespersons500Errors"
+  GetDealerSalespersonsLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-GetDealerSalespersons"
+      RetentionInDays: 30
+  GetDealerSalespersons500ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-GetDealerSalespersons-500Error
+      AlarmDescription: PBS GetDealerSalespersons Lambda returned 500 status 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: GetDealerSalespersons500Errors
+      Namespace: "PBS/Lambda"
+      Period: 900  # 15 minutes (in seconds)
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
   InvokeDataPull:
     Type: AWS::Serverless::Function
     Properties:
@@ -143,7 +185,7 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
-  
+
   InvokeDataPullLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -222,7 +264,7 @@ Resources:
       Timeout: 60
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
-    
+
   TransformPBSDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -251,7 +293,7 @@ Resources:
       QueueName: !Sub "pbs-${Environment}-TransformDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
-  
+
   TransformPBSDataDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -317,7 +359,7 @@ Resources:
   #     Timeout: 30
   #     MemorySize: 256
   #     Role: !GetAtt LambdaRole.Arn
-  
+
   # GetLeadUpdatesLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
@@ -341,7 +383,7 @@ Resources:
   #     Statistic: Sum
   #     Threshold: 3
   #     TreatMissingData: notBreaching
-      
+
   # SendActivityQueue:
   #   Type: AWS::SQS::Queue
   #   Properties:
@@ -350,14 +392,14 @@ Resources:
   #     RedrivePolicy:
   #       deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
   #       maxReceiveCount: 3
-        
+
   # SendActivityDeadLetterQueue:
   #   Type: AWS::SQS::Queue
   #   Properties:
   #     QueueName: !Sub "pbs-${Environment}-SendActivityDLQ"
   #     MessageRetentionPeriod: 1209600
   #     VisibilityTimeout: 10
-  
+
   # SendActivityEventMapping:
   #   Type: AWS::Lambda::EventSourceMapping
   #   Properties:
@@ -365,7 +407,7 @@ Resources:
   #     EventSourceArn: !GetAtt SendActivityQueue.Arn
   #     MaximumBatchingWindowInSeconds: 0
   #     FunctionName: !GetAtt SendActivity.Arn
-      
+
   # SendActivity:
   #   Type: AWS::Serverless::Function
   #   Properties:
@@ -375,13 +417,13 @@ Resources:
   #     Timeout: 30
   #     MemorySize: 256
   #     Role: !GetAtt LambdaRole.Arn
-  
+
   # SendActivityLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
 
   #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
-            
+
   # SendActivityDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
@@ -411,12 +453,12 @@ Resources:
   #     Timeout: 30
   #     MemorySize: 256
   #     Role: !GetAtt LambdaRole.Arn
-  
+
   # MonitoringPBSLogGroup:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
   #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Monitoring"
-  
+
   # LogGroupInvokeLambdaPermission:
   #   Type: AWS::Lambda::Permission
   #   Properties:
@@ -424,7 +466,7 @@ Resources:
   #     Action: lambda:InvokeFunction
   #     Principal: logs.amazonaws.com
   #     SourceAccount: !Ref 'AWS::AccountId'
-  
+
   # MonitoringInvokeDataPullSubscription:
   #   Type: AWS::Logs::SubscriptionFilter
   #   DependsOn:
@@ -435,7 +477,7 @@ Resources:
   #     LogGroupName: !Ref InvokeDataPullLogGroup
   #     DestinationArn: !GetAtt MonitoringPBS.Arn
   #     FilterPattern: "SUPPORT ALERT"
-  
+
   # MonitoringGetLeadUpdatesSubscription:
   #   Type: AWS::Logs::SubscriptionFilter
   #   DependsOn:
