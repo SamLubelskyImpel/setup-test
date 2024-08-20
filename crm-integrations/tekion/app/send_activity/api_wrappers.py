@@ -152,7 +152,7 @@ class TekionApiWrapper:
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Outbound call was successfully created !\n{json_response}")
         return json_response['id']
 
@@ -171,7 +171,7 @@ class TekionApiWrapper:
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Phone call was successfully created !\n{json_response}")
         return json_response['id']
 
@@ -190,7 +190,7 @@ class TekionApiWrapper:
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Appointment was successfully created !\n{json_response}")
         return json_response['id']
 
@@ -211,7 +211,7 @@ class TekionApiWrapper:
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Note was successfully created !\n{json_response}")
         return json_response['id']
     
