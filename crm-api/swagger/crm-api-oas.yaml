@@ -3,8 +3,8 @@ info:
   title: CRM API
   version: 1.0.0
   description: "All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS.
-  This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer infor  mation, and adding new activities.\n\n**Glossary:**\n1. 
-    Impel CRM Layer: A unified persistence data layer designed for integration with all CRM partners. This layer aggregates all leads and activities from every CRM partner into one central repository.\n2. 
+  This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer infor  mation, and adding new activities.\n\n**Glossary:**\n1.
+    Impel CRM Layer: A unified persistence data layer designed for integration with all CRM partners. This layer aggregates all leads and activities from every CRM partner into one central repository.\n2.
     Lead: A sales opportunity that a dealership can pursue. Every lead contains information about the consumer, a vehicle of interest, sales team information and other details.\n3.
     Consumer: A person who may be interested in buying a specific vehicle(s). The Consumer stores the personal information and preferences of its subject. A Consumer may be referenced in one or more Leads.\n4.
     Salesperson: An individual representing the dealership, responsible for managing and converting leads into sales. Each lead is typically associated with a designated salesperson who oversees the sales process for that specific lead.\n5.
@@ -24,7 +24,7 @@ paths:
         **Timestamp Formats:** The `lead_ts` field supports timestamps in three formats:
         1. **UTC Format:** Append 'Z' to denote UTC time. Example: `2023-09-22T14:00:00Z`.
         2. **Local Time with Offset:** Include the time offset from UTC. Example: `2024-02-02T14:00:00-0500`.
-        3. **Local Time with Timezone Metadata:** Specify local time, with the timezone defined during onboarding. Example: `2023-09-22T14:00:00`. 
+        3. **Local Time with Timezone Metadata:** Specify local time, with the timezone defined during onboarding. Example: `2023-09-22T14:00:00`.
       #{{CREATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
@@ -340,7 +340,7 @@ paths:
                       type: object
                       additionalProperties: true
                       example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
-              
+
   /leads/{lead_id}/status:
     get:
       summary: Retrieve the current status of a specific lead.
@@ -446,8 +446,8 @@ paths:
                           format: date-time
                           description: The created datetime of the activity in the unified CRM layer.
                           example: "2023-10-16T20:44:12.027184+00:00"
-                    
-  
+
+
   /leads/crm/{crm_lead_id}:
     get:
       operationId: get-lead-by-crm-ids
@@ -513,7 +513,7 @@ paths:
           "$ref": "#/components/responses/404"
         '500':
           "$ref": "#/components/responses/500"
-  
+
   /consumers:
     post:
       summary: This endpoint creates a record for a Consumer in the CRM persistence data layer. The crm_consumer_id field should only be included in the request body if the caller is creating a consumer on behalf of the CRM. Chat AI should not include this field.
@@ -665,7 +665,7 @@ paths:
           description: Not Found. The consumer_id of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
-  
+
   /activities:
     post:
       summary: This endpoint allows for the creation of a new activity associated with a specific lead in the CRM persistence layer. The "activity_type" and "activity_requested_ts" fields are required for all activities. For activities needing scheduling or completion by a specific date and time, the "activity_due_ts" is essential. Additionally, when the activity_type is set to "note", the notes field becomes mandatory.
@@ -740,6 +740,59 @@ paths:
                   description: The ID assigned to the activity in the CRM.
                   example: "12345"
                   maxLength: 50
+    get:
+      operationId: get-activity
+      summary: Retrieve a specific activity by ID
+      #{{RETRIEVE_ACTIVITY_LAMBDA_INFO}}
+      tags:
+        - Activities
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: activity_id
+          in: path
+          required: true
+          description: The ID of the activity in the CRM persistence data layer.
+            *** Ask for a PDF document, which explains the guidelines for developing the webhook that will receive this activity ID. Once you receive this notification on the webhook, you can call this endpoint.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      dealer_id:
+                        type: string
+                        description: The ID assigned to the dealership by Impel during onboarding.
+                  - $ref: '#/components/schemas/Activity'
+                  - type: object
+                    properties:
+                      lead_id:
+                        type: integer
+                      activity_due_ts:
+                        type: string
+                        format: date-time
+                        description: Timestamp indicating when the Activity is to take place, adjusted to the dealer's timezone offset. This is required when an Activity needs to be scheduled or completed by a specific date and time, such as an appointment or phone_call_task..
+                        example: "2024-02-02T14:00:00-05:00"
+                        pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$'
+                      activity_requested_ts:
+                        type: string
+                        format: date-time
+                        description: Timestamp in adjusted for the dealer's timezone offset when the Activity was requested.
+                        example: "2024-02-02T12:00:00-05:00"
+                        pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The activity_id of the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
   /dealers:
     get:
       summary: This endpoint returns all active dealers for a given integration partner.
@@ -970,7 +1023,7 @@ components:
         activity_requested_ts:
           type: string
           format: date-time
-          description: Timestamp in UTC Time (Zero Offset) when the activity was requested. 
+          description: Timestamp in UTC Time (Zero Offset) when the activity was requested.
           example: "2023-09-22T12:00:00Z"
           pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
         notes:
@@ -1364,7 +1417,7 @@ components:
       description: Conflict. Lead record couldn't be created due to a conflict with an existing record with the same lead_id on Impel.
     '500':
       description: Internal Server Error. Please contact Impel support.
-  
+
   parameters:
     partnerId:
       name: partner_id
@@ -1460,7 +1513,7 @@ components:
       name: db_creation_date_end
       in: query
       required: true
-      description: Specifies the latest 'db_creation_date' in UTC format to include in the query for created leads.      
+      description: Specifies the latest 'db_creation_date' in UTC format to include in the query for created leads.
       schema:
         type: string
         format: date-time
