@@ -38,8 +38,8 @@ def get_lead(crm_dealer_id: str, crm_lead_id: str) -> Dict[str, Any]:
     
     auth = HTTPBasicAuth(username, password)
     response = post(
-        url=f"{url}/json/reply/DealContactVehicleGet",
-        params={"SerialNumber": crm_dealer_id, "DealId": crm_lead_id},
+        url=f"{url}/json/reply/DealGet",
+        data=dumps({"SerialNumber": crm_dealer_id, "DealId": crm_lead_id}),
         auth=auth,
     )
     logger.info("PBS responded with status code: %s", response.status_code)
@@ -100,11 +100,11 @@ def get_lead_update(
         )
         raise
 
-    if not lead.get("Items"):
+    if not lead.get("Deals"):
         logger.info("Lead not found. lead_id: %s, crm_lead_id: %s", lead_id, crm_lead_id)
         return 404, {"error": f"Lead not found. lead_id: {lead_id}, crm_lead_id: {crm_lead_id}"}
 
-    lead_item = lead["Items"][0]
+    lead_item = lead["Deals"][0]
     salesperson = parse_salesperson(lead_item)
     status = lead_item["DealStatus"]
 
