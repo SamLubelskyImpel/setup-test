@@ -24,6 +24,27 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
+def build_id_list(type: str, leads: list):
+   idList = ''
+   for lead in leads:
+       if type == 'Contact':
+           buyerRef = lead.get('BuyerRef', '')
+           if buyerRef:
+               idList += buyerRef
+       if type == 'Vehicle':
+            vehicles = lead.get("Vehicles", [])
+            if len(vehicles) > 0:
+                idList += vehicles[0].get("VehicleRef", None)
+       idList += ','
+   return idList
+
+
+def find_value(dataset: list, crm_dealer_id: str, id: str):
+    key = crm_dealer_id.lower() + '/' + id
+    for item in dataset:
+        if item.get('Id', '') == key:
+            return item
+    return {}
 
 def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
     """Fetch new leads from PBS CRM."""
@@ -43,6 +64,12 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
     filtered_leads = filter_leads(inital_leads, filtered_lead_types)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
 
+    contactIdList = build_id_list('Contact', filtered_leads)
+    vehicleIdList = build_id_list('Vehicle', filtered_leads)
+
+    contactList = api.call_contact_get(contactIdList, crm_dealer_id).get('Contacts', [])
+    vehicleList = api.call_vehicle_get(vehicleIdList, crm_dealer_id).get('Vehicles', [])
+
     for lead in filtered_leads:
         contactId = lead.get("BuyerRef", None)
         vehicleId = None
@@ -54,14 +81,14 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
 
         if contactId:
             try:
-                lead["Contact_Info"] = api.call_contact_get(contactId, crm_dealer_id).get("Contacts")[0]
+                lead["Contact_Info"] = find_value(contactList, crm_dealer_id, contactId)
             except Exception as e:
                 logger.warn(f"Error getting contact info, skipping lead {dealId}")
                 continue
 
         if vehicleId:
             try:
-                lead["Vehicle_Info"] = api.call_vehicle_get(vehicleId, crm_dealer_id).get("Vehicles")[0]
+                lead["Vehicle_Info"] = find_value(vehicleList, crm_dealer_id, vehicleId)
             except Exception as e:
                 logger.warn(f"Error getting vehicle info, skipping lead {dealId}")
                 continue
@@ -76,12 +103,9 @@ def filter_leads(leads: list, filtered_lead_types: list):
         try:
            lead_type = lead.get("LeadType", "")
 
-           # TODO: Uncomment next two lines when ready to implement source filtering
-           # if lead_type in filtered_lead_types:
-           #     filtered_leads.append(lead)
-
-           # TODO: remove next line when ready to implement source filtering
-           filtered_leads.append(lead)
+           if lead_type in filtered_lead_types:
+               filtered_leads.append(lead)
+    
         except Exception as e:
             logger.error(f"Error parsing Lead type for lead {lead.get('DealId')}. Skipping lead: {e}")
             continue
@@ -115,7 +139,7 @@ def record_handler(record: SQSRecord):
         product_dealer_id = body.get("product_dealer_id", "missing_product_dealer")
 
         #TODO: pass in valid lead types to save as a list in the input event
-        filtered_lead_types = body.get("filtered_lead_types", [])
+        filtered_lead_types = body.get("metadata", {}).get("filtered_lead_types", [])
 
 
         leads = fetch_new_leads(start_time, crm_dealer_id, filtered_lead_types)

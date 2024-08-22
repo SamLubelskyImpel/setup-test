@@ -60,12 +60,13 @@ class APIWrapper:
 
     def call_deal_get(self, start_time, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/DealGet"
-        params = {
+        data = {
             "SerialNumber": crm_dealer_id,
             "ContractSince": start_time
         }
+
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.post(endpoint, data=data, auth=self.auth, timeout=3)
             response.raise_for_status()
             logger.info(f"Successfully fetched new Deal data created since {start_time}")
             return response.json()
@@ -76,16 +77,18 @@ class APIWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_contact_get(self, contactId, crm_dealer_id):
+    def call_contact_get(self, contactIdList, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/ContactGet"
-        params = {
+
+        data = {
             "SerialNumber": crm_dealer_id,
-            "ContactId": contactId
+            "ContactIdList": contactIdList
         }
+
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.post(endpoint, data=data, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched Contact with Id {contactId}")
+            logger.info(f"Successfully fetched Contact with Ids {contactIdList}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -94,16 +97,18 @@ class APIWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_vehicle_get(self, vehicleId, crm_dealer_id):
+    def call_vehicle_get(self, vehicleIdList, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/VehicleGet"
-        params = {
+        
+        data = {
             "SerialNumber": crm_dealer_id,
-            "VehicleId": vehicleId
+            "VehicleIdList": vehicleIdList
         }
+
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.post(endpoint, data=data, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched Vehicle with Id {vehicleId}")
+            logger.info(f"Successfully fetched Vehicle with Ids {vehicleIdList}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
