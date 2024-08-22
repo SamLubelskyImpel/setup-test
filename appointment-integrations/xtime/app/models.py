@@ -21,6 +21,7 @@ class AppointmentSlots:
 @dataclass
 class CreateAppointment:
     request_id: str
+    source_product: str
     integration_dealer_id: str
     dealer_timezone: str
     op_code: str

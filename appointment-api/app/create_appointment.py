@@ -78,6 +78,7 @@ def lambda_handler(event, context):
             dealer_timezone = dealer_partner.timezone
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
+            source_product = dealer_partner.product_name
 
             # Get vendor op code
             op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
@@ -99,6 +100,7 @@ def lambda_handler(event, context):
 
         payload = {
             "request_id": request_id,
+            "source_product": source_product,
             "integration_dealer_id": integration_dealer_id,
             "dealer_timezone": dealer_timezone,
             "op_code": vendor_op_code,

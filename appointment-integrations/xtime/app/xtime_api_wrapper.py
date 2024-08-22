@@ -64,7 +64,7 @@ class XTimeApiWrapper:
             "Authorization": self.__authorization_token,
         }
         try:
-            response = requests.request(method=method, url=url, json=payload, headers=headers, params=params, timeout=5)
+            response = requests.request(method=method, url=url, json=payload, headers=headers, params=params, timeout=15)
             logger.info(f"Status code from XTime: {response.status_code}")
             logger.info(f"Response text from XTime: {response.text}")
 
@@ -108,6 +108,12 @@ class XTimeApiWrapper:
         elif not email_address and not phone_number:
             raise ValueError("Email address or phone number is required.")
 
+        if create_appt_data.source_product == "SERVICE_AI":
+            label_content = "Impel Service AI"
+        else:
+            logger.error(f"Invalid source product: {create_appt_data.source_product}")
+            raise ValueError("Invalid source product")
+
         payload = {
             "appointmentDateTimeLocal": self.__localize_time(create_appt_data.timeslot, create_appt_data.dealer_timezone),
             "firstName": create_appt_data.first_name,
@@ -119,7 +125,15 @@ class XTimeApiWrapper:
                 {
                     "opcode": create_appt_data.op_code
                 }
-            ]
+            ],
+            "label": {
+                "value": "Impel Service Scheduling",
+                "context": label_content
+            },
+            "reportingLabel": {
+                "value": "Impel Service Scheduling",
+                "context": label_content
+            }
         }
         payload = {key: value for key, value in payload.items() if value}
         logger.info(f"Payload for XTime: \n {payload}")

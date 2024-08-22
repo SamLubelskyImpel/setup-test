@@ -14,6 +14,7 @@ from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
 from appt_orm.models.op_code_product import OpCodeProduct
 from appt_orm.models.op_code_appointment import OpCodeAppointment
+from appt_orm.models.product import Product
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -91,11 +92,14 @@ def get_dealer_info(session, dealer_integration_partner_id: str) -> dict:
     dealer_partner = session.query(
         DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
         DealerIntegrationPartner.integration_dealer_id,
-        Dealer.timezone, IntegrationPartner.metadata_
+        Dealer.timezone, IntegrationPartner.metadata_,
+        Product.product_name
     ).join(
         Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
     ).join(
         IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+    ).join(
+        Product, Product.id == DealerIntegrationPartner.product_id
     ).filter(
         DealerIntegrationPartner.id == dealer_integration_partner_id,
         DealerIntegrationPartner.is_active == True
