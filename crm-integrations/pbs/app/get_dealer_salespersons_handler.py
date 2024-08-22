@@ -10,12 +10,12 @@ def lambda_handler(event, context):
     logger.info("Lambda function invoked with event: %s", event)
 
     api = APIWrapper()
-
+    crm_dealer_id = employee_id = event.get("crm_dealer_id", "00000000000000000000000000000000")
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
     logger.info("Fetching employee data for EmployeeId: %s", employee_id)
 
     try:
-        result = api.call_employee_get(employee_id)
+        result = api.call_employee_get(employee_id, crm_dealer_id)
         logger.info("Successfully received response from API: %s", result)
     except Exception as e:
         logger.error("Failed to retrieve employee data: %s", e)
