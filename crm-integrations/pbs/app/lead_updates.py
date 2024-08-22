@@ -106,7 +106,7 @@ def get_lead_update(
 
     lead_item = lead["Deals"][0]
     salesperson = parse_salesperson(lead_item)
-    status = lead_item["DealStatus"]
+    status = lead_item["Status"]
 
     crm_api_key = get_secret("crm-api", UPLOAD_SECRET_KEY)["api_key"]
     update_lead_data(
