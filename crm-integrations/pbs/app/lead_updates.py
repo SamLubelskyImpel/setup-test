@@ -81,7 +81,7 @@ def parse_salesperson(lead: Dict[str, Any]) -> list:
             "position_name": sp["Role"],
             "is_primary": True,
         }
-        for sp in lead.get("DealUserRoles", [])
+        for sp in lead.get("UserRoles", [])
     ]
 
 
