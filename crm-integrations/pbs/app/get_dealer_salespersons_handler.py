@@ -10,7 +10,7 @@ def lambda_handler(event, context):
     logger.info("Lambda function invoked with event: %s", event)
 
     api = APIWrapper()
-    crm_dealer_id = employee_id = event.get("crm_dealer_id", "00000000000000000000000000000000")
+    crm_dealer_id = event.get("crm_dealer_id", "00000000000000000000000000000000")
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
     logger.info("Fetching employee data for EmployeeId: %s", employee_id)
 
