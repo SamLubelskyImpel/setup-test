@@ -6,7 +6,8 @@ from get_dealer_salespersons_handler import lambda_handler
 def test_get_dealer_salespersons(caplog):
     # Create a dummy event with the test dealer ID (all zeros)
     dummy_event = {
-        "employee_id": "00000000000000000000000000000000"
+        "employee_id": "00000000000000000000000000000000",
+        "crm_dealer_id": "2004.QA"
     }
 
     # Run the handler and capture logs

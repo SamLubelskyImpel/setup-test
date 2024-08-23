@@ -40,14 +40,14 @@ class APIWrapper:
     def call_employee_get(self, employee_id, crm_dealer_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
         endpoint = f"{self.base_url}/json/reply/EmployeeGet"
-        params = {
+        data = {
             "SerialNumber": crm_dealer_id,
             "EmployeeId": employee_id,
             "IncludeInactive": False
         }
 
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.post(endpoint, data=data, auth=self.auth, timeout=3)
             response.raise_for_status()
             logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
             return response.json()
@@ -116,4 +116,3 @@ class APIWrapper:
         except Exception as err:
             logger.error(f"Other error occurred: {err}")
             raise
-
