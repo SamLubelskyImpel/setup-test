@@ -41,6 +41,7 @@ def create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_
 
 
 def create_dealer_integration(session, impel_integration_partner_id, impel_dealer_id, dms_id, dealer_id, is_active=True):
+    logger.info("I am trying to create the dealerrrr")
     integration_partner = session.query(IntegrationPartner).filter_by(
         impel_integration_partner_id=impel_integration_partner_id
         ).first()
@@ -70,6 +71,7 @@ def create_dealer_integration(session, impel_integration_partner_id, impel_deale
 
 
 def create_dealer_handler(event, context):
+    logger.info("in the handlerrrrr")
     logger.info(f"Received request to create a new dealer: {event}")
     body = json.loads(event['body'])
 
