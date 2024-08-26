@@ -4,7 +4,6 @@ import logging
 from os import environ
 from json import loads
 from datetime import datetime, timedelta, timezone
-from ftp_wrapper import FtpToS3
 
 
 logger = logging.getLogger()
