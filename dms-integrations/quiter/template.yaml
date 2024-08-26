@@ -221,3 +221,160 @@ Resources:
             Enabled: True
             Queue: !GetAtt InvokeQueue.Arn
 
+
+  MergeAppointments:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub quiter-${Environment}-MergeAppointments
+      CodeUri: app/
+      Handler: merge_appointments.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  MergeAppointmentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-MergeAppointments"
+
+  MergeAppointmentsEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt MergeAppointmentsQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt MergeAppointments.Arn
+
+  MergeAppointmentsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MergeAppointmentsDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  MergeAppointmentsDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  # MergeAppointmentsDLQAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
+  #     AlarmDescription: There are over 1 unprocessed messages in the Quiter Merge Appointments DLQ
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  #     Dimensions:
+  #       - Name: QueueName
+  #         Value: !GetAtt MergeAppointmentsDeadLetterQueue.QueueName
+  #     EvaluationPeriods: 1
+  #     MetricName: ApproximateNumberOfMessagesVisible
+  #     Namespace: AWS/SQS
+  #     Period: 300
+  #     Statistic: Sum
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
+
+    QuiterFormatInsertFilesAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub quiter-${Environment}-QuiterFormatInsertFilesAppointment
+      CodeUri: app/
+      Handler: format_appointment.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  QuiterFormatAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-QuiterFormatInsertFilesAppointment"
+
+  QuiterFormatAppointmentEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt QuiterFormatAppointmentQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt QuiterFormatInsertFilesAppointment.Arn
+
+  QuiterFormatAppointmentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-QuiterFormatAppointmentQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterFormatAppointmentDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  QuiterFormatAppointmentDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-QuiterFormatAppointmentDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  # QuiterFormatAppointmentDLQAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub "quiter-${Environment}-QuiterFormatAppointmentDLQ"
+  #     AlarmDescription: There are over 1 unprocessed messages in the Quiter Format Appointment DLQ
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+  #     Dimensions:
+  #       - Name: QueueName
+  #         Value: !GetAtt QuiterFormatAppointmentDeadLetterQueue.QueueName
+  #     EvaluationPeriods: 1
+  #     MetricName: ApproximateNumberOfMessagesVisible
+  #     Namespace: AWS/SQS
+  #     Period: 300
+  #     Statistic: Sum
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
+
+  QuiterFormatAppointmentQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref QuiterFormatAppointmentQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt QuiterFormatAppointmentQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt QuiterFormatAppointmentEventBridgeRule.Arn
+
+  QuiterFormatAppointmentEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+          object:
+            key:
+              - { "prefix": "raw/quiter/" }
+      Targets:
+        - Id: "QuiterFormatAppointmentTarget"
+          Arn: !GetAtt QuiterFormatAppointmentQueue.Arn
