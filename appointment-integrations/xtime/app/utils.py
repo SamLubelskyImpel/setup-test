@@ -58,3 +58,23 @@ def handle_exception(e, context):
 def formatted_time(time_string: str) -> str:
     dt = datetime.fromisoformat(time_string.replace('Z', '+00:00'))
     return dt.strftime('%Y-%m-%dT%H:%M:%S')
+
+
+def format_and_filter_timeslots(timeslots: list, start_time: str, end_time: str) -> list:
+    """Filter time slots by start and end time."""
+    start_dt = datetime.fromisoformat(start_time)
+    end_dt = datetime.fromisoformat(end_time)
+
+    filtered_timeslots = []
+    for time_slot in timeslots:
+        slot = formatted_time(time_slot["appointmentDateTimeLocal"])
+        duration = time_slot["durationMinutes"]
+
+        if start_dt <= datetime.fromisoformat(slot) <= end_dt:
+            filtered_timeslots.append(
+                {
+                    "timeslot": slot,
+                    "duration": duration,
+                }
+            )
+    return filtered_timeslots

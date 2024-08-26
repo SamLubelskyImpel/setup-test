@@ -6,7 +6,7 @@ from logging import getLogger
 from json import dumps
 from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
-from utils import parse_event, validate_data, handle_exception, formatted_time
+from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -25,15 +25,11 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
             appointment_slots=appointment_slots
         )
 
-        if appt_time_slots["success"]:
-            timeslots = [
-                {
-                    "timeslot": formatted_time(time_slot["appointmentDateTimeLocal"]),
-                    "duration": time_slot["durationMinutes"],
-                }
-                for time_slot in appt_time_slots["availableAppointments"]
-            ]
+        timeslots = format_and_filter_timeslots(appt_time_slots["availableAppointments"],
+                                                start_time=appointment_slots.start_time,
+                                                end_time=appointment_slots.end_time)
 
+        if appt_time_slots["success"]:
             return {
                 "statusCode": 200,
                 "body": dumps(
