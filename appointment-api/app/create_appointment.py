@@ -198,6 +198,7 @@ def lambda_handler(event, context):
             "statusCode": 201,
             "body": dumps({
                 "appointment_id": int(appointment_id),
+                "integration_appointment_id": str(integration_appointment_id) if integration_appointment_id else None,
                 "consumer_id": int(appointment_db.consumer_id),
                 "request_id": request_id,
             })

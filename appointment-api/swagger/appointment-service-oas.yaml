@@ -57,6 +57,10 @@ paths:
                     type: number
                     description: ID of the appointment in the shared layer
                     example: 12345
+                  integration_appointment_id:
+                    type: string
+                    description: ID of the appointment in the integration partners system
+                    example: "bd721810207a"
                   consumer_id:
                     type: number
                     description: ID of the consumer in the shared layer
