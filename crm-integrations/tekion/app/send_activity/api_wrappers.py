@@ -19,6 +19,7 @@ logger.setLevel(LOG_LEVEL.upper())
 secret_client = client("secretsmanager")
 
 
+
 class InvalidLeadException(Exception):
     """Exception raised for invalid lead data."""
     def __init__(self, message):
@@ -134,7 +135,7 @@ class TekionApiWrapper:
         logger.info(f"Lead data: {lead_data}")
         if not lead_data.get('id'):
             logger.warning("Activity type Note can't be created if lead was invalid")
-            # (f"This is lead: \n{dumps(lead_data, indent=2)}")
+            raise InvalidLeadException(f"This is lead: \n{dumps(lead_data, indent=2)}")
         return lead_data
 
     def __create_outbound_call(self):
@@ -214,7 +215,7 @@ class TekionApiWrapper:
         )['data']['notes'][-1]
         logger.info(f"Note was successfully created !\n{json_response}")
         return json_response['id']
-    
+
     def create_activity(self):
         """Create activity on CRM."""
         if self.__activity_type == "note":
