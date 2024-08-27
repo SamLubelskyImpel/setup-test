@@ -820,6 +820,99 @@ paths:
           description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/config:
+    get:
+      summary: This endpoint returns dealers config for a given params.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dealer"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
+    put:
+      summary: This endpoint updates dealer config in shared layer.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active_salesai:
+                  type: boolean
+                  description: Activates sales ai for the dealer
+                  default: false
+                  example: false
+                is_active_chatai:
+                  type: boolean
+                  description: Activates sales ai for the dealer
+                  default: false
+                  example: false
+                crm_dealer_id:
+                  type: string
+                  description: The ID of the dealer in the CRM.
+                  example: "12345"
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  example: {"min_price": 25000.00, "max_price": 30000.00}
+      responses:
+        '200':
+          description: Information updated.
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
+    post:
+      summary: This endpoint will create new dealer config in shared layer.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Dealer configuration created successfully dealer_id.
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
   /dealers/{dealer_id}:
     get:
       summary: Get active dealer by ID. For internal use only.
