@@ -69,21 +69,27 @@ class DatabaseManager:
     def post_dealers_config(self, dealer_info: DealerInfo) -> Dict[str, str]:
         """Inserts a new dealer configuration into the database."""
         with DBSession() as session:
-            if session.query(Dealer).filter_by(product_dealer_id=dealer_info.product_dealer_id).first():
+            existing_dealer = session.query(
+                    DealerIntegrationPartner
+                ).join(
+                    Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+                ).filter(
+                    Dealer.product_dealer_id == dealer_info.product_dealer_id,
+                ).first()
+            
+            if existing_dealer:
+                print(existing_dealer)
                 return {'statusCode': 400, 'body': 'This dealer config already exists'}
 
             try:
                 integration_partner = session.query(IntegrationPartner).filter_by(
                     impel_integration_partner_name=dealer_info.integration_partner_name
                 ).first() or IntegrationPartner(impel_integration_partner_name=dealer_info.integration_partner_name)
-                
+
                 session.add(integration_partner)
                 session.flush()
 
-                dealer = session.query(Dealer).filter_by(
-                    product_dealer_id=dealer_info.product_dealer_id,
-                    sfdc_account_id=dealer_info.sfdc_account_id
-                ).first() or Dealer(
+                dealer = existing_dealer or Dealer(
                     product_dealer_id=dealer_info.product_dealer_id,
                     sfdc_account_id=dealer_info.sfdc_account_id,
                     dealer_name=dealer_info.dealer_name,
@@ -96,7 +102,7 @@ class DatabaseManager:
                     db_creation_date=self.dt_now,
                     db_update_date=self.dt_now
                 )
-                
+
                 session.add(dealer)
                 session.flush()
 
@@ -106,7 +112,7 @@ class DatabaseManager:
                     crm_dealer_id=dealer_info.crm_dealer_id,
                     is_active_salesai=dealer_info.is_active_salesai,
                     is_active_chatai=dealer_info.is_active_chatai,
-                    metadata_=dealer_info.metadata.__dict__,
+                    metadata_=dealer_info.metadata,
                     db_creation_date=self.dt_now,
                     db_update_date=self.dt_now
                 ))
@@ -126,7 +132,12 @@ class DatabaseManager:
             if dip:
                 dip.is_active_salesai = dealer_status.is_active_salesai
                 dip.is_active_chatai = dealer_status.is_active_chatai
-                dip.metadata_ = dealer_status.metadata.__dict__ if dealer_status.metadata else dip.metadata_
+
+                if isinstance(dealer_status.metadata, Metadata):
+                    dip.metadata_ = dealer_status.metadata.__dict__
+                elif isinstance(dealer_status.metadata, dict):
+                    dip.metadata_ = dealer_status.metadata
+
                 dip.db_update_date = self.dt_now
                 session.commit()
                 return {'statusCode': 200, 'body': 'Information updated'}
