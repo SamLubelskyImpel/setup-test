@@ -185,7 +185,7 @@ def parse_lead(product_dealer_id, data):
             "crm_lead_id": crm_lead_id,
             "lead_status": lead_status,
             "lead_substatus": "",
-            "lead_comment": data.get("comment", ""),
+            "lead_comment": data.get("comment", "")[:5000],
             "lead_origin": data.get("type", ""),
             "lead_source": data.get("source", ""),
             "lead_source_detail": data.get("provider", "")
