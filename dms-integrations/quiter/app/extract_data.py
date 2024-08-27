@@ -16,6 +16,11 @@ INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("CE_TOPIC")
 SNS_CLIENT = boto3.client('sns')
 SQS_CLIENT = boto3.client("sqs")
+SQS_QUEUE_URLS = [
+    environ.get("MERGE_REPAIR_ORDER_QUEUE"),
+    environ.get("MERGE_APPOINTMENT_QUEUE"),
+    environ.get("MERGE_VEHICLE_SALE_QUEUE")
+]
 
 FILE_PATTERNS = {
     "RepairOrder": ["RO"],
@@ -24,8 +29,6 @@ FILE_PATTERNS = {
     "Appointment": ["APPT"],
     "VehicleSales": ["VS", "SalesTxn", "SaleTxn"]
 }
-
-SQS_QUEUE_URLS = []
 
 
 def get_ftp_credentials():
@@ -116,23 +119,38 @@ def parse_data(data):
                     current_date = datetime.now()
                     s3_key = f'quiter/landing_zone/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}'
                     process_files(ftp, dealer_id, found_files, s3_key)
-                    # for queue_url in SQS_QUEUE_URLS:
-                    #     data = {
-                    #         "dealer_id": dealer_id,
-                    #         "s3_key": s3_key,
-                    #     }
-                        # SQS_CLIENT.send_message(
-                        #     QueueUrl=queue_url,
-                        #     MessageBody=dumps(data)
-                        # )
+                    for queue_url in SQS_QUEUE_URLS:
+                        data = {
+                            "dealer_id": dealer_id,
+                            "s3_key": s3_key,
+                        }
+                        response = SQS_CLIENT.send_message(
+                            QueueUrl=queue_url,
+                            MessageBody=dumps(data)
+                        )
+                        # Verify that the message was sent successfully by checking the response
+                        # TODO: Delete after testing
+                        if 'MessageId' in response:
+                            logging.info(f"Message sent successfully to {queue_url}, MessageId: {response['MessageId']}")
+                        else:
+                            logging.error(f"Failed to send message to {queue_url}")
                 else:
-                    #TODO send message to the SNS topic
-                    logger.error("Failure: Not all Quiter files are available.")
+                    message = f'QUITER: Not all required files are available on the FTP server for this dealer: {dealer_id}. Found files: {found_files}'
+                    SNS_CLIENT.publish(
+                            TopicArn=SNS_TOPIC_ARN,
+                            Message=message
+                        )
+                    logger.error(message)
             else:
-                logger.warning(f"No new files found in the last 24 hours for dealer {dealer_id}.")
+                logger.warning(f"No new files found in the last 24 hours for the dealer {dealer_id}.")
             ftp.quit()
         else:
-            logger.warning(f"Dealer {dealer_id} folder not found in FTP server.")
+            message = f'QUITER: Dealer {dealer_id} folder not found on the FTP server."'
+            SNS_CLIENT.publish(
+                    TopicArn=SNS_TOPIC_ARN,
+                    Message=message
+                )
+            logger.error(message)
     except Exception as e:
         logger.error(f"Error parsing data: {e}")
         raise

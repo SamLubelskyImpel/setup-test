@@ -25,6 +25,7 @@ role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
 stack_name = "quiter-integration-test"
 parameter_overrides = """\
     Environment=\"test\" \
+    CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\"\
 """
 
 [stage.deploy.parameters]
@@ -35,6 +36,7 @@ role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
 stack_name = "quiter-integration-stage"
 parameter_overrides = """\
     Environment=\"stage\" \
+    CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\"\
 """
 
 [prod.deploy.parameters]
@@ -45,4 +47,5 @@ role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
 stack_name = "quiter-integration-prod"
 parameter_overrides = """\
     Environment=\"prod\" \
+    CEAlertTopicArn=\"arn:aws:sns:us-east-1:196800776222:alert_client_engineering\"\
 """

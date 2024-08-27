@@ -8,6 +8,11 @@ Parameters:
     Type: String
     AllowedPattern: '^[a-zA-z0-9-]+$'
     ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+  CEAlertTopicArn:
+    Description: The ARN of the SNS topic serving as the Alert Topic for CE
+    Type: String
+    AllowedPattern: '^arn:aws:sns:[a-z]{2}-[a-z]+-\d{1}:\d{12}:.*$'
+    ConstraintDescription: Must be an SNS ARN
 
 Conditions:
   IsProd:
@@ -49,6 +54,10 @@ Globals:
           !Sub "integrations-${AWS::Region}-test"
         ]
         INVOKE_QUEUE: !Ref InvokeQueue
+        MERGE_REPAIR_ORDER_QUEUE: !Ref QuiterMergeRepairOrderQueue
+        MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
+        MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
+        CE_TOPIC: !Ref CEAlertTopicArn
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -211,6 +220,14 @@ Resources:
                 - sns:Publish
               Resource:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt QuiterMergeAppointmentQueue.Arn
+                - !GetAtt QuiterMergeRepairOrderQueue.Arn
+                - !GetAtt QuiterMergeVehicleSaleQueue.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -221,3 +238,35 @@ Resources:
             Enabled: True
             Queue: !GetAtt InvokeQueue.Arn
 
+  QuiterMergeRepairOrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
+        maxReceiveCount: 5
+
+  QuiterMergeRepairOrderDLQ:
+    Type: AWS::SQS::Queue
+
+  QuiterMergeAppointmentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
+        maxReceiveCount: 5
+
+  QuiterMergeAppointmentDLQ:
+    Type: AWS::SQS::Queue
+
+  QuiterMergeVehicleSaleQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeVehicleSaleDLQ.Arn
+        maxReceiveCount: 5
+
+  QuiterMergeVehicleSaleDLQ:
+    Type: AWS::SQS::Queue
