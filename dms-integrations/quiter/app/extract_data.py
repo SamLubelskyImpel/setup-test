@@ -46,12 +46,6 @@ def get_ftp_credentials():
         raise
 
 
-def is_file_within_last_24_hours(ftp, file_name):
-    file_time = ftp.sendcmd(f"MDTM {file_name}")[4:]
-    file_datetime = datetime.strptime(file_time, "%Y%m%d%H%M%S")
-    return datetime.now() - timedelta(days=1) <= file_datetime <= datetime.now()
-
-
 def list_new_files(ftp, dealer_id):
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
