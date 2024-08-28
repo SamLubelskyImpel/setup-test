@@ -53,7 +53,6 @@ def is_file_within_last_24_hours(ftp, file_name):
 
 
 def list_new_files(ftp, dealer_id):
-    # Get current time and time 24 hours ago
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
     ftp.cwd(dealer_id)
@@ -115,7 +114,6 @@ def parse_data(data):
                 logger.info(f"Found files: {found_files}")
                 # Ensure we have found a file for each file type
                 if all(file_type in found_files for file_type in FILE_PATTERNS.keys()) and len(found_files) == len(FILE_PATTERNS):
-                    logger.info("Success! All Quiter files are in place!")
                     current_date = datetime.now()
                     s3_key = f'quiter/landing_zone/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}'
                     process_files(ftp, dealer_id, found_files, s3_key)
