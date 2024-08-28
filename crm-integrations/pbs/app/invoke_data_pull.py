@@ -34,17 +34,21 @@ def build_id_list(type: str, leads: list):
        if type == 'Vehicle':
             vehicles = lead.get("Vehicles", [])
             if len(vehicles) > 0:
-                idList += vehicles[0].get("VehicleRef", None)
+                idList += vehicles[0].get("VehicleRef", '')
        idList += ','
    return idList
 
 
-def find_value(dataset: list, crm_dealer_id: str, id: str):
-    key = crm_dealer_id.lower() + '/' + id
+def find_value(type: str, dataset: list, id: str):
     for item in dataset:
-        if item.get('Id', '') == key:
-            return item
-    return {}
+        if type == "Contact":
+            if item.get('ContactId', '') == id:
+                return item
+        if type == "Vehicle":
+            if item.get('VehicleId', '') == id:
+                return item
+    logger.warning(f"Could not find {type} with ID {id}. Lead may not transform correctly")
+    return{}
 
 def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
     """Fetch new leads from PBS CRM."""
@@ -81,23 +85,22 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
 
         if contactId:
             try:
-                lead["Contact_Info"] = find_value(contactList, crm_dealer_id, contactId)
+                lead["Contact_Info"] = find_value("Contact", contactList, contactId)
             except Exception as e:
-                logger.warn(f"Error getting contact info, skipping lead {dealId}")
+                logger.warning(f"Error getting contact info, skipping lead {dealId}")
                 continue
 
         if vehicleId:
             try:
-                lead["Vehicle_Info"] = find_value(vehicleList, crm_dealer_id, vehicleId)
+                lead["Vehicle_Info"] = find_value("Vehicle", vehicleList, vehicleId)
             except Exception as e:
-                logger.warn(f"Error getting vehicle info, skipping lead {dealId}")
+                logger.warning(f"Error getting vehicle info, skipping lead {dealId}")
                 continue
 
-    logger.info(f"Total leads saved {len(filtered_leads)}")
     return filtered_leads
 
 def filter_leads(leads: list, filtered_lead_types: list):
-    """Filter leads by DealCreationDate."""
+    """Filter leads by LeadType."""
     filtered_leads = []
     for lead in leads:
         try:
@@ -138,9 +141,7 @@ def record_handler(record: SQSRecord):
         crm_dealer_id = body.get("crm_dealer_id")
         product_dealer_id = body.get("product_dealer_id", "missing_product_dealer")
 
-        #TODO: pass in valid lead types to save as a list in the input event
         filtered_lead_types = body.get("metadata", {}).get("filtered_lead_types", [])
-
 
         leads = fetch_new_leads(start_time, crm_dealer_id, filtered_lead_types)
         if not leads:
@@ -148,6 +149,7 @@ def record_handler(record: SQSRecord):
             return
 
         save_raw_leads(leads, product_dealer_id)
+        logger.info(f"Total leads saved {len(leads)}")
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
