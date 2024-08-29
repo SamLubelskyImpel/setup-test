@@ -2,7 +2,10 @@ import logging
 from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
+from sqlalchemy.exc import SQLAlchemyError
 
 from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -43,8 +46,8 @@ class DealerStatus:
     product_dealer_id: str
     integration_partner_name: str
 
-    is_active_salesai: bool
-    is_active_chatai: bool
+    is_active_salesai: bool = False
+    is_active_chatai: bool = False
     metadata: Metadata = field(default_factory=Metadata)
 
 
@@ -121,8 +124,6 @@ class DatabaseManager:
                     city=dealer_info.city,
                     zip_code=dealer_info.zip_code,
                     metadata_={"timezone": dealer_info.timezone},
-                    db_creation_date=self.dt_now,
-                    db_update_date=self.dt_now,
                 )
 
                 dealer_integration_partner = DealerIntegrationPartner(
@@ -132,8 +133,7 @@ class DatabaseManager:
                     is_active_salesai=dealer_info.is_active_salesai,
                     is_active_chatai=dealer_info.is_active_chatai,
                     metadata_=dealer_info.metadata.to_dict(),
-                    db_creation_date=self.dt_now,
-                    db_update_date=self.dt_now,
+                    db_creation_date=self.dt_now
                 )
 
                 session.add(dealer_integration_partner)
@@ -155,22 +155,23 @@ class DatabaseManager:
 
     def put_dealers_config(self, dealer_status: DealerStatus) -> Dict[str, str]:
         """Updates an existing dealer configuration in the database."""
-        with DBSession() as session:
-            dip = (
-                session.query(DealerIntegrationPartner, Dealer, IntegrationPartner)
-                .join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
-                .join(
-                    IntegrationPartner,
-                    DealerIntegrationPartner.integration_partner_id
-                    == IntegrationPartner.id,
+        try:
+            with DBSession() as session:
+                dip = (
+                    session.query(DealerIntegrationPartner)
+                    .join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
+                    .join(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
+                    .filter(
+                        and_(
+                            IntegrationPartner.impel_integration_partner_name == dealer_status.integration_partner_name,
+                            Dealer.product_dealer_id == dealer_status.product_dealer_id
+                        )
+                    )
+                    .first()
                 )
-                .filter(
-                    IntegrationPartner.impel_integration_partner_name
-                    == dealer_status.integration_partner_name
-                    and Dealer.product_dealer_id == dealer_status.product_dealer_id
-                )
-            )
-            if dip:
+                if not dip:
+                    return {"statusCode": 404, "body": "Dealer configuration not found"}
+
                 dip.is_active_salesai = (
                     dealer_status.is_active_salesai or dip.is_active_salesai
                 )
@@ -190,8 +191,12 @@ class DatabaseManager:
                     dip.metadata_ = new_metadata
 
                 session.commit()
+
                 return {"statusCode": 200, "body": "Information updated"}
-            return {"statusCode": 404, "body": "Dealer configuration not found"}
+            
+        except SQLAlchemyError as e:
+            session.rollback()
+            return {"statusCode": 500, "body": f"Database error: {str(e)}"}
 
     def _build_query(self, session: Session):
         """Builds the query to fetch dealer configurations based on the filters."""
