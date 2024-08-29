@@ -17,6 +17,8 @@ class Metadata:
     userId: Optional[str] = None
     adf_email_recipients: List[str] = field(default_factory=list)
 
+    def to_dict(self) -> dict:
+        return self.__dict__
 
 @dataclass
 class DealerInfo:
@@ -88,9 +90,7 @@ class DatabaseManager:
             existing_dealer = (
                 session.query(DealerIntegrationPartner)
                 .join(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
-                .filter(
-                    Dealer.product_dealer_id == dealer_info.product_dealer_id,
-                )
+                .filter(Dealer.product_dealer_id == dealer_info.product_dealer_id)
                 .first()
             )
 
@@ -99,18 +99,17 @@ class DatabaseManager:
 
             integration_partner = (
                 session.query(IntegrationPartner)
-                .filter_by(
-                    impel_integration_partner_name=dealer_info.integration_partner_name
-                )
+                .filter_by(impel_integration_partner_name=dealer_info.integration_partner_name)
                 .first()
             )
 
             if not integration_partner:
+                logger.warning(f"Integration Partner '{dealer_info.integration_partner_name}' not found")
                 return {
                     "statusCode": 404,
                     "body": f"Integration Partner '{dealer_info.integration_partner_name}' not found",
                 }
-            
+
             try:
                 dealer = Dealer(
                     product_dealer_id=dealer_info.product_dealer_id,
@@ -126,34 +125,19 @@ class DatabaseManager:
                     db_update_date=self.dt_now,
                 )
 
-                session.add(dealer)
-                session.flush() 
-
-                if dealer.id is None:
-                    session.rollback()
-                    return {
-                        "statusCode": 500,
-                        "body": "Failed to generate dealer ID",
-                    }
-
-                new_metadata = {}
-                if isinstance(dealer_info.metadata, Metadata):
-                    new_metadata = dealer_info.metadata.__dict__
-                elif isinstance(dealer_info.metadata, dict):
-                    new_metadata = dealer_info.metadata
-
                 dealer_integration_partner = DealerIntegrationPartner(
-                    dealer_id=dealer.id,
+                    dealer=dealer, 
                     integration_partner_id=integration_partner.id,
                     crm_dealer_id=dealer_info.crm_dealer_id,
                     is_active_salesai=dealer_info.is_active_salesai,
                     is_active_chatai=dealer_info.is_active_chatai,
-                    metadata_=new_metadata,
+                    metadata_=dealer_info.metadata.to_dict(),
                     db_creation_date=self.dt_now,
                     db_update_date=self.dt_now,
                 )
 
                 session.add(dealer_integration_partner)
+
                 session.commit()
 
                 return {
