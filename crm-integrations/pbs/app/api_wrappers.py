@@ -78,7 +78,24 @@ class CRMAPIWrapper:
         secret_data = loads(secret)
 
         return secret_data["api_key"]
-
+        
+    def update_activity(self, activity_id, crm_activity_id):
+        api_key = self.__get_api_secrets()
+        try:
+            response = requests.put(
+                url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+                json={"crm_activity_id": crm_activity_id},
+                headers={
+                    "x_api_key": api_key,
+                    "partner_id": self.partner_id,
+                },
+            )
+            response.raise_for_status()
+            logger.info(f"CRM API PUT Activities responded with: {response.status_code}")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error occurred calling CRM API: {e}")
+            raise CRMApiError(f"Error occured calling CRM API: {e}")
 class PbsApiWrapper:
     """PBS API Wrapper."""
 
