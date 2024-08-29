@@ -127,9 +127,9 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             # Parse Vehicle Data 
 
             db_vehicle = {
-                "crm_vehicle_id": vehicle.get('VehicleID', None),
+                "crm_vehicle_id": vehicle.get('VehicleId', None),
                 "vin": vehicle.get('VIN', None),
-                "manufactured_year": int(vehicle.get('Year', '')) if vehicle.get('Year', '') else None,
+                "year": int(vehicle.get('Year', '')) if vehicle.get('Year', '') else None,
                 "make": vehicle.get('Make', None),
                 "model": vehicle.get('Model', None),
                 "status": vehicle.get("Status", None),
@@ -149,11 +149,13 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             if len(vehicles) > 0:
                 vehicle = vehicles[0]
                 db_vehicle["price"] = vehicle.get('Cost', None)
-                db_vehicle["condition"] = vehicle.get('IsNewVehicle', None)
+                db_vehicle["condition"] = "New" if vehicle.get('IsNewVehicle', False) else "Used"
                 
             if len(trades) > 0:
                 trade = trades[0]
                 db_vehicle["trade_in_vin"] = trade.get('VIN', None)
+
+            logger.info(f"Vehicle Data: {db_vehicle}")
             
             db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
@@ -164,6 +166,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             # Parse Consumer Data
 
             db_consumer = {
+                "crm_consumer_id": contact.get('ContactId'),
                 "first_name": contact.get('FirstName'),
                 "middle_name": contact.get('MiddleName', ''),
                 "last_name":contact.get('LastName'),
