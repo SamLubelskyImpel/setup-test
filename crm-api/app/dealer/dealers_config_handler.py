@@ -69,12 +69,53 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         dealers_config_handler = DealersConfig(event)
         return dealers_config_handler.handle_request()
-    except ValueError as e:
-        logger.error(f"Validation error: {str(e)}")
-        return {"statusCode": 400, "body": dumps({"error": "Invalid request data."})}
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         return {
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."}),
         }
+
+
+if __name__ == "__main__":
+    # response = lambda_handler(event={
+    #         "httpMethod": "GET",
+    #         "queryStringParameters":{
+    #             "crm_dealer_id": 'test_crm_dealer_id_1'
+    #         }
+    #     }, context="")
+    # print(dumps(loads(response['body']), indent=4))
+
+    response = lambda_handler(
+        event={
+            "httpMethod": "POST",
+            "body": {
+                "crm_dealer_id": "test_crm_dealer_id_1",
+                "product_dealer_id": "test_crm_dealer_id",
+                "dealer_name": "TESTDEALERNAME",
+                "integration_partner_name": "TESTCRM",
+                "sfdc_account_id": "TEST",
+                # "dealer_location_name": "Example Location",
+                "timezone": "US/Eastern",
+            },
+        },
+        context="",
+    )
+    print(response)
+
+    # response = lambda_handler(event={
+    #         "httpMethod": "PUT",
+    #         "body": {
+    #             "is_active_salesai": True,
+    #             "is_active_chatai": True,
+    #             "metadata": {
+    #                 "userId": "TESTID",
+    #                 "adf_email_recipients": ["TEST@impel.test"]
+    #             },
+    #             "crm_dealer_id": "test_crm_dealer_id_1"
+    #         },
+    #         # "queryStringParameters":{
+    #         #     "product_dealer_id": 'activix-test-dealer'
+    #         # }
+    #     }, context="")
+    # print(dumps(response, indent=4))
