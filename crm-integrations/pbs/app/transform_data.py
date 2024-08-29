@@ -117,8 +117,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_ts"] = pd.to_datetime(deal.get('CreationDate'), format="%Y-%m-%dT%H:%M:%S.%fZ").strftime(output_format)
             
             db_lead["crm_lead_id"] = crm_lead_id[:5000]
-            db_lead["lead_status"] = deal.get('Status', '')[:5000]
-            db_lead["lead_substatus"] = deal.get('SystemStatus', '')[:5000]
+            db_lead["lead_status"] = deal.get('Status', '')
+            db_lead["lead_substatus"] = deal.get('SystemStatus', '')
             db_lead["lead_comment"] = deal.get('Notes', '')[:5000]
             db_lead["lead_origin"] = deal.get('LeadType')
             db_lead["lead_source"] = deal.get('LeadSource', '')
