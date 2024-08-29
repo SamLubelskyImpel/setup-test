@@ -139,9 +139,18 @@ Resources:
           ResponseTemplates:
             application/json: '{"message": "$context.authorizer.key"}'
           StatusCode: '403'
+        CONFLICT:
+          ResponseTemplates:
+            application/json: '{"message": "Dealer with impel_dealer_id already exists."}'
+          StatusCode: '409'
         DEFAULT_5xx:
           ResponseTemplates:
-            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+            # application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+            application/json: |
+              {
+                "message": "Internal Server Error. Please contact Impel support.",
+                "errorDetails": "$context.error.message"
+              }
 
   APILogGroup:
     Type: AWS::Logs::LogGroup

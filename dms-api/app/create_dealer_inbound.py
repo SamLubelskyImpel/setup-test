@@ -89,7 +89,10 @@ def create_dealer_handler(event, context):
             dealer = create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_code, full_name)
             dealer_id = dealer.id
         except IntegrityError:
-            raise ValueError(f"Dealer with impel_dealer_id '{impel_dealer_id}' already exists.")
+            # raise ValueError(f"Dealer with impel_dealer_id '{impel_dealer_id}' already exists.")
+            error_message = f"Dealer with impel_dealer_id '{impel_dealer_id}' already exists."
+            logger.error(error_message)
+            return {"statusCode": 409, "body": dumps({"message": error_message})}
         try:
             dealer_integration = create_dealer_integration(session, impel_integration_partner_id, impel_dealer_id, dms_id, dealer_id)
             logger.info(f"Dealer integration created: {dealer_integration}")
@@ -98,7 +101,7 @@ def create_dealer_handler(event, context):
             return {"statusCode": 400, "body": dumps({"message": str(e)})}
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
-            return {"statusCode": 500, "body": dumps({"message": "Internal server error"})}
+            return {"statusCode": 500, "body": dumps({"message": str(e)})}
 
     return {"statusCode": 200, "body": dumps({"message": "Dealer created successfully."})}
 
