@@ -93,7 +93,6 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -106,7 +105,7 @@ Resources:
                 Resource:
                   - !GetAtt InvokeDataPullQueue.Arn
                   - !GetAtt TransformPBSDataQueue.Arn
-                  # - !GetAtt SendActivityQueue.Arn
+                  - !GetAtt SendActivityQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -383,66 +382,85 @@ Resources:
   #     Statistic: Sum
   #     Threshold: 3
   #     TreatMissingData: notBreaching
+      
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+        
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+      
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
+            
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-SendActivityDLQ
+      AlarmDescription: There are unprocessed messages in the PBS SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
-  # SendActivityQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "pbs-${Environment}-SendActivityQueue"
-  #     VisibilityTimeout: 60
-  #     RedrivePolicy:
-  #       deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
-  #       maxReceiveCount: 3
-
-  # SendActivityDeadLetterQueue:
-  #   Type: AWS::SQS::Queue
-  #   Properties:
-  #     QueueName: !Sub "pbs-${Environment}-SendActivityDLQ"
-  #     MessageRetentionPeriod: 1209600
-  #     VisibilityTimeout: 10
-
-  # SendActivityEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt SendActivityQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt SendActivity.Arn
-
-  # SendActivity:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub pbs-${Environment}-SendActivity
-  #     CodeUri: app/
-  #     Handler: send_activity.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
-
-  # SendActivityLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-
-  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
-
-  # SendActivityDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub pbs-${Environment}-SendActivityDLQ
-  #     AlarmDescription: There are over 10 unprocessed messages in the pbs SendActivity DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt SendActivityDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
+  GetLeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-SendActivity
+      AlarmDescription: The Lambda function has failed 3 times within a 15 minute period while attempting to write activities to the CRM
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SendActivity
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
 
   # MonitoringPBS:
   #   Type: AWS::Serverless::Function
