@@ -27,11 +27,7 @@ class CRMAPIWrapper:
     def __init__(self):
         self.secret_name = SECRET_NAME
         self.region_name = REGION_NAME
-        self.credentials = self.get_secret()
-        self.base_url = self.credentials["API_URL"]
-        self.auth = HTTPBasicAuth(self.credentials["API_USERNAME"], self.credentials["API_PASSWORD"])
         self.partner_id = CRM_API_SECRET_KEY
-        self.api_key = self.credentials.get("API_KEY")  
 
     def get_secret(self):
         """Retrieve the API credentials from AWS Secrets Manager."""
@@ -47,99 +43,6 @@ class CRMAPIWrapper:
         else:
             # The secret is stored under the 'PBS' key in the retrieved dictionary
             return loads(loads(get_secret_value_response['SecretString'])['PBS'])
-
-    def call_employee_get(self, employee_id, crm_dealer_id):
-        """Call the EmployeeGet endpoint with the given employee_id."""
-        endpoint = f"{self.base_url}/json/reply/EmployeeGet"
-        params = {
-            "SerialNumber": crm_dealer_id,
-            "EmployeeId": employee_id,
-            "IncludeInactive": False
-        }
-
-        try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
-            response.raise_for_status()
-            logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
-            return response.json()
-        except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
-            raise
-        except Exception as err:
-            logger.error(f"Other error occurred: {err}")
-            raise
-
-    def call_deal_get(self, start_time, crm_dealer_id):
-        endpoint = f"{self.base_url}/json/reply/DealGet"
-        params = {
-            "SerialNumber": crm_dealer_id,
-            "ContractSince": start_time
-        }
-        try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
-            response.raise_for_status()
-            logger.info(f"Successfully fetched new Deal data created since {start_time}")
-            return response.json()
-        except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
-            raise
-        except Exception as err:
-            logger.error(f"Other error occurred: {err}")
-            raise
-
-    def call_contact_get(self, contactId, crm_dealer_id):
-        endpoint = f"{self.base_url}/json/reply/ContactGet"
-        params = {
-            "SerialNumber": crm_dealer_id,
-            "ContactId": contactId
-        }
-        try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
-            response.raise_for_status()
-            logger.info(f"Successfully fetched Contact with Id {contactId}")
-            return response.json()
-        except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
-            raise
-        except Exception as err:
-            logger.error(f"Other error occurred: {err}")
-            raise
-
-    def call_vehicle_get(self, vehicleId, crm_dealer_id):
-        endpoint = f"{self.base_url}/json/reply/VehicleGet"
-        params = {
-            "SerialNumber": crm_dealer_id,
-            "VehicleId": vehicleId
-        }
-        try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
-            response.raise_for_status()
-            logger.info(f"Successfully fetched Vehicle with Id {vehicleId}")
-            return response.json()
-        except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
-            raise
-        except Exception as err:
-            logger.error(f"Other error occurred: {err}")
-            raise
-
-    def update_activity(self, activity_id, crm_activity_id):
-        api_key = self.__get_api_secrets()
-        try:
-            response = requests.put(
-                url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
-                json={"crm_activity_id": crm_activity_id},
-                headers={
-                    "x_api_key": api_key,
-                    "partner_id": self.partner_id,
-                },
-            )
-            response.raise_for_status()
-            logger.info(f"CRM API PUT Activities responded with: {response.status_code}")
-            return response.json()
-        except Exception as e:
-            logger.error(f"Error occurred calling CRM API: {e}")
-            raise CRMApiError(f"Error occured calling CRM API: {e}")
 
     def __run_get(self, endpoint: str):
         api_key = self.__get_api_secrets()
@@ -218,6 +121,80 @@ class PbsApiWrapper:
         logger.info(f"Response from CRM: {response.status_code} - {response.text}")
         response.raise_for_status()
         return response
+    def call_employee_get(self, employee_id, crm_dealer_id):
+        """Call the EmployeeGet endpoint with the given employee_id."""
+        endpoint = f"{self.base_url}/json/reply/EmployeeGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "EmployeeId": employee_id,
+            "IncludeInactive": False
+        }
+
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
+    def call_deal_get(self, start_time, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/DealGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "ContractSince": start_time
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched new Deal data created since {start_time}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
+    def call_contact_get(self, contactId, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/ContactGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "ContactId": contactId
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched Contact with Id {contactId}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
+
+    def call_vehicle_get(self, vehicleId, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/VehicleGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+            "VehicleId": vehicleId
+        }
+        try:
+            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched Vehicle with Id {vehicleId}")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
 
     def __create_payload(self, event_type: str) -> dict:
         """

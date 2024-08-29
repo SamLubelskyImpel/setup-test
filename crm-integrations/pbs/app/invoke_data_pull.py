@@ -14,7 +14,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from api_wrappers import CRMAPIWrapper
+from api_wrappers import PbsApiWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -52,7 +52,7 @@ def find_value(type: str, dataset: list, id: str):
 
 def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
     """Fetch new leads from PBS CRM."""
-    api = CRMAPIWrapper()
+    api = PbsApiWrapper()
 
     # Get inital list of leads
     try:

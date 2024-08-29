@@ -1,6 +1,6 @@
 import json
 import logging
-from api_wrappers import CRMAPIWrapper
+from api_wrappers import PbsApiWrapper
 
 # Configure logging
 logger = logging.getLogger()
@@ -9,7 +9,7 @@ logger.setLevel(logging.INFO)
 def lambda_handler(event, context):
     logger.info("Lambda function invoked with event: %s", event)
 
-    api = CRMAPIWrapper()
+    api = PbsApiWrapper()
     crm_dealer_id = event.get("crm_dealer_id", "00000000000000000000000000000000")
     employee_id = event.get("employee_id", "00000000000000000000000000000000")  # Default EmployeeId for testing
     logger.info("Fetching employee data for EmployeeId: %s", employee_id)
