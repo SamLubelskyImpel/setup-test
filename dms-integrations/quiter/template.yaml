@@ -121,7 +121,6 @@ Resources:
                   ]
       Environment:
         Variables:
-          Environment: !Ref Environment
           INVOKE_QUEUE: !Ref InvokeQueue
       Events:
         DailyInvoke:
@@ -228,9 +227,6 @@ Resources:
                 - !GetAtt QuiterMergeAppointmentQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
                 - !GetAtt QuiterMergeVehicleSaleQueue.Arn
-      Environment:
-        Variables:
-          Environment: !Ref Environment
       Events:
         SQSEvent:
           Type: SQS
@@ -240,7 +236,9 @@ Resources:
 
   QuiterMergeRepairOrderQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeRepairOrderDLQ
     Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
@@ -248,10 +246,14 @@ Resources:
 
   QuiterMergeRepairOrderDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQ
 
   QuiterMergeAppointmentQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeAppointmentDLQ
     Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
@@ -259,10 +261,14 @@ Resources:
 
   QuiterMergeAppointmentDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
 
   QuiterMergeVehicleSaleQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeVehicleSaleDLQ
     Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeVehicleSaleDLQ.Arn
@@ -270,3 +276,5 @@ Resources:
 
   QuiterMergeVehicleSaleDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleDLQ
