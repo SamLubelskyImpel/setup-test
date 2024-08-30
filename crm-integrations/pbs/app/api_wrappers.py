@@ -215,21 +215,34 @@ class PbsApiWrapper:
         details = self.__activity.get("notes", f"Impel Sales AI {event_type}.")
         employee_ref = self.__salesperson.get("crm_salesperson_id")
 
+        # Determine the summary based on the event type
+        if event_type == "appointment":
+            summary = "Appointment"
+        elif event_type == "note":
+            summary = "Note"
+        elif event_type == "outbound_call":
+            summary = "Outbound call"
+        elif event_type == "phone_call_task":
+            summary = "Phone call request from Impel Sales AI"
+        else:
+            logger.error(f"Unsupported event type: {event_type}")
+            raise ValueError(f"Unsupported event type: {event_type}")
+            
         payload = {
             "Id": f"{serial_number}/00000000-0000-0000-0000-000000000000",
             "SerialNumber": serial_number,
             "ContactRef": contact_ref,
             "Status": "Open",
             "UserRefs": [{"EmployeeRef": employee_ref}],
-            "Summary": f"Impel Sales AI {event_type}",
+            "Summary": summary,
             "Details": details,
         }
 
         # Conditionally add DueDate or EventDate based on the activity type
-        if event_type in ["Appointment", "Phone Call Request"]:
-            payload["DueDate"] = self.__activity.get("activity_requested_ts")
-        elif event_type == "First Contact":
-            payload["EventDate"] = self.__activity.get("activity_due_ts")
+        if event_type in ["appointment", "phone_call_task"]:
+            payload["DueDate"] = self.__activity.get("activity_due_ts")
+        elif event_type == "outbound_call":
+            payload["EventDate"] = self.__activity.get("activity_requested_ts")
 
         return payload
 
@@ -277,11 +290,11 @@ class PbsApiWrapper:
         # Create the specific payload for an appointment activity.
         payload = {
             "AppointmentInfo": {
-                **self.__create_payload("Appointment"),  # Use the common payload structure.
+                **self.__create_payload("appointment"),  # Use the common payload structure.
                 "AppointmentType": "Appointment",
                 "TimeAllowed": "60",
                 "Recurrence": "Once",
-                "Status": "Open" 
+                "Status": "Open"
             },
             "IsAsynchronous": False 
         }
@@ -294,7 +307,7 @@ class PbsApiWrapper:
         """Create note on PBS CRM."""
         payload = {
             "EventInfo": {
-                **self.__create_payload("Note"),
+                **self.__create_payload("note"),
                 "Action": "Note",
                 "Status": "Active"
             },
@@ -307,7 +320,7 @@ class PbsApiWrapper:
         """Create phone call task on PBS CRM."""
         payload = {
             "ReminderInfo": {
-                **self.__create_payload("Phone Call Request"), 
+                **self.__create_payload("phone_call_task"), 
                 "Status": "Active",  
             },
             "IsAsynchronous": False
@@ -344,7 +357,7 @@ class PbsApiWrapper:
 
         payload = {
             "EventInfo": {
-                **self.__create_payload("First Contact"), 
+                **self.__create_payload("outbound_call"), 
                 "Action": action,  
                 "Recipients": [
                     {
