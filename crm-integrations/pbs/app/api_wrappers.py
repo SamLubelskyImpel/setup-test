@@ -25,24 +25,7 @@ class CRMApiError(Exception):
 
 class CRMAPIWrapper:
     def __init__(self):
-        self.secret_name = SECRET_NAME
-        self.region_name = REGION_NAME
         self.partner_id = CRM_API_SECRET_KEY
-
-    def get_secret(self):
-        """Retrieve the API credentials from AWS Secrets Manager."""
-        session = boto3.session.Session()
-        client = session.client(service_name='secretsmanager', region_name=self.region_name)
-
-        try:
-            get_secret_value_response = client.get_secret_value(SecretId=self.secret_name)
-            logger.info("Successfully retrieved secrets from Secrets Manager.")
-        except ClientError as e:
-            logger.error(f"Error retrieving secret: {e}")
-            raise e
-        else:
-            # The secret is stored under the 'PBS' key in the retrieved dictionary
-            return loads(loads(get_secret_value_response['SecretString'])['PBS'])
 
     def __run_get(self, endpoint: str):
         api_key = self.__get_api_secrets()
@@ -96,6 +79,7 @@ class CRMAPIWrapper:
         except Exception as e:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
+
 class PbsApiWrapper:
     """PBS API Wrapper."""
 
@@ -226,14 +210,13 @@ class PbsApiWrapper:
         This function extracts common fields from the `__activity` attribute and creates a standardized
         payload structure. It conditionally includes 'DueDate' or 'EventDate' based on the activity type.
         """
-        event_id = self.__activity.get("crm_dealer_id")  
         serial_number = self.__activity.get("crm_dealer_id") 
         contact_ref = self.__activity.get("crm_consumer_id")  
         details = self.__activity.get("notes", f"Impel Sales AI {event_type}.")
-        employee_ref = self.__salesperson["crm_salesperson_id"] if self.__salesperson else self.__user_id
-        
+        employee_ref = self.__salesperson.get("crm_salesperson_id")
+
         payload = {
-            "Id": f"{event_id}/00000000-0000-0000-0000-000000000000",
+            "Id": f"{serial_number}/00000000-0000-0000-0000-000000000000",
             "SerialNumber": serial_number,
             "ContactRef": contact_ref,
             "Status": "Open",
@@ -339,7 +322,9 @@ class PbsApiWrapper:
         last_name = self.__consumer.get("last_name", "")
         middle_name = self.__consumer.get("middle_name", "")
         full_name = f"{first_name} {middle_name} {last_name}".strip()
-        
+
+        address_value = ""
+
         # Determine the contact method and set the action and address accordingly
         contact_method = self.__activity.get("contact_method", "").lower()
         
