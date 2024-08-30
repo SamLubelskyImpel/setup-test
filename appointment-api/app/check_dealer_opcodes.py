@@ -130,9 +130,11 @@ def lambda_handler(event, context):
                 dealer_reports.update({
                     "Failed to check dealers": ', '.join(failed_dealers)
                 })
-            partner_reports.update({
-                partner: dealer_reports
-            })
+
+            if dealer_reports:
+                partner_reports.update({
+                    partner: dealer_reports
+                })
 
         except Exception as e:
             logger.error(f"Error: {e}")
