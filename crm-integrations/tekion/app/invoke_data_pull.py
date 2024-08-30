@@ -144,27 +144,27 @@ def save_raw_leads(leads: list, product_dealer_id: str):
 def record_handler(record: SQSRecord):
     """Invoke Tekion CRM data pull."""
     logger.info(f"Record: {record}")
-    try:
-        body = loads(record['body'])
+    # try:
+    #     body = loads(record['body'])
 
-        start_time = body['start_time']
-        end_time = body['end_time']
-        crm_dealer_id = body['crm_dealer_id']
-        product_dealer_id = body['product_dealer_id']
+    #     start_time = body['start_time']
+    #     end_time = body['end_time']
+    #     crm_dealer_id = body['crm_dealer_id']
+    #     product_dealer_id = body['product_dealer_id']
 
-        leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
-        if not leads:
-            logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
-            return
+    #     leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
+    #     if not leads:
+    #         logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
+    #         return
 
-        save_raw_leads(leads, product_dealer_id)
+    #     save_raw_leads(leads, product_dealer_id)
 
-    except Exception as e:
-        logger.error(f"Error processing record: {e}")
-        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, start_time, end_time, e)
-            )
-        raise
+    # except Exception as e:
+    #     logger.error(f"Error processing record: {e}")
+    #     logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\nTraceback: {}".format(
+    #         product_dealer_id, crm_dealer_id, start_time, end_time, e)
+    #         )
+    #     raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
