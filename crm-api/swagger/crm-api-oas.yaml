@@ -837,13 +837,15 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Dealer"
+                  $ref: "#/components/schemas/DealerConfiguration"
         '400':
           "$ref": "#/components/responses/400"
         '401':
           "$ref": "#/components/responses/401"
         '404':
           description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
         '500':
           "$ref": "#/components/responses/500"
     put:
@@ -852,6 +854,8 @@ paths:
       tags:
         - Dealers
       parameters:
+        - "$ref": "#/components/parameters/integrationPartnerName"
+        - "$ref": "#/components/parameters/ProductDealer"
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
       requestBody:
@@ -876,8 +880,12 @@ paths:
                   example: "12345"
                 metadata:
                   type: object
-                  additionalProperties: true
-                  example: {"min_price": 25000.00, "max_price": 30000.00}
+                  description: Additional metadata associated with the dealership.
+                  properties:
+                    timezone:
+                      type: string
+                      description: The timezone of the dealership or rooftop (IANA Time Zone Database Format)
+                      example: "America/New_York"
       responses:
         '200':
           description: Information updated.
@@ -887,6 +895,8 @@ paths:
           "$ref": "#/components/responses/401"
         '404':
           description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
         '500':
           "$ref": "#/components/responses/500"
     post:
@@ -902,15 +912,16 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
       responses:
-        '200':
+        '201':
           description: Dealer configuration created successfully dealer_id.
         '400':
           "$ref": "#/components/responses/400"
         '401':
           "$ref": "#/components/responses/401"
-        '404':
-          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
         '500':
           "$ref": "#/components/responses/500"
   /dealers/{dealer_id}:
@@ -1133,6 +1144,80 @@ components:
             - text
           example: "email"
           maxLength: 20
+    DealerConfiguration:
+      description: A dealers configuration in the CRM layer.
+      type: object
+      properties:
+        dealer_integration_partner_id:
+          type: number
+          description: The ID of the dealer integration partner in the CRM layer.
+          example: 36
+        crm_dealer_id:
+          type: string
+          description: The ID of the dealer in the CRM.
+          example: "test_crm_dealer_id_1"
+        product_dealer_id:
+          type: string
+          description: The ID assigned to the dealership by Impel during onboarding.
+          example: "test_crm_dealer_id"
+        dealer_name:
+          type: string
+          description: The name of the dealer.
+          example: "TESTDEALERNAME"
+        integration_partner_name:
+          type: string
+          description: The name of the CRM integration partner.
+          example: "TESTCRM"
+        sfdc_account_id:
+          type: string
+          description: The Salesforce account ID associated with the dealer.
+          example: "TEST"
+        dealer_location_name:
+          type: string
+          description: The name of the dealer's location.
+          example: null
+        country:
+          type: string
+          description: The country where the dealership is located.
+          example: null
+        state:
+          type: string
+          description: The state where the dealership is located.
+          example: null
+        city:
+          type: string
+          description: The city where the dealership is located.
+          example: null
+        zip_code:
+          type: string
+          description: The ZIP code of the dealership's location.
+          example: null
+        timezone:
+          type: string
+          description: The timezone of the dealership.
+          example: "US/Eastern"
+        metadata:
+          type: object
+          description: Additional metadata associated with the dealership.
+          properties:
+            userId:
+              type: string
+              description: The user ID associated with the dealership.
+              example: null
+            adf_email_recipients:
+              type: array
+              items:
+                type: string
+              description: A list of email recipients for ADF (Auto-lead Data Format) notifications.
+              example: []
+        is_active_salesai:
+          type: boolean
+          description: Indicates if SalesAI is active for the dealership.
+          example: true
+        is_active_chatai:
+          type: boolean
+          description: Indicates if ChatAI is active for the dealership.
+          example: false
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object
@@ -1554,6 +1639,14 @@ components:
       schema:
         type: string
         example: "TESTCRM"
+    ProductDealer:
+      name: product_dealer
+      in: query
+      description: The name of the dealer configs in shared layer and in dynamoDB
+      required: true
+      schema:
+        type: string
+        example: "tekion-test-dealer"
     leadId:
       name: lead_id
       in: path
