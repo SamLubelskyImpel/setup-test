@@ -2,10 +2,14 @@ import io
 import csv
 import logging
 import boto3
+from os import environ
 from ftplib import FTP, error_perm, error_temp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+SNS_TOPIC_ARN = environ.get("CE_TOPIC")
+SNS_CLIENT = boto3.client('sns')
 
 
 class FtpToS3:
@@ -34,6 +38,13 @@ class FtpToS3:
         except Exception as e:
             logger.error(f"Unexpected error while checking directory {directory}: {e}")
             return False
+
+    def alert_topic(self, subject, message):
+        SNS_CLIENT.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=message,
+            Subject=subject
+        )
 
     def process_and_upload_file(self, filename, directory, s3_key, bucket_name, parent_store, child_store):
         try:
@@ -77,9 +88,11 @@ class FtpToS3:
             if not self.connected_ftp:
                 raise ConnectionError("Problem with connection to the FTP server")
 
+            # Flag to track if any daily data is found (for daily files only)
+            daily_data_found = False
+
             for date_path in date_paths:
                 directory = f"/{parent_store}/{date_path}"
-                logger.info(f"Checking for files in FTP directory: {directory}")
 
                 if not self.check_directory_exists(directory):
                     continue  # Try the next directory if this one does not exist
@@ -95,6 +108,7 @@ class FtpToS3:
                             s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
                         else:
                             s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
+                            daily_data_found = True
 
                         self.process_and_upload_file(filename, directory, s3_key, bucket_name, parent_store, child_store)
                     break  # Exit the loop after successfully processing the files in a directory
@@ -105,6 +119,13 @@ class FtpToS3:
                 except Exception as e:
                     logger.error(f"Unexpected error during file listing: {e}")
                     raise
+
+            # Send an alarm if daily data is missing
+            if 'daily' in date_path and not daily_data_found:
+                subject = f"SIDEKICK: Missing daily folder on FTP for the dealer {parent_store}-{child_store}."
+                message = f"No daily data found for the dealer: {parent_store}-{child_store}."
+                self.alert_topic(subject, message)
+                logger.error(message)
 
         except (error_perm, error_temp) as e:
             logger.error(f"FTP transfer error: {e}")
