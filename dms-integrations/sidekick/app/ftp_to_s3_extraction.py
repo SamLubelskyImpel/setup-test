@@ -2,6 +2,7 @@ import io
 import csv
 import logging
 import boto3
+import re
 from os import environ
 from ftplib import FTP, error_perm, error_temp
 
@@ -104,11 +105,11 @@ class FtpToS3:
                         continue  # Try the next directory if no files found
 
                     for filename in files:
-                        if 'historical' in date_path:
-                            s3_key = f"sidekick/repair_order/historical/{parent_store}/{child_store}/{date_path}/{filename}"
-                        else:
-                            s3_key = f"sidekick/repair_order/{parent_store}/{child_store}/{date_path}/{filename}"
+                        if 'daily' in date_path:
                             daily_data_found = True
+                        # Remove 'daily/' or 'historical/' from the path
+                        cleaned_date_path = re.sub(r'^(daily|historical)/', '', date_path)
+                        s3_key = f'sidekick/repair_order/{cleaned_date_path}/{filename}'
 
                         self.process_and_upload_file(filename, directory, s3_key, bucket_name, parent_store, child_store)
                     break  # Exit the loop after successfully processing the files in a directory
