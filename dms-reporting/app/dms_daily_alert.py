@@ -91,7 +91,7 @@ def get_missing_dealer_integrations(cursor, active_dealers, previous_data_dealer
 
     set_active_dealers = set(active_dealers)
     set_previous_data_dealers = set(previous_data_dealers)
-    
+
     return get_impel_dealer_ids_by_integration_partner_ids(cursor, set_active_dealers - set_previous_data_dealers)
 
 
