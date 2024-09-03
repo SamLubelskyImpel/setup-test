@@ -3,11 +3,8 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
-import requests
-from requests.auth import HTTPBasicAuth
 from uuid import uuid4
 from datetime import datetime
-import pandas as pd
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
