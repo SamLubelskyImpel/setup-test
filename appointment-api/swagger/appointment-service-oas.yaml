@@ -185,7 +185,7 @@ paths:
         - in: query
           name: start_time
           required: true
-          description: Specifies the earliest date for available timeslot search (Local Time Dealer)
+          description: Specifies the earliest date for available timeslot search (Local Time Dealer). Query date ranges must not exceed 7 days.
           schema:
             type: string
             format: date-time
@@ -193,7 +193,7 @@ paths:
         - in: query
           name: end_time
           required: true
-          description: Specifies the latest date for available timeslot search (Local Time Dealer)
+          description: Specifies the latest date for available timeslot search (Local Time Dealer). Query date ranges must not exceed 7 days.
           schema:
             type: string
             format: date-time

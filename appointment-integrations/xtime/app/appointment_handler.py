@@ -25,11 +25,10 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
             appointment_slots=appointment_slots
         )
 
-        timeslots = format_and_filter_timeslots(appt_time_slots["availableAppointments"],
-                                                start_time=appointment_slots.start_time,
-                                                end_time=appointment_slots.end_time)
-
         if appt_time_slots["success"]:
+            timeslots = format_and_filter_timeslots(appt_time_slots["availableAppointments"],
+                                                    start_time=appointment_slots.start_time,
+                                                    end_time=appointment_slots.end_time)
             return {
                 "statusCode": 200,
                 "body": dumps(
