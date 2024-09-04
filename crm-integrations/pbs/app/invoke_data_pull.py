@@ -1,3 +1,5 @@
+"""Invoke PBS data pull."""
+
 import boto3
 import logging
 from os import environ
@@ -21,19 +23,20 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
+
 def build_id_list(type: str, leads: list):
-   idList = ''
-   for lead in leads:
-       if type == 'Contact':
-           buyerRef = lead.get('BuyerRef', '')
-           if buyerRef:
-               idList += buyerRef
-       if type == 'Vehicle':
+    id_list = ''
+    for lead in leads:
+        if type == 'Contact':
+            buyer_ref = lead.get('BuyerRef', '')
+            if buyer_ref:
+                id_list += buyer_ref
+        if type == 'Vehicle':
             vehicles = lead.get("Vehicles", [])
             if len(vehicles) > 0:
-                idList += vehicles[0].get("VehicleRef", '')
-       idList += ','
-   return idList
+                id_list += vehicles[0].get("VehicleRef", '')
+        id_list += ','
+    return id_list
 
 
 def find_value(type: str, dataset: list, id: str):
@@ -45,7 +48,8 @@ def find_value(type: str, dataset: list, id: str):
             if item.get('VehicleId', '') == id:
                 return item
     logger.warning(f"Could not find {type} with ID {id}. Lead may not transform correctly")
-    return{}
+    return {}
+
 
 def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
     """Fetch new leads from PBS CRM."""
@@ -65,47 +69,48 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
     filtered_leads = filter_leads(inital_leads, filtered_lead_types)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
 
-    contactIdList = build_id_list('Contact', filtered_leads)
-    vehicleIdList = build_id_list('Vehicle', filtered_leads)
+    contact_id_list = build_id_list('Contact', filtered_leads)
+    vehicle_id_list = build_id_list('Vehicle', filtered_leads)
 
-    contactList = api.call_contact_get(contactIdList, crm_dealer_id).get('Contacts', [])
-    vehicleList = api.call_vehicle_get(vehicleIdList, crm_dealer_id).get('Vehicles', [])
+    contact_list = api.call_contact_get(contact_id_list, crm_dealer_id).get('Contacts', [])
+    vehicle_list = api.call_vehicle_get(vehicle_id_list, crm_dealer_id).get('Vehicles', [])
 
     for lead in filtered_leads:
-        contactId = lead.get("BuyerRef", None)
-        vehicleId = None
-        dealId = lead.get("DealId")
+        contact_id = lead.get("BuyerRef", None)
+        vehicle_id = None
+        deal_id = lead.get("DealId")
 
         vehicles = lead.get("Vehicles", [])
         if len(vehicles) > 0:
-            vehicleId = vehicles[0].get("VehicleRef", None)
+            vehicle_id = vehicles[0].get("VehicleRef", None)
 
-        if contactId:
+        if contact_id:
             try:
-                lead["Contact_Info"] = find_value("Contact", contactList, contactId)
+                lead["Contact_Info"] = find_value("Contact", contact_list, contact_id)
             except Exception as e:
-                logger.warning(f"Error getting contact info, skipping lead {dealId}")
+                logger.warning(f"Error getting contact info: {e}, skipping lead {deal_id}")
                 continue
 
-        if vehicleId:
+        if vehicle_id:
             try:
-                lead["Vehicle_Info"] = find_value("Vehicle", vehicleList, vehicleId)
+                lead["Vehicle_Info"] = find_value("Vehicle", vehicle_list, vehicle_id)
             except Exception as e:
-                logger.warning(f"Error getting vehicle info, skipping lead {dealId}")
+                logger.warning(f"Error getting vehicle info: {e}, skipping lead {deal_id}")
                 continue
 
     return filtered_leads
+
 
 def filter_leads(leads: list, filtered_lead_types: list):
     """Filter leads by LeadType."""
     filtered_leads = []
     for lead in leads:
         try:
-           lead_type = lead.get("LeadType", "")
+            lead_type = lead.get("LeadType", "")
 
-           if lead_type in filtered_lead_types:
-               filtered_leads.append(lead)
-    
+            if lead_type in filtered_lead_types:
+                filtered_leads.append(lead)
+
         except Exception as e:
             logger.error(f"Error parsing Lead type for lead {lead.get('DealId')}. Skipping lead: {e}")
             continue
@@ -154,6 +159,7 @@ def record_handler(record: SQSRecord):
             product_dealer_id, crm_dealer_id, start_time, e)
             )
         raise
+
 
 def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")

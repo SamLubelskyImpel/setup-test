@@ -1,6 +1,8 @@
+"""Send activity to PBS."""
+
 from typing import Any
 from os import environ
-from json import loads, dumps
+from json import loads
 from boto3 import client
 from logging import getLogger
 from aws_lambda_powertools.utilities.batch import (
@@ -11,7 +13,7 @@ from aws_lambda_powertools.utilities.batch import (
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
 from api_wrappers import CRMAPIWrapper, PbsApiWrapper, CRMApiError
- 
+
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
@@ -30,7 +32,7 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         salesperson = crm_api.get_salesperson(activity["lead_id"])
         consumer = crm_api.get_consumer(activity["consumer_id"])
-        
+
         # Check if both salesperson and consumer are available
         if not salesperson or not consumer:
             logger.warning(f"Missing required data: Salesperson or Consumer not found for lead_id: {activity['lead_id']} or consumer_id: {activity['consumer_id']}.")

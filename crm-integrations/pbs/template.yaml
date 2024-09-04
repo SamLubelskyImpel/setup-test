@@ -132,6 +132,7 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+
   GetDealerSalespersons:
     Type: AWS::Serverless::Function
     Properties:
@@ -144,6 +145,7 @@ Resources:
       Environment:
         Variables:
           Environment: !Ref Environment
+
   GetDealerSalespersons500ErrorMetricFilter:
     Type: "AWS::Logs::MetricFilter"
     DependsOn: GetDealerSalespersonsLogGroup
@@ -154,11 +156,13 @@ Resources:
         - MetricValue: "1"
           MetricNamespace: "PBS/Lambda"
           MetricName: "GetDealerSalespersons500Errors"
+
   GetDealerSalespersonsLogGroup:
     Type: "AWS::Logs::LogGroup"
     Properties:
       LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-GetDealerSalespersons"
       RetentionInDays: 30
+
   GetDealerSalespersons500ErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -175,6 +179,7 @@ Resources:
       Statistic: Sum
       Threshold: 3
       TreatMissingData: notBreaching
+
   InvokeDataPull:
     Type: AWS::Serverless::Function
     Properties:
@@ -363,6 +368,7 @@ Resources:
   #   Type: AWS::Logs::LogGroup
   #   Properties:
   #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
+
   # GetLeadUpdatesErrorAlarm:
   #   Type: AWS::CloudWatch::Alarm
   #   Properties:
@@ -462,58 +468,58 @@ Resources:
       Threshold: 3
       TreatMissingData: notBreaching
 
-  # MonitoringPBS:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub pbs-${Environment}-Monitoring
-  #     CodeUri: app/
-  #     Handler: monitoring.lambda_handler
-  #     Timeout: 30
-  #     MemorySize: 256
-  #     Role: !GetAtt LambdaRole.Arn
+  MonitoringPBS:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
 
-  # MonitoringPBSLogGroup:
-  #   Type: AWS::Logs::LogGroup
-  #   Properties:
-  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Monitoring"
+  MonitoringPBSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Monitoring"
 
-  # LogGroupInvokeLambdaPermission:
-  #   Type: AWS::Lambda::Permission
-  #   Properties:
-  #     FunctionName: !GetAtt MonitoringPBS.Arn
-  #     Action: lambda:InvokeFunction
-  #     Principal: logs.amazonaws.com
-  #     SourceAccount: !Ref 'AWS::AccountId'
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringPBS.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
 
-  # MonitoringInvokeDataPullSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringPBS
-  #     - InvokeDataPullLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref InvokeDataPullLogGroup
-  #     DestinationArn: !GetAtt MonitoringPBS.Arn
-  #     FilterPattern: "SUPPORT ALERT"
+  MonitoringInvokeDataPullSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringPBS
+      - InvokeDataPullLogGroup
+    Properties:
+      LogGroupName: !Ref InvokeDataPullLogGroup
+      DestinationArn: !GetAtt MonitoringPBS.Arn
+      FilterPattern: "SUPPORT ALERT"
 
-  # MonitoringGetLeadUpdatesSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringPBS
-  #     - GetLeadUpdatesLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref GetLeadUpdatesLogGroup
-  #     DestinationArn: !GetAtt MonitoringPBS.Arn
-  #     FilterPattern: "SUPPORT ALERT"
+  MonitoringGetLeadUpdatesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringPBS
+      - GetLeadUpdatesLogGroup
+    Properties:
+      LogGroupName: !Ref GetLeadUpdatesLogGroup
+      DestinationArn: !GetAtt MonitoringPBS.Arn
+      FilterPattern: "SUPPORT ALERT"
 
-  # MonitoringSendActivitySubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - LogGroupInvokeLambdaPermission
-  #     - MonitoringPBS
-  #     - SendActivityLogGroup
-  #   Properties:
-  #     LogGroupName: !Ref SendActivityLogGroup
-  #     DestinationArn: !GetAtt MonitoringPBS.Arn
-  #     FilterPattern: "SUPPORT ALERT"
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringPBS
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringPBS.Arn
+      FilterPattern: "SUPPORT ALERT"

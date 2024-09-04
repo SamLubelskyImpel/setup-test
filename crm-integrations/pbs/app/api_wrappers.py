@@ -1,3 +1,9 @@
+"""
+These classes are designed to manage calls to the PBS/CRM API for activities.
+This wrapper classes defined this file should NOT be modified or used by any other resources aside from the SendActivity lambda.
+A decision was made to isolate source code for each lambda in order to limit the impact of errors caused by changes to other resources.
+"""
+
 import boto3
 import requests
 from json import loads
@@ -5,11 +11,9 @@ from requests.auth import HTTPBasicAuth
 from botocore.exceptions import ClientError
 from os import environ
 import logging
-
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Configuration
+
 is_prod = environ.get("Environment", "test") == "prod"
 SECRET_NAME = "prod/crm-integrations-partner" if is_prod else "test/crm-integrations-partner"
 REGION_NAME = "us-east-1"
@@ -23,7 +27,10 @@ secret_client = boto3.client("secretsmanager")
 class CRMApiError(Exception):
     pass
 
+
 class CRMAPIWrapper:
+    """CRM API Wrapper."""
+
     def __init__(self):
         self.partner_id = CRM_API_SECRET_KEY
 
@@ -61,7 +68,7 @@ class CRMAPIWrapper:
         secret_data = loads(secret)
 
         return secret_data["api_key"]
-        
+
     def update_activity(self, activity_id, crm_activity_id):
         api_key = self.__get_api_secrets()
         try:
@@ -79,6 +86,7 @@ class CRMAPIWrapper:
         except Exception as e:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
+
 
 class PbsApiWrapper:
     """PBS API Wrapper."""
@@ -122,6 +130,7 @@ class PbsApiWrapper:
         logger.info(f"Response from CRM: {response.status_code} - {response.text}")
         response.raise_for_status()
         return response
+
     def call_employee_get(self, employee_id, crm_dealer_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
         endpoint = f"{self.base_url}/json/reply/EmployeeGet"
@@ -161,16 +170,16 @@ class PbsApiWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_contact_get(self, contactId, crm_dealer_id):
+    def call_contact_get(self, contact_id, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/ContactGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "ContactId": contactId
+            "ContactId": contact_id
         }
         try:
             response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched Contact with Id {contactId}")
+            logger.info(f"Successfully fetched Contact with Id {contact_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -179,16 +188,16 @@ class PbsApiWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_vehicle_get(self, vehicleId, crm_dealer_id):
+    def call_vehicle_get(self, vehicle_id, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/VehicleGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "VehicleId": vehicleId
+            "VehicleId": vehicle_id
         }
         try:
             response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched Vehicle with Id {vehicleId}")
+            logger.info(f"Successfully fetched Vehicle with Id {vehicle_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -206,12 +215,12 @@ class PbsApiWrapper:
 
         Returns:
             dict: A dictionary representing the common payload structure for the given activity.
-        
+
         This function extracts common fields from the `__activity` attribute and creates a standardized
         payload structure. It conditionally includes 'DueDate' or 'EventDate' based on the activity type.
         """
-        serial_number = self.__activity.get("crm_dealer_id") 
-        contact_ref = self.__activity.get("crm_consumer_id")  
+        serial_number = self.__activity.get("crm_dealer_id")
+        contact_ref = self.__activity.get("crm_consumer_id")
         details = self.__activity.get("notes", f"Impel Sales AI {event_type}.")
         employee_ref = self.__salesperson.get("crm_salesperson_id")
 
@@ -227,7 +236,7 @@ class PbsApiWrapper:
         else:
             logger.error(f"Unsupported event type: {event_type}")
             raise ValueError(f"Unsupported event type: {event_type}")
-            
+
         payload = {
             "Id": f"{serial_number}/00000000-0000-0000-0000-000000000000",
             "SerialNumber": serial_number,
@@ -246,7 +255,6 @@ class PbsApiWrapper:
 
         return payload
 
-
     def __send_payload(self, endpoint: str, payload: dict):
         """
         Send a payload to the PBS CRM API.
@@ -261,23 +269,21 @@ class PbsApiWrapper:
         This function sends the prepared payload to a specified PBS CRM API endpoint.
         It handles the response, logging relevant information, and raises an exception for non-200 status codes.
         """
-        url = f"{self.base_url}/json/reply/{endpoint}"  # Construct the full API URL.
-        logger.info(f"Payload to CRM: {payload}")  # Log the payload being sent.
-        
-        # Send the API request and get the response.
+        url = f"{self.base_url}/json/reply/{endpoint}"
+        logger.info(f"Payload to CRM: {payload}")
+
         response = self.__call_api(url=url, payload=payload)
 
         if response.status_code == 200:
-            response_json = response.json() 
-            reference_id = response_json.get("ReferenceId") 
-            return reference_id  
+            response_json = response.json()
+            reference_id = response_json.get("ReferenceId")
+            return reference_id
         else:
             logger.error(f"Failed to send payload. Status Code: {response.status_code}, Response: {response.text}")
             response.raise_for_status()
 
-
     def __create_appointment(self):
-        """ 
+        """
         Create an appointment on PBS CRM.
 
         Returns:
@@ -287,21 +293,19 @@ class PbsApiWrapper:
         'AppointmentType', 'TimeAllowed', and 'Recurrence'. It then sends the payload to the appropriate
         API endpoint using the `__send_payload` function.
         """
-        # Create the specific payload for an appointment activity.
+
         payload = {
             "AppointmentInfo": {
-                **self.__create_payload("appointment"),  # Use the common payload structure.
+                **self.__create_payload("appointment"),
                 "AppointmentType": "Appointment",
                 "TimeAllowed": "60",
                 "Recurrence": "Once",
                 "Status": "Open"
             },
-            "IsAsynchronous": False 
+            "IsAsynchronous": False
         }
 
-        # Send the payload to the 'WorkplanAppointmentChange' endpoint and return the result.
         return self.__send_payload("WorkplanAppointmentChange", payload)
-
 
     def __insert_note(self):
         """Create note on PBS CRM."""
@@ -311,22 +315,20 @@ class PbsApiWrapper:
                 "Action": "Note",
                 "Status": "Active"
             },
-            "IsAsynchronous": False 
+            "IsAsynchronous": False
         }
         return self.__send_payload("WorkplanEventChange", payload)
-
 
     def __phone_call_task(self):
         """Create phone call task on PBS CRM."""
         payload = {
             "ReminderInfo": {
-                **self.__create_payload("phone_call_task"), 
-                "Status": "Active",  
+                **self.__create_payload("phone_call_task"),
+                "Status": "Active",
             },
             "IsAsynchronous": False
         }
         return self.__send_payload("WorkplanReminderChange", payload)
-
 
     def __create_outbound_call(self):
         """Create outbound call on PBS CRM."""
@@ -340,7 +342,7 @@ class PbsApiWrapper:
 
         # Determine the contact method and set the action and address accordingly
         contact_method = self.__activity.get("contact_method", "").lower()
-        
+
         if contact_method == "email":
             action = "Email"
             address_value = self.__consumer.get("email", "")  # Use the consumer's email address
@@ -357,8 +359,8 @@ class PbsApiWrapper:
 
         payload = {
             "EventInfo": {
-                **self.__create_payload("outbound_call"), 
-                "Action": action,  
+                **self.__create_payload("outbound_call"),
+                "Action": action,
                 "Recipients": [
                     {
                         "RecipientId": self.__activity.get("crm_consumer_id"),
@@ -369,14 +371,14 @@ class PbsApiWrapper:
                     },
                     {
                         "Name": "Impel Sales AI",
-                        "Address": "salesai@impel.ai" if contact_method == "email" else "8007777777", 
+                        "Address": "salesai@impel.ai" if contact_method == "email" else "8007777777",
                         "Type": "To",
                         "Flags": "Sent"
                     }
                 ]
             },
             "IsAsynchronous": False,
-            "IsHistorical": False 
+            "IsHistorical": False
         }
 
         return self.__send_payload("WorkplanEventChange", payload)

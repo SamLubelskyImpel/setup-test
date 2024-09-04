@@ -2,11 +2,12 @@ import json
 import logging
 from api_wrappers import PbsApiWrapper
 
-# Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def lambda_handler(event, context):
+    """Get dealer's salespersons list from PBS."""
     logger.info("Lambda function invoked with event: %s", event)
 
     api = PbsApiWrapper()
@@ -29,6 +30,7 @@ def lambda_handler(event, context):
         "body": json.dumps(result)
     }
 
+
 # Main function for local testing
 def main():
     # Dummy event to simulate an AWS Lambda event
@@ -41,6 +43,7 @@ def main():
 
     # Print the response to verify the output
     print("Response:", response)
+
 
 if __name__ == "__main__":
     main()

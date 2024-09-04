@@ -1,3 +1,5 @@
+"""Transform raw pbs data to the unified format."""
+
 import boto3
 import logging
 import requests
@@ -23,7 +25,6 @@ UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
-
 
 
 def get_secret(secret_name, secret_key) -> Any:
@@ -81,6 +82,7 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
     return unified_crm_lead_id
 
+
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format pbs json data to unified format."""
     entries = []
@@ -96,12 +98,11 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_salesperson = {}
 
             # Skip leads missing critical data
-
             crm_lead_id = deal.get('DealId', '')
             if not crm_lead_id:
-                logger.warning(f"DealId is required. Skipping lead.")
+                logger.warning("DealId is required. Skipping lead.")
                 continue
-            
+
             if not deal.get('CreationDate', ''):
                 logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
                 continue
@@ -111,11 +112,10 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 continue
 
             # Parse Lead Data
-            
             # Format timestamp to database accepted format
             output_format = "%Y-%m-%dT%H:%M:%SZ"
             db_lead["lead_ts"] = pd.to_datetime(deal.get('CreationDate'), format="%Y-%m-%dT%H:%M:%S.%fZ").strftime(output_format)
-            
+
             db_lead["crm_lead_id"] = crm_lead_id[:5000]
             db_lead["lead_status"] = deal.get('Status', '')
             db_lead["lead_substatus"] = deal.get('SystemStatus', '')
@@ -123,9 +123,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_origin"] = deal.get('LeadType')
             db_lead["lead_source"] = deal.get('LeadSource', '')
 
-
-            # Parse Vehicle Data 
-
+            # Parse Vehicle Data
             db_vehicle = {
                 "crm_vehicle_id": vehicle.get('VehicleId', None),
                 "vin": vehicle.get('VIN', None),
@@ -150,13 +148,13 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 vehicle = vehicles[0]
                 db_vehicle["price"] = vehicle.get('Cost', None)
                 db_vehicle["condition"] = "New" if vehicle.get('IsNewVehicle', False) else "Used"
-                
+
             if len(trades) > 0:
                 trade = trades[0]
                 db_vehicle["trade_in_vin"] = trade.get('VIN', None)
 
             logger.info(f"Vehicle Data: {db_vehicle}")
-            
+
             db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
             db_vehicles.append(db_vehicle)
@@ -164,12 +162,11 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["vehicles_of_interest"] = db_vehicles
 
             # Parse Consumer Data
-
             db_consumer = {
                 "crm_consumer_id": contact.get('ContactId'),
                 "first_name": contact.get('FirstName'),
                 "middle_name": contact.get('MiddleName', ''),
-                "last_name":contact.get('LastName'),
+                "last_name": contact.get('LastName'),
                 "email": contact.get('EmailAddress', ''),
                 "phone": contact.get("CellPhone", ''),
                 "address": contact.get('Address'),
@@ -190,14 +187,13 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
             # Parse Salesperson Data
-
             salespersons = deal.get('DealUserRoles', [])
             salesperson = {}
             if len(salespersons) == 1:
                 salesperson = salespersons[0]
             else:
                 for person in salespersons:
-                    if person.get('Primary', '') == True:
+                    if person.get('Primary', '') is True:
                         salesperson = person
                         break
 
