@@ -36,8 +36,8 @@ class DealerInfo:
     city: Optional[str] = None
     zip_code: Optional[str] = None
     crm_dealer_id: Optional[str] = None
-    is_active_salesai: bool = False
-    is_active_chatai: bool = False
+    is_active_salesai: bool = None
+    is_active_chatai: bool = None
     metadata: Metadata = field(default_factory=Metadata)
 
 
@@ -46,8 +46,9 @@ class DealerStatus:
     product_dealer_id: str
     integration_partner_name: str
 
-    is_active_salesai: bool = False
-    is_active_chatai: bool = False
+    crm_dealer_id: Optional[str] = None
+    is_active_salesai: bool = None
+    is_active_chatai: bool = None
     metadata: Metadata = field(default_factory=Metadata)
 
 
@@ -167,17 +168,21 @@ class DatabaseManager:
                             Dealer.product_dealer_id == dealer_status.product_dealer_id
                         )
                     )
-                    .first()
+                    .all()
                 )
+                if len(dip) > 1:
+                    return {"statusCode": 409, "body": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."}
+
+                dip = dip[0]
+                
                 if not dip:
                     return {"statusCode": 404, "body": "Dealer configuration not found"}
 
-                dip.is_active_salesai = (
-                    dealer_status.is_active_salesai or dip.is_active_salesai
-                )
-                dip.is_active_chatai = (
-                    dealer_status.is_active_chatai or dip.is_active_chatai
-                )
+                if dealer_status.is_active_salesai is not None:
+                    dip.is_active_salesai = dealer_status.is_active_salesai
+
+                if dealer_status.is_active_chatai is not None:
+                    dip.is_active_chatai = dealer_status.is_active_chatai
 
                 new_metadata = {}
                 if isinstance(dealer_status.metadata, Metadata):

@@ -106,7 +106,7 @@ if __name__ == "__main__":
     # response = lambda_handler(event={
     #         "httpMethod": "PUT",
     #         "body": {
-    #             "is_active_salesai": True,
+    #             "is_active_chatai": True,
     #             # "metadata": {
     #             #     "userId": "TESTID",
     #             #     "adf_email_recipients": ["TEST@impel.test"]

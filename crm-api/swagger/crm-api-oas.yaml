@@ -854,8 +854,6 @@ paths:
       tags:
         - Dealers
       parameters:
-        - "$ref": "#/components/parameters/integrationPartnerName"
-        - "$ref": "#/components/parameters/ProductDealer"
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
       requestBody:
@@ -864,15 +862,23 @@ paths:
             schema:
               type: object
               properties:
+                integration_partner_name:
+                  description: The name of the integration partner assigned by Impel
+                  required: true
+                  type: string
+                  example: "TESTCRM"
+                product_dealer:
+                  description: The name of the dealer configs in shared layer and in dynamoDB
+                  required: true
+                  type: string
+                  example: "tekion-test-dealer"
                 is_active_salesai:
                   type: boolean
                   description: Activates sales ai for the dealer
-                  default: false
                   example: false
                 is_active_chatai:
                   type: boolean
                   description: Activates sales ai for the dealer
-                  default: false
                   example: false
                 crm_dealer_id:
                   type: string
@@ -913,6 +919,57 @@ paths:
             schema:
               type: object
               properties:
+                integration_partner_name:
+                  type: string
+                  description: Name of the integration partner.
+                product_dealer_id:
+                  type: string
+                  description: Unique identifier for the product dealer.
+                sfdc_account_id:
+                  type: string
+                  description: Salesforce account ID associated with the dealer.
+                dealer_name:
+                  type: string
+                  description: Name of the dealer.
+                timezone:
+                  type: string
+                  description: Timezone of the dealer's location.
+                dealer_location_name:
+                  type: string
+                  description: Location name of the dealer.
+                country:
+                  type: string
+                  description: Country where the dealer is located.
+                state:
+                  type: string
+                  description: State where the dealer is located.
+                city:
+                  type: string
+                  description: City where the dealer is located.
+                zip_code:
+                  type: string
+                  description: ZIP code of the dealer's location.
+                crm_dealer_id:
+                  type: string
+                  description: CRM dealer ID.
+                is_active_salesai:
+                  type: boolean
+                  description: Indicates if the dealer is active for SalesAI.
+                is_active_chatai:
+                  type: boolean
+                  description: Indicates if the dealer is active for ChatAI.
+                metadata:
+                  type: object
+                  description: Metadata associated with the dealer.
+                  properties:
+                    userId:
+                      type: string
+                      description: User ID associated with the metadata.
+                    adf_email_recipients:
+                      type: array
+                      description: List of ADF email recipients.
+                      items:
+                        type: string
       responses:
         '201':
           description: Dealer configuration created successfully dealer_id.
@@ -920,6 +977,8 @@ paths:
           "$ref": "#/components/responses/400"
         '401':
           "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '405':
           description: Method Not Allowed
         '500':
@@ -1631,22 +1690,6 @@ components:
         minLength: 1
         maxLength: 50
         example: "test_crm_dealer_id"
-    integrationPartnerName:
-      name: integration_partner_name
-      in: query
-      description: The name of the integration partner assigned by Impel
-      required: true
-      schema:
-        type: string
-        example: "TESTCRM"
-    ProductDealer:
-      name: product_dealer
-      in: query
-      description: The name of the dealer configs in shared layer and in dynamoDB
-      required: true
-      schema:
-        type: string
-        example: "tekion-test-dealer"
     leadId:
       name: lead_id
       in: path
