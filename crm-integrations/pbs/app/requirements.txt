@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+requests==2.29.0
+=======
 requests==2.29.0
 aws-lambda-powertools==2.26.0
 python-dateutil==2.8.2
 pandas==2.2.2
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf

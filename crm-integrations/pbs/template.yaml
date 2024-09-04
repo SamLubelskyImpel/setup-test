@@ -93,6 +93,8 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+<<<<<<< HEAD
+=======
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -110,6 +112,7 @@ Resources:
                 Action:
                   - "sqs:SendMessage"
                 Resource: "arn:aws:sqs:*:*:*"
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -185,6 +188,28 @@ Resources:
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
+<<<<<<< HEAD
+  GetLeadUpdates:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-LeadUpdates
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  GetLeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
+
+  GetLeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-LeadUpdates
+      AlarmDescription: PBS Lead Updates failed 3 times within 15 minutes
+=======
   InvokeDataPullLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -195,19 +220,27 @@ Resources:
     Properties:
       AlarmName: !Sub pbs-${Environment}-Invoke
       AlarmDescription: PBS Invoke failed 3 times within 15 minutes
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
+<<<<<<< HEAD
+          Value: !Ref GetLeadUpdates
+=======
           Value: !Ref InvokeDataPull
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
       Threshold: 3
+<<<<<<< HEAD
+      TreatMissingData: notBreaching
+=======
       TreatMissingData: notBreaching
 
   InvokeDataPullEventMapping:
@@ -517,3 +550,4 @@ Resources:
   #     LogGroupName: !Ref SendActivityLogGroup
   #     DestinationArn: !GetAtt MonitoringPBS.Arn
   #     FilterPattern: "SUPPORT ALERT"
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
