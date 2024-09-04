@@ -3,7 +3,7 @@ import logging
 from datetime import date, datetime, timezone
 from json import dumps
 from os import environ
-
+from sqlalchemy import text
 from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -34,6 +34,12 @@ def convert_dt(value):
 def lambda_handler(event, context):
     """Run vehicle sale API."""
     logger.info(f"Event: {event}")
+    sql_ops_flag = event['headers'].get('ignore_timeout', None)
+    logger.info(f"Flag: {sql_ops_flag}")
+    if sql_ops_flag and sql_ops_flag.lower() == 'true':
+        ignore_timeout = True
+    else:
+        ignore_timeout = False
     try:
         filters = event.get("queryStringParameters", {})
         page = 1 if not filters else int(filters.get("page", "1"))
@@ -47,6 +53,8 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
+            if ignore_timeout:
+                session.execute(text('SET LOCAL statement_timeout = 30000;'))
             query = (
                 session.query(
                     VehicleSale,
