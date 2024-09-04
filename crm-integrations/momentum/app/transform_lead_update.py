@@ -158,8 +158,8 @@ def record_handler(record: SQSRecord) -> None:
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
         if not lead_id:
-            logger.error(f"Could not retrieve lead ID for CRM lead ID: {crm_lead_id}")
-            raise ValueError("Lead ID could not be retrieved.")
+            logger.warning(f"Lead ID is not found in the CRM Shared layer: {crm_lead_id}. No update will be performed for this lead.")
+            return
 
         data = {'metadata': {}}
 
