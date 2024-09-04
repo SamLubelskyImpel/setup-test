@@ -51,29 +51,40 @@ def extract_vehicle_data(json_data):
 
 
 def extract_inventory_data(json_data):
+    def extract_field(field, ftype='str'):
+        if ftype == 'int':
+            return int(json_data[field].strip()) if json_data.get(field) else None
+        elif ftype == 'float':
+            return float(json_data[field].strip()) if json_data.get(field) else None
+        elif ftype == 'str':
+            return json_data[field].strip() if json_data.get(field) else None
+        else:
+            logger.error(f"Invalid field: {ftype}")
+            raise
+
     inventory_data = {
-        'list_price': None if not json_data.get('inv_inventory|list_price', '').strip() else float(json_data['inv_inventory|list_price']),
-        'special_price': None if not json_data.get('inv_inventory|special_price', '').strip() else float(json_data['inv_inventory|special_price']),
-        'fuel_type': json_data.get('inv_inventory|fuel_type', '').strip() or None,
-        'exterior_color': json_data.get('inv_inventory|exterior_color', '').strip() or None,
-        'interior_color': json_data.get('inv_inventory|interior_color', '').strip() or None,
-        'doors': None if not json_data.get('inv_inventory|doors', '').strip() else int(json_data['inv_inventory|doors']),
-        'seats': None if not json_data.get('inv_inventory|seats', '').strip() else int(json_data['inv_inventory|seats']),
-        'transmission': json_data.get('inv_inventory|transmission', '').strip() or None,
-        'photo_url': json_data.get('inv_inventory|photo_url', '').strip() or None,
-        'drive_train': json_data.get('inv_inventory|drive_train', '').strip() or None,
-        'cylinders': None if not json_data.get('inv_inventory|cylinders', '').strip() else int(json_data['inv_inventory|cylinders']),
-        'body_style': json_data.get('inv_inventory|body_style', '').strip() or None,
-        'series': json_data.get('inv_inventory|series', '').strip() or None,
-        'vin': json_data.get('inv_inventory|vin', '').strip() or None,
-        'interior_material': json_data.get('inv_inventory|interior_material', '').strip() or None,
-        'trim': json_data.get('inv_inventory|trim', '').strip() or None,
+        'list_price': extract_field('inv_inventory|list_price', ftype='float'),
+        'special_price': extract_field('inv_inventory|special_price', ftype='float'),
+        'fuel_type': extract_field(json_data, 'inv_inventory|fuel_type'),
+        'exterior_color': extract_field('inv_inventory|exterior_color'),
+        'interior_color': extract_field('inv_inventory|interior_color'),
+        'doors': extract_field('inv_inventory|doors', ftype='int'),
+        'seats': extract_field('inv_inventory|seats', ftype='int'),
+        'transmission': extract_field('inv_inventory|transmission'),
+        'photo_url': extract_field('inv_inventory|photo_url'),
+        'drive_train': extract_field('inv_inventory|drive_train'),
+        'cylinders': extract_field('inv_inventory|cylinders', ftype='int'),
+        'body_style': extract_field('inv_inventory|body_style'),
+        'series': extract_field('inv_inventory|series'),
+        'vin': extract_field('inv_inventory|vin'),
+        'interior_material': extract_field('inv_inventory|interior_material'),
+        'trim': extract_field('inv_inventory|trim'),
         'factory_certified': json_data.get('inv_inventory|factory_certified', False),
-        'region': json_data.get('inv_inventory|region', '').strip() or None,
+        'region': extract_field('inv_inventory|region'),
         'on_lot': json_data.get('inv_inventory|on_lot', True),
-        'metadata': json_data.get('inv_inventory|metadata', '').strip() or None,
-        'received_datetime': json_data.get('inv_inventory|received_datetime', '').strip() or None,
-        'vdp': json_data.get('inv_inventory|vdp', '').strip() or None,
+        'metadata': extract_field('inv_inventory|metadata'),
+        'received_datetime': extract_field('inv_inventory|received_datetime'),
+        'vdp': extract_field('inv_inventory|vdp'),
     }
     return inventory_data
 
