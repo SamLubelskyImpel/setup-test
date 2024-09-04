@@ -27,7 +27,6 @@ Globals:
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "PBS"
         UPLOAD_SECRET_KEY: "impel"
-        DA_SECRET_KEY: "DA_EVENT_LISTENER"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [
@@ -94,6 +93,26 @@ Resources:
                   - "s3:GetObject"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+<<<<<<< HEAD
+=======
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt InvokeDataPullQueue.Arn
+                  - !GetAtt TransformPBSDataQueue.Arn
+                  - !GetAtt SendActivityQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -116,7 +135,60 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+  GetDealerSalespersons:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-GetDealerSalespersons
+      CodeUri: app/
+      Handler: get_dealer_salespersons_handler.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+  GetDealerSalespersons500ErrorMetricFilter:
+    Type: "AWS::Logs::MetricFilter"
+    DependsOn: GetDealerSalespersonsLogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-GetDealerSalespersons"
+      FilterPattern: '{ $.statusCode = 500 }'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "PBS/Lambda"
+          MetricName: "GetDealerSalespersons500Errors"
+  GetDealerSalespersonsLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-GetDealerSalespersons"
+      RetentionInDays: 30
+  GetDealerSalespersons500ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-GetDealerSalespersons-500Error
+      AlarmDescription: PBS GetDealerSalespersons Lambda returned 500 status 3 times within 15 minutes
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: GetDealerSalespersons500Errors
+      Namespace: "PBS/Lambda"
+      Period: 900  # 15 minutes (in seconds)
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+  InvokeDataPull:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-Invoke
+      CodeUri: app/
+      Handler: invoke_data_pull.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
 
+<<<<<<< HEAD
   GetLeadUpdates:
     Type: AWS::Serverless::Function
     Properties:
@@ -137,13 +209,284 @@ Resources:
     Properties:
       AlarmName: !Sub pbs-${Environment}-LeadUpdates
       AlarmDescription: PBS Lead Updates failed 3 times within 15 minutes
+=======
+  InvokeDataPullLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Invoke"
+
+  InvokeDataPullErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-Invoke
+      AlarmDescription: PBS Invoke failed 3 times within 15 minutes
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
       ActionsEnabled: true
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
+<<<<<<< HEAD
           Value: !Ref GetLeadUpdates
+=======
+          Value: !Ref InvokeDataPull
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+<<<<<<< HEAD
+      TreatMissingData: notBreaching
+=======
+      TreatMissingData: notBreaching
+
+  InvokeDataPullEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt InvokeDataPull.Arn
+
+  InvokeDataPullQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-InvokeQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  InvokeDataPullDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-InvokeDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  InvokeDataPullDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "pbs-${Environment}-InvokeDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the PBS Invoke DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt InvokeDataPullDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformPBSData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-TransformData
+      CodeUri: app/
+      Handler: transform_data.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  TransformPBSDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-TransformData"
+
+  TransformPBSDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformPBSDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformPBSData.Arn
+
+  TransformPBSDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-TransformQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformPBSDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformPBSDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-TransformDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  TransformPBSDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "pbs-${Environment}-TransformDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the PBS Transform DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformPBSDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformPBSDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformPBSDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformPBSDataQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/pbs/" }
+      Targets:
+        - Id: "TransformPBSDataTarget"
+          Arn: !GetAtt TransformPBSDataQueue.Arn
+
+  # GetLeadUpdates:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: !Sub pbs-${Environment}-LeadUpdates
+  #     CodeUri: app/
+  #     Handler: lead_updates.lambda_handler
+  #     Timeout: 30
+  #     MemorySize: 256
+  #     Role: !GetAtt LambdaRole.Arn
+
+  # GetLeadUpdatesLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-LeadUpdates"
+  # GetLeadUpdatesErrorAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub pbs-${Environment}-LeadUpdates
+  #     AlarmDescription: PBS Lead Updates failed 3 times within 15 minutes
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Dimensions:
+  #       - Name: FunctionName
+  #         Value: !Ref GetLeadUpdates
+  #     EvaluationPeriods: 1
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Period: 900
+  #     Statistic: Sum
+  #     Threshold: 3
+  #     TreatMissingData: notBreaching
+      
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+        
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "pbs-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+      
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-SendActivity"
+            
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-SendActivityDLQ
+      AlarmDescription: There are unprocessed messages in the PBS SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  SendActivityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-SendActivity
+      AlarmDescription: The Lambda function has failed 3 times within a 15 minute period while attempting to write activities to the CRM
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SendActivity
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -151,3 +494,60 @@ Resources:
       Statistic: Sum
       Threshold: 3
       TreatMissingData: notBreaching
+
+  # MonitoringPBS:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: !Sub pbs-${Environment}-Monitoring
+  #     CodeUri: app/
+  #     Handler: monitoring.lambda_handler
+  #     Timeout: 30
+  #     MemorySize: 256
+  #     Role: !GetAtt LambdaRole.Arn
+
+  # MonitoringPBSLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub "/aws/lambda/pbs-${Environment}-Monitoring"
+
+  # LogGroupInvokeLambdaPermission:
+  #   Type: AWS::Lambda::Permission
+  #   Properties:
+  #     FunctionName: !GetAtt MonitoringPBS.Arn
+  #     Action: lambda:InvokeFunction
+  #     Principal: logs.amazonaws.com
+  #     SourceAccount: !Ref 'AWS::AccountId'
+
+  # MonitoringInvokeDataPullSubscription:
+  #   Type: AWS::Logs::SubscriptionFilter
+  #   DependsOn:
+  #     - LogGroupInvokeLambdaPermission
+  #     - MonitoringPBS
+  #     - InvokeDataPullLogGroup
+  #   Properties:
+  #     LogGroupName: !Ref InvokeDataPullLogGroup
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
+  #     FilterPattern: "SUPPORT ALERT"
+
+  # MonitoringGetLeadUpdatesSubscription:
+  #   Type: AWS::Logs::SubscriptionFilter
+  #   DependsOn:
+  #     - LogGroupInvokeLambdaPermission
+  #     - MonitoringPBS
+  #     - GetLeadUpdatesLogGroup
+  #   Properties:
+  #     LogGroupName: !Ref GetLeadUpdatesLogGroup
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
+  #     FilterPattern: "SUPPORT ALERT"
+
+  # MonitoringSendActivitySubscription:
+  #   Type: AWS::Logs::SubscriptionFilter
+  #   DependsOn:
+  #     - LogGroupInvokeLambdaPermission
+  #     - MonitoringPBS
+  #     - SendActivityLogGroup
+  #   Properties:
+  #     LogGroupName: !Ref SendActivityLogGroup
+  #     DestinationArn: !GetAtt MonitoringPBS.Arn
+  #     FilterPattern: "SUPPORT ALERT"
+>>>>>>> 15c7d849b6d9d0210e1f048d37d0c1d4a309c1bf
