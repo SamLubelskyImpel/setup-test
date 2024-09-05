@@ -52,15 +52,19 @@ def extract_vehicle_data(json_data):
 
 def extract_inventory_data(json_data):
     def extract_field(field, ftype='str'):
+        value = json_data.get(field)
+        if not value:
+            return None
+
         if ftype == 'int':
-            return int(json_data[field].strip()) if json_data.get(field) else None
+            return int(value.strip())
         elif ftype == 'float':
-            return float(json_data[field].strip()) if json_data.get(field) else None
+            return float(value.strip())
         elif ftype == 'str':
-            return json_data[field].strip() if json_data.get(field) else None
+            return value.strip()
         else:
             logger.error(f"Invalid field: {ftype}")
-            raise
+            raise ValueError(f"Invalid field type: {ftype}")
 
     inventory_data = {
         'list_price': extract_field('inv_inventory|list_price', ftype='float'),
