@@ -65,7 +65,7 @@ def extract_inventory_data(json_data):
     inventory_data = {
         'list_price': extract_field('inv_inventory|list_price', ftype='float'),
         'special_price': extract_field('inv_inventory|special_price', ftype='float'),
-        'fuel_type': extract_field(json_data, 'inv_inventory|fuel_type'),
+        'fuel_type': extract_field('inv_inventory|fuel_type'),
         'exterior_color': extract_field('inv_inventory|exterior_color'),
         'interior_color': extract_field('inv_inventory|interior_color'),
         'doors': extract_field('inv_inventory|doors', ftype='int'),
