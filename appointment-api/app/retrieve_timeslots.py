@@ -81,11 +81,11 @@ def lambda_handler(event, context):
                     "request_id": request_id,
                 })
             }
-        elif (end_time_dt.date() - start_time_dt.date()).days > 7:
+        elif (end_time_dt.date() - start_time_dt.date()).days > 6:
             return {
                 "statusCode": 400,
                 "body": dumps({
-                    "error": "Query date ranges must not exceed 7 days.",
+                    "error": "Query date ranges must not exceed 6 days.",
                     "request_id": request_id,
                 })
             }
