@@ -14,8 +14,6 @@ ENVIRONMENT = os.environ['ENVIRONMENT']
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
-rds_instance = RDSInstance()
-
 
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
@@ -89,6 +87,7 @@ def extract_inventory_data(json_data):
         'metadata': extract_field('inv_inventory|metadata'),
         'received_datetime': extract_field('inv_inventory|received_datetime'),
         'vdp': extract_field('inv_inventory|vdp'),
+        'comments': extract_field('inv_inventory|comments'),
     }
     return inventory_data
 
@@ -101,7 +100,7 @@ def extract_option_data(option_json):
     return option_data
 
 
-def process_and_upload_data(bucket, key):
+def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
     try:
         decoded_key = urllib.parse.unquote_plus(key)
         s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
@@ -162,11 +161,12 @@ def process_and_upload_data(bucket, key):
         raise
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, _):
     """
     Lambda function handler to process SQS messages and upload JSON data to RDS.
     """
     try:
+        rds_instance = RDSInstance()
         count = 0
         for record in event['Records']:
             logger.info(f"Processing record {count}")
@@ -176,7 +176,7 @@ def lambda_handler(event, context):
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
-                process_and_upload_data(bucket, key)
+                process_and_upload_data(bucket, key, rds_instance)
             count += 1
     except Exception:
         logger.exception("Error in Lambda handler")

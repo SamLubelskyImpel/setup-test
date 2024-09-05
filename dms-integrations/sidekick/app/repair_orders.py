@@ -10,8 +10,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = f"integrations-us-east-1-{'prod' if ENVIRONMENT == 'prod' else 'test'}"
-SNS_TOPIC_ARN = environ.get("CE_TOPIC")
-SNS_CLIENT = boto3.client('sns')
 
 
 def get_ftp_credentials():
@@ -28,19 +26,6 @@ def get_ftp_credentials():
 def parse_date(date_str):
     """Parse date string or get current UTC datetime if None."""
     return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S") if date_str else datetime.now(timezone.utc)
-
-
-def alert_topic(dealer_id):
-    """Notify Topic of missing S3 files."""
-    message = f'SIDEKICK: No {dealer_id} daily files uploaded or there is an issue with the historical file.'
-
-    response = SNS_CLIENT.publish(
-            TopicArn=SNS_TOPIC_ARN,
-            Message=message,
-            Subject=f"SIDEKICK: Missing files on FTP for {dealer_id}."
-        )
-
-    return response
 
 
 def parse_data(sqs_message_data):
@@ -72,8 +57,6 @@ def parse_data(sqs_message_data):
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed a daily file in {daily_date_path} or {previous_daily_date_path}.")
-
         # check historical file if exists
         ftp_session.transfer_file_from_ftp_to_s3(
             bucket_name=INTEGRATIONS_BUCKET,
@@ -82,11 +65,11 @@ def parse_data(sqs_message_data):
             child_store=child_store,
         )
 
-        logger.info(f"Successfully processed a historical file in {historical_date_path} or {previous_historical_date_path} if it exists.")
-
     except Exception as e:
-        logger.error(f"Error processing SQS message: {e}")
-        alert_topic(dealer_id)
+        subject = f'SIDEKICK: Failed to parse daily or historical files for the dealer {dealer_id}'
+        message = f'Failed to parse Sidekick data and transfer from FTP to S3 for the dealer {dealer_id}: {e}'
+        logger.error(message)
+        ftp_session.alert_topic(subject, message)
 
 
 def lambda_handler(event, context):

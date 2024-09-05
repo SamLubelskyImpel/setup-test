@@ -30,7 +30,7 @@ def get_integration_partners():
 
         for partner in rows:
             partner = partner[0]
-            if partner.lower() not in ['cdk', 'dealertrack', 'dealervault', 'sidekick', 'impel unified data']:
+            if partner.lower() not in ['cdk', 'dealertrack', 'dealervault', 'impel unified data']:
                 partners.append(partner)
 
         conn.commit()
@@ -86,7 +86,7 @@ def lambda_handler(event, context):
     yesterday = get_yesterday_date()
 
     for partner in partners:
-        file_types = ['fi_closed_deal', 'repair_order']
+        file_types = ['repair_order'] if partner == 'sidekick' else ['fi_closed_deal', 'repair_order']
         for file_type in file_types:
             file_key = f'{partner}/{file_type}/{yesterday.year}/{yesterday.month}/{yesterday.day}/'
             if not check_folder_has_files(bucket_name, file_key):

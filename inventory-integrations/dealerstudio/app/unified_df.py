@@ -1,37 +1,36 @@
-import logging
-from os import environ
-from uuid import uuid4
-
 import boto3
+import logging
+from datetime import datetime, timezone
+from os import environ
 import pandas as pd
 from rds_instance import RDSInstance
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-REGION = environ.get("REGION", "us-east-1")
-IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
+INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
+
 # Many to 1 tables and many to many tables are represented by array of struct columns
-MANY_TO_X_TABLES = ["op_codes", "service_contracts"]
+MANY_TO_X_TABLES = ["inv_options"]
 # Ignore tables we don't insert into
-IGNORE_POSSIBLE_TABLES = ["dealer_integration_partner"]
+IGNORE_POSSIBLE_TABLES = ["inv_dealer_integration_partner"]
 # Ignore columns we don't insert into (id, fk, audit columns)
 IGNORE_POSSIBLE_COLUMNS = [
     "id",
     "consumer_id",
     "dealer_integration_partner_id",
     "vehicle_id",
-    "vehicle_sale_id",
     "db_creation_date",
+    "db_update_date",
+    "dealer_id",
+    "db_update_role",
 ]
 
 
 def validate_unified_df_columns(df):
     """Validate unified DF format."""
-    rds_instance = RDSInstance(IS_PROD)
+    rds_instance = RDSInstance()
     unified_column_names = rds_instance.get_unified_column_names()
     df_table_names = set()
     df_col_names = set()
@@ -40,9 +39,14 @@ def validate_unified_df_columns(df):
         df_table_names.add(df_table)
         if df_table in MANY_TO_X_TABLES:
             for array in df[col]:
-                for struct in array:
-                    for key in struct:
-                        df_col_names.add(key)
+                # Check if array is a list before iterating
+                if isinstance(array, list):
+                    for struct in array:
+                        for key in struct:
+                            df_col_names.add(key)
+                else:
+                    # Log a warning or handle the unexpected array value appropriately
+                    logger.warning(f"Expected a list for {col}, but got {type(array).__name__}: {array}")
         else:
             df_col_names.add(col)
 
@@ -84,23 +88,21 @@ def convert_unified_df(json_list):
     return df
 
 
-def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
+def upload_unified_json(json_list, provider_dealer_id):
     """Upload dataframe to unified s3 path for insertion."""
-    upload_year = source_s3_uri.split("/")[2]
-    upload_month = source_s3_uri.split("/")[3]
-    upload_date = source_s3_uri.split("/")[4]
+    format_string = '%Y/%m/%d/%H'
+    date_key = datetime.now(timezone.utc).strftime(format_string)
+    s3_key = f"unified/dealerstudio/{date_key}/{provider_dealer_id}.json"
+
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)
-        json_str = df.to_json(orient="records")
-        original_file = source_s3_uri.split("/")[-1].split(".")[0]
-        parquet_name = f"{original_file}_{str(uuid4())}.json"
-        dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
-        partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
-        s3_key = f"unified/{integration_type}/sidekick/{dealer_integration_path}/{partition_path}/{parquet_name}"
+
         s3_client.put_object(
-            Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
+            Bucket=INVENTORY_BUCKET,
+            Key=s3_key,
+            Body=df.to_json(orient="records")
         )
-        logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
+        logger.info(f"Uploaded {len(df)} rows for {provider_dealer_id} to {s3_key}")
     else:
-        logger.info(f"No data uploaded for {source_s3_uri}")
+        logger.info(f"No data uploaded for {provider_dealer_id}")

@@ -21,6 +21,7 @@ IS_PROD = ENVIRONMENT == "prod"
 INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
+
 def parse_csv_to_entries(df, s3_uri):
     """Format sidekick csv data to unified format."""
     entries = []
@@ -28,9 +29,9 @@ def parse_csv_to_entries(df, s3_uri):
     df.columns = df.columns.str.strip()
     db_metadata = {
         "Region": REGION,
-        "PartitionYear": s3_uri.split("/")[4],
-        "PartitionMonth": s3_uri.split("/")[5],
-        "PartitionDate": s3_uri.split("/")[6],
+        "PartitionYear": s3_uri.split("/")[2],
+        "PartitionMonth": s3_uri.split("/")[3],
+        "PartitionDate": s3_uri.split("/")[4],
         "s3_url": s3_uri,
     }
     try:
