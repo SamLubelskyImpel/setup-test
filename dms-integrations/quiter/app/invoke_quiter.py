@@ -6,12 +6,12 @@ from json import dumps
 from os import environ
 
 import boto3
-from api_wrapper import ApiWrapper
+from dms_api_wrapper import DMSApiWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 SQS_CLIENT = boto3.client("sqs")
-REPAIR_ORDER_QUEUE = environ.get("INVOKE_QUEUE")
+INVOKE_QUEUE = environ.get("INVOKE_QUEUE")
 
 
 def send_to_queue(queue_url, dealer_id, end_dt_str):
@@ -32,12 +32,12 @@ def lambda_handler(event, context):
     """Invoke Scheduled Quiter."""
     try:
         end_dt_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        dms_wrapper = ApiWrapper()
+        dms_wrapper = DMSApiWrapper()
         all_dealer_info = dms_wrapper.get_integration_dealers("quiter")
         for dealer_info in all_dealer_info:
             if dealer_info["is_active"]:
                 send_to_queue(
-                    REPAIR_ORDER_QUEUE,
+                    INVOKE_QUEUE,
                     dealer_info["dms_id"],
                     end_dt_str,
                 )
