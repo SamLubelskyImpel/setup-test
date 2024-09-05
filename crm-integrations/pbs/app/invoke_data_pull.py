@@ -25,18 +25,19 @@ s3_client = boto3.client("s3")
 
 
 def build_id_list(type: str, leads: list):
-    id_list = ''
+    ids = []
     for lead in leads:
         if type == 'Contact':
             buyer_ref = lead.get('BuyerRef', '')
             if buyer_ref:
-                id_list += buyer_ref
-        if type == 'Vehicle':
+                ids.append(buyer_ref)
+        elif type == 'Vehicle':
             vehicles = lead.get("Vehicles", [])
-            if len(vehicles) > 0:
-                id_list += vehicles[0].get("VehicleRef", '')
-        id_list += ','
-    return id_list
+            if vehicles:
+                vehicle_ref = vehicles[0].get("VehicleRef", '')
+                if vehicle_ref:
+                    ids.append(vehicle_ref)
+    return ','.join(ids)
 
 
 def find_value(type: str, dataset: list, id: str):
@@ -51,13 +52,13 @@ def find_value(type: str, dataset: list, id: str):
     return {}
 
 
-def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: list):
+def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
     api = PbsApiWrapper()
 
     # Get inital list of leads
     try:
-        inital_leads = api.call_deal_get(start_time, crm_dealer_id).get("Deals")
+        inital_leads = api.call_deal_get(start_time, end_time, crm_dealer_id).get("Deals", [])
 
     except Exception as e:
         logger.error(f"Error occured calling PBS APIs: {e}")
@@ -66,14 +67,16 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
     logger.info(f"Total initial leads found {len(inital_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(inital_leads, filtered_lead_types)
+    filtered_leads = filter_leads(inital_leads)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
 
     contact_id_list = build_id_list('Contact', filtered_leads)
     vehicle_id_list = build_id_list('Vehicle', filtered_leads)
 
-    contact_list = api.call_contact_get(contact_id_list, crm_dealer_id).get('Contacts', [])
-    vehicle_list = api.call_vehicle_get(vehicle_id_list, crm_dealer_id).get('Vehicles', [])
+    if contact_id_list:
+        contact_list = api.call_contact_get(contact_id_list, crm_dealer_id).get('Contacts', [])
+    if vehicle_id_list:
+        vehicle_list = api.call_vehicle_get(vehicle_id_list, crm_dealer_id).get('Vehicles', [])
 
     for lead in filtered_leads:
         contact_id = lead.get("BuyerRef", None)
@@ -101,14 +104,14 @@ def fetch_new_leads(start_time: str, crm_dealer_id: str, filtered_lead_types: li
     return filtered_leads
 
 
-def filter_leads(leads: list, filtered_lead_types: list):
+def filter_leads(leads: list):
     """Filter leads by LeadType."""
     filtered_leads = []
     for lead in leads:
         try:
             lead_type = lead.get("LeadType", "")
 
-            if lead_type in filtered_lead_types:
+            if lead_type == 'Internet':
                 filtered_leads.append(lead)
 
         except Exception as e:
@@ -132,6 +135,14 @@ def save_raw_leads(leads: list, product_dealer_id: str):
     )
 
 
+def convert_timestamp(input_timestamp: str) -> str:
+    """Convert a timestamp from 'YYYY-MM-DDTHH:MM:SSZ' format to 'YYYY-MM-DDTHH:MM:SS.0000000Z' format."""
+    dt = datetime.strptime(input_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    dt_with_ms = dt.strftime("%Y-%m-%dT%H:%M:%S") + ".0000000Z"
+
+    return dt_with_ms
+
+
 def record_handler(record: SQSRecord):
     """Invoke PBS data pull."""
     logger.info(f"Record: {record}")
@@ -140,14 +151,13 @@ def record_handler(record: SQSRecord):
         logger.info(body)
 
         start_time = body.get("start_time")
+        end_time = body.get("end_time")
         crm_dealer_id = body.get("crm_dealer_id")
         product_dealer_id = body.get("product_dealer_id", "missing_product_dealer")
 
-        filtered_lead_types = body.get("metadata", {}).get("filtered_lead_types", [])
-
-        leads = fetch_new_leads(start_time, crm_dealer_id, filtered_lead_types)
+        leads = fetch_new_leads(convert_timestamp(start_time), convert_timestamp(end_time), crm_dealer_id)
         if not leads:
-            logger.info(f"No new leads found for dealer with serial number {crm_dealer_id} for {start_time}")
+            logger.info(f"No new leads found for dealer with serial number {crm_dealer_id} from {start_time} to {end_time}")
             return
 
         save_raw_leads(leads, product_dealer_id)
@@ -155,8 +165,8 @@ def record_handler(record: SQSRecord):
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
-        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\n\nTraceback: {}".format(
-            product_dealer_id, crm_dealer_id, start_time, e)
+        logger.error("[SUPPORT ALERT] Failed to Get Leads [CONTENT] ProductDealerId: {}\nDealerId: {}\nStartTime: {}\nEndTime: {}\n\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, start_time, end_time, e)
             )
         raise
 

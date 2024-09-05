@@ -152,16 +152,17 @@ class PbsApiWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_deal_get(self, start_time, crm_dealer_id):
+    def call_deal_get(self, start_time, end_time, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/DealGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "ContractSince": start_time
+            "ContractSince": start_time,
+            "ContractUntil": end_time
         }
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched new Deal data created since {start_time}")
+            logger.info(f"Successfully fetched new Deal data created from {start_time} to {end_time}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -174,36 +175,36 @@ class PbsApiWrapper:
         endpoint = f"{self.base_url}/json/reply/ContactGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "ContactId": contact_id
+            "ContactIdList": contact_id
         }
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
             logger.info(f"Successfully fetched Contact with Id {contact_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
+            logger.error(f"HTTP error occurred while calling Contact GET: {err}")
             raise
         except Exception as err:
-            logger.error(f"Other error occurred: {err}")
+            logger.error(f"Other error occurred while calling Contact GET: {err}")
             raise
 
     def call_vehicle_get(self, vehicle_id, crm_dealer_id):
         endpoint = f"{self.base_url}/json/reply/VehicleGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "VehicleId": vehicle_id
+            "VehicleIdList": vehicle_id
         }
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
             logger.info(f"Successfully fetched Vehicle with Id {vehicle_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
-            logger.error(f"HTTP error occurred: {err}")
+            logger.error(f"HTTP error occurred while calling Vehicle GET: {err}")
             raise
         except Exception as err:
-            logger.error(f"Other error occurred: {err}")
+            logger.error(f"Other error occurred while calling Vehicle GET: {err}")
             raise
 
     def __create_payload(self, event_type: str) -> dict:

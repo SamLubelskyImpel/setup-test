@@ -107,8 +107,9 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 logger.warning(f"Deal Creation Date is required. Skipping lead {crm_lead_id}")
                 continue
 
-            if not deal.get('LeadType', ''):
-                logger.warning(f"Lead Type is required. Skipping lead {crm_lead_id}")
+            lead_origin = deal.get('LeadType', '')
+            if lead_origin not in ['Internet']:
+                logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
             # Parse Lead Data
@@ -120,7 +121,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_status"] = deal.get('Status', '')
             db_lead["lead_substatus"] = deal.get('SystemStatus', '')
             db_lead["lead_comment"] = deal.get('Notes', '')[:5000]
-            db_lead["lead_origin"] = deal.get('LeadType')
+            db_lead["lead_origin"] = lead_origin
             db_lead["lead_source"] = deal.get('LeadSource', '')
 
             # Parse Vehicle Data
