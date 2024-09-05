@@ -920,15 +920,19 @@ paths:
               type: object
               properties:
                 integration_partner_name:
+                  required: true
                   type: string
                   description: Name of the integration partner.
                 product_dealer_id:
+                  required: true
                   type: string
                   description: Unique identifier for the product dealer.
                 sfdc_account_id:
+                  required: true
                   type: string
                   description: Salesforce account ID associated with the dealer.
                 dealer_name:
+                  required: true
                   type: string
                   description: Name of the dealer.
                 timezone:
@@ -1571,7 +1575,6 @@ components:
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
-  
     SalespersonFromCRM:
         description: An object containing extending information about a salesperson
         type: object
@@ -1690,6 +1693,14 @@ components:
         minLength: 1
         maxLength: 50
         example: "test_crm_dealer_id"
+    integrationPartnerName:
+      name: integration_partner_name
+      in: query
+      description: The name of the integration partner assigned by Impel
+      required: true
+      schema:
+        type: string
+        example: "TESTCRM"
     leadId:
       name: lead_id
       in: path
