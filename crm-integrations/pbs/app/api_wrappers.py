@@ -101,6 +101,8 @@ class PbsApiWrapper:
         self.base_url = self.credentials["API_URL"]
         self.auth = HTTPBasicAuth(self.credentials["API_USERNAME"], self.credentials["API_PASSWORD"])
         self.__salesperson = kwargs.get("salesperson")
+        self.__dealer_email = self.__activity.get("dealer_integration_partner_metadata", {}).get("email", "")
+        self.__dealer_phone = self.__activity.get("dealer_integration_partner_metadata", {}).get("phone", "")
 
     def get_secret(self):
         """Retrieve the API credentials from AWS Secrets Manager."""
@@ -372,7 +374,7 @@ class PbsApiWrapper:
                     },
                     {
                         "Name": "Impel Sales AI",
-                        "Address": "salesai@impel.ai" if contact_method == "email" else "8007777777",
+                        "Address": self.__dealer_email if contact_method == "email" else self.__dealer_phone,
                         "Type": "To",
                         "Flags": "Sent"
                     }
