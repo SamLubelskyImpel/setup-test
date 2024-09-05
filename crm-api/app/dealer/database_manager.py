@@ -184,6 +184,9 @@ class DatabaseManager:
                 if dealer_status.is_active_chatai is not None:
                     dip.is_active_chatai = dealer_status.is_active_chatai
 
+                if dealer_status.crm_dealer_id is not None:
+                    dip.crm_dealer_id = dealer_status.crm_dealer_id
+
                 new_metadata = {}
                 if isinstance(dealer_status.metadata, Metadata):
                     new_metadata = dealer_status.metadata.__dict__
