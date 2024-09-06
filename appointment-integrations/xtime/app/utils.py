@@ -62,6 +62,9 @@ def formatted_time(time_string: str) -> str:
 
 def format_and_filter_timeslots(timeslots: list, start_time: str, end_time: str) -> list:
     """Filter time slots by start and end time."""
+    if not timeslots:
+        return []
+
     start_dt = datetime.fromisoformat(start_time)
     end_dt = datetime.fromisoformat(end_time)
 

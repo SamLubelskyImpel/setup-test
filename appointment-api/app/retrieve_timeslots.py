@@ -71,11 +71,21 @@ def lambda_handler(event, context):
         if not vin and not (year and make and model):
             raise ValidationError("VIN or Year, Make, Model must be provided")
 
-        if datetime.fromisoformat(start_time) >= datetime.fromisoformat(end_time):
+        start_time_dt = datetime.fromisoformat(start_time)
+        end_time_dt = datetime.fromisoformat(end_time)
+        if start_time_dt >= end_time_dt:
             return {
                 "statusCode": 400,
                 "body": dumps({
                     "error":  "Start time must be before end time",
+                    "request_id": request_id,
+                })
+            }
+        elif (end_time_dt.date() - start_time_dt.date()).days > 6:
+            return {
+                "statusCode": 400,
+                "body": dumps({
+                    "error": "Query date ranges must not exceed 6 days.",
                     "request_id": request_id,
                 })
             }
