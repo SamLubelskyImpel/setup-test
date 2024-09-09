@@ -101,8 +101,6 @@ class PbsApiWrapper:
         self.base_url = self.credentials["API_URL"]
         self.auth = HTTPBasicAuth(self.credentials["API_USERNAME"], self.credentials["API_PASSWORD"])
         self.__salesperson = kwargs.get("salesperson")
-        self.__dealer_email = self.__activity.get("dealer_integration_partner_metadata", {}).get("email", "")
-        self.__dealer_phone = self.__activity.get("dealer_integration_partner_metadata", {}).get("phone", "")
 
     def get_secret(self):
         """Retrieve the API credentials from AWS Secrets Manager."""
@@ -133,19 +131,18 @@ class PbsApiWrapper:
         response.raise_for_status()
         return response
 
-    def call_employee_get(self, employee_id, crm_dealer_id):
+    def call_employee_get(self, crm_dealer_id):
         """Call the EmployeeGet endpoint with the given employee_id."""
         endpoint = f"{self.base_url}/json/reply/EmployeeGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "EmployeeId": employee_id,
             "IncludeInactive": False
         }
 
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
             response.raise_for_status()
-            logger.info(f"Successfully fetched employee data for EmployeeId: {employee_id}")
+            logger.info(f"Successfully fetched employee data for DealerId: {crm_dealer_id}")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
@@ -341,6 +338,9 @@ class PbsApiWrapper:
         middle_name = self.__consumer.get("middle_name", "")
         full_name = f"{first_name} {middle_name} {last_name}".strip()
 
+        dealer_email = self.__activity.get("dealer_integration_partner_metadata", {}).get("email", "")
+        dealer_phone = self.__activity.get("dealer_integration_partner_metadata", {}).get("phone", "")
+
         address_value = ""
 
         # Determine the contact method and set the action and address accordingly
@@ -374,7 +374,7 @@ class PbsApiWrapper:
                     },
                     {
                         "Name": "Impel Sales AI",
-                        "Address": self.__dealer_email if contact_method == "email" else self.__dealer_phone,
+                        "Address": dealer_email if contact_method == "email" else dealer_phone,
                         "Type": "To",
                         "Flags": "Sent"
                     }
