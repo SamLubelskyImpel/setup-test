@@ -857,19 +857,21 @@ paths:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - integration_partner_name
+                - product_dealer_id
               properties:
                 integration_partner_name:
                   description: The name of the integration partner assigned by Impel
-                  required: true
                   type: string
                   example: "TESTCRM"
-                product_dealer:
+                product_dealer_id:
                   description: The name of the dealer configs in shared layer and in dynamoDB
-                  required: true
                   type: string
                   example: "tekion-test-dealer"
                 is_active_salesai:
@@ -914,25 +916,27 @@ paths:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - integration_partner_name
+                - product_dealer_id
+                - sfdc_account_id
+                - dealer_name
               properties:
                 integration_partner_name:
-                  required: true
                   type: string
                   description: Name of the integration partner.
                 product_dealer_id:
-                  required: true
                   type: string
                   description: Unique identifier for the product dealer.
                 sfdc_account_id:
-                  required: true
                   type: string
                   description: Salesforce account ID associated with the dealer.
                 dealer_name:
-                  required: true
                   type: string
                   description: Name of the dealer.
                 timezone:
@@ -1237,24 +1241,19 @@ components:
           example: "TEST"
         dealer_location_name:
           type: string
-          description: The name of the dealer's location.
-          example: null
+          description: Location name of the dealer.
         country:
           type: string
-          description: The country where the dealership is located.
-          example: null
+          description: Country where the dealer is located.
         state:
           type: string
-          description: The state where the dealership is located.
-          example: null
+          description: State where the dealer is located.
         city:
           type: string
-          description: The city where the dealership is located.
-          example: null
+          description: City where the dealer is located.
         zip_code:
           type: string
-          description: The ZIP code of the dealership's location.
-          example: null
+          description: ZIP code of the dealer's location.
         timezone:
           type: string
           description: The timezone of the dealership.
@@ -1265,22 +1264,18 @@ components:
           properties:
             userId:
               type: string
-              description: The user ID associated with the dealership.
-              example: null
+              description: User ID associated with the metadata.
             adf_email_recipients:
               type: array
+              description: List of ADF email recipients.
               items:
                 type: string
-              description: A list of email recipients for ADF (Auto-lead Data Format) notifications.
-              example: []
         is_active_salesai:
           type: boolean
-          description: Indicates if SalesAI is active for the dealership.
-          example: true
+          description: Indicates if the dealer is active for SalesAI.
         is_active_chatai:
           type: boolean
-          description: Indicates if ChatAI is active for the dealership.
-          example: false
+          description: Indicates if the dealer is active for ChatAI.
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object

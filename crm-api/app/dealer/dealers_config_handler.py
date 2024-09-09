@@ -13,12 +13,21 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 class DealersConfig:
     def __init__(self, event: dict, db_manager: Optional[DatabaseManager] = None):
-        self.event = event
         self.method = event.get("httpMethod")
-        self.body = event.get("body", {})
-        self.query_params = event.get("queryStringParameters", {})
+        self.body = self.get_body(event.get("body") or {})
+        self.query_params = event.get("queryStringParameters") or {}
         self.db_manager = db_manager or DatabaseManager()
 
+    def get_body(self, event_body) -> dict:
+            """Parses the body from the event."""
+            try:
+                if isinstance(event_body, str):
+                    return loads(event_body)
+                return event_body
+            except Exception as e:
+                logger.error(f"Unexpected error while getting a body: {str(e)}")
+                raise ValueError(f"Error parsing body: {str(e)}")
+        
     def handle_request(self) -> dict:
         handler_map = {
             "GET": self._handle_get,
