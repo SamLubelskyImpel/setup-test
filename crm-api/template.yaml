@@ -610,6 +610,37 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  DealersConfig:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-DealersConfig"
+      CodeUri: app/dealer/
+      Handler: dealers_config_handler.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/config
+            Method: GET
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/config
+            Method: POST
+        Put:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/config
+            Method: PUT
+      Layers:
+        - !Ref CrmOrmLayer
+
   RetrieveDealerById:
     Type: AWS::Serverless::Function
     Properties:

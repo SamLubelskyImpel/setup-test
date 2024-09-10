@@ -820,6 +820,177 @@ paths:
           description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/config:
+    get:
+      summary: This endpoint returns dealers config for a given params.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DealerConfiguration"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
+        '500':
+          "$ref": "#/components/responses/500"
+    put:
+      summary: This endpoint updates dealer config in shared layer.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - integration_partner_name
+                - product_dealer_id
+              properties:
+                integration_partner_name:
+                  description: The name of the integration partner assigned by Impel
+                  type: string
+                  example: "TESTCRM"
+                product_dealer_id:
+                  description: The name of the dealer configs in shared layer and in dynamoDB
+                  type: string
+                  example: "tekion-test-dealer"
+                is_active_salesai:
+                  type: boolean
+                  description: Activates sales ai for the dealer
+                  example: false
+                is_active_chatai:
+                  type: boolean
+                  description: Activates sales ai for the dealer
+                  example: false
+                crm_dealer_id:
+                  type: string
+                  description: The ID of the dealer in the CRM.
+                  example: "12345"
+                metadata:
+                  type: object
+                  description: Additional metadata associated with the dealership.
+                  properties:
+                    timezone:
+                      type: string
+                      description: The timezone of the dealership or rooftop (IANA Time Zone Database Format)
+                      example: "America/New_York"
+      responses:
+        '200':
+          description: Information updated.
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
+        '500':
+          "$ref": "#/components/responses/500"
+    post:
+      summary: This endpoint will create new dealer config in shared layer.
+      #{{DEALERS_CONFIG_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - integration_partner_name
+                - product_dealer_id
+                - sfdc_account_id
+                - dealer_name
+              properties:
+                integration_partner_name:
+                  type: string
+                  description: Name of the integration partner.
+                product_dealer_id:
+                  type: string
+                  description: Unique identifier for the product dealer.
+                sfdc_account_id:
+                  type: string
+                  description: Salesforce account ID associated with the dealer.
+                dealer_name:
+                  type: string
+                  description: Name of the dealer.
+                timezone:
+                  type: string
+                  description: Timezone of the dealer's location.
+                dealer_location_name:
+                  type: string
+                  description: Location name of the dealer.
+                country:
+                  type: string
+                  description: Country where the dealer is located.
+                state:
+                  type: string
+                  description: State where the dealer is located.
+                city:
+                  type: string
+                  description: City where the dealer is located.
+                zip_code:
+                  type: string
+                  description: ZIP code of the dealer's location.
+                crm_dealer_id:
+                  type: string
+                  description: CRM dealer ID.
+                is_active_salesai:
+                  type: boolean
+                  description: Indicates if the dealer is active for SalesAI.
+                is_active_chatai:
+                  type: boolean
+                  description: Indicates if the dealer is active for ChatAI.
+                metadata:
+                  type: object
+                  description: Metadata associated with the dealer.
+                  properties:
+                    userId:
+                      type: string
+                      description: User ID associated with the metadata.
+                    adf_email_recipients:
+                      type: array
+                      description: List of ADF email recipients.
+                      items:
+                        type: string
+      responses:
+        '201':
+          description: Dealer configuration created successfully dealer_id.
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. The integration_partner_name of the request didn't match any existing records on Impel.
+        '405':
+          description: Method Not Allowed
+        '500':
+          "$ref": "#/components/responses/500"
   /dealers/{dealer_id}:
     get:
       summary: Get active dealer by ID. For internal use only.
@@ -1040,6 +1211,71 @@ components:
             - text
           example: "email"
           maxLength: 20
+    DealerConfiguration:
+      description: A dealers configuration in the CRM layer.
+      type: object
+      properties:
+        dealer_integration_partner_id:
+          type: number
+          description: The ID of the dealer integration partner in the CRM layer.
+          example: 36
+        crm_dealer_id:
+          type: string
+          description: The ID of the dealer in the CRM.
+          example: "test_crm_dealer_id_1"
+        product_dealer_id:
+          type: string
+          description: The ID assigned to the dealership by Impel during onboarding.
+          example: "test_crm_dealer_id"
+        dealer_name:
+          type: string
+          description: The name of the dealer.
+          example: "TESTDEALERNAME"
+        integration_partner_name:
+          type: string
+          description: The name of the CRM integration partner.
+          example: "TESTCRM"
+        sfdc_account_id:
+          type: string
+          description: The Salesforce account ID associated with the dealer.
+          example: "TEST"
+        dealer_location_name:
+          type: string
+          description: Location name of the dealer.
+        country:
+          type: string
+          description: Country where the dealer is located.
+        state:
+          type: string
+          description: State where the dealer is located.
+        city:
+          type: string
+          description: City where the dealer is located.
+        zip_code:
+          type: string
+          description: ZIP code of the dealer's location.
+        timezone:
+          type: string
+          description: The timezone of the dealership.
+          example: "US/Eastern"
+        metadata:
+          type: object
+          description: Additional metadata associated with the dealership.
+          properties:
+            userId:
+              type: string
+              description: User ID associated with the metadata.
+            adf_email_recipients:
+              type: array
+              description: List of ADF email recipients.
+              items:
+                type: string
+        is_active_salesai:
+          type: boolean
+          description: Indicates if the dealer is active for SalesAI.
+        is_active_chatai:
+          type: boolean
+          description: Indicates if the dealer is active for ChatAI.
     Dealer:
       description: A dealership or rooftop in the CRM layer.
       type: object
@@ -1334,7 +1570,6 @@ components:
         is_primary:
           type: boolean
           description: "Indicates whether the salesperson is the primary contact"
-  
     SalespersonFromCRM:
         description: An object containing extending information about a salesperson
         type: object
