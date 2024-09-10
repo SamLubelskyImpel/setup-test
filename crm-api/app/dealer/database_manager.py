@@ -14,6 +14,9 @@ from crm_orm.session_config import DBSession
 
 logger = logging.getLogger(__name__)
 
+class InvalidFilterException(Exception):
+    """Custom exception for invalid filters."""
+    pass
 
 @dataclass
 class Metadata:
@@ -73,10 +76,7 @@ class DatabaseManager:
                 self.filters.append(getattr(model, key) == value)
             else:
                 logger.warning(f"Invalid key attribute in schema: {key}")
-                return {
-                    "statusCode": 404,
-                    "body": f"Invalid key attribute in schema: {key}",
-                }
+                raise InvalidFilterException(f"Invalid key attribute in schema: {key}")
         return None
 
     def get_dealers_config(self) -> List[Dict[str, str]]:

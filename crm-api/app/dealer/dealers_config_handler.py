@@ -5,7 +5,7 @@ from os import environ
 from json import dumps, loads
 from typing import Any, Optional
 
-from database_manager import DatabaseManager, DealerInfo, DealerStatus
+from database_manager import DatabaseManager, DealerInfo, DealerStatus, InvalidFilterException
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -36,7 +36,11 @@ class DealersConfig:
         }
         handler = handler_map.get(self.method)
         if handler:
-            return handler()
+            try:
+                return handler()
+            except InvalidFilterException as e:
+                return {"statusCode": 404, "body": dumps({"error": str(e)})}
+
         return self._method_not_allowed_response()
 
     def _handle_get(self) -> dict:
