@@ -185,38 +185,6 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       ActionsEnabled: !If [IsProd, true, false]
 
-  QuiterMergeRepairOrderQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
-        maxReceiveCount: 5
-      VisibilityTimeout: 900
-
-  QuiterMergeRepairOrderDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQ
-
-  QuiterMergeRepairOrderDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
-      Statistic: Sum
-      Period: 900  # 15 minutes
-      EvaluationPeriods: 1
-      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      ActionsEnabled: !If [IsProd, true, false]
-
   ExtractDataFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -256,12 +224,26 @@ Resources:
             Bucket: !Ref INTEGRATIONS_BUCKET
             Events: s3:ObjectCreated:*
 
+  QuiterMergeRepairOrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
+        maxReceiveCount: 5
+      VisibilityTimeout: 900
+
+  QuiterMergeRepairOrderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQ
+
   QuiterMergeRepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Description: Merge repair orders
-      CodeUri: app/
-      Handler: merge_repair_order.lambda_handler
+      Description: Merge repair orders, customers, and vehicles files and save to S3 raw zone
+      CodeUri: app/quiter_merge_repair_order/
+      Handler: merge_quiter.lambda_handler
       Timeout: 900
       Policies:
         - Id: FunctionPermissions
@@ -279,7 +261,6 @@ Resources:
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
             - Sid: AllowSNSPolicy
-
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderDLQ.Arn
             - Sid: AllowS3
@@ -301,7 +282,8 @@ Resources:
               Resource:
                 - !GetAtt QuiterMergeAppointmentQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
-                - !GetAtt QuiterMergeVehicleSaleQueue.Arn                Environment:
+                - !GetAtt QuiterMergeVehicleSaleQueue.Arn                
+      Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
           INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
@@ -312,18 +294,100 @@ Resources:
           Properties:
             Enabled: True
             Queue: !GetAtt InvokeQueue.Arn
-            Queue: !Ref QuiterMergeRepairOrderQueue
-  QuiterMergeRepairOrderQueue:
+            Queue: !GetAtt QuiterMergeRepairOrderQueue.Arn
+  
+   QuiterMergeRepairOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
+  
+  QuiterMergeRepairOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
+
+  QuiterFormatRepairOrderQueue:
     Type: AWS::SQS::Queue
     Properties:
-      VisibilityTimeout: 3600
+      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderQueue
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
+        deadLetterTargetArn: !GetAtt QuiterFormatRepairOrderDLQ.Arn
         maxReceiveCount: 5
+      VisibilityTimeout: 900
 
-  QuiterMergeRepairOrderDLQ:
+  QuiterFormatRepairOrderDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderDLQ
 
+  QuiterFormatRepairOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lambda to format raw repair orders into unified format and upload to unified S3
+      CodeUri: app/quiter_format_repair_order/
+      Handler: format_quiter.lambda_handler
+      Timeout: 900
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+              Resource: !GetAtt QuiterFormatRepairOrderQueue.Arn
+            - Sid: AllowS3Access
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub "arn:aws:s3:::${RAW_BUCKET_NAME}/*"
+                - !Sub "arn:aws:s3:::${UNIFIED_BUCKET_NAME}/*"
+            - Sid: AllowSNS
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
+      Environment:
+        Variables:
+          RAW_BUCKET_NAME: !Sub "integrations-${AWS::Region}-raw"
+          UNIFIED_BUCKET_NAME: !Sub "integrations-${AWS::Region}-unified"
+          CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt QuiterFormatRepairOrderQueue.Arn
+            Enabled: True
+            
   QuiterMergeAppointmentQueue:
     Type: AWS::SQS::Queue
     Properties:
