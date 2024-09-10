@@ -19,6 +19,7 @@ from dms_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -79,6 +80,7 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
+            session.execute(text(f'SET LOCAL statement_timeout = {STATEMENT_TIMEOUT};'))
             query = (
                 session.query(
                     Appointment,
@@ -186,6 +188,9 @@ def lambda_handler(event, context):
                     default=json_serial,
                 ),
             }
-    except Exception:
+    except Exception as e:
+        if "canceling statement due to statement timeout" in str(e).lower():
+            logger.error("[SUPPORT ALERT] STATEMENT_TIMEOUT_ERROR: Query exceeded the statement timeout limit")
+            raise
         logger.exception("Error running appointment api.")
         raise
