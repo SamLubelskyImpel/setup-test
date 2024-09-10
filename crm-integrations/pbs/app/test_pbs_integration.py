@@ -17,8 +17,5 @@ def test_get_dealer_salespersons(caplog):
     # Assertions to ensure the function ran successfully
     assert response['statusCode'] == 200
     body = json.loads(response['body'])
-    assert isinstance(body, dict)  # Ensure the response body is a dictionary
-    assert 'EmployeeId' in body or 'Employees' in body  # Assuming a valid response structure
-
-    # Check logs for the success message
-    assert "Successfully received response from API" in caplog.text
+    print(body)
+    assert False

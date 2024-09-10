@@ -11,7 +11,7 @@ def parse_employee_data(api_response):
     Transforms the raw API response to the format required by the OAS.
     """
     parsed_data = []
-    
+
     # Extract the 'Employees' list from the API response
     employees = api_response.get('Employees', [])
 
@@ -26,7 +26,7 @@ def parse_employee_data(api_response):
             "UserId": employee.get("EmployeeId", ""),
             "PositionName": employee.get("Occupation", "")
         }
-        
+
         parsed_data.append(parsed_employee)
 
     return parsed_data
@@ -37,13 +37,13 @@ def lambda_handler(event, context):
     logger.info("Lambda function invoked with event: %s", event)
 
     api = PbsApiWrapper()
-    crm_dealer_id = event.get("crm_dealer_id", "00000000000000000000000000000000")
+    crm_dealer_id = event.get("crm_dealer_id", "2004.QA")
     logger.info("Fetching employee data for DealerId: %s", crm_dealer_id)
 
     try:
         result = api.call_employee_get(crm_dealer_id)
-        logger.info("Successfully received response from API: %s", result)
         parsed_result = parse_employee_data(result)
+        logger.info("Successfully received response from API: %s", result)
     except Exception as e:
         logger.error("Failed to retrieve employee data: %s", e)
         return {
