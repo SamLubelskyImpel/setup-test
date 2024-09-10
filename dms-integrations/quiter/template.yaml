@@ -123,7 +123,6 @@ Resources:
                   ]
       Environment:
         Variables:
-          Environment: !Ref Environment
           INVOKE_QUEUE: !Ref InvokeQueue
           MERGE_QUEUE: !Ref QuiterMergeRepairOrderQueue
       Events:
@@ -288,6 +287,7 @@ Resources:
           ENVIRONMENT: !Ref Environment
           INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
           MERGE_QUEUE: !Ref QuiterMergeRepairOrderQueue
+                - !GetAtt QuiterMergeVehicleSaleQueue.Arn
       Events:
         SQSEvent:
           Type: SQS
@@ -334,8 +334,10 @@ Resources:
 
   QuiterFormatRepairOrderQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeRepairOrderDLQ
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderQueue
+      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
+      VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterFormatRepairOrderDLQ.Arn
         maxReceiveCount: 5
@@ -344,8 +346,7 @@ Resources:
   QuiterFormatRepairOrderDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderDLQ
-
+      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderDL
   QuiterFormatRepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -390,7 +391,9 @@ Resources:
             
   QuiterMergeAppointmentQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeAppointmentDLQ
     Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
@@ -398,10 +401,14 @@ Resources:
 
   QuiterMergeAppointmentDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
 
   QuiterMergeVehicleSaleQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeVehicleSaleDLQ
     Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleQueue
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeVehicleSaleDLQ.Arn
@@ -409,3 +416,5 @@ Resources:
 
   QuiterMergeVehicleSaleDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleDLQ
