@@ -200,6 +200,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-seez*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-seez*",
+                    ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -229,7 +234,7 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
         maxReceiveCount: 3
-  
+
   DirectUploadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -289,7 +294,7 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
-  
+
   DirectUploadEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -297,7 +302,7 @@ Resources:
       EventSourceArn: !GetAtt DirectUploadQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt DirectUploadFunction.Arn
-  
+
   DirectUploadTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -338,14 +343,14 @@ Resources:
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
           maxReceiveCount: 5
-  
+
   UnifiedLoadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
-  
+
   UnifiedLoadDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -376,8 +381,8 @@ Resources:
       Endpoint: !GetAtt UnifiedLoadQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
-  
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
   UnifiedLoadQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -397,7 +402,7 @@ Resources:
               Condition:
                   ArnEquals:
                       aws:SourceArn: !Ref InventoryS3ToSNSTopic
-  
+
   UnifiedLoadInsert:
     Type: AWS::Serverless::Function
     Properties:
@@ -408,7 +413,7 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Timeout: 900
       MemorySize: 1024
-  
+
   UnifiedLoadEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -416,7 +421,7 @@ Resources:
       EventSourceArn: !GetAtt UnifiedLoadQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt UnifiedLoadInsert.Arn
-  
+
   UnifiedLoadInsertErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:

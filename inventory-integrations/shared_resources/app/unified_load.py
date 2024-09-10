@@ -14,8 +14,6 @@ ENVIRONMENT = os.environ['ENVIRONMENT']
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
-rds_instance = RDSInstance()
-
 
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
@@ -51,29 +49,45 @@ def extract_vehicle_data(json_data):
 
 
 def extract_inventory_data(json_data):
+    def extract_field(field, ftype='str'):
+        value = json_data.get(field)
+        if not value:
+            return None
+
+        if ftype == 'int':
+            return int(value.strip())
+        elif ftype == 'float':
+            return float(value.strip())
+        elif ftype == 'str':
+            return value.strip()
+        else:
+            logger.error(f"Invalid field: {ftype}")
+            raise ValueError(f"Invalid field type: {ftype}")
+
     inventory_data = {
-        'list_price': None if not json_data.get('inv_inventory|list_price', '').strip() else float(json_data['inv_inventory|list_price']),
-        'special_price': None if not json_data.get('inv_inventory|special_price', '').strip() else float(json_data['inv_inventory|special_price']),
-        'fuel_type': json_data.get('inv_inventory|fuel_type', '').strip() or None,
-        'exterior_color': json_data.get('inv_inventory|exterior_color', '').strip() or None,
-        'interior_color': json_data.get('inv_inventory|interior_color', '').strip() or None,
-        'doors': None if not json_data.get('inv_inventory|doors', '').strip() else int(json_data['inv_inventory|doors']),
-        'seats': None if not json_data.get('inv_inventory|seats', '').strip() else int(json_data['inv_inventory|seats']),
-        'transmission': json_data.get('inv_inventory|transmission', '').strip() or None,
-        'photo_url': json_data.get('inv_inventory|photo_url', '').strip() or None,
-        'drive_train': json_data.get('inv_inventory|drive_train', '').strip() or None,
-        'cylinders': None if not json_data.get('inv_inventory|cylinders', '').strip() else int(json_data['inv_inventory|cylinders']),
-        'body_style': json_data.get('inv_inventory|body_style', '').strip() or None,
-        'series': json_data.get('inv_inventory|series', '').strip() or None,
-        'vin': json_data.get('inv_inventory|vin', '').strip() or None,
-        'interior_material': json_data.get('inv_inventory|interior_material', '').strip() or None,
-        'trim': json_data.get('inv_inventory|trim', '').strip() or None,
+        'list_price': extract_field('inv_inventory|list_price', ftype='float'),
+        'special_price': extract_field('inv_inventory|special_price', ftype='float'),
+        'fuel_type': extract_field('inv_inventory|fuel_type'),
+        'exterior_color': extract_field('inv_inventory|exterior_color'),
+        'interior_color': extract_field('inv_inventory|interior_color'),
+        'doors': extract_field('inv_inventory|doors', ftype='int'),
+        'seats': extract_field('inv_inventory|seats', ftype='int'),
+        'transmission': extract_field('inv_inventory|transmission'),
+        'photo_url': extract_field('inv_inventory|photo_url'),
+        'drive_train': extract_field('inv_inventory|drive_train'),
+        'cylinders': extract_field('inv_inventory|cylinders', ftype='int'),
+        'body_style': extract_field('inv_inventory|body_style'),
+        'series': extract_field('inv_inventory|series'),
+        'vin': extract_field('inv_inventory|vin'),
+        'interior_material': extract_field('inv_inventory|interior_material'),
+        'trim': extract_field('inv_inventory|trim'),
         'factory_certified': json_data.get('inv_inventory|factory_certified', False),
-        'region': json_data.get('inv_inventory|region', '').strip() or None,
+        'region': extract_field('inv_inventory|region'),
         'on_lot': json_data.get('inv_inventory|on_lot', True),
-        'metadata': json_data.get('inv_inventory|metadata', '').strip() or None,
-        'received_datetime': json_data.get('inv_inventory|received_datetime', '').strip() or None,
-        'vdp': json_data.get('inv_inventory|vdp', '').strip() or None,
+        'metadata': extract_field('inv_inventory|metadata'),
+        'received_datetime': extract_field('inv_inventory|received_datetime'),
+        'vdp': extract_field('inv_inventory|vdp'),
+        'comments': extract_field('inv_inventory|comments'),
     }
     return inventory_data
 
@@ -86,7 +100,7 @@ def extract_option_data(option_json):
     return option_data
 
 
-def process_and_upload_data(bucket, key):
+def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
     try:
         decoded_key = urllib.parse.unquote_plus(key)
         s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
@@ -147,11 +161,12 @@ def process_and_upload_data(bucket, key):
         raise
 
 
-def lambda_handler(event, context):
+def lambda_handler(event, _):
     """
     Lambda function handler to process SQS messages and upload JSON data to RDS.
     """
     try:
+        rds_instance = RDSInstance()
         count = 0
         for record in event['Records']:
             logger.info(f"Processing record {count}")
@@ -161,7 +176,7 @@ def lambda_handler(event, context):
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
-                process_and_upload_data(bucket, key)
+                process_and_upload_data(bucket, key, rds_instance)
             count += 1
     except Exception:
         logger.exception("Error in Lambda handler")

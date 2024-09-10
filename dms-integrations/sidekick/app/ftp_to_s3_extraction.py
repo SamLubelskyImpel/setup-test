@@ -107,8 +107,8 @@ class FtpToS3:
                     for filename in files:
                         if 'daily' in date_path:
                             daily_data_found = True
-                        # Remove 'daily/' or 'historical/' from the path
-                        cleaned_date_path = re.sub(r'^(daily|historical)/', '', date_path)
+                        # Remove 'daily/' or 'historical/' from the path and format the date by removing leading zeros
+                        cleaned_date_path = re.sub(r'/0(\d)', r'/\1', re.sub(r'^(daily|historical)/', '', date_path))
                         s3_key = f'sidekick/repair_order/{cleaned_date_path}/{filename}'
 
                         self.process_and_upload_file(filename, directory, s3_key, bucket_name, parent_store, child_store)

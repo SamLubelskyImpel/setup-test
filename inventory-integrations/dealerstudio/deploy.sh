@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the coxau service.
+    Deploy the dealerstudio service.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -57,7 +57,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "coxau-inv-integration-$env" \
+    --stack-name "dealerstudio-inv-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

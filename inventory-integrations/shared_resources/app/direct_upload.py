@@ -6,7 +6,6 @@ import logging
 import pandas as pd
 from datetime import datetime
 import tempfile
-import paramiko
 from io import BytesIO
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -14,7 +13,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from rds_instance import RDSInstance
+from partner_uploader import get_partner_uploaders
 
 ENVIRONMENT = environ["ENVIRONMENT"]
 INVENTORY_BUCKET = environ["INVENTORY_BUCKET"]
@@ -24,34 +23,6 @@ SALESAI_SFTP_KEY = environ["SALESAI_SFTP_KEY"]
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
-sm_client = boto3.client("secretsmanager")
-
-
-def proccess_and_upload_to_sftp(icc_formatted_inventory, product_dealer_id, secret_key) -> None:
-    """Upload to sftp server."""
-    # Set DealerId to match product expected DealerId
-    icc_formatted_inventory["DealerId"] = product_dealer_id
-
-    csv_content = icc_formatted_inventory.to_csv(index=False)
-
-    # Upload to SFTP
-    hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", secret_key)
-    prefix = '' if ENVIRONMENT == 'prod' else 'deleteme_'
-    filename = f"{prefix}{product_dealer_id}.csv"
-
-    with connect_sftp_server(hostname, port, username, password) as sftp:
-        csv_file_like = BytesIO(csv_content.encode())
-        sftp.putfo(csv_file_like, filename)
-
-    logger.info(f"File {filename} uploaded to SFTP")
-
-
-def connect_sftp_server(hostname, port, username, password):
-    """Connect to SFTP server and return the connection."""
-    transport = paramiko.Transport((hostname, port))
-    transport.connect(username=username, password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    return sftp
 
 
 def upload_to_s3(csv_content, filename, integration):
@@ -157,17 +128,6 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
     return icc_formatted_inventory
 
 
-def get_sftp_secrets(secret_name: Any, secret_key: Any) -> Any:
-    """Get SFTP secret from Secrets Manager."""
-    secret = sm_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-    )
-    secret = loads(secret["SecretString"])[str(secret_key)]
-    secret_data = loads(secret)
-
-    return secret_data["hostname"], secret_data["port"], secret_data["username"], secret_data["password"]
-
-
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -187,15 +147,6 @@ def record_handler(record: SQSRecord) -> None:
         icc_formatted_inventory = convert_unified_to_icc(content)
         logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
 
-        # Query RDS database for dealer SFTP info for merch and AI
-        rds_instance_obj = RDSInstance()
-        sftp_data = rds_instance_obj.select_db_dealer_sftp_details(provider_dealer_id)
-        logger.info(f"Dealer SFTP details: {sftp_data}")
-        if not sftp_data:
-            logger.error(f"No SFTP data found for dealer: {provider_dealer_id}")
-            raise
-        merch_dealer_id, salesai_dealer_id, merch_is_active, salesai_is_active = sftp_data[0]
-
         # Save ICC formatted inventory to S3
         csv_content = icc_formatted_inventory.to_csv(index=False)
         with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
@@ -208,18 +159,8 @@ def record_handler(record: SQSRecord) -> None:
 
             upload_to_s3(csv_bytes, f"{provider_dealer_id}.csv", integration)
 
-        # Upload to product SFTP
-        if merch_is_active:
-            logger.info(f"Uploading to Merch SFTP: {merch_dealer_id}")
-            proccess_and_upload_to_sftp(icc_formatted_inventory, merch_dealer_id, MERCH_SFTP_KEY)
-
-        if salesai_is_active:
-            logger.info(f"Uploading to Sales AI SFTP: {salesai_dealer_id}")
-            proccess_and_upload_to_sftp(icc_formatted_inventory, salesai_dealer_id, SALESAI_SFTP_KEY)
-
-        if not merch_is_active and not salesai_is_active:
-            logger.warning(f"No active SFTP found for dealer: {provider_dealer_id}")
-
+        for uploader in get_partner_uploaders(provider_dealer_id, icc_formatted_inventory):
+            uploader.upload()
     except Exception:
         logger.exception("Error processing record")
         raise

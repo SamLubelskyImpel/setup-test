@@ -63,6 +63,19 @@ class RDSInstance:
         else:
             return db_dealer_sftp_details
 
+    def select_db_dip_metadata(self, provider_dealer_id) -> dict:
+        """Get the db dip metadata for the given provider dealer id."""
+        query = f"""
+            select idipv.metadata
+            from {self.schema}.inv_dealer_integration_partner idipv
+            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active"""
+        results = self.execute_rds(query)
+        metadata = results.fetchone()
+        if not metadata:
+            return {}
+        else:
+            return metadata[0]
+
     def get_table_names(self):
         """Get a list of table names in the database."""
         query = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.schema}'"
@@ -239,7 +252,7 @@ class RDSInstance:
                 'list_price', 'special_price', 'fuel_type', 'exterior_color', 'interior_color', 'doors',
                 'seats', 'transmission', 'drive_train', 'cylinders', 'body_style',
                 'series', 'vin', 'interior_material', 'trim', 'factory_certified',
-                'region', 'on_lot', 'metadata', 'received_datetime', 'photo_url', 'vdp'
+                'region', 'on_lot', 'metadata', 'received_datetime', 'photo_url', 'vdp', 'comments'
             }
             set_clause = ', '.join([f"{col} = %s" for col in update_columns if col in inventory_data])
             update_query = f"""
