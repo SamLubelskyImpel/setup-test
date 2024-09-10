@@ -18,4 +18,3 @@ def test_get_dealer_salespersons(caplog):
     assert response['statusCode'] == 200
     body = json.loads(response['body'])
     print(body)
-    assert False
