@@ -16,6 +16,8 @@ def parse_employee_data(api_response):
     employees = api_response.get('Employees', [])
 
     for employee in employees:
+        if not employee.get('Sales'):
+            continue
         # Extract and transform relevant fields
         parsed_employee = {
             "email": [employee.get("EmailAddress", "")],
@@ -23,7 +25,7 @@ def parse_employee_data(api_response):
             "last_name": employee.get("LastName", ""),
             "phone": [phone for phone in [employee.get("Phone", ""), employee.get("CellPhone", "")] if phone],
             "crm_salesperson_id": employee.get("EmployeeId", ""),
-            "position_name": employee.get("Occupation", "")
+            "position_name": employee.get("SalesRole", "")
         }
 
         parsed_data.append(parsed_employee)
