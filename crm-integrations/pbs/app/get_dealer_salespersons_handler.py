@@ -43,8 +43,9 @@ def lambda_handler(event, context):
 
     try:
         result = api.call_employee_get(crm_dealer_id)
+        logger.info("Successfully received response from API: %s", result)
         parsed_result = parse_employee_data(result)
-        logger.info("Successfully received response from API: %s", parsed_result)
+        logger.info("Successfully parsed response from API to: %s", parsed_result)
     except Exception as e:
         logger.error("Failed to retrieve employee data: %s", e)
         return {
