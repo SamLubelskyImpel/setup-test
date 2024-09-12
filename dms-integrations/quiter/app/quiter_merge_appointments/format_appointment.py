@@ -20,13 +20,14 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
-sm_client = boto3.client('secretsmanager')
-s3_client = boto3.client("s3")
+SM_CLIENT = boto3.client('secretsmanager')
+S3_CLIENT = boto3.client("s3")
+
 
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
-    secret = sm_client.get_secret_value(
+    secret = SM_CLIENT.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
     secret = loads(secret["SecretString"])[str(secret_key)]
@@ -43,22 +44,82 @@ def upload_appointment_to_s3(appointment: Dict[str, Any], dms_id: str, source_s3
 
     s3_key = f"unified/service_appointment/quiter/dealer_integration_partner|dms_id={dms_id}/{date_key}/{original_file}_{str(index)}_{str(uuid4())}.json"
     logger.info(f"Saving leads to {s3_key}")
-    s3_client.put_object(
+    S3_CLIENT.put_object(
         Body=dumps(appointment),
         Bucket=BUCKET,
         Key=s3_key,
     )
     
 def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
+    db_dealer_integration_partner = {"dms_id": dms_id}
+    entries = []
 
-   return
+    for record in json_data:
+        db_service_appointment = {
+            "appointment_time":record.get("Appointment Time", None),
+            "appointment_date":record.get("Appointment Date", None),
+            "appointment_source":record.get("Appointment Source", None),
+            "reason_code":record.get("Reason Code", None),
+            "appointment_create_ts":record.get("Appointment Create TS", None),
+            "appointment_update_ts":record.get("Appointment Update TS", None),
+            "rescheduled_flag":record.get("Rescheduled Flag", None),
+            "appointment_no":record.get("Appointment No", None),
+            "last_ro_date":record.get("Last RO Date", None),
+            "last_ro_num"record.get("Last RO No", None):
+        }
+        db_vehicle = {
+            "vin":record.get("Vin No", None),
+            "oem_name":record.get("OEM Name", None),
+            "type":record.get("Vehicle Type", None),
+            "vehicle_class":record.get("Vehicle Class", None),
+            "mileage":record.get("Mileage on Vehicle", None),
+            "make":record.get("Make", None),
+            "model":record.get("Model", None),
+            "year":record.get("Year", None),
+            "new_or_used":record.get("New or Used", None),
+            "warranty_expiration_miles":record.get("Warranty Expiration Miles", None),
+            "warranty_expiration_date":record.get("Warranty Expiration Date", None)
+        }
+        db_consumer = {
+            "dealer_customer_no":record.get("Consumer ID", None),
+            "first_name":record.get("First Name", None),
+            "last_name":record.get("Last Name", None),
+            "email":record.get("Email", None),
+            "cell_phone":record.get("Cell Phone", None)
+            "city":record.get("City", None),
+            "state":record.get("State", None),
+            "metro":record.get("Metro", None),
+            "postal_code":record.get("Postal Code", None),
+            "email_optin_flag":record.get("Email Optin Flag", None),
+            "phone_optin_flag":record.get("Phone Optin Flag", None),
+            "postal_mail_optin_flag":record.get("Postal Mail Optin Flag", None),
+            "sms_optin_flag":record.get("SMS Optin Flag", None),
+            "master_consumer_id":record.get("Master Consumer Id", None)
+        }
+
+        # No Mappings for Service contracts
+        db_service_contracts = []
+        # Op Codes mappings are foreign keys?
+        db_op_codes = []
+
+        entry = {
+            "dealer_integration_partner": db_dealer_integration_partner,
+            "appointment": db_service_appointment,
+            "vehicle": db_vehicle,
+            "consumer": db_consumer,
+            "service_contracts.service_contracts": db_service_contracts,
+            "op_codes.op_codes": db_op_codes,
+        }
+        entries.append(entry)
+
+   return entries
 
 def post_entry(entry: dict, index: int) -> bool:
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
-        lead = entry["lead"]
-        unified_crm_lead_id = upload_appointment_to_s3(lead, index)
+        # lead = entry["lead"]
+        unified_crm_lead_id = upload_appointment_to_s3(entry, index)
         logger.info(f"[THREAD {index}] Appointment successfully updated: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
@@ -70,19 +131,18 @@ def post_entry(entry: dict, index: int) -> bool:
 
     return True
 
-#TODO: figure out how to work with csv instead of json
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        bucket = message["detail"]["bucket"]["name"]
-        key = message["detail"]["object"]["key"]
-        dms_id = key.split('/')[2]
+        bucket = os.environ["INTEGRATIONS_BUCKET"]
+        key = message["s3_key"]
+        dms_id = message["dms_id"]
 
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        content = response['Body'].read()
-        json_data = loads(content)
+        response = S3_CLIENT.get_object(Bucket=bucket, Key=key)
+        content = pd.read_csv(response["Body"])
+        json_data = content.to_json(orient="records")
         logger.info(f"Raw data: {json_data}")
 
         entries = parse_json_to_entries(dms_id, json_data)

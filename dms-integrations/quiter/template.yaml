@@ -57,6 +57,7 @@ Globals:
         MERGE_REPAIR_ORDER_QUEUE: !Ref QuiterMergeRepairOrderQueue
         MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
         MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
+        FORMAT_APPOINTMENT_QUEUE: !Ref QuiterFormatAppointmentQueue
         CE_TOPIC: !Ref CEAlertTopicArn
     VpcConfig:
       SecurityGroupIds:
@@ -252,13 +253,18 @@ Resources:
   QuiterMergeAppointmentQueue:
     Type: AWS::SQS::Queue
     Properties:
-      VisibilityTimeout: 3600
+      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsQueue"
+      VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
-        maxReceiveCount: 5
+        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDeadLetterQueue.Arn
+        maxReceiveCount: 3
 
-  QuiterMergeAppointmentDLQ:
+  QuiterMergeAppointmentDeadLetterQueue:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
 
   QuiterMergeVehicleSaleQueue:
     Type: AWS::SQS::Queue
@@ -271,44 +277,66 @@ Resources:
   QuiterMergeVehicleSaleDLQ:
     Type: AWS::SQS::Queue
 
-  MergeAppointments:
+  QuiterMergeAppointment:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub quiter-${Environment}-MergeAppointments
       CodeUri: app/
-      Handler: merge_appointments.lambda_handler
-      Timeout: 30
-      MemorySize: 256
-      Role: !GetAtt LambdaRole.Arn
+      Handler: quiter_merge_appointments.merge_appointments.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt QuiterFormatAppointmentQueue.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt QuiterMergeAppointmentQueue.Arn
 
   MergeAppointmentsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-MergeAppointments"
 
-  MergeAppointmentsEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 10
-      EventSourceArn: !GetAtt MergeAppointmentsQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt MergeAppointments.Arn
-
-  MergeAppointmentsQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsQueue"
-      VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt MergeAppointmentsDeadLetterQueue.Arn
-        maxReceiveCount: 3
-
-  MergeAppointmentsDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
-      MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 10
+  # QuiterMergeAppointmentEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 10
+  #     EventSourceArn: !GetAtt QuiterMergeAppointmentQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt QuiterMergeAppointment.Arn
 
   # MergeAppointmentsDLQAlarm:
   #   Type: AWS::CloudWatch::Alarm
@@ -330,28 +358,62 @@ Resources:
   #     Threshold: 1
   #     TreatMissingData: notBreaching
 
-    QuiterFormatInsertFilesAppointment:
+  QuiterFormatInsertFilesAppointment:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub quiter-${Environment}-QuiterFormatInsertFilesAppointment
       CodeUri: app/
-      Handler: format_appointment.lambda_handler
+      Handler: quiter_merge_appointments.format_appointment.lambda_handler
       Timeout: 60
       MemorySize: 256
-      Role: !GetAtt LambdaRole.Arn
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+              Resource:
+                - !GetAtt QuiterFormatAppointmentQueue.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt QuiterFormatAppointmentQueue.Arn
 
   QuiterFormatAppointmentLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-QuiterFormatInsertFilesAppointment"
 
-  QuiterFormatAppointmentEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt QuiterFormatAppointmentQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt QuiterFormatInsertFilesAppointment.Arn
+  # QuiterFormatAppointmentEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 1
+  #     EventSourceArn: !GetAtt QuiterFormatAppointmentQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt QuiterFormatInsertFilesAppointment.Arn
 
   QuiterFormatAppointmentQueue:
     Type: AWS::SQS::Queue
@@ -389,41 +451,41 @@ Resources:
   #     Threshold: 1
   #     TreatMissingData: notBreaching
 
-  QuiterFormatAppointmentQueuePolicy:
-    Type: "AWS::SQS::QueuePolicy"
-    Properties:
-      Queues:
-        - !Ref QuiterFormatAppointmentQueue
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sqs:SendMessage
-            Resource: !GetAtt QuiterFormatAppointmentQueue.Arn
-            Condition:
-              ArnEquals:
-                aws:SourceArn: !GetAtt QuiterFormatAppointmentEventBridgeRule.Arn
+  # QuiterFormatAppointmentQueuePolicy:
+  #   Type: "AWS::SQS::QueuePolicy"
+  #   Properties:
+  #     Queues:
+  #       - !Ref QuiterFormatAppointmentQueue
+  #     PolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: events.amazonaws.com
+  #           Action: sqs:SendMessage
+  #           Resource: !GetAtt QuiterFormatAppointmentQueue.Arn
+            # Condition:
+            #   ArnEquals:
+            #     aws:SourceArn: !GetAtt QuiterFormatAppointmentEventBridgeRule.Arn
 
-  QuiterFormatAppointmentEventBridgeRule:
-    Type: AWS::Events::Rule
-    Properties:
-      EventPattern:
-        source:
-          - "aws.s3"
-        detail-type:
-          - "Object Created"
-        detail:
-          bucket:
-            name:
-              - !If [ IsProd,
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                  ]
-          object:
-            key:
-              - { "prefix": "raw/quiter/" }
-      Targets:
-        - Id: "QuiterFormatAppointmentTarget"
-          Arn: !GetAtt QuiterFormatAppointmentQueue.Arn
+  # QuiterFormatAppointmentEventBridgeRule:
+  #   Type: AWS::Events::Rule
+  #   Properties:
+  #     EventPattern:
+  #       source:
+  #         - "aws.s3"
+  #       detail-type:
+  #         - "Object Created"
+  #       detail:
+  #         bucket:
+  #           name:
+  #             - !If [ IsProd,
+  #                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+  #                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+  #                 ]
+  #         object:
+  #           key:
+  #             - { "prefix": "raw/quiter/" }
+  #     Targets:
+  #       - Id: "QuiterFormatAppointmentTarget"
+  #         Arn: !GetAtt QuiterFormatAppointmentQueue.Arn
