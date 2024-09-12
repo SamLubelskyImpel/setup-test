@@ -188,7 +188,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
             # Parse Salesperson Data
-            salespersons = deal.get('DealUserRoles', [])
+            salespersons = deal.get('UserRoles', [])
             salesperson = {}
             if len(salespersons) == 1:
                 salesperson = salespersons[0]
