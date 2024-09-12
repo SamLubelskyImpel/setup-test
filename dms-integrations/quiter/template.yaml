@@ -241,8 +241,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Merge repair orders, customers, and vehicles files and save to S3 raw zone
-      CodeUri: app/quiter_merge_repair_order/
-      Handler: merge_quiter.lambda_handler
+      CodeUri: app/
+      Handler: repair_order_merge.lambda_handler
       Timeout: 900
       Policies:
         - Id: FunctionPermissions
@@ -260,6 +260,9 @@ Resources:
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                   ]
             - Sid: AllowSNSPolicy
+              Effect: Allow
+                Action:
+                  - sns:Publish
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderDLQ.Arn
             - Sid: AllowS3
@@ -296,24 +299,7 @@ Resources:
             Queue: !GetAtt InvokeQueue.Arn
             Queue: !GetAtt QuiterMergeRepairOrderQueue.Arn
   
-   QuiterMergeRepairOrderDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
-      Statistic: Sum
-      Period: 900  # 15 minutes
-      EvaluationPeriods: 1
-      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      ActionsEnabled: !If [IsProd, true, false]
-  
+
   QuiterMergeRepairOrderDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -331,6 +317,26 @@ Resources:
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       ActionsEnabled: !If [IsProd, true, false]
+  
+  QuiterRepairOrderS3QueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If 
+        - IsProd
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod'
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt QuiterFormatRepairOrderQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        Records:
+          s3:
+            object:
+              key:
+                - prefix: 'quiter/'
+          eventName:
+            - prefix: 'ObjectCreated:'
 
   QuiterFormatRepairOrderQueue:
     Type: AWS::SQS::Queue
@@ -351,8 +357,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Lambda to format raw repair orders into unified format and upload to unified S3
-      CodeUri: app/quiter_format_repair_order/
-      Handler: format_quiter.lambda_handler
+      CodeUri: app/
+      Handler: repair_order_format.lambda_handler
       Timeout: 900
       Policies:
         - Id: FunctionPermissions
@@ -370,8 +376,7 @@ Resources:
                 - s3:GetObject
                 - s3:PutObject
               Resource:
-                - !Sub "arn:aws:s3:::${RAW_BUCKET_NAME}/*"
-                - !Sub "arn:aws:s3:::${UNIFIED_BUCKET_NAME}/*"
+                !Sub "arn:aws:s3:::${INTEGRATIONS_BUCKET}/*"
             - Sid: AllowSNS
               Effect: Allow
               Action:
@@ -379,8 +384,7 @@ Resources:
               Resource: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
       Environment:
         Variables:
-          RAW_BUCKET_NAME: !Sub "integrations-${AWS::Region}-raw"
-          UNIFIED_BUCKET_NAME: !Sub "integrations-${AWS::Region}-unified"
+          INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
           CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
       Events:
         SQSEvent:
@@ -398,6 +402,26 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
         maxReceiveCount: 5
+
+  QuiterRepairOrderFormatS3QueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If 
+        - IsProd
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod'
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt UnifiedFormatRepairOrderQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        Records:
+          s3:
+            object:
+              key:
+                - prefix: 'quiter/'
+          eventName:
+            - prefix: 'ObjectCreated:'
 
   QuiterMergeAppointmentDLQ:
     Type: AWS::SQS::Queue
