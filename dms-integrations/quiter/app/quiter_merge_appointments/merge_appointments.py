@@ -8,7 +8,7 @@ import re
 import io
 import chardet
 
-from json import loads
+from json import loads, dumps
 from datetime import datetime
 from botocore.exceptions import ClientError
 from uuid import uuid4
@@ -45,6 +45,16 @@ def merge_files(main_df, customers_df, vehicles_df):
     """Merge appointments, customers, and vehicles dataframes on Consumer ID and Vin No."""
     merged_df = pd.merge(main_df, customers_df, left_on=["Consumer ID"], right_on=["Dealer Customer No"], how="inner")
     merged_df = pd.merge(merged_df, vehicles_df, on=["Vin No"], how="inner")
+
+    # Drop redundant or duplicate columns (from multiple joins)
+    merged_df = merged_df.drop(columns=['Dealer ID_y', 'Consumer ID_y', 'Warranty Expiration Date_y'], errors='ignore')  # Adjust these as needed
+        
+    # Rename columns for consistency
+    merged_df = merged_df.rename(columns={
+        'Dealer ID_x': 'Dealer ID',
+        'Consumer ID_x': 'Consumer ID',
+        'Warranty Expiration Date_x': 'Warranty Expiration Date'
+    })
     return merged_df
 
 
@@ -63,9 +73,9 @@ def lambda_handler(event, context):
             vehicle_encoding = detect_encoding(vehicles_obj)
             appointments_encoding = detect_encoding(appointments_obj)
 
-            appointments_df = pd.read_csv(io.BytesIO(appointments_obj), delimiter=';', encoding=appointments_encoding, on_bad_lines='warn')
-            customers_df = pd.read_csv(io.BytesIO(customers_obj), delimiter=';', encoding=consumer_encoding, on_bad_lines='warn')
-            vehicles_df = pd.read_csv(io.BytesIO(vehicles_obj), delimiter=';', encoding=vehicle_encoding, on_bad_lines='warn')
+            appointments_df = pd.read_csv(io.BytesIO(appointments_obj), delimiter=';', encoding=appointments_encoding, on_bad_lines='warn')[:200]
+            customers_df = pd.read_csv(io.BytesIO(customers_obj), delimiter=';', encoding=consumer_encoding, on_bad_lines='warn')[:200]
+            vehicles_df = pd.read_csv(io.BytesIO(vehicles_obj), delimiter=';', encoding=vehicle_encoding, on_bad_lines='warn')[:200]
 
             # if len(appointments_df) != len(customers_df) or len(customers_df) != len(
             #     vehicles_df
@@ -74,30 +84,30 @@ def lambda_handler(event, context):
             #         "Mismatch in the number of customers, vehicles, or appointments."
             #     )
 
-            # merged_df = merge_files(appointments_df, customers_df, vehicles_df)
+            merged_df = merge_files(appointments_df, customers_df, vehicles_df)
 
-            # current_date = datetime.now()
-            # csv_buffer = merged_df.to_csv(index=False)
-            # s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/merged_appointments_{str(uuid4())}"
-            # S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer)
+            current_date = datetime.now()
+            csv_buffer = merged_df.to_csv(index=False)
+            s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/merged_appointments_{str(uuid4())}.csv"
+            S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer)
 
-            # logger.info(f"Merged file saved to {s3_key} in the raw zone.")
+            logger.info(f"Merged file saved to {s3_key} in the raw zone.")
 
-            # queue_url = os.environ("FORMAT_APPOINTMENT_QUEUE")
-            # data = {
-            #     "dms_id": dealer_id,
-            #     "s3_key": s3_key,
-            # }
-            # response = SQS_CLIENT.send_message(
-            #     QueueUrl=queue_url,
-            #     MessageBody=dumps(data)
-            # )
-            # # Verify that the message was sent successfully by checking the response
-            # # TODO: Delete after testing
-            # if 'MessageId' in response:
-            #     logging.info(f"Message sent successfully to {queue_url}, MessageId: {response['MessageId']}")
-            # else:
-            #     logging.error(f"Failed to send message to {queue_url}")
+            queue_url = os.environ["FORMAT_APPOINTMENT_QUEUE"]
+            data = {
+                "dms_id": dealer_id,
+                "s3_key": s3_key,
+            }
+            response = SQS_CLIENT.send_message(
+                QueueUrl=queue_url,
+                MessageBody=dumps(data)
+            )
+            # Verify that the message was sent successfully by checking the response
+            # TODO: Delete after testing
+            if 'MessageId' in response:
+                logging.info(f"Message sent successfully to {queue_url}, MessageId: {response['MessageId']}")
+            else:
+                logging.error(f"Failed to send message to {queue_url}")
 
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")

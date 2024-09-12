@@ -1,5 +1,6 @@
 import boto3
 import logging
+import pandas as pd
 from os import environ
 from json import loads, dumps
 from typing import Any, Dict
@@ -65,7 +66,7 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
             "rescheduled_flag":record.get("Rescheduled Flag", None),
             "appointment_no":record.get("Appointment No", None),
             "last_ro_date":record.get("Last RO Date", None),
-            "last_ro_num"record.get("Last RO No", None):
+            "last_ro_num": record.get("Last RO No", None)
         }
         db_vehicle = {
             "vin":record.get("Vin No", None),
@@ -85,7 +86,7 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
             "first_name":record.get("First Name", None),
             "last_name":record.get("Last Name", None),
             "email":record.get("Email", None),
-            "cell_phone":record.get("Cell Phone", None)
+            "cell_phone":record.get("Cell Phone", None),
             "city":record.get("City", None),
             "state":record.get("State", None),
             "metro":record.get("Metro", None),
@@ -112,14 +113,14 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
         }
         entries.append(entry)
 
-   return entries
+    return entries
 
-def post_entry(entry: dict, index: int) -> bool:
+def post_entry(entry: dict, dms_id: str, source_s3_uri: str, index: int) -> bool:
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
         # lead = entry["lead"]
-        unified_crm_lead_id = upload_appointment_to_s3(entry, index)
+        unified_crm_lead_id = upload_appointment_to_s3(entry, dms_id, source_s3_uri, index)
         logger.info(f"[THREAD {index}] Appointment successfully updated: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
@@ -136,13 +137,13 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        bucket = os.environ["INTEGRATIONS_BUCKET"]
+        bucket = environ.get("INTEGRATIONS_BUCKET")
         key = message["s3_key"]
         dms_id = message["dms_id"]
 
         response = S3_CLIENT.get_object(Bucket=bucket, Key=key)
         content = pd.read_csv(response["Body"])
-        json_data = content.to_json(orient="records")
+        json_data = loads(content.to_json(orient="records"))
         logger.info(f"Raw data: {json_data}")
 
         entries = parse_json_to_entries(dms_id, json_data)
@@ -170,7 +171,7 @@ def record_handler(record: SQSRecord) -> None:
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """Transform raw pbs data to the unified format."""
+    """Transform raw quiter data to the unified format."""
     logger.info(f"Event: {event}")
 
     try:
