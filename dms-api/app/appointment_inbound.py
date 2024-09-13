@@ -4,6 +4,7 @@ from json import dumps
 from os import environ
 
 from sqlalchemy import func, text
+from sqlalchemy.exc import OperationalError
 
 from dms_orm.models.appointment import Appointment
 from dms_orm.models.consumer import Consumer
@@ -188,9 +189,7 @@ def lambda_handler(event, context):
                     default=json_serial,
                 ),
             }
+
     except Exception as e:
-        if "canceling statement due to statement timeout" in str(e).lower():
-            logger.error("[SUPPORT ALERT] STATEMENT_TIMEOUT_ERROR: Query exceeded the statement timeout limit")
-            raise
         logger.exception("Error running appointment api.")
         raise

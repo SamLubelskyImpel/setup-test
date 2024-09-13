@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from json import dumps
 from os import environ
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -149,8 +150,5 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        if "canceling statement due to statement timeout" in str(e).lower():
-            logger.error("[SUPPORT ALERT] STATEMENT_TIMEOUT_ERROR: Query exceeded the statement timeout limit")
-            raise
         logger.exception("Error running vehicle sale api.")
         raise

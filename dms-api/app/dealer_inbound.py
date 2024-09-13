@@ -10,6 +10,7 @@ from dms_orm.models.integration_partner import IntegrationPartner
 from dms_orm.session_config import DBSession
 
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -113,9 +114,7 @@ def lambda_handler(event, context):
                 default=json_serial,
             ),
         }
+
     except Exception as e:
-        if "canceling statement due to statement timeout" in str(e).lower():
-            logger.error("[SUPPORT ALERT] STATEMENT_TIMEOUT_ERROR: Query exceeded the statement timeout limit")
-            raise
         logger.exception("Error running dealer api.")
         raise
