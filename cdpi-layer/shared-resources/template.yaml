@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: shared CDPI resources
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  ProductAccountsArn:
+    sales-ai:
+      '196800776222': 'arn:aws:iam::078045093221:root'
+      '143813444726': 'arn:aws:iam::856787491001:root'
+    service-ai:
+      '196800776222': 'arn:aws:iam::261695625069:root'
+      '143813444726': 'arn:aws:iam::261695625069:root'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+
+Resources:
+  SharedBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'cdpi-shared-${AWS::Region}-${Environment}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: !If [ IsProd, Enabled, Suspended ]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: s3:ObjectCreated:*
+            Topic: !Ref SharedS3ToSNSTopic
+    DependsOn: SharedS3ToSNSPolicy
+
+  SharedS3ToSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub 'cdpi-shared-sns-s3-topic-${AWS::Region}-${Environment}'
+      TopicName: !Sub 'cdpi-shared-sns-s3-topic-${AWS::Region}-${Environment}'
+
+  SharedS3ToSNSPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Id: !Sub 'cdpi-shared-sns-s3-policy-${AWS::Region}-${Environment}'
+        Statement:
+        - Sid: S3ToSNS
+          Effect: Allow
+          Principal:
+            Service: s3.amazonaws.com
+          Action:
+            - SNS:Publish
+          Resource: !Ref SharedS3ToSNSTopic
+          Condition:
+            ArnLike:
+              aws:SourceArn: !Sub 'arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}'
+      Topics:
+        - Ref: SharedS3ToSNSTopic
+
+  SalesAIRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'cdpi-sales-ai-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !FindInMap [ ProductAccountsArn, 'sales-ai', !Ref 'AWS::AccountId' ]
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AcessSharedBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
+              - Effect: "Allow"
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
+
+  ServiceAIRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'cdpi-service-ai-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !FindInMap [ ProductAccountsArn, 'service-ai', !Ref 'AWS::AccountId' ]
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AcessSharedBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/service-ai/*"
+              - Effect: "Allow"
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
