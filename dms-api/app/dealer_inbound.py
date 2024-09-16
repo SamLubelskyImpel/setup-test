@@ -9,9 +9,13 @@ from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from dms_orm.models.integration_partner import IntegrationPartner
 from dms_orm.session_config import DBSession
 
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -44,6 +48,8 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
+            session.execute(text(f'SET LOCAL statement_timeout = {STATEMENT_TIMEOUT};'))
+
             query = (
                 session.query(DealerIntegrationPartner, Dealer, IntegrationPartner)
                 .outerjoin(Dealer, DealerIntegrationPartner.dealer_id == Dealer.id)
@@ -108,6 +114,7 @@ def lambda_handler(event, context):
                 default=json_serial,
             ),
         }
-    except Exception:
+
+    except Exception as e:
         logger.exception("Error running dealer api.")
         raise

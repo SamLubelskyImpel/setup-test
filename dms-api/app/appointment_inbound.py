@@ -4,6 +4,7 @@ from json import dumps
 from os import environ
 
 from sqlalchemy import func, text
+from sqlalchemy.exc import OperationalError
 
 from dms_orm.models.appointment import Appointment
 from dms_orm.models.consumer import Consumer
@@ -19,6 +20,7 @@ from dms_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -79,6 +81,7 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
+            session.execute(text(f'SET LOCAL statement_timeout = {STATEMENT_TIMEOUT};'))
             query = (
                 session.query(
                     Appointment,
@@ -186,6 +189,7 @@ def lambda_handler(event, context):
                     default=json_serial,
                 ),
             }
-    except Exception:
+
+    except Exception as e:
         logger.exception("Error running appointment api.")
         raise
