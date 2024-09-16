@@ -76,7 +76,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale["vin"] = default_get(entry, "Vin No")
         
         # Extract Vehicle Information
-        db_vehicle["vin"] = default_get(entry,"vin No")
+        db_vehicle["vin"] = default_get(entry,"Vin No")
         db_vehicle["oem_name"] = default_get(entry,"OEM Name")
         db_vehicle["type"] = default_get(entry,"Vehicle Type")
         db_vehicle["vehicle_class"] = default_get(entry,"Vehicle Class")
@@ -85,11 +85,9 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle["model"] = default_get(entry,"Model")
         db_vehicle["year"] = default_get(entry,"Year")
         db_vehicle["new_or_used"] = default_get(entry,"New or Used")
-        db_vehicle["oem_name"] = default_get(entry,"oem_name")
-        db_vehicle["type"] = default_get(entry,"type")
+        db_vehicle["type"] = default_get(entry,"Vehicle Type")
         db_vehicle["warranty_expiration_miles"] = default_get(entry,"Warranty Expiration Miles")
-        db_vehicle["warranty_expiration_date"] = default_get(entry,"Warranty Expiration Date")
-
+        
         # Extract Consumer Information
         db_consumer["first_name"] = default_get(entry,"First Name")
         db_consumer["last_name"] = default_get(entry,"Last Name")
@@ -100,10 +98,15 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_consumer["metro"] = default_get(entry,"Metro")
         db_consumer["postal_code"] = default_get(entry,"Postal Code")
         db_consumer["home_phone"] = default_get(entry,"Home Phone")
+
+
         db_consumer["phone_optin_flag"] = default_get(entry,"Phone Optin Flag")
         db_consumer["postal_mail_optin_flag"] = default_get(entry,"Postal Mail Optin Flag")
         db_consumer["sms_optin_flag"] = default_get(entry,"SMS Optin Flag")
+
+
         db_consumer["master_consumer_id"] = default_get(entry,"Master Consumer ID")
+        db_consumer["dealer_customer_no"] = default_get(entry,"Consumer ID")
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
@@ -112,7 +115,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
             "consumer": db_consumer,
         }
         entries.append(entry)
-    
     return entries, dms_id
 
 
@@ -136,10 +138,11 @@ def lambda_handler(event, context):
                 csv_data = response["Body"].read().decode("utf-8") 
 
                 # Use pandas to read the CSV content into a DataFrame
-                csv_df = pd.read_csv(io.StringIO(csv_data)) 
+                csv_df = pd.read_csv(io.StringIO(csv_data),dtype={'Dealer ID': 'string'}) 
+
                 # Process the CSV entries using the modified function
                 entries, dms_id = parse_csv_to_entries(csv_df, decoded_key)
-            
+
                 if not dms_id:
                     raise RuntimeError("No dms_id found in the CSV data")
                 # Call the upload function with the parsed entries

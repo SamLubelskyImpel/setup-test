@@ -35,7 +35,6 @@ def lambda_handler(event, context):
             logger.info(f"event Body: {message}")
 
             dealer_id = message["dealer_id"]
-            current_date = datetime.now()
             s3_key = message["s3_key"]
 
             year, month, day = extract_date_from_key(s3_key)
@@ -67,7 +66,7 @@ def lambda_handler(event, context):
             # Try reading the CSV with error handling for bad lines
             customers_df = pd.read_csv(io.BytesIO(consumers_body), delimiter=';', encoding=consumer_encoding, on_bad_lines='warn')
             vehicles_df = pd.read_csv(io.BytesIO(vehicles_body), delimiter=';', encoding=vehicle_encoding, on_bad_lines='warn')
-            vehicle_sales_df = pd.read_csv(io.BytesIO(vehicle_sales_body), delimiter=';', encoding=vehicle_sales_encoding, on_bad_lines='warn')
+            vehicle_sales_df = pd.read_csv(io.BytesIO(vehicle_sales_body), delimiter=';', encoding=vehicle_sales_encoding, on_bad_lines='warn', dtype={'Dealer ID': 'string'})
 
             # Clean the customer and vehicle data using the unified function
             cleaned_customers_df = clean_data(customers_df, 'Dealer Customer No', [])
