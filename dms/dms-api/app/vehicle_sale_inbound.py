@@ -3,7 +3,8 @@ import logging
 from datetime import date, datetime, timezone
 from json import dumps
 from os import environ
-
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from dms_orm.models.consumer import Consumer
 from dms_orm.models.dealer import Dealer
 from dms_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -15,6 +16,7 @@ from dms_orm.session_config import DBSession
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -47,6 +49,7 @@ def lambda_handler(event, context):
         max_results = min(max_results, result_count)
 
         with DBSession() as session:
+            session.execute(text(f'SET LOCAL statement_timeout = {STATEMENT_TIMEOUT};'))
             query = (
                 session.query(
                     VehicleSale,
@@ -146,6 +149,6 @@ def lambda_handler(event, context):
             ),
         }
 
-    except Exception:
+    except Exception as e:
         logger.exception("Error running vehicle sale api.")
         raise
