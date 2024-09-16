@@ -78,7 +78,7 @@ def merge_files(vehicle_sales_df, customers_df, vehicles_df):
         merged_df = pd.merge(merged_df, vehicles_df, on="Vin No", how="inner")
 
         # Drop redundant or duplicate columns (from multiple joins)
-        merged_df = merged_df.drop(columns=['Dealer ID_y', 'Consumer ID_y', 'Warranty Expiration Date_y'], errors='ignore')  # Adjust these as needed
+        merged_df = merged_df.drop(columns=['Dealer ID_y', 'Consumer ID_y', 'Warranty Expiration Date_y'], errors='ignore')
         
         # Rename columns for consistency
         merged_df = merged_df.rename(columns={
