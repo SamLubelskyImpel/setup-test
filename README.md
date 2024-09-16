@@ -1,5 +1,5 @@
 # universal_integrations
-Re-usable integrations for sourcing data from third-parties (e.g. DMS)
+Re-usable integrations for sourcing data from third-parties (e.g. DMS, CRM, INV, APPT)
 
 ### Using this repo
 Each integration should have it's own subfolder with it's own separate deployment script and stack.
@@ -11,26 +11,33 @@ Deploy local env: ./deploy.sh
 Deploy stage env: ./deploy.sh -e test
 Deploy prod env: ./deploy.sh -e prod
 
-### crm-api
-API interactions with the CRM database
 
-### crm-integrations
-Stacks per 3rd party client CRM integration
+### appointment
+Stacks related to the Appointment domain
 
-### dms-api
-API interactions with the DMS database
+### crm
+Stacks related to the CRM domain
 
-### dms-integrations
-Stacks per 3rd party client DMS integration
+### dms
+Stacks related to the DMS domain
 
-### dms-reporting
-Monitoring and reporting for the unified DMS layer
-
-### inventory-integrations
-Stacks per 3rd party client inventory integration
+### inventory
+Stacks related to the INV domain
 
 ### univ-suite
 EC2 instance for large file uploads necessary for client integrations
 
 ### migrations
 Database migrations
+
+### DDL
+DDL files for shared integration layers
+
+### email-service
+Shared email distribution service
+
+### notification-service
+Shared notification service (INS)
+
+### data-reprocessing
+Scripts to assist developers when reprocessing data in the AWS environment
