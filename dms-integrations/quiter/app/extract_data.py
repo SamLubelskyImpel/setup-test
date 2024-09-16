@@ -5,14 +5,7 @@ import os
 from os import environ
 from json import loads, dumps
 from datetime import datetime, timedelta, timezone
-from typing import Any
 from ftp_wrapper import FtpToS3
-from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from aws_lambda_powertools.utilities.batch import (
-    BatchProcessor,
-    EventType,
-    process_partial_response,
-)
 
 
 logger = logging.getLogger()
@@ -53,9 +46,11 @@ def get_ftp_credentials():
         raise
 
 
-def list_new_files(ftp):
+def list_new_files(ftp, dealer_id):
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
+    ftp.cwd(dealer_id)
+    logger.info(f"Changed to directory: {dealer_id}")
     new_files = []
     for file in ftp.nlst():
         file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
@@ -82,11 +77,10 @@ def process_files(ftp, dealer_id, found_files, s3_key):
         raise
 
 
-def record_handler(record: SQSRecord) -> None:
+def parse_data(data):
     """Parse and handle SQS Message."""
-    logger.info(f"Record: {record}")
+    logger.info(data)
     try:
-        data = loads(record["body"])
         dealer_id = data["dealer_id"]
         end_dt = data["end_dt_str"]
         s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%m/%d")
@@ -94,9 +88,9 @@ def record_handler(record: SQSRecord) -> None:
         host, user, password = get_ftp_credentials()
         ftp_session = FtpToS3(host=host, user=user, password=password)
         ftp = ftp_session.connect_to_ftp()
-        folder_exists = ftp_session.check_folder_exists(ftp, dealer_id)
-        if ftp and folder_exists:
-            new_files = list_new_files(ftp)
+
+        if ftp:
+            new_files = list_new_files(ftp, dealer_id)
             logger.info(f"New files found in the last 24 hours: {new_files}")
             if new_files:
                 found_files = {}
@@ -142,24 +136,23 @@ def record_handler(record: SQSRecord) -> None:
             else:
                 logger.warning(f"No new files found in the last 24 hours for the dealer {dealer_id}.")
             ftp.quit()
+        else:
+            message = f'QUITER: Dealer {dealer_id} folder not found on the FTP server."'
+            SNS_CLIENT.publish(
+                    TopicArn=SNS_TOPIC_ARN,
+                    Message=message
+                )
+            logger.error(message)
     except Exception as e:
-        logger.error(f"Error parsing Quiter data: {e}")
+        logger.error(f"Error parsing data: {e}")
         raise
 
 
-def lambda_handler(event: Any, context: Any) -> Any:
-    """Extract raw Quiter data and save it to S3."""
-    logger.info(f"Event: {event}")
-
+def lambda_handler(event, context):
     try:
-        processor = BatchProcessor(event_type=EventType.SQS)
-        result = process_partial_response(
-            event=event,
-            record_handler=record_handler,
-            processor=processor,
-            context=context
-        )
-        return result
+        for event in event["Records"]:
+            logger.info(f'Event: {event}')
+            parse_data(loads(event["body"]))
     except Exception as e:
-        logger.error(f"Error running extract data lambda: {e}")
+        logger.exception(f"Error running extract data lambda: {e}")
         raise
