@@ -1,4 +1,4 @@
-"""Format raw tekion data to unified format."""
+"""Format raw and merged quiter data to unified format."""
 import logging
 import urllib.parse
 from datetime import datetime
@@ -20,11 +20,13 @@ INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
 
-def default_get(row, key, default_value=None):
-    """Return a default value if a column doesn't exist or if its value is None."""
-    if key in row and pd.notna(row[key]):
-        return row[key]
-    return default_value
+def default_get(row, key, default_value=None, max_length=None):
+    """Return a default value if a column doesn't exist, or if its value is None, and truncate if necessary."""
+    value = row.get(key, default_value)
+    if isinstance(value, str) and max_length is not None:
+        value = value[:max_length]  # Truncate the string to the max_length if necessary
+    return value if pd.notna(value) else default_value
+
 
 
 def convert_to_timestamp(date_str):
@@ -95,7 +97,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_consumer["last_name"] = default_get(entry,"Last Name")
         db_consumer["email"] = default_get(entry,"Email")
         db_consumer["cell_phone"] = default_get(entry,"Cell Phone")
-        db_consumer["city"] = default_get(entry,"City")
+        db_consumer["city"] = default_get(entry, "City", max_length=40)
         db_consumer["state"] = default_get(entry,"State")
         db_consumer["metro"] = default_get(entry,"Metro")
         db_consumer["postal_code"] = default_get(entry,"Postal Code")
@@ -142,7 +144,7 @@ def lambda_handler(event, context):
             
                 if not dms_id:
                     raise RuntimeError("No dms_id found in the CSV data")
-                
+
                 # Call the upload function with the parsed entries
                 upload_unified_json(entries, "fi_closed_deal", decoded_key, dms_id)
                 
