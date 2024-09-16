@@ -66,5 +66,5 @@ else
     --stack-name "quiter-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\""
+    --parameter-overrides "Environment=\"$env\" CEAlertTopicArn=\"arn:aws:sns:us-east-1:143813444726:alert_client_engineering\""
 fi

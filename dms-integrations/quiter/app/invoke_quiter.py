@@ -23,8 +23,7 @@ def send_to_queue(queue_url, dealer_id, end_dt_str):
     logger.info(f"Sending {data} to {queue_url}")
     SQS_CLIENT.send_message(
         QueueUrl=queue_url,
-        MessageBody=dumps(data),
-        DelaySeconds=random.randint(0, 600),
+        MessageBody=dumps(data)
     )
 
 

@@ -6,7 +6,8 @@ from ftplib import FTP, error_perm, error_temp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-FTP_FOLDER = environ.get("FTP_FOLDER", "test_tekion_dms")
+SNS_TOPIC_ARN = environ.get("CE_TOPIC")
+SNS_CLIENT = boto3.client('sns')
 
 
 class FtpToS3:
@@ -14,7 +15,6 @@ class FtpToS3:
         self.host = host
         self.user = user
         self.password = password
-        self.s3_client = boto3.client("s3")
 
     def connect_to_ftp(self):
         try:
@@ -24,3 +24,17 @@ class FtpToS3:
         except (error_perm, error_temp) as e:
             logger.error("Error connecting to FTP: %s", e)
             raise
+
+    def check_folder_exists(self, ftp, dealer_id):
+        folder_path = f'{dealer_id}'
+        try:
+            ftp.cwd(folder_path)
+            return True
+        except error_perm:
+            message = f'QUITER: Dealer {dealer_id} folder not found on the FTP server.'
+            SNS_CLIENT.publish(
+                TopicArn=SNS_TOPIC_ARN,
+                Message=message
+            )
+            logger.error(message)
+            return False
