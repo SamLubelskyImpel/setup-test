@@ -201,7 +201,7 @@ CREATE TABLE prod.consumer (
 	email varchar(80) NULL,
 	ip_address varchar(20) NULL,
 	cell_phone varchar NULL,
-	city varchar(40) NULL,
+	city varchar(100) NULL,
 	state varchar(40) NULL,
 	metro varchar(80) NULL,
 	postal_code varchar NULL,
