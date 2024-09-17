@@ -311,6 +311,7 @@ Resources:
                 - sns:Publish
               Resource:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
             - Sid: AllowSQS
               Effect: Allow
               Action:
@@ -329,33 +330,23 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-MergeAppointments"
 
-  # QuiterMergeAppointmentEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 10
-  #     EventSourceArn: !GetAtt QuiterMergeAppointmentQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt QuiterMergeAppointment.Arn
-
-  # MergeAppointmentsDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the Quiter Merge Appointments DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt MergeAppointmentsDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
+  MergeAppointmentsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-MergeAppointmentsDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt MergeAppointmentsDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
 
   QuiterFormatInsertFilesAppointment:
     Type: AWS::Serverless::Function
@@ -387,6 +378,7 @@ Resources:
                 - sns:Publish
               Resource:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
             - Sid: AllowSQS
               Effect: Allow
               Action:
@@ -413,14 +405,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-QuiterFormatInsertFilesAppointment"
 
-  # QuiterFormatAppointmentEventMapping:
-  #   Type: AWS::Lambda::EventSourceMapping
-  #   Properties:
-  #     BatchSize: 1
-  #     EventSourceArn: !GetAtt QuiterFormatAppointmentQueue.Arn
-  #     MaximumBatchingWindowInSeconds: 0
-  #     FunctionName: !GetAtt QuiterFormatInsertFilesAppointment.Arn
-
   QuiterFormatAppointmentQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -437,61 +421,20 @@ Resources:
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
-  # QuiterFormatAppointmentDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "quiter-${Environment}-QuiterFormatAppointmentDLQ"
-  #     AlarmDescription: There are over 1 unprocessed messages in the Quiter Format Appointment DLQ
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt QuiterFormatAppointmentDeadLetterQueue.QueueName
-  #     EvaluationPeriods: 1
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Namespace: AWS/SQS
-  #     Period: 300
-  #     Statistic: Sum
-  #     ComparisonOperator: GreaterThanThreshold
-  #     Threshold: 1
-  #     TreatMissingData: notBreaching
-
-  # QuiterFormatAppointmentQueuePolicy:
-  #   Type: "AWS::SQS::QueuePolicy"
-  #   Properties:
-  #     Queues:
-  #       - !Ref QuiterFormatAppointmentQueue
-  #     PolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: events.amazonaws.com
-  #           Action: sqs:SendMessage
-  #           Resource: !GetAtt QuiterFormatAppointmentQueue.Arn
-            # Condition:
-            #   ArnEquals:
-            #     aws:SourceArn: !GetAtt QuiterFormatAppointmentEventBridgeRule.Arn
-
-  # QuiterFormatAppointmentEventBridgeRule:
-  #   Type: AWS::Events::Rule
-  #   Properties:
-  #     EventPattern:
-  #       source:
-  #         - "aws.s3"
-  #       detail-type:
-  #         - "Object Created"
-  #       detail:
-  #         bucket:
-  #           name:
-  #             - !If [ IsProd,
-  #                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-  #                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-  #                 ]
-  #         object:
-  #           key:
-  #             - { "prefix": "raw/quiter/" }
-  #     Targets:
-  #       - Id: "QuiterFormatAppointmentTarget"
-  #         Arn: !GetAtt QuiterFormatAppointmentQueue.Arn
+  QuiterFormatAppointmentDLQAlarm:
+       Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterFormatAppointmentDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterFormatAppointmentDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
