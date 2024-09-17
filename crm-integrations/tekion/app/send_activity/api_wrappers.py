@@ -201,6 +201,7 @@ class TekionApiWrapper:
         )['data']['notes'][0]
         logger.info(f"Note was successfully created !\n{json_response}")
         return json_response['id']
+        
     def create_activity(self):
         """Create activity on CRM."""
         if self.__activity_type == "note":
