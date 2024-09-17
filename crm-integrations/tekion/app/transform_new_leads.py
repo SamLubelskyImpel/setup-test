@@ -164,7 +164,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_ts"] = format_ts(item.get('createdTime', ''))
             db_lead["lead_status"] = item.get('status')
             db_lead["lead_substatus"] = ''
-            db_lead["lead_comment"] = item.get('notes', [{}])[0].get('description', '') if item.get('notes') else ''
+            db_lead["lead_comment"] = (item.get('notes', [{}])[0].get('description', '') if item.get('notes') else '')[:5000]
             db_lead["lead_origin"] = lead_origin.upper()
             db_lead["lead_source"] = item.get('source', {}).get('sourceName', '')
             db_lead["lead_source_detail"] = item.get('source', {}).get('subSource', '')
