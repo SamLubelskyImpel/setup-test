@@ -188,7 +188,7 @@ class TekionApiWrapper:
         lead_data = self.get_lead_information()
         if not self.__activity.notes:
             logger.warning("Activity type Note can't be created if note is empty")
-             raise InvalidNoteException("Note can't be empty or invalid")
+            raise InvalidNoteException("Note can't be empty or invalid")
         lead_data['notes'] = [{
             "description": self.__activity.notes,
             "name": "Sales AI",
@@ -201,8 +201,6 @@ class TekionApiWrapper:
         )['data']['notes'][0]
         logger.info(f"Note was successfully created !\n{json_response}")
         return json_response['id']
-    
-    
     def create_activity(self):
         """Create activity on CRM."""
         if self.__activity_type == "note":
