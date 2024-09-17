@@ -1,13 +1,15 @@
 """Logic for formatting files for “Repair Orders,” “Customers,” and “Vehicles” from Quiter."""
+
 import os
-import chardet
 from os import environ
 import logging
 import boto3
 import json
 import pandas as pd
-from io import StringIO, BytesIO
+from io import StringIO
 from botocore.exceptions import ClientError
+from unified_data import upload_unified_json
+from repair_order_merge import detect_file_encoding
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -21,53 +23,30 @@ TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
 UNIFIED_RO_INSERT_LAMBDA = os.getenv("UNIFIED_RO_INSERT_LAMBDA")
 
 
-def detect_file_encoding(file_content):
-    """Detect the encoding of a file."""
-    result = chardet.detect(file_content)
-    encoding = result['encoding']
-    logger.info(f"Detected file encoding: {encoding}")
-    return encoding
-
 def load_dataframe_from_s3(bucket_name, s3_key):
     """Load the file from S3 and convert it into a pandas DataFrame with the correct encoding."""
     try:
-        logger.info(f"Attempting to load file from S3: Bucket={bucket_name}, Key={s3_key}")
-        
+        logger.info(
+            f"Attempting to load file from S3: Bucket={bucket_name}, Key={s3_key}"
+        )
+
         response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
         file_content = response["Body"].read()
-    
+
         encoding = detect_file_encoding(file_content)
         file_content_decoded = file_content.decode(encoding)
         df = pd.read_csv(StringIO(file_content_decoded))
-        
+
         logger.info(f"File successfully loaded from S3: {s3_key}")
         return df
-    
+
     except ClientError as e:
-        logger.error(f"Error loading the file from S3: Bucket={bucket_name}, Key={s3_key}, Error={e}")
+        logger.error(
+            f"Error loading the file from S3: Bucket={bucket_name}, Key={s3_key}, Error={e}"
+        )
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        raise
-
-
-def transform_to_unified_format(df):
-    """Transforms the raw DataFrame into a unified format according to the provided specifications."""
-    logger.info("Starting transformation of the raw data to unified format.")
-    try:
-        df_unified = pd.DataFrame()
-
-        df_unified["id"] = range(1, len(df) + 1)
-        df_unified["vehicle_id"] = df.get("vehicle_id", pd.NA)
-        df_unified["dealer_integration_partner_id"] = df.get(
-            "dealer_integration_partner_id", pd.NA
-        )
-        df_unified["db_creation_date"] = pd.Timestamp.now()
-
-        logger.debug(f"Transformed DataFrame: {df_unified.head()}")  # Log only the first few rows for debugging
-        return df_unified
-    except Exception as e:
-        logger.error(f"Error during data transformation: {e}")
         raise
 
 
@@ -89,7 +68,7 @@ def send_sns_notification(message, topic_arn):
 def lambda_handler(event, context):
     """Main function triggered by SQS events to process and transform the raw data."""
     logger.info("Lambda handler triggered")
-    
+
     try:
         for record in event["Records"]:
             logger.debug(f"Processing SQS record: {record}")
@@ -103,19 +82,26 @@ def lambda_handler(event, context):
 
             # Load the raw data from S3
             df_raw = load_dataframe_from_s3(s3_bucket, s3_key)
-            
+
             if df_raw.empty:
                 logger.warning(f"DataFrame is empty for file: {s3_bucket}/{s3_key}")
 
-            df_unified = transform_to_unified_format(df_raw)
-            unified_key = f"unified/repair_order/quiter/{s3_key.split('/')[-1]}"
+            # Set integration type and source S3 URI
+            integration_type = "repair_order"
+            source_s3_uri = s3_key
+
+            # Upload the unified JSON
+            unified_key = upload_unified_json(df_raw, integration_type, source_s3_uri)
             logger.debug(f"Generated unified S3 key: {unified_key}")
 
-            upload_to_unified_s3(df_unified, INTEGRATIONS_BUCKET, unified_key)
-
             # Send SNS notification after successful upload
-            sns_message = f"File successfully processed and uploaded to {INTEGRATIONS_BUCKET}/{unified_key}"
-            send_sns_notification(sns_message, TOPIC_ARN)
+            if unified_key:
+                sns_message = f"File successfully processed and uploaded to {INTEGRATIONS_BUCKET}/{unified_key}"
+                send_sns_notification(sns_message, TOPIC_ARN)
+            else:
+                sns_message = f"No data uploaded for file: {s3_bucket}/{s3_key}"
+                logger.warning(sns_message)
+                send_sns_notification(sns_message, TOPIC_ARN)
 
     except Exception as e:
         logger.error(f"Error during file processing: {e}")

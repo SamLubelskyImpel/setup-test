@@ -11,7 +11,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 REGION = environ.get("REGION", "us-east-1")
 IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
@@ -98,9 +98,7 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
         s3_key = f"unified/{integration_type}/reyrey/{dealer_integration_path}/{partition_path}/{parquet_name}"
-        s3_client.put_object(
-            Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
-        )
+        s3_client.put_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str)
         logger.info(f"Uploaded {len(df)} rows for {source_s3_uri} to {s3_key}")
     else:
         logger.info(f"No data uploaded for {source_s3_uri}")

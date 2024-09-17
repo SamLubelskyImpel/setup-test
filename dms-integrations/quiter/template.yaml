@@ -393,16 +393,6 @@ Resources:
             Queue: !GetAtt QuiterFormatRepairOrderQueue.Arn
             Enabled: True
             
-  QuiterMergeAppointmentQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeAppointmentDLQ
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
-      VisibilityTimeout: 3600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
-        maxReceiveCount: 5
-
   QuiterRepairOrderFormatS3QueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -422,6 +412,16 @@ Resources:
                 - prefix: 'quiter/'
           eventName:
             - prefix: 'ObjectCreated:'
+
+  QuiterMergeAppointmentQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeAppointmentDLQ
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
+        maxReceiveCount: 5
 
   QuiterMergeAppointmentDLQ:
     Type: AWS::SQS::Queue
