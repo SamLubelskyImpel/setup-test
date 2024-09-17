@@ -13,13 +13,14 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-
+from unified_df import upload_unified_json
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
+TOPIC_ARN = os.environ["CE_TOPIC"]
 
 SM_CLIENT = boto3.client('secretsmanager')
 S3_CLIENT = boto3.client("s3")
@@ -35,37 +36,41 @@ def get_secret(secret_name, secret_key) -> Any:
     secret_data = loads(secret)
 
     return secret_data
-
-def upload_appointment_to_s3(appointment: Dict[str, Any], dms_id: str, source_s3_uri: str, index: int) -> Any:
-    """Upload appointment to s3 database."""
-    format_string = 'PartitionYear=%Y/PartitionMonth=%m/PartitionDate=%d'
-    date_key = datetime.utcnow().strftime(format_string)
-    original_file = source_s3_uri.split("/")[-1].split(".")[0]
-    logger.info(f"Appointment data to send: {appointment}")
-
-    s3_key = f"unified/service_appointment/quiter/dealer_integration_partner|dms_id={dms_id}/{date_key}/{original_file}_{str(index)}_{str(uuid4())}.json"
-    logger.info(f"Saving leads to {s3_key}")
-    S3_CLIENT.put_object(
-        Body=dumps(appointment),
-        Bucket=BUCKET,
-        Key=s3_key,
-    )
     
 def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
     db_dealer_integration_partner = {"dms_id": dms_id}
     entries = []
 
     for record in json_data:
+
+        # Convert dates to US date format
+        appointment_date = datetime.strptime(record.get("Appointment Date"), "%d/%m/%y").strftime("%m/%d/%y")
+        appointment_create_ts = datetime.strptime(record.get("Appointment Create TS"), "%d/%m/%y").strftime("%m-%d-%y 00:00:00.000")
+        appointment_update_ts = datetime.strptime(record.get("Appointment Update TS"), "%d/%m/%y").strftime("%m-%d-%y 00:00:00.000")
+        ro_date = record.get("Last RO Date", None)
+        last_ro_date = None
+        if ro_date:
+            last_ro_date = datetime.strptime(ro_date , "%d/%m/%y").strftime("%m/%d/%y")
+
+        warranty_date = record.get("Warranty Expiration Date", None)
+        warranty_expiration_date = None
+        if warranty_date:
+            warranty_expiration_date = datetime.strptime(warranty_date , "%d/%m/%y").strftime("%m/%d/%y")
+
+        # Handle truncated fields
+        appointment_source = record.get("Appointment Source")[:100] if record.get("Appointment Source", None) else None
+        reason_code = record.get("Reason Code")[:100] if record.get("Reason Code", None) else None
+
         db_service_appointment = {
             "appointment_time":record.get("Appointment Time", None),
-            "appointment_date":record.get("Appointment Date", None),
-            "appointment_source":record.get("Appointment Source", None),
-            "reason_code":record.get("Reason Code", None),
-            "appointment_create_ts":record.get("Appointment Create TS", None),
-            "appointment_update_ts":record.get("Appointment Update TS", None),
+            "appointment_date":appointment_date,
+            "appointment_source":appointment_source,
+            "reason_code":reason_code,
+            "appointment_create_ts":appointment_create_ts,
+            "appointment_update_ts":appointment_update_ts,
             "rescheduled_flag":record.get("Rescheduled Flag", None),
             "appointment_no":record.get("Appointment No", None),
-            "last_ro_date":record.get("Last RO Date", None),
+            "last_ro_date":last_ro_date,
             "last_ro_num": record.get("Last RO No", None)
         }
         db_vehicle = {
@@ -79,7 +84,7 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
             "year":record.get("Year", None),
             "new_or_used":record.get("New or Used", None),
             "warranty_expiration_miles":record.get("Warranty Expiration Miles", None),
-            "warranty_expiration_date":record.get("Warranty Expiration Date", None)
+            "warranty_expiration_date":warranty_expiration_date
         }
         db_consumer = {
             "dealer_customer_no":record.get("Consumer ID", None),
@@ -100,7 +105,7 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
 
         # No Mappings for Service contracts
         db_service_contracts = []
-        # Op Codes mappings are foreign keys?
+        # Op Codes mappings are all foreign keys?
         db_op_codes = []
 
         entry = {
@@ -119,8 +124,7 @@ def post_entry(entry: dict, dms_id: str, source_s3_uri: str, index: int) -> bool
     """Process a single entry."""
     logger.info(f"[THREAD {index}] Processing entry {entry}")
     try:
-        # lead = entry["lead"]
-        unified_crm_lead_id = upload_appointment_to_s3(entry, dms_id, source_s3_uri, index)
+        unified_crm_lead_id = upload_unified_json(entry, "service_appointment", source_s3_uri, dms_id)
         logger.info(f"[THREAD {index}] Appointment successfully updated: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
@@ -128,6 +132,7 @@ def post_entry(entry: dict, dms_id: str, source_s3_uri: str, index: int) -> bool
             logger.warning(f"[THREAD {index}] {e}")
         else:
             logger.error(f"[THREAD {index}] Error uploading entry to S3: {e}")
+            notify_client_engineering(e)
             return False
 
     return True
@@ -167,6 +172,7 @@ def record_handler(record: SQSRecord) -> None:
 
     except Exception as e:
         logger.error(f"Error transforming quiter appointment record - {record}: {e}")
+        notify_client_engineering(e)
         raise
 
 
@@ -186,3 +192,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise
+
+def notify_client_engineering(error_message):
+    """Send a notification to the client engineering SNS topic."""
+    sns_client = boto3.client("sns")
+
+    sns_client.publish(
+        TopicArn=TOPIC_ARN,
+        Subject="QuiterFormatInsertFilesAppointment Lambda Error",
+        Message=str(error_message),
+    )
+    return
