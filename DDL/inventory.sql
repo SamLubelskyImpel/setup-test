@@ -16,10 +16,10 @@ CREATE TABLE prod.inv_dealer (
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
 	full_name varchar(255) NULL,
-	merch_dealer_id varchar(255) NULL,
-	salesai_dealer_id varchar(255) NULL,
-	merch_is_active bool DEFAULT false NULL,
-	salesai_is_active bool DEFAULT false NULL,
+	merch_dealer_id varchar(255) NULL,			-- deprecated
+	salesai_dealer_id varchar(255) NULL,		-- deprecated
+	merch_is_active bool DEFAULT false NULL,	-- deprecated
+	salesai_is_active bool DEFAULT false NULL,	-- deprecated
 	CONSTRAINT inv_dealer_pkey PRIMARY KEY (id),
 	CONSTRAINT unique_inv_impel_id UNIQUE (impel_dealer_id)
 );
