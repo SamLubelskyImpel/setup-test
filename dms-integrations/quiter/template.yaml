@@ -129,7 +129,7 @@ Resources:
           Properties:
             Description: Start the daily data pull for each quiter dealer.
             Enabled: !If [ IsProd, true, false ]
-            Schedule: cron(0 12 * * ? *)  # Daily at 12:00 UTC
+            Schedule: cron(0 1 * * ? *)  # Daily at 1:00 AM UTC
             Input: '{"frequency": "daily"}'
   
   InvokeQuiterFailureAlarm:

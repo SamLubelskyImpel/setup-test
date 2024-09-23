@@ -46,21 +46,37 @@ def get_ftp_credentials():
         raise
 
 
-def list_new_files(ftp, dealer_id):
-    now = datetime.now(timezone.utc)
-    last_24_hours = now - timedelta(days=1)
-    ftp.cwd(dealer_id)
-    logger.info(f"Changed to directory: {dealer_id}")
-    new_files = []
-    for file in ftp.nlst():
-        file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
-        try:
-            file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S.%f").replace(tzinfo=timezone.utc)
-        except ValueError:
-            file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-        if file_modified_time > last_24_hours:
-            new_files.append(file)
-    return new_files
+def list_new_files(ftp, dealer_id, end_dt):
+    try:
+        last_24_hours = end_dt - timedelta(days=1)
+        ftp.cwd(dealer_id)
+        logger.info(f"Changed to directory: {dealer_id}")
+
+        new_files = []
+        file_list = ftp.nlst()
+
+        for file in file_list:
+            try:
+                file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
+
+                try:
+                    file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S.%f").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+
+                if file_modified_time > last_24_hours:
+                    new_files.append(file)
+                    logger.info(f"File {file} is new (modified within the last 24 hours).")
+
+            except Exception as e:
+                logger.error(f"Error processing file {file}: {e}")
+                raise
+
+        return new_files
+
+    except Exception as e:
+        logger.error(f"Error listing files in directory {dealer_id}: {e}")
+        raise
 
 
 def process_files(ftp, dealer_id, found_files, s3_key):
@@ -70,10 +86,10 @@ def process_files(ftp, dealer_id, found_files, s3_key):
             local_file_path = f'/tmp/{file_name}'
             with open(local_file_path, 'wb') as f:
                 ftp.retrbinary(f'RETR {file_name}', f.write)
-            s3_client.upload_file(local_file_path, INTEGRATIONS_BUCKET, s3_key)
+            s3_client.upload_file(local_file_path, INTEGRATIONS_BUCKET, f"{s3_key}/{file_name}")
             os.remove(local_file_path)
-    except ValueError as e:
-        logger.error(f"Error uploading file {local_file_path} to S3: {e}")
+    except Exception as e:
+        logger.error(f"Error uploading file {file_name} to S3: {e}")
         raise
 
 
@@ -82,15 +98,16 @@ def parse_data(data):
     logger.info(data)
     try:
         dealer_id = data["dealer_id"]
-        end_dt = data["end_dt_str"]
-        s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%m/%d")
-        logger.info(f"S3 data path {s3_date_path}")
+        end_dt_str = data["end_dt_str"]
+        end_dt = datetime.strptime(end_dt_str, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        s3_date_path = datetime.strptime(end_dt_str, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%-m/%-d")
+        logger.info(f"S3 date path {s3_date_path}")
         host, user, password = get_ftp_credentials()
         ftp_session = FtpToS3(host=host, user=user, password=password)
         ftp = ftp_session.connect_to_ftp()
 
         if ftp:
-            new_files = list_new_files(ftp, dealer_id)
+            new_files = list_new_files(ftp, dealer_id, end_dt)
             logger.info(f"New files found in the last 24 hours: {new_files}")
             if new_files:
                 found_files = {}
@@ -108,8 +125,7 @@ def parse_data(data):
                 logger.info(f"Found files: {found_files}")
                 # Ensure we have found a file for each file type
                 if all(file_type in found_files for file_type in FILE_PATTERNS.keys()) and len(found_files) == len(FILE_PATTERNS):
-                    current_date = datetime.now()
-                    s3_key = f'quiter/landing_zone/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}'
+                    s3_key = f'quiter/landing_zone/{dealer_id}/{s3_date_path}'
                     process_files(ftp, dealer_id, found_files, s3_key)
                     for queue_url in SQS_QUEUE_URLS:
                         data = {
@@ -123,9 +139,9 @@ def parse_data(data):
                         # Verify that the message was sent successfully by checking the response
                         # TODO: Delete after testing
                         if 'MessageId' in response:
-                            logging.info(f"Message sent successfully to {queue_url}, MessageId: {response['MessageId']}")
+                            logger.info(f"Message sent successfully to {queue_url}, MessageId: {response['MessageId']}")
                         else:
-                            logging.error(f"Failed to send message to {queue_url}")
+                            logger.error(f"Failed to send message to {queue_url}")
                 else:
                     message = f'QUITER: Not all required files are available on the FTP server for this dealer: {dealer_id}. Found files: {found_files}'
                     SNS_CLIENT.publish(
