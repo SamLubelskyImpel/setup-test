@@ -24,6 +24,7 @@ def record_handler(record: SQSRecord):
     try:
         activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
+        return 'hi'
         eskimo_api = EskimoApiWrapper(activity=activity)
 
         bmw_response = eskimo_api.create_activity()

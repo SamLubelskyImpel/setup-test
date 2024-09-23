@@ -57,7 +57,8 @@ class EskimoApiWrapper:
     def __insert_note(self):
         """Insert note on CRM."""
         payload = {
-            "accountId": self.__account_id,
+            # "accountId": self.__account_id, crm_dealer_id
+            "accountId": self.__activity["crm_dealer_id"],
             "customerId": self.__activity["consumer_id"],
             "note": self.__activity["notes"]
         }
