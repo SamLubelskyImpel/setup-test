@@ -56,9 +56,6 @@ def get_ftp_credentials():
 def list_new_files(ftp, dealer_id, end_dt):
     try:
         last_24_hours = end_dt - timedelta(days=1)
-        ftp.cwd(dealer_id)
-        logger.info(f"Changed to directory: {dealer_id}")
-
         new_files = []
         file_list = ftp.nlst()
 
