@@ -1,18 +1,12 @@
 import boto3
 import logging
 import pandas as pd
+import urllib.parse
+import io
 from os import environ
-from json import loads, dumps
+from json import loads
 from typing import Any, Dict
-from uuid import uuid4
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from aws_lambda_powertools.utilities.batch import (
-    BatchProcessor,
-    EventType,
-    process_partial_response,
-)
 from unified_df import upload_unified_json
 
 logger = logging.getLogger()
@@ -20,12 +14,10 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
-TOPIC_ARN = os.environ["CE_TOPIC"]
+TOPIC_ARN = environ.get("CE_TOPIC")
 
 SM_CLIENT = boto3.client('secretsmanager')
 S3_CLIENT = boto3.client("s3")
-
-
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
@@ -37,11 +29,13 @@ def get_secret(secret_name, secret_key) -> Any:
 
     return secret_data
     
-def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
-    db_dealer_integration_partner = {"dms_id": dms_id}
+def parse_json_to_entries(json_data: dict) -> Any:
+
     entries = []
 
     for record in json_data:
+        dms_id = record.get("Dealer ID")
+        db_dealer_integration_partner = {"dms_id": dms_id}
 
         # Convert dates to US date format
         appointment_date = datetime.strptime(record.get("Appointment Date"), "%d/%m/%y").strftime("%m/%d/%y")
@@ -60,6 +54,8 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
         # Handle truncated fields
         appointment_source = record.get("Appointment Source")[:100] if record.get("Appointment Source", None) else None
         reason_code = record.get("Reason Code")[:100] if record.get("Reason Code", None) else None
+        metro = record.get("Metro")[:80] if record.get("Metro", None) else None
+        city = record.get("City")[:80] if record.get("City", None) else None
 
         db_service_appointment = {
             "appointment_time":record.get("Appointment Time", None),
@@ -92,9 +88,9 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
             "last_name":record.get("Last Name", None),
             "email":record.get("Email", None),
             "cell_phone":record.get("Cell Phone", None),
-            "city":record.get("City", None),
+            "city":city,
             "state":record.get("State", None),
-            "metro":record.get("Metro", None),
+            "metro":metro,
             "postal_code":record.get("Postal Code", None),
             "email_optin_flag":record.get("Email Optin Flag", None),
             "phone_optin_flag":record.get("Phone Optin Flag", None),
@@ -118,79 +114,40 @@ def parse_json_to_entries(dms_id: int, json_data: dict) -> Any:
         }
         entries.append(entry)
 
-    return entries
-
-def post_entry(entry: dict, dms_id: str, source_s3_uri: str, index: int) -> bool:
-    """Process a single entry."""
-    logger.info(f"[THREAD {index}] Processing entry {entry}")
-    try:
-        unified_crm_lead_id = upload_unified_json(entry, "service_appointment", source_s3_uri, dms_id)
-        logger.info(f"[THREAD {index}] Appointment successfully updated: {unified_crm_lead_id}")
-    except Exception as e:
-        if '409' in str(e):
-            # Log the 409 error and continue with the next entry
-            logger.warning(f"[THREAD {index}] {e}")
-        else:
-            logger.error(f"[THREAD {index}] Error uploading entry to S3: {e}")
-            notify_client_engineering(e)
-            return False
-
-    return True
-
-def record_handler(record: SQSRecord) -> None:
-    """Transform and process each record."""
-    logger.info(f"Record: {record}")
-    try:
-        message = loads(record["body"])
-        bucket = environ.get("INTEGRATIONS_BUCKET")
-        key = message["s3_key"]
-        dms_id = message["dms_id"]
-
-        response = S3_CLIENT.get_object(Bucket=bucket, Key=key)
-        content = pd.read_csv(response["Body"])
-        json_data = loads(content.to_json(orient="records"))
-        logger.info(f"Raw data: {json_data}")
-
-        entries = parse_json_to_entries(dms_id, json_data)
-        logger.info(f"Transformed entries: {entries}")
-
-
-        results = []
-        # Process each entry in parallel, each entry takes about 8 seconds to process.
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(post_entry,
-                                entry, dms_id, key, idx)
-                for idx, entry in enumerate(entries)
-            ]
-            for future in as_completed(futures):
-                results.append(future.result())
-
-        for result in results:
-            if not result:
-                raise Exception("Error detected posting and forwarding an entry")
-
-    except Exception as e:
-        logger.error(f"Error transforming quiter appointment record - {record}: {e}")
-        notify_client_engineering(e)
-        raise
-
+    return entries, dms_id
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Transform raw quiter data to the unified format."""
-    logger.info(f"Event: {event}")
-
     try:
-        processor = BatchProcessor(event_type=EventType.SQS)
-        result = process_partial_response(
-            event=event,
-            record_handler=record_handler,
-            processor=processor,
-            context=context
-        )
-        return result
+        for record in event["Records"]:
+            message = loads(record["body"])
+            logger.info(f"Message of {message}")
+            
+            # Process each S3 record in the event
+            for s3_record in message.get("Records", []):
+                bucket = s3_record["s3"]["bucket"]["name"]
+                key = s3_record["s3"]["object"]["key"]
+                decoded_key = urllib.parse.unquote(key)
+                
+                # Fetch the object from S3
+                response = S3_CLIENT.get_object(Bucket=bucket, Key=decoded_key)
+                csv_data = response["Body"].read().decode("utf-8") 
+
+                # Use pandas to read the CSV content into a DataFrame
+                csv_df = pd.read_csv(io.StringIO(csv_data),dtype={'Dealer ID': 'string'})
+                json_data = loads(csv_df.to_json(orient="records"))
+                # logger.info(f"Raw Data:{json_data}")
+
+                # Process the CSV entries using the modified function
+                entries, dms_id = parse_json_to_entries(json_data)
+
+                if not dms_id:
+                    raise RuntimeError("No dms_id found in the CSV data")
+                # Call the upload function with the parsed entries
+                upload_unified_json(entries, "service_appointment", decoded_key, dms_id)
+                
     except Exception as e:
-        logger.error(f"Error processing batch: {e}")
+        logger.exception(f"Error transforming vehicle sale file {event}: {e}")
         raise
 
 def notify_client_engineering(error_message):
