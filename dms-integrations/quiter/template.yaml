@@ -55,9 +55,9 @@ Globals:
         ]
         INVOKE_QUEUE: !Ref InvokeQueue
         MERGE_REPAIR_ORDER_QUEUE: !Ref QuiterMergeRepairOrderQueue
-        MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
-        MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
-        CE_TOPIC: !Ref CEAlertTopicArn
+        # MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
+        # MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
+        # CE_TOPIC: !Ref CEAlertTopicArn
         CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
     VpcConfig:
       SecurityGroupIds:
@@ -123,6 +123,7 @@ Resources:
                   ]
       Environment:
         Variables:
+          Environment: !Ref Environment
           INVOKE_QUEUE: !Ref InvokeQueue
           MERGE_QUEUE: !Ref QuiterMergeRepairOrderQueue
       Events:
@@ -211,20 +212,39 @@ Resources:
                 - s3:PutObject
                 - s3:ListBucket
                 - s3:*Object
-              Resource: !Sub "arn:aws:s3:::${INTEGRATIONS_BUCKET}/*"
+              Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                # - !GetAtt QuiterMergeAppointmentQueue.Arn
+                - !GetAtt QuiterMergeRepairOrderQueue.Arn
+                # - !GetAtt QuiterMergeVehicleSalesQueue.Arn
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
           INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
       Events:
-        S3Event:
-          Type: S3
-          Properties:
-            Bucket: !Ref INTEGRATIONS_BUCKET
-            Events: s3:ObjectCreated:*
+        SQSEvent:
+            Type: SQS
+            Properties:
+              Enabled: True
+              Queue: !GetAtt InvokeQueue.Arn
 
   QuiterMergeRepairOrderQueue:
     Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeRepairOrderDLQ
     Properties:
       QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
       RedrivePolicy:
@@ -236,6 +256,26 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQ
+      MessageRetentionPeriod: 1209600
+
+  QuiterMergeRepairOrderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
+      AlarmDescription: There are messages in the Quiter merge Vehicle Sales DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
+      Statistic: Sum
+      Period: 900 
+      EvaluationPeriods: 1
+      Threshold: 1  
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
 
   QuiterMergeRepairOrderFunction:
     Type: AWS::Serverless::Function
@@ -244,10 +284,20 @@ Resources:
       CodeUri: app/
       Handler: repair_order_merge.lambda_handler
       Timeout: 900
+      MemorySize: 512
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
           Statement:
+            - Sid: AllowSecrets
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/QuiterFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/QuiterFTP*",
+                  ]
             - Sid: AllowSQS
               Effect: Allow
               Action:
@@ -261,98 +311,116 @@ Resources:
                   ]
             - Sid: AllowSNSPolicy
               Effect: Allow
-                Action:
-                  - sns:Publish
-                - !GetAtt QuiterMergeRepairOrderQueue.Arn
-                - !GetAtt QuiterMergeRepairOrderDLQ.Arn
+              Action:
+                - sns:Publish
+              Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
             - Sid: AllowS3
               Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
-              Resource: !Sub "arn:aws:s3:::${INTEGRATIONS_BUCKET}/*"
-            - Sid: AllowSNS
-              Effect: Allow
-              Action:
-                - sns:Publish
+                - s3:ListBucket
+                - s3:*Object
               Resource:
-                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            - Sid: AllowSQS
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
+            - Sid: QuiterFormatQueuePolicy
               Effect: Allow
               Action:
                 - sqs:SendMessage
               Resource:
-                - !GetAtt QuiterMergeAppointmentQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
-                - !GetAtt QuiterMergeVehicleSaleQueue.Arn                
+                         
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
           MERGE_QUEUE: !Ref QuiterMergeRepairOrderQueue
-                - !GetAtt QuiterMergeVehicleSaleQueue.Arn
       Events:
         SQSEvent:
           Type: SQS
           Properties:
             Enabled: True
-            Queue: !GetAtt InvokeQueue.Arn
             Queue: !GetAtt QuiterMergeRepairOrderQueue.Arn
-  
-
-  QuiterMergeRepairOrderDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQAlarm
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
-      Statistic: Sum
-      Period: 900  # 15 minutes
-      EvaluationPeriods: 1
-      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      ActionsEnabled: !If [IsProd, true, false]
-  
-  QuiterRepairOrderS3QueueSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !If 
-        - IsProd
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod'
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
-      Protocol: sqs
-      RawMessageDelivery: true
-      Endpoint: !GetAtt QuiterFormatRepairOrderQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        Records:
-          s3:
-            object:
-              key:
-                - prefix: 'quiter/'
-          eventName:
-            - prefix: 'ObjectCreated:'
 
   QuiterFormatRepairOrderQueue:
     Type: AWS::SQS::Queue
     DependsOn: QuiterMergeRepairOrderDLQ
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
-      VisibilityTimeout: 3600
+      QueueName: QuiterFormatRepairOrderQueue
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt QuiterFormatRepairOrderDLQ.Arn
         maxReceiveCount: 5
-      VisibilityTimeout: 900
 
   QuiterFormatRepairOrderDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderDL
+      QueueName: QuiterFormatRepairOrderDLQ
+  
+  QuiterFormatDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: QuiterFormatDLQAlarm
+      AlarmName: !Sub quiter-${Environment}-QuiterFormatRepairOrderSalesDLQAlarm
+      AlarmDescription: There are messages in the Quiter format Vehicle Sales DLQ
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterFormatRepairOrderQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 900
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+
+  QuiterFormatRepairOrderQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt QuiterFormatRepairOrderQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"quiter/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  QuiterFormatRepairOrderQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref QuiterFormatRepairOrderQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: QuiterFormatRepairOrderQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt QuiterFormatRepairOrderQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
   QuiterFormatRepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -360,85 +428,34 @@ Resources:
       CodeUri: app/
       Handler: repair_order_format.lambda_handler
       Timeout: 900
+      MemorySize: 1024
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
           Statement:
-            - Sid: AllowSQS
+            - Sid: AllowGetDBInfo
               Effect: Allow
               Action:
-                - sqs:ReceiveMessage
-                - sqs:DeleteMessage
-              Resource: !GetAtt QuiterFormatRepairOrderQueue.Arn
-            - Sid: AllowS3Access
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
               Effect: Allow
               Action:
-                - s3:GetObject
-                - s3:PutObject
+                - s3:*
               Resource:
-                !Sub "arn:aws:s3:::${INTEGRATIONS_BUCKET}/*"
-            - Sid: AllowSNS
-              Effect: Allow
-              Action:
-                - sns:Publish
-              Resource: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
-      Environment:
-        Variables:
-          INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
-          CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Ref CLIENT_ENGINEERING_SNS_TOPIC_ARN
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
       Events:
         SQSEvent:
           Type: SQS
           Properties:
             Queue: !GetAtt QuiterFormatRepairOrderQueue.Arn
-            Enabled: True
-            
-  QuiterRepairOrderFormatS3QueueSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !If 
-        - IsProd
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod'
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
-      Protocol: sqs
-      RawMessageDelivery: true
-      Endpoint: !GetAtt UnifiedFormatRepairOrderQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        Records:
-          s3:
-            object:
-              key:
-                - prefix: 'quiter/'
-          eventName:
-            - prefix: 'ObjectCreated:'
-
-  QuiterMergeAppointmentQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeAppointmentDLQ
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
-      VisibilityTimeout: 3600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
-        maxReceiveCount: 5
-
-  QuiterMergeAppointmentDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
-
-  QuiterMergeVehicleSaleQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeVehicleSaleDLQ
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleQueue
-      VisibilityTimeout: 3600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeVehicleSaleDLQ.Arn
-        maxReceiveCount: 5
-
-  QuiterMergeVehicleSaleDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleDLQ

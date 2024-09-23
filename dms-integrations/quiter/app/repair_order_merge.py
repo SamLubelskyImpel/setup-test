@@ -94,9 +94,9 @@ def merge_files(repair_orders_df, customers_df, vehicles_df):
             - orphan_records_df (pd.DataFrame): DataFrame containing orphan records.
     """
     try:
-        # Merge Repair Orders with Customers on customer_id using left join
+        # Merge Repair Orders with Customers on Consumer ID using left join
         merged_customer = pd.merge(
-            repair_orders_df, customers_df, on="customer_id", how="left", indicator=True
+            repair_orders_df, customers_df, on="Consumer ID", how="left", indicator=True
         )
         # Identify orphan records where customer data is missing
         orphan_customers = merged_customer[merged_customer["_merge"] == "left_only"]
@@ -104,9 +104,9 @@ def merge_files(repair_orders_df, customers_df, vehicles_df):
             columns=["_merge"]
         )
 
-        # Merge the result with Vehicles on vin using left join
+        # Merge the result with Vehicles on Vin No using left join
         merged_vehicle = pd.merge(
-            merged_customer, vehicles_df, on="vin", how="left", indicator=True
+            merged_customer, vehicles_df, on="Vin No", how="left", indicator=True
         )
         # Identify orphan records where vehicle data is missing
         orphan_vehicles = merged_vehicle[merged_vehicle["_merge"] == "left_only"]
