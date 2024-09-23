@@ -98,11 +98,6 @@ def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
         dealer_integration_path = f"dealer_integration_partner|dms_id={dms_id}"
         partition_path = f"PartitionYear={upload_year}/PartitionMonth={upload_month}/PartitionDate={upload_date}"
         s3_key = f"unified/{integration_type}/quiter/{dealer_integration_path}/{partition_path}/{parquet_name}"
-        logger.info(json_str)
-        logger.info(original_file)
-        logger.info(parquet_name)
-        logger.info(partition_path)
-        logger.info(s3_key)
         s3_client.put_object(
             Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=json_str
         )

@@ -85,8 +85,20 @@ def lambda_handler(event, context):
                 notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}")
 
             # Merge the data
-            merged_df = merge_files(valid_records_df, cleaned_customers_df, cleaned_vehicles_df)
-            
+            merged_df = merge_files(
+                main_df=valid_records_df,
+                customers_df=cleaned_customers_df,
+                vehicles_df=cleaned_vehicles_df,
+                main_to_customers_keys=("Consumer ID", "Dealer Customer No"),
+                main_to_vehicles_keys="Vin No",
+                columns_to_drop=['Dealer ID_y', 'Consumer ID_y', 'Warranty Expiration Date_y'],
+                rename_columns={
+                    'Dealer ID_x': 'Dealer ID',
+                    'Consumer ID_x': 'Consumer ID',
+                    'Warranty Expiration Date_x': 'Warranty Expiration Date'
+                }
+            )
+
             # Save merged data back to S3
             csv_buffer = merged_df.to_csv(index=False)
             unique_id = str(uuid.uuid4())
