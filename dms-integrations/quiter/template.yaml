@@ -231,10 +231,6 @@ Resources:
                 # - !GetAtt QuiterMergeAppointmentQueue.Arn
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
                 # - !GetAtt QuiterMergeVehicleSalesQueue.Arn
-      Environment:
-        Variables:
-          ENVIRONMENT: !Ref Environment
-          INTEGRATIONS_BUCKET: !Ref INTEGRATIONS_BUCKET
       Events:
         SQSEvent:
             Type: SQS
