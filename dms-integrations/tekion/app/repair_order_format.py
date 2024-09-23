@@ -1,13 +1,12 @@
-"""Format reyrey xml data to unified format."""
-import gzip
-import io
+"""Format tekion json data to unified format."""
 import logging
 import urllib.parse
-import xml.etree.ElementTree as ET
+from datetime import datetime
 from json import dumps, loads
 from os import environ
 
 import boto3
+
 from unified_df import upload_unified_json
 
 logger = logging.getLogger()
@@ -19,186 +18,126 @@ INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
 
-def parse_xml_to_entries(xml_string, s3_uri):
-    """Format reyrey xml data to unified format."""
+def default_get(json_dict, key, default_value=None):
+    """Return a default value if a key doesn't exist or if it's value is None."""
+    json_value = json_dict.get(key)
+    return json_value if json_value is not None else default_value
+
+
+def convert_unix_to_timestamp(unix_time):
+    """Convert unix time to datetime object"""
+    if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
+        return None
+    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def parse_json_to_entries(json_data, s3_uri):
+    """Format tekion json data to unified format."""
     entries = []
-    try:
-        root = ET.fromstring(xml_string)
-    except Exception:
-        logger.exception(f"Unable to parse xml at {s3_uri}")
-        raise
 
-    ns = {"ns": "http://www.starstandards.org/STAR"}
-
-    application_area = root.find(".//ns:ApplicationArea", namespaces=ns)
-
-    dealer_number = None
-    store_number = None
-    area_number = None
-    if application_area is not None:
-        boid = application_area.find(".//ns:BODId", namespaces=ns).text
-        sender = application_area.find(".//ns:Sender", namespaces=ns)
-        if sender is not None:
-            dealer_number = sender.find(".//ns:DealerNumber", namespaces=ns).text
-            store_number = sender.find(".//ns:StoreNumber", namespaces=ns).text
-            area_number = sender.find(".//ns:AreaNumber", namespaces=ns).text
-
-    if not dealer_number and not store_number and not area_number:
-        raise RuntimeError("Unknown dealer id")
-
-    dms_id = f"{store_number}_{area_number}_{dealer_number}"
-
-    db_metadata = {
-        "Region": REGION,
-        "PartitionYear": s3_uri.split("/")[2],
-        "PartitionMonth": s3_uri.split("/")[3],
-        "PartitionDate": s3_uri.split("/")[4],
-        "BODId": boid,
-        "s3_url": s3_uri,
-    }
-
-    repair_orders = root.findall(".//ns:RepairOrder", namespaces=ns)
-    for repair_order in repair_orders:
-        db_dealer_integration_partner = {"dms_id": dms_id}
+    dms_id = None
+    for repair_order in json_data:
+        db_dealer_integration_partner = {}
         db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
         db_op_codes = []
 
-        ro_record = repair_order.find(".//ns:RoRecord", namespaces=ns)
-        if ro_record is not None:
-            rogen = ro_record.find(".//ns:Rogen", namespaces=ns)
-            if rogen is not None:
-                if dms_id == '01_01_305921288342276':  # classic_chevorlet
-                    department_type = rogen.get("DeptType", "")
-                    if department_type != "S":
-                        logger.info(f"Skipping repair order with department type {department_type}")
-                        continue
+        db_metadata = {
+            "Region": REGION,
+            "PartitionYear": s3_uri.split("/")[2],
+            "PartitionMonth": s3_uri.split("/")[3],
+            "PartitionDate": s3_uri.split("/")[4],
+            "s3_url": s3_uri,
+        }
 
-                db_service_repair_order["repair_order_no"] = rogen.get("RoNo")
-                db_service_repair_order["ro_open_date"] = rogen.get("RoCreateDate")
-                db_service_repair_order["advisor_name"] = rogen.get("AdvName")
-                db_service_repair_order["internal_total_amount"] = rogen.get(
-                    "IntrRoTotalAmt"
-                )
-                db_service_repair_order["consumer_total_amount"] = rogen.get(
-                    "CustRoTotalAmt"
-                )
-                db_service_repair_order["warranty_total_amount"] = rogen.get(
-                    "WarrRoTotalAmt"
-                )
+        dms_id = default_get(repair_order, "dms_id")
+        db_dealer_integration_partner["dms_id"] = dms_id
 
-                db_vehicle["vin"] = rogen.get("Vin")
-                db_vehicle["mileage"] = rogen.get("MileageIn")
+        db_service_repair_order["repair_order_no"] = default_get(
+            repair_order, "repairOrderNumber"
+        )
+        created_time = default_get(repair_order, "createdTime")
+        db_service_repair_order["ro_open_date"] = convert_unix_to_timestamp(
+            created_time
+        )
+        db_service_repair_order["ro_close_date"] = default_get(
+            repair_order, "closedTime"
+        )
+        closed_time = default_get(repair_order, "closedTime")
+        db_service_repair_order["ro_close_date"] = convert_unix_to_timestamp(
+            closed_time
+        )
 
-                if (
-                    db_service_repair_order["internal_total_amount"] is None
-                    and db_service_repair_order["consumer_total_amount"] is None
-                    and db_service_repair_order["warranty_total_amount"] is None
-                ):
-                    db_service_repair_order["total_amount"] = None
-                else:
-                    db_service_repair_order["total_amount"] = sum(
-                        [
-                            0.0
-                            if db_service_repair_order["internal_total_amount"] is None
-                            else float(
-                                db_service_repair_order["internal_total_amount"]
-                            ),
-                            0.0
-                            if db_service_repair_order["consumer_total_amount"] is None
-                            else float(
-                                db_service_repair_order["consumer_total_amount"]
-                            ),
-                            0.0
-                            if db_service_repair_order["warranty_total_amount"] is None
-                            else float(
-                                db_service_repair_order["warranty_total_amount"]
-                            ),
-                        ]
-                    )
+        primary_advisor = default_get(repair_order, "primaryAdvisor", [])
+        for advisor in primary_advisor:
+            first_name = default_get(advisor, "firstName")
+            last_name = default_get(advisor, "lastName")
+            if first_name or last_name:
+                db_service_repair_order["advisor_name"] = f"{first_name} {last_name}"
 
-                ro_comment_infos = rogen.findall(".//ns:RoCommentInfo", namespaces=ns)
-                for ro_comment_info in ro_comment_infos:
-                    comment = ro_comment_info.get("RoComment")
-                    if comment is not None:
-                        db_service_repair_order.setdefault("comment", []).append(
-                            comment
-                        )
+        invoice = default_get(repair_order, "invoice", {})
+        db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
+        customer_pay = default_get(invoice, "customerPay", {})
+        db_service_repair_order["consumer_total_amount"] = default_get(
+            customer_pay, "amount"
+        )
+        warranty_pay = default_get(invoice, "warrantyPay", {})
+        db_service_repair_order["warranty_total_amount"] = default_get(
+            warranty_pay, "amount"
+        )
 
-                tech_recommends = rogen.findall(".//ns:TechRecommends", namespaces=ns)
-                for tech_recommend in tech_recommends:
-                    recommendation = tech_recommend.get("TechRecommend")
-                    if recommendation is not None:
-                        db_service_repair_order.setdefault("recommendation", []).append(
-                            recommendation
-                        )
+        txn_pay_type_arr = set()
+        comment = set()
+        jobs = default_get(repair_order, "jobs", [])
+        for job in jobs:
+            pay_type = default_get(job, "payType")
+            if pay_type:
+                txn_pay_type_arr.add(pay_type)
+            concern = default_get(job, "concern")
+            if concern:
+                comment.add(concern)
+            operations = default_get(job, "operations", [])
+            for operation in operations:
+                db_op_code = {}
+                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
+                db_op_code["op_code|op_code_desc"] = (default_get(operation, "opcodeDescription") or "")[:305]
+                db_op_codes.append(db_op_code)
 
-            ro_labor = ro_record.find(".//ns:Rolabor", namespaces=ns)
-            if ro_labor is not None:
-                ro_amounts = ro_labor.findall(".//ns:RoAmts", namespaces=ns)
-                txn_pay_type_arr = set()
-                for ro_amount in ro_amounts:
-                    pay_type = ro_amount.get("PayType")
-                    txn_pay_type_arr.add(pay_type)
-                db_service_repair_order["txn_pay_type"] = ",".join(
-                    list(txn_pay_type_arr)
-                )
+        db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
+        db_service_repair_order["comment"] = ",".join(list(txn_pay_type_arr))
 
-                op_code_labor_infos = ro_labor.findall(
-                    ".//ns:OpCodeLaborInfo", namespaces=ns
-                )
-                for op_code_labor_info in op_code_labor_infos:
-                    db_op_code = {}
-                    db_op_code["op_code|op_code"] = op_code_labor_info.get("OpCode")
-                    db_op_code["op_code|op_code_desc"] = op_code_labor_info.get(
-                        "OpCodeDesc"
-                    )
-                    db_op_codes.append(db_op_code)
+        vehicle = default_get(repair_order, "vehicle", {})
+        db_vehicle["vin"] = default_get(vehicle, "vin")
+        db_vehicle["make"] = default_get(vehicle, "make")
+        db_vehicle["model"] = default_get(vehicle, "model")
+        db_vehicle["year"] = default_get(vehicle, "year")
+        mileage_in = default_get(vehicle, "mileageIn")
+        if default_get(mileage_in, "unit", "").upper() == "MI":
+            db_vehicle["mileage"] = default_get(mileage_in, "value")
 
-        service_vehicle = repair_order.find(".//ns:ServVehicle", namespaces=ns)
-        if service_vehicle is not None:
-            vehicle_service_info = service_vehicle.find(
-                ".//ns:VehicleServInfo", namespaces=ns
-            )
-            if vehicle_service_info is not None:
-                db_service_repair_order["ro_close_date"] = vehicle_service_info.get(
-                    "LastRODate"
-                )
-                db_vehicle["stock_num"] = vehicle_service_info.get("StockID")
-            rr_vehicle = service_vehicle.find(".//ns:Vehicle", namespaces=ns)
-            if rr_vehicle is not None:
-                db_vehicle["make"] = rr_vehicle.get("VehicleMake")
-                db_vehicle["model"] = rr_vehicle.get("Carline")
-                db_vehicle["year"] = rr_vehicle.get("VehicleYr")
-
-        customer_record = repair_order.find(".//ns:CustRecord", namespaces=ns)
-        if customer_record is not None:
-            contact_info = customer_record.find(".//ns:ContactInfo", namespaces=ns)
-            if contact_info is not None:
-                db_consumer["dealer_customer_no"] = contact_info.get("NameRecId")
-                db_consumer["first_name"] = contact_info.get("FirstName")
-                db_consumer["last_name"] = contact_info.get("LastName")
-
-                phones = contact_info.findall(".//ns:Phone", namespaces=ns)
-                for phone in phones:
-                    phone_type = phone.get("Type")
-                    phone_number = phone.get("Num")
-                    if phone_type == "C":
-                        db_consumer["cell_phone"] = phone_number
-                    if phone_type == "H":
-                        db_consumer["home_phone"] = phone_number
-
-                email = contact_info.find(".//ns:Email", namespaces=ns)
-                if email is not None:
-                    mail_to = email.get("MailTo")
-                    db_consumer["email"] = mail_to
-                    email_optin_flag = isinstance(mail_to, str) and "@" in mail_to
-                    db_consumer["email_optin_flag"] = email_optin_flag
-
-                address = contact_info.find(".//ns:Address", namespaces=ns)
-                if address is not None:
-                    db_consumer["postal_code"] = address.get("Zip")
+        customer = default_get(repair_order, "customer", {})
+        db_consumer["first_name"] = default_get(customer, "firstName")
+        db_consumer["last_name"] = default_get(customer, "lastName")
+        db_consumer["email"] = default_get(customer, "email")
+        phones = default_get(customer, "phones", [])
+        for phone in phones:
+            phone_type = default_get(phone, "phoneType", "")
+            phone_number = default_get(phone, "number")
+            if phone_type.upper() == "MOBILE":
+                db_consumer["cell_phone"] = phone_number
+            elif phone_type.upper() == "HOME":
+                db_consumer["home_phone"] = phone_number
+        address = default_get(customer, "address", {})
+        db_consumer["city"] = default_get(address, "city")
+        db_consumer["state"] = default_get(address, "state")
+        db_consumer["postal_code"] = default_get(address, "zip")
+        address_line1 = default_get(address, "line1")
+        address_line2 = default_get(address, "line2")
+        if address_line1 and address_line2:
+            db_consumer["address"] = f"{address_line1} {address_line2}"
+        elif address_line1:
+            db_consumer["address"] = address_line1
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
@@ -210,15 +149,16 @@ def parse_xml_to_entries(xml_string, s3_uri):
             "service_repair_order": db_service_repair_order,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
-            "op_codes.op_codes": db_op_codes,
+            "op_codes.op_codes": db_op_codes
         }
         entries.append(entry)
     return entries, dms_id
 
 
 def lambda_handler(event, context):
-    """Transform reyrey repair order files."""
+    """Transform tekion repair order files."""
     try:
+        logger.info(event)
         for record in event["Records"]:
             message = loads(record["body"])
             logger.info(f"Message of {message}")
@@ -227,10 +167,11 @@ def lambda_handler(event, context):
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                with gzip.GzipFile(fileobj=io.BytesIO(response["Body"].read())) as file:
-                    xml_string = file.read().decode("utf-8")
-                entries, dms_id = parse_xml_to_entries(xml_string, decoded_key)
+                json_data = loads(response["Body"].read())
+                entries, dms_id = parse_json_to_entries(json_data, decoded_key)
+                if not dms_id:
+                    raise RuntimeError("No dms_id found")
                 upload_unified_json(entries, "repair_order", decoded_key, dms_id)
     except Exception:
-        logger.exception(f"Error transforming reyrey repair order file {event}")
+        logger.exception(f"Error transforming tekion repair order file {event}")
         raise
