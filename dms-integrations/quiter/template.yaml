@@ -226,7 +226,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  # - !GetAtt QuiterMergeAppointmentQueue.Arn
+                  - !GetAtt QuiterMergeAppointmentQueue.Arn
                   # - !GetAtt QuiterMergeRepairOrderQueue.Arn
                   - !GetAtt QuiterMergeVehicleSalesQueue.Arn
         Events:
@@ -237,6 +237,7 @@ Resources:
               Queue: !GetAtt InvokeQueue.Arn
 
 # MERGE VEHICLE SALES 
+
   QuiterMergeVehicleSalesQueue:
     Type: AWS::SQS::Queue
     DependsOn: QuiterMergeVehicleSalesDLQ
@@ -455,3 +456,223 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt QuiterFormatVehicleSalesQueue.Arn
+  
+  # MERGE APPOINTMENTS 
+
+  QuiterMergeAppointmentQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeAppointmentDeadLetterQueue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
+      VisibilityTimeout: 3600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  QuiterMergeAppointmentDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  QuiterMergeAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub quiter-${Environment}-MergeAppointments
+      CodeUri: app/
+      Handler: appointments.merge_appointments.lambda_handler
+      Timeout: 900
+      MemorySize: 512
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt QuiterFormatAppointmentQueue.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt QuiterMergeAppointmentQueue.Arn
+
+  MergeAppointmentsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-MergeAppointments"
+
+  MergeAppointmentsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-MergeAppointmentsDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterMergeAppointmentDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
+
+  QuiterFormatAppointmentQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt QuiterFormatAppointmentQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"quiter/service_appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  QuiterFormatAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub quiter-${Environment}-QuiterFormatAppointment
+      CodeUri: app/
+      Handler: appointments.format_appointment.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:claire_test_sns_topic"
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+              Resource:
+                - !GetAtt QuiterFormatAppointmentQueue.Arn
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt QuiterFormatAppointmentQueue.Arn
+
+  QuiterFormatAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-QuiterFormatAppointment"
+
+  QuiterFormatAppointmentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-QuiterFormatAppointmentQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterFormatAppointmentDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  QuiterFormatAppointmentDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "quiter-${Environment}-QuiterFormatAppointmentDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  QuiterFormatAppointmentQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref QuiterFormatAppointmentQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: QuiterFormatAppointmentQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt QuiterFormatAppointmentQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  QuiterFormatAppointmentDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterFormatAppointmentDLQAlarm
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterFormatAppointmentDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 900  # 15 minutes
+      EvaluationPeriods: 1
+      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
