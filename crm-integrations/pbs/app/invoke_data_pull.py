@@ -6,7 +6,8 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 from uuid import uuid4
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from dateutil import parser
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -58,7 +59,7 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
     api = PbsApiWrapper()
 
-    end_time = datetime.now(timezone.utc)
+    end_time = parser.isoparse(sort_time_end)
     start_time = end_time - timedelta(days=3)
 
     start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%S") + ".0000000Z"
@@ -136,8 +137,8 @@ def sort_leads_by_creation_date(leads: list, start_time: str, end_time: str):
         if not creation_date_str:
             continue
 
-        print(f"This is creation_date_str: {creation_date_str}")
-        print(f"{start_time} <= {creation_date_str} <= {end_time}")
+        logger.info(f"This is creation_date_str: {creation_date_str}")
+        logger.info(f"{start_time} <= {creation_date_str} <= {end_time}")
 
         if start_time <= creation_date_str <= end_time:
             filtered_leads.append(lead)
