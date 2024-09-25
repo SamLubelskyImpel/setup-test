@@ -4,20 +4,17 @@ from json import dumps, loads
 from unittest.mock import patch, MagicMock
 import unittest
 
-# Simulate environment variables for testing
-os.environ["SECRET_KEY"] = "ESKIMO"  # Ensure SECRET_KEY is set
+os.environ["SECRET_KEY"] = "ESKIMO"
 os.environ["ENVIRONMENT"] = "test"
 
-# Add app directory to the path
 app_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../app'))
 sys.path.append(app_dir)
 
-# Import the module to test
 from api_wrappers import EskimoApiWrapper
 
-class TestEskimoApiWrapper(unittest.TestCase):  # Class name starts with "Test"
+class TestEskimoApiWrapper(unittest.TestCase): 
 
-    @patch('api_wrappers.secret_client')  # Mocking the secret client here
+    @patch('api_wrappers.secret_client') 
     @patch('requests.request')
     def test_insert_note_success(self, mock_request, mock_secret_client):  # Method starts with "test_"
         """Test inserting a note successfully."""
@@ -66,7 +63,7 @@ class TestEskimoApiWrapper(unittest.TestCase):  # Class name starts with "Test"
             }
         )
 
-    @patch('api_wrappers.secret_client')  # Mocking the secret client here
+    @patch('api_wrappers.secret_client')  
     @patch('requests.request')
     def test_insert_appointment_success(self, mock_request, mock_secret_client):  # Method starts with "test_"
         """Test inserting an appointment successfully."""
@@ -115,7 +112,7 @@ class TestEskimoApiWrapper(unittest.TestCase):  # Class name starts with "Test"
             }
         )
 
-    @patch('api_wrappers.secret_client')  # Mocking the secret client here
+    @patch('api_wrappers.secret_client')  
     @patch('requests.request')
     def test_invalid_activity_type(self, mock_request, mock_secret_client):  # Method starts with "test_"
         """Test handling invalid activity type."""
