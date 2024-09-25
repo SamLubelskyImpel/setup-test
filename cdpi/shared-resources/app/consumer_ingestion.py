@@ -5,7 +5,7 @@ import urllib.parse
 import csv
 from io import StringIO
 from cdpi_orm.session_config import DBSession
-from cdpi_orm.models.consumer_identity import ConsumerIdentity
+from cdpi_orm.models.consumer import Consumer
 from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from cdpi_orm.models.product import Product
@@ -96,7 +96,7 @@ def write_to_rds(entries, product_name, product_dealer_id):
 
             # Identity dealer integration partner
             db_dip_query = session.query(
-                DealerIntegrationPartner.id
+                DealerIntegrationPartner.id, Dealer.id
             ).join(
                 Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
             ).filter(
@@ -113,17 +113,17 @@ def write_to_rds(entries, product_name, product_dealer_id):
                 return
 
             for entry in entries:
-                logger.info(f"Adding consumer identity: {entry}")
-                # Create an insert statement for the ConsumerIdentity model
-                insert_stmt = insert(ConsumerIdentity).values(
-                    dealer_integration_partner_id=db_dip.id,
+                logger.info(f"Adding consumer: {entry}")
+                # Create an insert statement for the Consumer model
+                insert_stmt = insert(Consumer).values(
+                    dealer_id=db_dip.dealer.id,
                     product_id=db_product.id,
                     **entry
                 )
                 entry.pop('source_consumer_id')
                 # Specify what to do on conflict (conflict on primary key or unique constraints)
                 update_stmt = insert_stmt.on_conflict_do_update(
-                    index_elements=['dealer_integration_partner_id', 'product_id', 'source_consumer_id'],
+                    index_elements=['dealer_id', 'product_id', 'source_consumer_id'],
                     set_={
                         **entry,
                     }
@@ -161,7 +161,7 @@ def lambda_handler(event, context):
             return
 
         entries, product_dealer_id, sfdc_account_id = parse(csv_object)
-        # write_to_rds(entries, product_name, product_dealer_id)
+        write_to_rds(entries, product_name, product_dealer_id)
     except Exception as e:
         logger.error(f'Error: {e}')
         raise
