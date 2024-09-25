@@ -54,10 +54,9 @@ Globals:
           !Sub "integrations-${AWS::Region}-test"
         ]
         INVOKE_QUEUE: !Ref InvokeQueue
-        MERGE_REPAIR_ORDER_QUEUE: !Ref QuiterMergeRepairOrderQueue
-        MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
-        MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
+        MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSalesQueue
         CE_TOPIC: !Ref CEAlertTopicArn
+        CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -92,7 +91,7 @@ Resources:
       FromPort: 5432
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-  
+
   InvokeQuiterFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -110,6 +109,7 @@ Resources:
                 - sqs:SendMessage
               Resource:
                 - !GetAtt InvokeQueue.Arn
+                - !GetAtt QuiterMergeVehicleSalesQueue.Arn
             - Sid: AllowSecrets
               Effect: Allow
               Action:
@@ -121,7 +121,9 @@ Resources:
                   ]
       Environment:
         Variables:
+          Environment: !Ref Environment
           INVOKE_QUEUE: !Ref InvokeQueue
+          MERGE_QUEUE: !Ref QuiterMergeVehicleSalesQueue
       Events:
         DailyInvoke:
           Type: Schedule
@@ -130,7 +132,7 @@ Resources:
             Enabled: !If [ IsProd, true, false ]
             Schedule: cron(0 1 * * ? *)  # Daily at 1:00 AM UTC
             Input: '{"frequency": "daily"}'
-  
+
   InvokeQuiterFailureAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -173,21 +175,111 @@ Resources:
         - Name: QueueName
           Value: !GetAtt InvokeQueueDLQ.QueueName
       Statistic: Sum
-      Period: 900  # 15 minutes
+      Period: 900 
       EvaluationPeriods: 1
-      Threshold: 1  # Trigger alarm if there is at least 1 message in DLQ
+      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       ActionsEnabled: !If [IsProd, true, false]
 
   ExtractDataFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        Description: Extract Quiter Data From FTP
+        CodeUri: app/
+        Handler: extract_data.lambda_handler
+        Timeout: 900
+        Policies:
+          - Id: FunctionPermissions
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/QuiterFTP*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/QuiterFTP*",
+                    ]
+              - Sid: AllowS3
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
+              - Sid: AllowSNSPolicy
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+              - Sid: AllowSQS
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  # - !GetAtt QuiterMergeAppointmentQueue.Arn
+                  # - !GetAtt QuiterMergeRepairOrderQueue.Arn
+                  - !GetAtt QuiterMergeVehicleSalesQueue.Arn
+        Events:
+          SQSEvent:
+            Type: SQS
+            Properties:
+              Enabled: True
+              Queue: !GetAtt InvokeQueue.Arn
+
+# MERGE VEHICLE SALES 
+  QuiterMergeVehicleSalesQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: QuiterMergeVehicleSalesDLQ
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSalesQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt QuiterMergeVehicleSalesDLQ.Arn
+        maxReceiveCount: 5
+      VisibilityTimeout: 900
+
+  QuiterMergeVehicleSalesDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSalesDLQ
+      MessageRetentionPeriod: 1209600
+
+  QuiterMergeVehicleSalesDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub quiter-${Environment}-QuiterMergeVehicleSalesDLQAlarm
+      AlarmDescription: There are messages in the Quiter merge Vehicle Sales DLQ
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterMergeVehicleSalesDLQ.QueueName
+      Statistic: Sum
+      Period: 900 
+      EvaluationPeriods: 1
+      Threshold: 1  
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      ActionsEnabled: !If [IsProd, true, false]
+
+  QuiterMergeVehicleSales:
     Type: AWS::Serverless::Function
     Properties:
-      Description: Extract Quiter Data From FTP
+      Description: Merge vehicle sales
       CodeUri: app/
-      Handler: extract_data.lambda_handler
+      Handler: vehicle_sales.merge_sales.lambda_handler
       Timeout: 900
+      MemorySize: 512
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
@@ -201,14 +293,13 @@ Resources:
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/QuiterFTP*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/QuiterFTP*",
                   ]
-            - Sid: AllowS3
+            - Sid: AllowSQS
               Effect: Allow
               Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:ListBucket
-                - s3:*Object
-              Resource:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:ChangeMessageVisibility
+              Resource: 
                 - !If [ IsProd,
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
@@ -217,64 +308,151 @@ Resources:
               Effect: Allow
               Action:
                 - sns:Publish
+              Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
               Resource:
-                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            - Sid: AllowSQS
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
+            - Sid: QuiterFormatQueuePolicy
               Effect: Allow
               Action:
                 - sqs:SendMessage
               Resource:
-                - !GetAtt QuiterMergeAppointmentQueue.Arn
-                - !GetAtt QuiterMergeRepairOrderQueue.Arn
-                - !GetAtt QuiterMergeVehicleSaleQueue.Arn
+                - !GetAtt QuiterMergeVehicleSalesQueue.Arn
+
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          MERGE_QUEUE: !Ref QuiterMergeVehicleSalesQueue
       Events:
         SQSEvent:
           Type: SQS
           Properties:
             Enabled: True
-            Queue: !GetAtt InvokeQueue.Arn
+            Queue: !GetAtt QuiterMergeVehicleSalesQueue.Arn
 
-  QuiterMergeRepairOrderQueue:
+# FORMAT VEHICLE SALES 
+
+  QuiterFormatVehicleSalesQueue:
     Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeRepairOrderDLQ
+    DependsOn: QuiterFormatVehicleSalesDLQ
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderQueue
-      VisibilityTimeout: 3600
+      QueueName: QuiterFormatVehicleSalesQueue
+      VisibilityTimeout: 900
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeRepairOrderDLQ.Arn
+        deadLetterTargetArn: !GetAtt QuiterFormatVehicleSalesDLQ.Arn
         maxReceiveCount: 5
 
-  QuiterMergeRepairOrderDLQ:
+  QuiterFormatVehicleSalesDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeRepairOrderDLQ
+      QueueName: QuiterFormatVehicleSalesDLQ
 
-  QuiterMergeAppointmentQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeAppointmentDLQ
+  QuiterFormatDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentQueue
-      VisibilityTimeout: 3600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeAppointmentDLQ.Arn
-        maxReceiveCount: 5
+      AlarmName: QuiterFormatDLQAlarm
+      AlarmName: !Sub quiter-${Environment}-QuiterFormatVehicleSalesDLQAlarm
+      AlarmDescription: There are messages in the Quiter format Vehicle Sales DLQ
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt QuiterFormatVehicleSalesDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 900
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+  
+  QuiterFormatVehicleSalesQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt QuiterFormatVehicleSalesQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"quiter/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  QuiterMergeAppointmentDLQ:
-    Type: AWS::SQS::Queue
+  QuiterFormatVehicleSaleQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
+      Queues:
+        - !Ref QuiterFormatVehicleSalesQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: QuiterFormatVehicleSalesQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt QuiterFormatVehicleSalesQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
 
-  QuiterMergeVehicleSaleQueue:
-    Type: AWS::SQS::Queue
-    DependsOn: QuiterMergeVehicleSaleDLQ
+  QuiterFormatVehicleSales:
+    Type: AWS::Serverless::Function
     Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleQueue
-      VisibilityTimeout: 3600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt QuiterMergeVehicleSaleDLQ.Arn
-        maxReceiveCount: 5
-
-  QuiterMergeVehicleSaleDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeVehicleSaleDLQ
+      Description: Format Quiter vehicle Sales data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: vehicle_sales.vehicle_sale_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource:
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
+                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt QuiterFormatVehicleSalesQueue.Arn
