@@ -28,25 +28,15 @@ class EskimoApiWrapper:
         self.__activity = kwargs.get("activity")
 
     def get_secrets(self):
-        logger.info(f"SECRET_KEY: {SECRET_KEY}")
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
         )
-        logger.info(f"secret 35 is :{secret}")
-        
-        # Directly access the secret since it is already a dictionary
-        secret = loads(secret["SecretString"])[SECRET_KEY]  # No need to load again
-        
-        logger.info(f"secret 37 is :{secret}")
-        
-        secret_data = secret  # Directly assign as the secret is already in dict format
-        logger.info(f"secret_data: {secret_data}")
-        
+        secret = loads(secret["SecretString"])[str(SECRET_KEY)]
+        secret_data = loads(secret)
         return (
             secret_data["API_URL"],
             secret_data["API_PASSWORD"],
         )
-
 
     def __call_api(self, payload=None, method="POST"):
         headers = {
