@@ -24,21 +24,29 @@ class EskimoApiWrapper:
     """Eskimo API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__api_url, self.__api_token, self.__account_id = self.get_secrets()
+        self.__api_url, self.__api_token = self.get_secrets()
         self.__activity = kwargs.get("activity")
 
     def get_secrets(self):
+        logger.info(f"SECRET_KEY: {SECRET_KEY}")
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
         )
-        secret = loads(secret["SecretString"])[str(SECRET_KEY)]
-        secret_data = loads(secret)
-
+        logger.info(f"secret 35 is :{secret}")
+        
+        # Directly access the secret since it is already a dictionary
+        secret = loads(secret["SecretString"])[SECRET_KEY]  # No need to load again
+        
+        logger.info(f"secret 37 is :{secret}")
+        
+        secret_data = secret  # Directly assign as the secret is already in dict format
+        logger.info(f"secret_data: {secret_data}")
+        
         return (
             secret_data["API_URL"],
             secret_data["API_PASSWORD"],
-            secret_data["ACCOUNT_ID"],
         )
+
 
     def __call_api(self, payload=None, method="POST"):
         headers = {
@@ -57,10 +65,22 @@ class EskimoApiWrapper:
     def __insert_note(self):
         """Insert note on CRM."""
         payload = {
-            # "accountId": self.__account_id, crm_dealer_id
             "accountId": self.__activity["crm_dealer_id"],
-            "customerId": self.__activity["consumer_id"],
+            "customerId": self.__activity["crm_consumer_id"],
             "note": self.__activity["notes"]
+        }
+        logger.info(f"Payload to CRM: {payload}")
+        response = self.__call_api(payload)
+        response.raise_for_status()
+
+        return response.text
+
+    def __insert_appointment(self):
+        """Insert note on CRM."""
+        payload = {
+            "accountId": self.__activity["crm_dealer_id"],
+            "customerId": self.__activity["crm_consumer_id"],
+            "appointmentDate": self.__activity["activity_due_ts"]
         }
         logger.info(f"Payload to CRM: {payload}")
         response = self.__call_api(payload)
@@ -72,6 +92,8 @@ class EskimoApiWrapper:
         """Create activity on CRM."""
         if self.__activity["activity_type"] == "note":
             return self.__insert_note()
+        if self.__activity["activity_type"] == "appointment":
+            return self.__insert_appointment()
         else:
             logger.error(
                 f"Eskimo CRM doesn't support activity type: {self.__activity['activity_type']}"

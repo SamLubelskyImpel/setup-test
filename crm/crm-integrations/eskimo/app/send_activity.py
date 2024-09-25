@@ -24,11 +24,11 @@ def record_handler(record: SQSRecord):
     try:
         activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
-        return 'hi'
         eskimo_api = EskimoApiWrapper(activity=activity)
 
-        bmw_response = eskimo_api.create_activity()
-        logger.info(f"Eskimo responded with status: {bmw_response}")
+        eskimo_response = eskimo_api.create_activity()
+        
+        logger.info(f"Eskimo responded with status: {eskimo_response}")
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Eskimo")
         logger.error("[SUPPORT ALERT] Failed to Send Activity to Eskimo [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
