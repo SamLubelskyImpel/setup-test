@@ -11,7 +11,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 REGION = environ.get("REGION", "us-east-1")
 IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns
