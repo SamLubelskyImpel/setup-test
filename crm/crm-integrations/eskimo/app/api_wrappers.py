@@ -38,14 +38,16 @@ class EskimoApiWrapper:
             secret_data["API_PASSWORD"],
         )
 
-    def __call_api(self, payload=None, method="POST"):
+    def __call_api(self, payload=None, method="POST", path=""):
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.__api_token}",
         }
+        logger.info(f"path is:{self.__api_url}{path}")
+        return 'hi'
         response = requests.request(
             method=method,
-            url=self.__api_url,
+            url=f"{self.__api_url}{path}",  # Appending path to base URL
             json=payload,
             headers=headers,
         )
@@ -53,27 +55,27 @@ class EskimoApiWrapper:
         return response
 
     def __insert_note(self):
-        """Insert note on CRM."""
+        """Insert note and status update on CRM."""
         payload = {
             "accountId": self.__activity["crm_dealer_id"],
             "customerId": self.__activity["crm_consumer_id"],
             "note": self.__activity["notes"]
         }
-        logger.info(f"Payload to CRM: {payload}")
-        response = self.__call_api(payload)
+        logger.info(f"Payload to CRM (Note): {payload}")
+        response = self.__call_api(payload, path="/updatenote")  # Add the path for the note endpoint
         response.raise_for_status()
 
         return response.text
 
     def __insert_appointment(self):
-        """Insert note on CRM."""
+        """Insert appointment on CRM."""
         payload = {
             "accountId": self.__activity["crm_dealer_id"],
             "customerId": self.__activity["crm_consumer_id"],
             "appointmentDate": self.__activity["activity_due_ts"]
         }
-        logger.info(f"Payload to CRM: {payload}")
-        response = self.__call_api(payload)
+        logger.info(f"Payload to CRM (Appointment): {payload}")
+        response = self.__call_api(payload, path="/createappointment")  # Add the path for the appointment endpoint
         response.raise_for_status()
 
         return response.text
