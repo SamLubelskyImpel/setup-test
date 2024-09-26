@@ -58,6 +58,7 @@ Globals:
         MERGE_APPOINTMENT_QUEUE: !Ref QuiterMergeAppointmentQueue
         MERGE_VEHICLE_SALE_QUEUE: !Ref QuiterMergeVehicleSaleQueue
         CE_TOPIC: !Ref CEAlertTopicArn
+        CLIENT_ENGINEERING_SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
