@@ -43,8 +43,6 @@ class EskimoApiWrapper:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.__api_token}",
         }
-        logger.info(f"path is:{self.__api_url}{path}")
-        return 'hi'
         response = requests.request(
             method=method,
             url=f"{self.__api_url}{path}",  # Appending path to base URL
