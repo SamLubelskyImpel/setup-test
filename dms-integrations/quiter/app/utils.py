@@ -230,3 +230,36 @@ def save_to_s3(df, bucket_name, key):
     except Exception as e:
         logger.error(f"Unexpected error when saving file to S3: {e}")
         raise
+
+
+
+
+def notify_client_engineering(error_message, sns_client, topic_arn):
+    """Send a notification to the client engineering SNS topic."""
+    sns_client.publish(
+        TopicArn=topic_arn,
+        Subject="QuiterMergeVehicleSales Lambda Error",
+        Message=str(error_message),
+    )
+
+def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
+    """
+    Helper function to read CSV file from S3 and handle encoding errors.
+
+    Parameters:
+    - s3_body: S3 file body content
+    - file_name: Name of the S3 file for logging purposes
+    - file_type: A string to indicate the type of the file being processed (e.g., 'Consumer', 'Vehicle')
+    - sns_client: The boto3 SNS client for sending error notifications
+    - topic_arn: The SNS topic ARN for notifications
+
+    Returns:
+    - DataFrame of the CSV content if successful, else raises an error
+    """
+    try:
+        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn')
+    except Exception as e:
+        error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
+        logger.error(error_message)
+        notify_client_engineering(error_message, sns_client, topic_arn)
+        raise

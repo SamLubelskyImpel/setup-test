@@ -11,12 +11,13 @@ from botocore.exceptions import ClientError
 import io
 import uuid
 
-from utils import list_files_in_s3, find_matching_files, merge_files, extract_date_from_key, detect_encoding, clean_data, identify_and_separate_records,save_to_s3
+from utils import list_files_in_s3, find_matching_files, merge_files, extract_date_from_key, clean_data, identify_and_separate_records, save_to_s3, read_csv_from_s3, notify_client_engineering
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_client = boto3.client("s3")
+sns_client = boto3.client("sns")
 
 BUCKET_NAME = os.environ["INTEGRATIONS_BUCKET"]
 TOPIC_ARN = os.environ["CLIENT_ENGINEERING_SNS_TOPIC_ARN"]
@@ -53,20 +54,10 @@ def lambda_handler(event, context):
             vehicles_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=found_files["Vehicle"])
             vehicle_sales_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=found_files["VehicleSales"])
 
-
-            consumers_body = consumers_obj['Body'].read()
-            vehicles_body = vehicles_obj['Body'].read()
-            vehicle_sales_body = vehicle_sales_obj['Body'].read()
-
-            # Detect encoding for each file
-            consumer_encoding = detect_encoding(consumers_body)
-            vehicle_encoding = detect_encoding(vehicles_body)
-            vehicle_sales_encoding = detect_encoding(vehicle_sales_body)
-
-            # Try reading the CSV with error handling for bad lines
-            customers_df = pd.read_csv(io.BytesIO(consumers_body), delimiter=';', encoding=consumer_encoding, on_bad_lines='warn')
-            vehicles_df = pd.read_csv(io.BytesIO(vehicles_body), delimiter=';', encoding=vehicle_encoding, on_bad_lines='warn')
-            vehicle_sales_df = pd.read_csv(io.BytesIO(vehicle_sales_body), delimiter=';', encoding=vehicle_sales_encoding, on_bad_lines='warn', dtype={'Dealer ID': 'string'})
+            # Read the CSV files using the helper function from utils.py
+            customers_df = read_csv_from_s3(consumers_obj['Body'].read(), found_files["Consumer"], "Consumer", sns_client, TOPIC_ARN)
+            vehicles_df = read_csv_from_s3(vehicles_obj['Body'].read(), found_files["Vehicle"], "Vehicle", sns_client, TOPIC_ARN)
+            vehicle_sales_df = read_csv_from_s3(vehicle_sales_obj['Body'].read(), found_files["VehicleSales"], "VehicleSales", sns_client, TOPIC_ARN)
 
             # Clean the customer and vehicle data using the unified function
             cleaned_customers_df = clean_data(customers_df, 'Dealer Customer No', [])
@@ -82,7 +73,7 @@ def lambda_handler(event, context):
                 save_to_s3(orphans_df, BUCKET_NAME, error_file_key)
 
                 # Send notification about the error file
-                notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}")
+                notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN)
 
             # Merge the data
             merged_df = merge_files(
@@ -108,24 +99,13 @@ def lambda_handler(event, context):
 
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
-        notify_client_engineering(e)
+        notify_client_engineering(e, sns_client, TOPIC_ARN)
         raise
     except ClientError as e:
         logger.error(f"AWS S3 error: {e}")
-        notify_client_engineering(e)
+        notify_client_engineering(e, sns_client, TOPIC_ARN)
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        notify_client_engineering(e)
+        notify_client_engineering(e, sns_client, TOPIC_ARN)
         raise
-
-
-def notify_client_engineering(error_message):
-    """Send a notification to the client engineering SNS topic."""
-    sns_client = boto3.client("sns")
-
-    sns_client.publish(
-        TopicArn=TOPIC_ARN,
-        Subject="QuiterMergeVehicleSales Lambda Error",
-        Message=str(error_message),
-    )
