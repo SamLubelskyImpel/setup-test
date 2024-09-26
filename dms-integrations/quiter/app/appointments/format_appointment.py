@@ -14,7 +14,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
-TOPIC_ARN = environ.get("CE_TOPIC")
+TOPIC_ARN = environ.get("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
 
 SM_CLIENT = boto3.client('secretsmanager')
 S3_CLIENT = boto3.client("s3")
