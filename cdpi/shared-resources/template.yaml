@@ -310,7 +310,7 @@ Resources:
                     Value: customer-inbound/
       Environment:
         Variables:
-          BATCH_SIZE: 2
+          BATCH_SIZE: 100
 
   ConsumerIngestionBatcherLogGroup:
     Type: AWS::Logs::LogGroup
@@ -333,6 +333,26 @@ Resources:
       QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcherDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
+  
+  ConsumerIngestionBatcherDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcherDLQAlarm"
+      AlarmDescription: "Alarm for Consumer Ingestion Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerIngestionBatcherDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
 
   ConsumerIngestionLambda:
     Type: AWS::Serverless::Function
@@ -382,22 +402,23 @@ Resources:
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
-  # ConsumerIngestionDLQAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     AlarmName: !Sub "cdpi-${Environment}-ConsumerIngestionDLQAlarm"
-  #     AlarmDescription: "Alarm for Consumer Ingestion Dead Letter Queue"
-  #     Namespace: AWS/SQS
-  #     MetricName: ApproximateNumberOfMessagesVisible
-  #     Dimensions:
-  #       - Name: QueueName
-  #         Value: !GetAtt ConsumerIngestionDeadLetterQueue.QueueName
-  #     Statistic: Sum
-  #     Period: 60
-  #     EvaluationPeriods: 1
-  #     Threshold: 1
-  #     ComparisonOperator: GreaterThanOrEqualToThreshold
-  #     AlarmActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-  #     TreatMissingData: notBreaching
+  ConsumerIngestionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerIngestionDLQAlarm"
+      AlarmDescription: "Alarm for Consumer Ingestion Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerIngestionDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
 

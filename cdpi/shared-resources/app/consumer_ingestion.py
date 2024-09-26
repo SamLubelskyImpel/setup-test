@@ -7,7 +7,6 @@ from io import StringIO
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.consumer import Consumer
 from cdpi_orm.models.dealer import Dealer
-from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from cdpi_orm.models.product import Product
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects.postgresql import insert
@@ -48,10 +47,8 @@ FIELD_MAPPINGS = {
 
 def parse(csv_object):
     """Parse CSV object and extract entries"""
-    csv_reader = csv.reader(StringIO(csv_object))
+    csv_reader = csv.DictReader(StringIO(csv_object))
     entries = []
-
-    # Extract product_dealer_id and sfdc_account_id from the first row of the CSV
 
     for row in csv_reader:
         product_dealer_id = row.get('dealer_id')
@@ -80,7 +77,7 @@ def parse(csv_object):
     return entries, product_dealer_id, sfdc_account_id
 
 
-def write_to_rds(entries, product_name, product_dealer_id):
+def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
     """Write consumer identities to RDS"""
     with DBSession() as session:
         try:
@@ -94,34 +91,31 @@ def write_to_rds(entries, product_name, product_dealer_id):
                 logger.error(f"Product {product_name} not found")
                 return
 
-            # Identity dealer integration partner
-            db_dip_query = session.query(
-                DealerIntegrationPartner.id, Dealer.id
-            ).join(
-                Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+            # Identity dealer
+            dealer_query = session.query(
+                Dealer.id,
             ).filter(
-                DealerIntegrationPartner.is_active.is_(True)
+                Dealer.sfdc_account_id == sfdc_account_id
             )
             if product_name == "Sales AI":
-                db_dip_query = db_dip_query.filter(Dealer.salesai_dealer_id == product_dealer_id)
+                dealer_query = dealer_query.filter(Dealer.salesai_dealer_id == product_dealer_id)
             elif product_name == "Service AI":
-                db_dip_query = db_dip_query.filter(Dealer.serviceai_dealer_id == product_dealer_id)
+                dealer_query = dealer_query.filter(Dealer.serviceai_dealer_id == product_dealer_id)
 
-            db_dip = db_dip_query.first()
-            if not db_dip:
+            db_dealer = dealer_query.first()
+            if not db_dealer:
                 logger.error(f"Dealer {product_dealer_id} not found for product {product_name}")
                 return
 
             for entry in entries:
                 logger.info(f"Adding consumer: {entry}")
-                # Create an insert statement for the Consumer model
+                # Create consumer
                 insert_stmt = insert(Consumer).values(
-                    dealer_id=db_dip.dealer.id,
+                    dealer_id=db_dealer.id,
                     product_id=db_product.id,
                     **entry
                 )
                 entry.pop('source_consumer_id')
-                # Specify what to do on conflict (conflict on primary key or unique constraints)
                 update_stmt = insert_stmt.on_conflict_do_update(
                     index_elements=['dealer_id', 'product_id', 'source_consumer_id'],
                     set_={
@@ -135,10 +129,10 @@ def write_to_rds(entries, product_name, product_dealer_id):
         except SQLAlchemyError as e:
             # Rollback in case of any error
             session.rollback()
-            logger.info(f"Error occurred: {e}")
+            logger.info(f"Error occurred during database operations: {e}")
             raise e
 
-    logger.info("Consumer Identities added to the database")
+    logger.info("Consumers added to the database")
 
 
 def lambda_handler(event, context):
@@ -161,7 +155,7 @@ def lambda_handler(event, context):
             return
 
         entries, product_dealer_id, sfdc_account_id = parse(csv_object)
-        write_to_rds(entries, product_name, product_dealer_id)
+        write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id)
     except Exception as e:
         logger.error(f'Error: {e}')
         raise
