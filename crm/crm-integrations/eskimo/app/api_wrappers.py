@@ -17,8 +17,6 @@ SECRET_KEY = environ.get("SECRET_KEY")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
-ESKIMO_API_URL = "https://eskimo-software.com/api/salesai"
-
 
 class EskimoApiWrapper:
     """Eskimo API Wrapper."""
@@ -40,8 +38,7 @@ class EskimoApiWrapper:
 
     def __call_api(self, payload=None, method="POST", path=""):
         headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.__api_token}",
+            "Content-Type": "application/json"
         }
         response = requests.request(
             method=method,

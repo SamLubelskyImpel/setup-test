@@ -161,7 +161,7 @@ Resources:
       Namespace: AWS/SQS
       Period: 300
       Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 1
       TreatMissingData: notBreaching
 
