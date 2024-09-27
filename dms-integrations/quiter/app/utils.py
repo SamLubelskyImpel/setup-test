@@ -22,7 +22,6 @@ FILE_PATTERNS = {
     "VehicleSales": ["VS", "SalesTxn", "SaleTxn"]
 }
 
-
 def list_files_in_s3(prefix):
     """List files in the S3 path with the given prefix."""
     try:
@@ -36,7 +35,6 @@ def list_files_in_s3(prefix):
     except Exception as e:
         logger.error(f"Unexpected error when listing files: {e}")
         raise
-
 
 def find_matching_files(s3_files):
     """Find matching files for repair orders, consumers, and vehicles based on patterns."""
@@ -62,17 +60,16 @@ def find_matching_files(s3_files):
         logger.error(f"Unexpected error in find_matching_files: {e}")
         raise
 
-
 def merge_files(main_df, customers_df, vehicles_df, main_to_customers_keys, main_to_vehicles_keys, columns_to_drop=None, rename_columns=None):
     """
     Generic function to merge a main dataframe (e.g., sales, service, etc.) with customers and vehicles dataframes.
-
+    
     The function performs an inner join between:
       - Main dataframe and Customers on specified keys
       - Main dataframe and Vehicles on specified keys
-
+    
     After merging, optional column drops and renaming are performed.
-
+    
     :param main_df: The main dataframe (e.g., vehicle sales, service data, etc.)
     :param customers_df: Dataframe containing customer information
     :param vehicles_df: Dataframe containing vehicle information
@@ -105,11 +102,10 @@ def merge_files(main_df, customers_df, vehicles_df, main_to_customers_keys, main
         logger.error(f"Unexpected error in merge_files: {e}")
         raise
 
-
 def extract_date_from_key(s3_key):
     """
     Extract date components (year, month, day) from an S3 key.
-
+    
     The S3 key is expected to contain the date in the format: YYYY/MM/DD.
     Example: 'somepath/2024/09/12/somefile.csv'
     """
@@ -124,11 +120,10 @@ def extract_date_from_key(s3_key):
         logger.error(f"Error extracting date from S3 key: {e}")
         raise
 
-
 def detect_encoding(file_body_bytes, sample_size=10000):
     """
     Detect the encoding of a file by analyzing the first few bytes.
-
+    
     This function uses the chardet library to detect the encoding based on a 
     sample of the file's content.
     """
@@ -143,14 +138,13 @@ def detect_encoding(file_body_bytes, sample_size=10000):
         logger.error(f"Error detecting encoding: {e}")
         raise
 
-
 def clean_data(df, id_column, important_columns):
     """
     Clean a DataFrame by keeping the record with the most complete data for each unique identifier.
-
+    
     - Sorts rows by the unique ID and the important columns.
     - Drops duplicates by the unique ID, keeping the one with more complete data (fewer NaN values).
-
+    
     Args:
     - df (pd.DataFrame): The DataFrame to clean.
     - id_column (str): The name of the column that contains the unique identifier (e.g., 'Vin No', 'Dealer Customer No').
@@ -159,10 +153,10 @@ def clean_data(df, id_column, important_columns):
     try:
         if id_column not in df.columns:
             raise KeyError(f"ID column '{id_column}' not found in DataFrame.")
-
+        
         # Create a temporary column to count non-empty fields in each row
         df['non_empty_count'] = df.notnull().sum(axis=1)
-
+        
         # Sort the DataFrame by ID, important columns, and non-empty count
         df = df.sort_values(by=[id_column] + important_columns + ['non_empty_count'], ascending=[True] + [False] * len(important_columns) + [False])
 
@@ -180,14 +174,13 @@ def clean_data(df, id_column, important_columns):
         logger.error(f"Unexpected error in clean_data: {e}")
         raise
 
-
 def identify_and_separate_records(vehicle_sales_df, customers_df, vehicles_df):
     """
     Identify orphan records and separate valid records.
-
+    
     Orphan records are those in the vehicle sales file that do not have a corresponding 
     entry in the consumer or vehicle files.
-
+    
     This function separates valid records (with corresponding entries) from orphan records 
     (missing either a customer or vehicle).
     """
@@ -202,13 +195,13 @@ def identify_and_separate_records(vehicle_sales_df, customers_df, vehicles_df):
 
         # Combine missing records (those with missing customer or vehicle)
         orphans_df = vehicle_sales_df[
-            vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) |
+            vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) | 
             vehicle_sales_df['Vin No'].isin(missing_vin_numbers)
         ]
 
         # Valid records are those not in the orphan list
         valid_records_df = vehicle_sales_df[
-            ~vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) &
+            ~vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) & 
             ~vehicle_sales_df['Vin No'].isin(missing_vin_numbers)
         ]
 
@@ -220,11 +213,10 @@ def identify_and_separate_records(vehicle_sales_df, customers_df, vehicles_df):
         logger.error(f"Unexpected error in identify_and_separate_records: {e}")
         raise
 
-
 def save_to_s3(df, bucket_name, key):
     """
     Save a DataFrame to S3 as a CSV file.
-
+    
     Converts the DataFrame to a CSV string and uploads it to the specified S3 bucket and key.
     """
     try:
@@ -237,4 +229,34 @@ def save_to_s3(df, bucket_name, key):
         raise
     except Exception as e:
         logger.error(f"Unexpected error when saving file to S3: {e}")
+        raise
+
+def notify_client_engineering(error_message, sns_client, topic_arn):
+    """Send a notification to the client engineering SNS topic."""
+    sns_client.publish(
+        TopicArn=topic_arn,
+        Subject="QuiterMergeVehicleSales Lambda Error",
+        Message=str(error_message),
+    )
+
+def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
+    """
+    Helper function to read CSV file from S3 and handle encoding errors.
+
+    Parameters:
+    - s3_body: S3 file body content
+    - file_name: Name of the S3 file for logging purposes
+    - file_type: A string to indicate the type of the file being processed (e.g., 'Consumer', 'Vehicle')
+    - sns_client: The boto3 SNS client for sending error notifications
+    - topic_arn: The SNS topic ARN for notifications
+
+    Returns:
+    - DataFrame of the CSV content if successful, else raises an error
+    """
+    try:
+        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn')
+    except Exception as e:
+        error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
+        logger.error(error_message)
+        notify_client_engineering(error_message, sns_client, topic_arn)
         raise
