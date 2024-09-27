@@ -22,27 +22,29 @@ class EskimoApiWrapper:
     """Eskimo API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__api_url, self.__api_token = self.get_secrets()
+        self.__api_url = self.get_secrets()
         self.__activity = kwargs.get("activity")
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
         )
+        logger.info(f"secret1:{secret}")
         secret = loads(secret["SecretString"])[str(SECRET_KEY)]
+        logger.info(f"secret:{secret}")
         secret_data = loads(secret)
-        return (
-            secret_data["API_URL"],
-            secret_data["API_PASSWORD"],
-        )
+        logger.info(f"secret_data:{secret_data}")
+        return secret_data["API_URL"]  
 
     def __call_api(self, payload=None, method="POST", path=""):
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json" 
         }
+        url = f"{self.__api_url}{path}"
+
         response = requests.request(
             method=method,
-            url=f"{self.__api_url}{path}",  # Appending path to base URL
+            url=url, 
             json=payload,
             headers=headers,
         )
@@ -57,7 +59,7 @@ class EskimoApiWrapper:
             "note": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM (Note): {payload}")
-        response = self.__call_api(payload, path="/updatenote")  # Add the path for the note endpoint
+        response = self.__call_api(payload, path="/updatenote") 
         response.raise_for_status()
 
         return response.text
@@ -70,7 +72,7 @@ class EskimoApiWrapper:
             "appointmentDate": self.__activity["activity_due_ts"]
         }
         logger.info(f"Payload to CRM (Appointment): {payload}")
-        response = self.__call_api(payload, path="/createappointment")  # Add the path for the appointment endpoint
+        response = self.__call_api(payload, path="/createappointment") 
         response.raise_for_status()
 
         return response.text
