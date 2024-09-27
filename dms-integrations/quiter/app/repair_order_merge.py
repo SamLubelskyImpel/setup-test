@@ -24,7 +24,7 @@ sns_client = boto3.client("sns")
 
 # Environment variables
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
-TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
+TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")<
 
 SQS_QUEUE_URLS = [
     environ.get("MERGE_REPAIR_ORDER_QUEUE"),
@@ -141,18 +141,21 @@ def load_dataframe_from_s3(file_key):
     Returns:
         pd.DataFrame: DataFrame loaded from the CSV file.
     """
+    
     try:
         obj = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=file_key)
-        with gzip.GzipFile(fileobj=io.BytesIO(obj["Body"].read())) as gz:
-            file_body = gz.read()
-        # Detect encoding
+        file_body = obj["Body"].read()
         encoding = detect_file_encoding(file_body)
         df = pd.read_csv(
             io.BytesIO(file_body), delimiter=";", encoding=encoding, on_bad_lines="warn"
         )
         return df
+
     except ClientError as e:
         logger.error(f"Error loading file from S3: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error processing file: {e}")
         raise
 
 
