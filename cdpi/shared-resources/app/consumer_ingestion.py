@@ -3,7 +3,14 @@ from os import environ
 import logging
 import urllib.parse
 import csv
+from json import loads
 from io import StringIO
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.consumer import Consumer
 from cdpi_orm.models.dealer import Dealer
@@ -63,10 +70,10 @@ def parse(csv_object):
             else:
                 entry[cdpi_field] = row.get(inbound_data_field, None)
 
-        # Remove null values from entry
-        keys_to_remove = [key for key, value in entry.items() if value in (None, '')]
-        for key in keys_to_remove:
-            del entry[key]
+        # # Remove null values from entry
+        # keys_to_remove = [key for key, value in entry.items() if value in (None, '')]
+        # for key in keys_to_remove:
+        #     del entry[key]
 
         entries.append(entry)
 
@@ -135,12 +142,13 @@ def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
     logger.info("Consumers added to the database")
 
 
-def lambda_handler(event, context):
+def record_handler(record: SQSRecord):
     """Process CSV file from S3 and write to RDS"""
-    logger.info(f'Event: {event}')
+    logger.info(f"Record: {record}")
     try:
-        bucket_name = event['Records'][0]['s3']['bucket']['name']
-        file_key = event['Records'][0]['s3']['object']['key']
+        message = loads(record["body"])
+        bucket_name = message["detail"]["bucket"]["name"]
+        file_key = message["detail"]["object"]["key"]
         decoded_key = urllib.parse.unquote(file_key)
 
         csv_file = s3_client.get_object(
@@ -158,4 +166,21 @@ def lambda_handler(event, context):
         write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id)
     except Exception as e:
         logger.error(f'Error: {e}')
+        raise
+
+
+def lambda_handler(event, context):
+    logger.info(f"Event: {event}")
+
+    try:
+        processor = BatchProcessor(event_type=EventType.SQS)
+        result = process_partial_response(
+            event=event,
+            record_handler=record_handler,
+            processor=processor,
+            context=context
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error processing batch: {e}")
         raise
