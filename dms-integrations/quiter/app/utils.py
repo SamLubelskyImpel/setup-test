@@ -6,7 +6,6 @@ import logging
 from botocore.exceptions import ClientError
 import re 
 import io
-import chardet
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -118,24 +117,6 @@ def extract_date_from_key(s3_key):
             raise ValueError(f"Invalid S3 key format. Unable to extract date from {s3_key}")
     except Exception as e:
         logger.error(f"Error extracting date from S3 key: {e}")
-        raise
-
-def detect_encoding(file_body_bytes, sample_size=10000):
-    """
-    Detect the encoding of a file by analyzing the first few bytes.
-    
-    This function uses the chardet library to detect the encoding based on a 
-    sample of the file's content.
-    """
-    try:
-        sample = file_body_bytes[:sample_size]
-        result = chardet.detect(sample)
-        encoding = result['encoding']
-        if not encoding:
-            raise ValueError("Failed to detect file encoding.")
-        return encoding
-    except Exception as e:
-        logger.error(f"Error detecting encoding: {e}")
         raise
 
 def clean_data(df, id_column, important_columns):

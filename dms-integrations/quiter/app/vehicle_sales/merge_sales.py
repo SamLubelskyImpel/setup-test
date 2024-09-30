@@ -1,14 +1,11 @@
 """Merging and transformation logic for “Vehicle Sales,” “Customers” and “Vehicles” from Quiter."""
 
 import boto3
-import pandas as pd
 import os
 import logging
 
 from json import loads
-from datetime import datetime
 from botocore.exceptions import ClientError
-import io
 import uuid
 
 from utils import list_files_in_s3, find_matching_files, merge_files, extract_date_from_key, clean_data, identify_and_separate_records, save_to_s3, read_csv_from_s3, notify_client_engineering
