@@ -29,11 +29,8 @@ class EskimoApiWrapper:
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
         )
-        logger.info(f"secret1:{secret}")
         secret = loads(secret["SecretString"])[str(SECRET_KEY)]
-        logger.info(f"secret:{secret}")
         secret_data = loads(secret)
-        logger.info(f"secret_data:{secret_data}")
         return secret_data["API_URL"]  
 
     def __call_api(self, payload=None, method="POST", path=""):
