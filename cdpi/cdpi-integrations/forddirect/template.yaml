@@ -130,4 +130,54 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
+
+  # FordDirectCDPIWebhook:
+  #   Type: AWS::Serverless::Api
+  #   Properties:
+  #     Name: !Sub "FD-Webhook-${Environment}"
+  #     StageName: !Ref Environment
+  #     Domain:
+  #       DomainName: !If [ IsProd, 'fd-webhook.impel.io', !Sub 'fd-webhook${DomainSuffix}.testenv.impel.io' ]
+  #       CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+  #       SecurityPolicy: TLS_1_2
+  #     Auth:
+  #       DefaultAuthorizer: DefaultAuth
+  #       Authorizers:
+  #         DefaultAuth:
+  #           FunctionPayloadType: REQUEST
+  #           FunctionArn: !GetAtt Authorizer.Arn
+  #           Identity:
+  #             Headers:
+  #               - partner_id
+  #               - x_api_key
+  #             Context:
+  #               - resourcePath
+  #             ReauthorizeEvery: 0
+  #     AccessLogSetting:
+  #       DestinationArn: !GetAtt APILogGroup.Arn
+  #       Format: >-
+  #         {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+  #     DefinitionBody:
+  #       Fn::Transform:
+  #         Name: AWS::Include
+  #         Parameters:
+  #           Location: "./swagger/crm-api-oas-interpolated.yaml"
+  #     GatewayResponses:
+  #       BAD_REQUEST_PARAMETERS:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.error.validationErrorString"}'
+  #       BAD_REQUEST_BODY:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.error.validationErrorString"}'
+  #       UNAUTHORIZED:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "This request is unauthorized."}'
+  #         StatusCode: "401"
+  #       ACCESS_DENIED:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.authorizer.key"}'
+  #         StatusCode: "403"
+  #       DEFAULT_5xx:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
   
