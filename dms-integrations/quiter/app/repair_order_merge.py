@@ -6,7 +6,6 @@ import boto3
 import logging
 import pandas as pd
 import uuid
-import gzip
 import io
 import chardet
 import re
