@@ -24,7 +24,7 @@ sns_client = boto3.client("sns")
 
 # Environment variables
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
-TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")<
+TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
 
 SQS_QUEUE_URLS = [
     environ.get("MERGE_REPAIR_ORDER_QUEUE"),
@@ -141,7 +141,7 @@ def load_dataframe_from_s3(file_key):
     Returns:
         pd.DataFrame: DataFrame loaded from the CSV file.
     """
-    
+
     try:
         obj = s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=file_key)
         file_body = obj["Body"].read()
