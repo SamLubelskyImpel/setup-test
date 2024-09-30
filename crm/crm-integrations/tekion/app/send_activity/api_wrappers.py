@@ -19,7 +19,6 @@ logger.setLevel(LOG_LEVEL.upper())
 secret_client = client("secretsmanager")
 
 
-
 class InvalidLeadException(Exception):
     """Exception raised for invalid lead data."""
     def __init__(self, message):
@@ -130,11 +129,11 @@ class TekionApiWrapper:
         return timestamp_str[0], timestamp_str[1]
 
     def get_lead_information(self) -> dict:
-        url = f"{self.__credentials.url}/openapi/v3.1.0/crm-leads"
+        url = f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}"
         lead_data = self.__call_api(url, method="GET")['data'][0]
         logger.info(f"Lead data: {lead_data}")
         if not lead_data.get('id'):
-            logger.warning("Activity type Note can't be created if lead was invalid")
+            logger.warning("Activity can't be created if lead was invalid")
             raise InvalidLeadException(f"This is lead: \n{dumps(lead_data, indent=2)}")
         return lead_data
 
@@ -150,7 +149,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -169,7 +168,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -188,7 +187,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -209,7 +208,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
