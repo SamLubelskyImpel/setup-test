@@ -4,6 +4,5 @@ types-pytz==2023.4.0.20240130
 python-dateutil==2.8.2
 requests==2.29.0
 pandas==2.2.3
-chardet==5.1.2
-
+chardet==5.2.0
 aws-lambda-powertools==2.43.1
