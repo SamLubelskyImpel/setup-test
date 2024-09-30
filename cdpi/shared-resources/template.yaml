@@ -250,7 +250,7 @@ Resources:
                   - s3:PutObject
                 Resource:
                   - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/*"
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-batches/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-processed/*"
         - PolicyName: SQSAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -347,26 +347,18 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [
-                        IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
-                      ]
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
 
   ConsumerIngestionBatcherTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs
       RawMessageDelivery: true
-      TopicArn: !If [
-        IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
-      ]
+      TopicArn: !Ref SharedS3ToSNSTopic
       Endpoint: !GetAtt ConsumerIngestionBatcherQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
   
   ConsumerIngestionBatcherDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -449,26 +441,18 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [
-                        IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
-                      ]
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
 
   ConsumerIngestionTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: sqs
       RawMessageDelivery: true
-      TopicArn: !If [
-        IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
-      ]
+      TopicArn: !Ref SharedS3ToSNSTopic
       Endpoint: !GetAtt ConsumerIngestionQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound-batches"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound-processed/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   ConsumerIngestionDLQAlarm:
     Type: AWS::CloudWatch::Alarm

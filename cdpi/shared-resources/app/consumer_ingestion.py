@@ -56,12 +56,16 @@ def parse(csv_object):
     """Parse CSV object and extract entries"""
     csv_reader = csv.DictReader(StringIO(csv_object))
     entries = []
+    product_dealer_id = None
+    sfdc_account_id = None
 
     for row in csv_reader:
-        product_dealer_id = row.get('dealer_id')
-        sfdc_account_id = row.get('salesforce_id')
-        entry = {}
+        if not product_dealer_id:
+            product_dealer_id = row.get('dealer_id')
+        if not sfdc_account_id:
+            sfdc_account_id = row.get('salesforce_id')
 
+        entry = {}
         for cdpi_field, inbound_data_field in FIELD_MAPPINGS.items():
             if cdpi_field in ('email_optin_flag', 'phone_optin_flag', 'sms_optin_flag'):
                 value = row.get(inbound_data_field, None)
@@ -70,15 +74,14 @@ def parse(csv_object):
             else:
                 entry[cdpi_field] = row.get(inbound_data_field, None)
 
-        # # Remove null values from entry
-        # keys_to_remove = [key for key, value in entry.items() if value in (None, '')]
-        # for key in keys_to_remove:
-        #     del entry[key]
-
         entries.append(entry)
 
     if not product_dealer_id or not sfdc_account_id:
         logger.error('product_dealer_id or sfdc_account_id not found in the CSV')
+        raise
+
+    if not entries:
+        logger.error('No entries found in the CSV')
         raise
 
     return entries, product_dealer_id, sfdc_account_id
@@ -146,9 +149,9 @@ def record_handler(record: SQSRecord):
     """Process CSV file from S3 and write to RDS"""
     logger.info(f"Record: {record}")
     try:
-        message = loads(record["body"])
-        bucket_name = message["detail"]["bucket"]["name"]
-        file_key = message["detail"]["object"]["key"]
+        event = loads(record["body"])
+        bucket_name = event['Records'][0]['s3']['bucket']['name']
+        file_key = event['Records'][0]['s3']['object']['key']
         decoded_key = urllib.parse.unquote(file_key)
 
         csv_file = s3_client.get_object(
