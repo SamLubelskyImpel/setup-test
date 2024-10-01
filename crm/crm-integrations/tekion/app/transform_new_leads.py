@@ -24,6 +24,7 @@ CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+PARTNER_KEY = environ.get("PARTNER_KEY")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -187,6 +188,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
+            # Extract crm_dealer_id, placed in lead data by invoke.
+            crm_dealer_id = item.get('impel_crm_dealer_id')
             crm_lead_id = item.get('id', '')
 
             db_lead["crm_lead_id"] = crm_lead_id
@@ -256,13 +259,39 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             entry = {
                 "product_dealer_id": product_dealer_id,
                 "lead": db_lead,
-                "consumer": db_consumer
+                "consumer": db_consumer,
+                "crm_dealer_id": crm_dealer_id
             }
 
             entries.append(entry)
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        raise
+
+
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+    """Check if lead exists through CRM API."""
+    queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={PARTNER_KEY}"
+    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    response = requests.get(url, headers=headers)
+    logger.info(f"CRM API Get Lead responded with: {response.status_code}")
+
+    if response.status_code == 200:
+        response_data = response.json()
+        lead_id = response_data.get('lead_id')
+        return lead_id
+    elif response.status_code == 404:
+        logger.info(f"Lead with crm_lead_id {crm_lead_id} not found.")
+        return None
+    else:
+        logger.error(f"Error getting lead with crm_lead_id {crm_lead_id}: {response.text}")
         raise
 
 
@@ -273,17 +302,27 @@ def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
         product_dealer_id = entry["product_dealer_id"]
         consumer = entry["consumer"]
         lead = entry["lead"]
+        crm_dealer_id = entry["crm_dealer_id"]
+        crm_lead_id = lead.get("crm_lead_id", "")
+
+        # Check for existing lead
+        if crm_lead_id:
+            existing_lead = get_lead(lead["crm_lead_id"], crm_dealer_id, crm_api_key)
+            if existing_lead:
+                logger.warning(f"[THREAD {index}] Lead already exists: {crm_lead_id} for dealer {product_dealer_id}. Skipping entry.")
+                return True
+
         unified_crm_consumer_id = upload_to_db(consumer, f"consumers?dealer_id={product_dealer_id}", crm_api_key, index, "consumer_id")
         lead["consumer_id"] = unified_crm_consumer_id
         unified_crm_lead_id = upload_to_db(lead, "leads", crm_api_key, index, "lead_id")
         logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
+
     except Exception as e:
-        if '409' in str(e):
-            # Log the 409 error and continue with the next entry
-            logger.warning(f"[THREAD {index}] {e}")
-        else:
-            logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
-            return False
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, crm_lead_id, e)
+        )
+        logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
+        return False
 
     return True
 

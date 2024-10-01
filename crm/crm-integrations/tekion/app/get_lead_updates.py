@@ -32,6 +32,7 @@ class ApiResponse:
         res['body'] = dumps(res['body'])
         return res
 
+
 def get_tekion_secrets():
     """Get Tekion API secrets."""
     secret = secret_client.get_secret_value(
@@ -149,11 +150,7 @@ def lambda_handler(event: Dict[str, Any], _: Any) -> Dict[str, Any]:
         res = get_lead_update_from_crm(crm_dealer_id=crm_dealer_id, crm_lead_id=crm_lead_id, lead_id=lead_id, dealer_partner_id=dealer_partner_id)
         return res.to_json()
     except Exception:
-        logger.exception(
-            f"[SUPPORT ALERT] Failed to Get Lead Update\n"
-            f"[CONTENT] DealerIntegrationPartnerId: {dealer_partner_id}\n"
-            f"LeadId: {lead_id}\n"
-            f"CrmDealerId: {crm_dealer_id}\n"
-            f"CrmLeadId: {crm_lead_id}")
+        logger.exception("[SUPPORT ALERT] Failed to Get Lead Update [CONTENT] DealerIntegrationPartnerId: {} LeadId: {} CrmDealerId: {} CrmLeadId: {}".format(
+            dealer_partner_id, lead_id, crm_dealer_id, crm_lead_id
+        ))
         raise
-

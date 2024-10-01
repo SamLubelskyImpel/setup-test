@@ -106,12 +106,12 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     logger.info(f"Total leads found {len(all_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(all_leads, start_time)
+    filtered_leads = filter_leads(all_leads, start_time, crm_dealer_id)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
     return filtered_leads
 
 
-def filter_leads(leads: list, start_time: str):
+def filter_leads(leads: list, start_time: str, crm_dealer_id: str):
     """Filter leads by data source."""
     filtered_leads = []
     logger.info(leads)
@@ -119,6 +119,7 @@ def filter_leads(leads: list, start_time: str):
         try:
             lead_source = lead.get("source", {}).get("sourceType", "").upper()
             if lead_source == "INTERNET" or lead_source == "OEM":
+                lead["impel_crm_dealer_id"] = crm_dealer_id
                 filtered_leads.append(lead)
         except Exception as e:
             logger.error(f"Error parsing lead source for lead {lead.get('id')}. Skipping lead: {e}")
