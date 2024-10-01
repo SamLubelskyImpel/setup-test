@@ -123,7 +123,6 @@ Resources:
         Variables:
           Environment: !Ref Environment
           INVOKE_QUEUE: !Ref InvokeQueue
-          MERGE_QUEUE: !Ref QuiterMergeVehicleSalesQueue
       Events:
         DailyInvoke:
           Type: Schedule
@@ -226,8 +225,6 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  # - !GetAtt QuiterMergeAppointmentQueue.Arn
-                  # - !GetAtt QuiterMergeRepairOrderQueue.Arn
                   - !GetAtt QuiterMergeVehicleSalesQueue.Arn
         Events:
           SQSEvent:

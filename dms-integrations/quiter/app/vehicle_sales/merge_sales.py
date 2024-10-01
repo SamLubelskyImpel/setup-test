@@ -3,12 +3,21 @@
 import boto3
 import os
 import logging
-
 from json import loads
 from botocore.exceptions import ClientError
 import uuid
 
-from utils import list_files_in_s3, find_matching_files, merge_files, extract_date_from_key, clean_data, identify_and_separate_records, save_to_s3, read_csv_from_s3, notify_client_engineering
+from utils import (
+    list_files_in_s3,
+    find_matching_files,
+    merge_files,
+    extract_date_from_key,
+    clean_data,
+    identify_and_separate_records,
+    save_to_s3,
+    read_csv_from_s3,
+    notify_client_engineering
+)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -54,20 +63,22 @@ def lambda_handler(event, context):
             # Read the CSV files using the helper function from utils.py
             customers_df = read_csv_from_s3(consumers_obj['Body'].read(), found_files["Consumer"], "Consumer", sns_client, TOPIC_ARN)
             vehicles_df = read_csv_from_s3(vehicles_obj['Body'].read(), found_files["Vehicle"], "Vehicle", sns_client, TOPIC_ARN)
-            vehicle_sales_df = read_csv_from_s3(vehicle_sales_obj['Body'].read(), found_files["VehicleSales"], "VehicleSales", sns_client, TOPIC_ARN)
-
+            vehicle_sales_df = read_csv_from_s3(vehicle_sales_obj['Body'].read(), found_files["VehicleSales"], "VehicleSales", sns_client, TOPIC_ARN, dtype={'Dealer ID': 'string'})
+            
             # Clean the customer and vehicle data using the unified function
             cleaned_customers_df = clean_data(customers_df, 'Dealer Customer No', [])
             cleaned_vehicles_df = clean_data(vehicles_df, 'Vin No', ['OEM Name', 'Model'])
+            
+            vehicle_sales_df = vehicle_sales_df.dropna(subset=['Consumer ID', 'Vin No'])
 
-            # Identify missing records in vehicle_sales_df compared to customers_df and vehicles_df
-            valid_records_df, orphans_df = identify_and_separate_records(vehicle_sales_df, cleaned_customers_df, cleaned_vehicles_df)
+            valid_records_df, error_records_df = identify_and_separate_records(vehicle_sales_df, cleaned_customers_df, cleaned_vehicles_df)
+
 
             # Save the orphan records to an error file
-            if not orphans_df.empty:
+            if not error_records_df.empty:
                 unique_id = str(uuid.uuid4())
-                error_file_key = f"quiter/error_files/vehicle_sale/{dealer_id}/{year}/{month}/{day}/{unique_id}_orphan_records.csv"
-                save_to_s3(orphans_df, BUCKET_NAME, error_file_key)
+                error_file_key = f"quiter/error_files/vehicle_sale/{dealer_id}/{year}/{month}/{day}/{unique_id}_error_records.csv"
+                save_to_s3(error_records_df, BUCKET_NAME, error_file_key)
 
                 # Send notification about the error file
                 notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN)

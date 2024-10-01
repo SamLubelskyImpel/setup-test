@@ -223,7 +223,7 @@ def notify_client_engineering(error_message, sns_client, topic_arn):
         Message=str(error_message),
     )
 
-def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
+def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype=None):
     """
     Helper function to read CSV file from S3 and handle encoding errors.
 
@@ -233,12 +233,13 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
     - file_type: A string to indicate the type of the file being processed (e.g., 'Consumer', 'Vehicle')
     - sns_client: The boto3 SNS client for sending error notifications
     - topic_arn: The SNS topic ARN for notifications
+    - dtype: Optional, a dictionary to specify data types for specific columns
 
     Returns:
     - DataFrame of the CSV content if successful, else raises an error
     """
     try:
-        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn')
+        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn', dtype=dtype)
     except Exception as e:
         error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
         logger.error(error_message)

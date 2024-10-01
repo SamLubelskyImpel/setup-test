@@ -38,7 +38,7 @@ def convert_to_timestamp(date_str):
 
 
 
-def parse_csv_to_entries(csv_data, s3_uri):
+def parse_csv_to_entries(csv_data):
     """Format CSV data to unified format."""
     entries = []
     dms_id = None
@@ -141,7 +141,7 @@ def lambda_handler(event, context):
                 csv_df = pd.read_csv(io.StringIO(csv_data),dtype={'Dealer ID': 'string'}) 
 
                 # Process the CSV entries using the modified function
-                entries, dms_id = parse_csv_to_entries(csv_df, decoded_key)
+                entries, dms_id = parse_csv_to_entries(csv_df)
 
                 if not dms_id:
                     raise RuntimeError("No dms_id found in the CSV data")
