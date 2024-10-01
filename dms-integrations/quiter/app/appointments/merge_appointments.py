@@ -85,7 +85,7 @@ def lambda_handler(event, context):
             )
  
             csv_buffer = merged_df.to_csv(index=False)
-            s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/merged_appointments_{str(uuid4())}.csv"
+            s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/{str(uuid4())}.csv"
             S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer)
 
             logger.info(f"Merged file saved to {s3_key} in the raw zone.")
