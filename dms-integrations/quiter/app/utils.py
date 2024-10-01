@@ -6,7 +6,6 @@ import logging
 from botocore.exceptions import ClientError
 import re
 import io
-import chardet
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -120,24 +119,6 @@ def extract_date_from_key(s3_key):
         logger.error(f"Error extracting date from S3 key: {e}")
         raise
 
-def detect_encoding(file_body_bytes, sample_size=10000):
-    """
-    Detect the encoding of a file by analyzing the first few bytes.
-    
-    This function uses the chardet library to detect the encoding based on a 
-    sample of the file's content.
-    """
-    try:
-        sample = file_body_bytes[:sample_size]
-        result = chardet.detect(sample)
-        encoding = result['encoding']
-        if not encoding:
-            raise ValueError("Failed to detect file encoding.")
-        return encoding
-    except Exception as e:
-        logger.error(f"Error detecting encoding: {e}")
-        raise
-
 def clean_data(df, id_column, important_columns):
     """
     Clean a DataFrame by keeping the record with the most complete data for each unique identifier.
@@ -231,6 +212,9 @@ def save_to_s3(df, bucket_name, key):
         logger.error(f"Unexpected error when saving file to S3: {e}")
         raise
 
+
+
+
 def notify_client_engineering(error_message, sns_client, topic_arn):
     """Send a notification to the client engineering SNS topic."""
     sns_client.publish(
@@ -239,7 +223,7 @@ def notify_client_engineering(error_message, sns_client, topic_arn):
         Message=str(error_message),
     )
 
-def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
+def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype=None):
     """
     Helper function to read CSV file from S3 and handle encoding errors.
 
@@ -249,12 +233,13 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
     - file_type: A string to indicate the type of the file being processed (e.g., 'Consumer', 'Vehicle')
     - sns_client: The boto3 SNS client for sending error notifications
     - topic_arn: The SNS topic ARN for notifications
+    - dtype: Optional, a dictionary to specify data types for specific columns
 
     Returns:
     - DataFrame of the CSV content if successful, else raises an error
     """
     try:
-        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn')
+        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn', dtype=dtype)
     except Exception as e:
         error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
         logger.error(error_message)
