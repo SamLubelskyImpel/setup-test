@@ -28,6 +28,15 @@ def get_secret(secret_name, secret_key) -> Any:
     secret_data = loads(secret)
 
     return secret_data
+
+def convert_to_timestamp(date_str):
+    """Convert a date string in 'day/month/year' format to a datetime object"""
+    try:
+        # Convert the string '13/05/24' to 'YYYY-MM-DD' format
+        return datetime.strptime(date_str, "%d/%m/%y").strftime("%Y-%m-%d 00:00:00.000")
+    except ValueError:
+        logger.error(f"Error parsing date: {date_str}")
+        return None
     
 def parse_json_to_entries(json_data: dict) -> Any:
 
@@ -38,13 +47,13 @@ def parse_json_to_entries(json_data: dict) -> Any:
         db_dealer_integration_partner = {"dms_id": dms_id}
 
         # Convert dates to US date format
-        appointment_date = datetime.strptime(record.get("Appointment Date"), "%d/%m/%y").strftime("%m/%d/%y")
-        appointment_create_ts = datetime.strptime(record.get("Appointment Create TS"), "%d/%m/%y").strftime("%m-%d-%y 00:00:00.000")
-        appointment_update_ts = datetime.strptime(record.get("Appointment Update TS"), "%d/%m/%y").strftime("%m-%d-%y 00:00:00.000")
+        appointment_date = convert_to_timestamp(record.get("Appointment Date"))
+        appointment_create_ts = convert_to_timestamp(record.get("Appointment Create TS"))
+        appointment_update_ts = convert_to_timestamp(record.get("Appointment Update TS"))
         ro_date = record.get("Last RO Date", None)
         last_ro_date = None
         if ro_date:
-            last_ro_date = datetime.strptime(ro_date , "%d/%m/%y").strftime("%m/%d/%y")
+            last_ro_date = convert_to_timestamp(ro_date)
 
         warranty_date = record.get("Warranty Expiration Date", None)
         warranty_expiration_date = None
