@@ -1,4 +1,0 @@
-requests
-urllib3<2
-psycopg2-binary==2.9.9
-pandas==2.0.3

@@ -134,4 +134,5 @@ dmypy.json
 .aws-sam*
 */.aws-sam/*
 
+.idea
 .vscode
