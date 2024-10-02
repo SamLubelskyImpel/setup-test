@@ -290,6 +290,9 @@ def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
     elif response.status_code == 404:
         logger.info(f"Lead with crm_lead_id {crm_lead_id} not found.")
         return None
+    elif response.status_code == 400:
+        logger.info(f"Multiple leads found with crm_lead_id {crm_lead_id}.")
+        return crm_lead_id
     else:
         logger.error(f"Error getting lead with crm_lead_id {crm_lead_id}: {response.text}")
         raise
