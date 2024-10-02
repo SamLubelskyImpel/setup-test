@@ -4,8 +4,8 @@ import os
 from os import environ
 import logging
 import boto3
-from json import loads
-import datetime
+from json import loads, dumps
+from datetime import datetime
 import pandas as pd
 import io
 import urllib
@@ -24,6 +24,7 @@ TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
 UNIFIED_RO_INSERT_LAMBDA = os.getenv("UNIFIED_RO_INSERT_LAMBDA")
 REGION = environ.get("REGION", "us-east-1")
 
+
 def send_sns_notification(message, topic_arn):
     """Sends a notification to the SNS topic."""
     try:
@@ -39,136 +40,191 @@ def send_sns_notification(message, topic_arn):
         raise
 
 
-def default_get(row, key, default_value=None):
-    """Return a default value if a column doesn't exist or if its value is None."""
-    if key in row and pd.notna(row[key]):
-        return row[key]
-    return default_value
+def default_get(json_dict, key, default_value=None):
+    """Return a default value if a key doesn't exist or if the value is None."""
+    if json_dict is None:
+        return default_value
+    json_value = json_dict.get(key)
+    return json_value if json_value is not None else default_value
 
 
-def convert_to_timestamp(date_str):
-    """Convert a date string in 'day/month/year' format to a datetime object"""
-    try:
-        # Convert the string '13/05/24' to 'YYYY-MM-DD' format
-        return datetime.strptime(date_str, "%d/%m/%y").strftime("%Y-%m-%d")
-    except ValueError:
-        logger.error(f"Error parsing date: {date_str}")
+def convert_unix_to_timestamp(unix_time):
+    """Convert unix time to datetime object"""
+    if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
         return None
+    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def parse_csv_to_entries(csv_data, s3_uri):
-    """Format CSV data to unified format similar to the XML parsing method."""
+def parse_json_to_entries(json_data, s3_uri):
+    """ "Format quiter json data to unified format."""
     entries = []
     dms_id = None
-
-    # Metadata information based on S3 URI
-    db_metadata = {
-        "Region": REGION,
-        "PartitionYear": s3_uri.split("/")[2],
-        "PartitionMonth": s3_uri.split("/")[3],
-        "PartitionDate": s3_uri.split("/")[4],
-        "s3_url": s3_uri,
-    }
-
-    # Iterate over each row in the CSV DataFrame
-    for _, entry in csv_data.iterrows():
+    for repair_order in json_data:
         db_dealer_integration_partner = {}
-        db_repair_order = {}
+        db_service_repair_order = {}
         db_vehicle = {}
         db_consumer = {}
         db_op_codes = []
 
-        # Get dealer integration partner info (DMS ID)
-        dms_id = default_get(entry, "Dealer ID")
-        db_dealer_integration_partner["dms_id"] = dms_id
+        db_metadata = {
+            "Region": REGION,
+            "PartitionYear": s3_uri.split("/")[2],
+            "PartitionMonth": s3_uri.split("/")[3],
+            "PartitionDate": s3_uri.split("/")[4],
+            "s3_url": s3_uri,
+        }
 
-        # Extract Repair Order Information
-        db_repair_order["repair_order_no"] = default_get(entry, "Repair Order No")
-        db_repair_order["ro_open_date"] = convert_to_timestamp(default_get(entry, "RO Open Date"))
-        db_repair_order["advisor_name"] = default_get(entry, "Advisor Name")
-        db_repair_order["internal_total_amount"] = default_get(entry, "Internal Total Amount")
-        db_repair_order["consumer_total_amount"] = default_get(entry, "Consumer Total Amount")
-        db_repair_order["warranty_total_amount"] = default_get(entry, "Warranty Total Amount")
+        dms_id = repair_order.get("Dealer ID")
+        db_dealer_integration_partner = {"dms_id": dms_id}
 
-        # Calculate total amount for the repair order
-        internal_total = float(db_repair_order["internal_total_amount"] or 0)
-        consumer_total = float(db_repair_order["consumer_total_amount"] or 0)
-        warranty_total = float(db_repair_order["warranty_total_amount"] or 0)
-        db_repair_order["total_amount"] = internal_total + consumer_total + warranty_total
+        db_service_repair_order["repair_order_no"] = default_get(
+            repair_order, "repairOrderNumber"
+        )
+        created_time = default_get(repair_order, "createdTime")
+        db_service_repair_order["ro_open_date"] = convert_unix_to_timestamp(
+            created_time
+        )
+        db_service_repair_order["ro_close_date"] = default_get(
+            repair_order, "closedTime"
+        )
+        closed_time = default_get(repair_order, "closedTime")
+        db_service_repair_order["ro_close_date"] = convert_unix_to_timestamp(
+            closed_time
+        )
 
-        # Extract Vehicle Information
-        db_vehicle["vin"] = default_get(entry, "Vin No")
-        db_vehicle["mileage"] = default_get(entry, "Mileage on Vehicle")
-        db_vehicle["make"] = default_get(entry, "Make")
-        db_vehicle["model"] = default_get(entry, "Model")
-        db_vehicle["year"] = default_get(entry, "Year")
-        db_vehicle["warranty_expiration_miles"] = default_get(entry, "Warranty Expiration Miles")
-        db_vehicle["warranty_expiration_date"] = default_get(entry, "Warranty Expiration Date")
+        primary_advisor = default_get(repair_order, "primaryAdvisor", [])
+        for advisor in primary_advisor:
+            first_name = default_get(advisor, "firstName")
+            last_name = default_get(advisor, "lastName")
+            if first_name or last_name:
+                db_service_repair_order["advisor_name"] = f"{first_name} {last_name}"
 
-        # Extract Consumer Information
-        db_consumer["first_name"] = default_get(entry, "First Name")
-        db_consumer["last_name"] = default_get(entry, "Last Name")
-        db_consumer["email"] = default_get(entry, "Email")
-        db_consumer["cell_phone"] = default_get(entry, "Cell Phone")
-        db_consumer["postal_code"] = default_get(entry, "Postal Code")
-        db_consumer["home_phone"] = default_get(entry, "Home Phone")
-        db_consumer["email_optin_flag"] = default_get(entry, "Email Optin Flag")
+        invoice = default_get(repair_order, "invoice", {})
+        db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
+        customer_pay = default_get(invoice, "customerPay", {})
+        db_service_repair_order["consumer_total_amount"] = default_get(
+            customer_pay, "amount"
+        )
+        warranty_pay = default_get(invoice, "warrantyPay", {})
+        db_service_repair_order["warranty_total_amount"] = default_get(
+            warranty_pay, "amount"
+        )
 
-        # Extract Operation Codes (Op Codes) Information
-        op_code = default_get(entry, "Op Code")
-        op_code_desc = default_get(entry, "Op Code Description")
-        if op_code:
-            db_op_codes.append({
-                "op_code": op_code,
-                "op_code_desc": op_code_desc,
-            })
+        txn_pay_type_arr = set()
+        comment = set()
+        jobs = default_get(repair_order, "jobs", [])
+        for job in jobs:
+            pay_type = default_get(job, "payType")
+            if pay_type:
+                txn_pay_type_arr.add(pay_type)
+            concern = default_get(job, "concern")
+            if concern:
+                comment.add(concern)
+            operations = default_get(job, "operations", [])
+            for operation in operations:
+                db_op_code = {}
+                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
+                db_op_code["op_code|op_code_desc"] = (
+                    default_get(operation, "opcodeDescription") or ""
+                )[:305]
+                db_op_codes.append(db_op_code)
 
-        # Combine the metadata into each record
-        db_vehicle["metadata"] = db_metadata
-        db_consumer["metadata"] = db_metadata
-        db_repair_order["metadata"] = db_metadata
+        db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
+        db_service_repair_order["comment"] = ",".join(list(txn_pay_type_arr))
 
-        # Create entry for each row
+        vehicle = default_get(repair_order, "vehicle", {})
+        db_vehicle["vin"] = default_get(vehicle, "vin")
+        db_vehicle["make"] = default_get(vehicle, "make")
+        db_vehicle["model"] = default_get(vehicle, "model")
+        db_vehicle["year"] = default_get(vehicle, "year")
+        mileage_in = default_get(vehicle, "mileageIn")
+        if default_get(mileage_in, "unit", "").upper() == "MI":
+            db_vehicle["mileage"] = default_get(mileage_in, "value")
+
+        customer = default_get(repair_order, "customer", {})
+        db_consumer["first_name"] = default_get(customer, "firstName")
+        db_consumer["last_name"] = default_get(customer, "lastName")
+        db_consumer["email"] = default_get(customer, "email")
+        phones = default_get(customer, "phones", [])
+        for phone in phones:
+            phone_type = default_get(phone, "phoneType", "")
+            phone_number = default_get(phone, "number")
+            if phone_type.upper() == "MOBILE":
+                db_consumer["cell_phone"] = phone_number
+            elif phone_type.upper() == "HOME":
+                db_consumer["home_phone"] = phone_number
+        address = default_get(customer, "address", {})
+        db_consumer["city"] = default_get(address, "city")
+        db_consumer["state"] = default_get(address, "state")
+        db_consumer["postal_code"] = default_get(address, "zip")
+        address_line1 = default_get(address, "line1")
+        address_line2 = default_get(address, "line2")
+        if address_line1 and address_line2:
+            db_consumer["address"] = f"{address_line1} {address_line2}"
+        elif address_line1:
+            db_consumer["address"] = address_line1
+
+        metadata = dumps(db_metadata)
+        db_vehicle["metadata"] = metadata
+        db_consumer["metadata"] = metadata
+        db_service_repair_order["metadata"] = metadata
+
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
-            "repair_order": db_repair_order,
+            "service_repair_order": db_service_repair_order,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
             "op_codes.op_codes": db_op_codes,
         }
-
         entries.append(entry)
-
     return entries, dms_id
 
 
 def lambda_handler(event, context):
     """Transform Quiter deals files."""
     try:
+        logger.info(f"Lambda triggered with event: {event}")
         for record in event["Records"]:
             message = loads(record["body"])
-            logger.info(f"Message of {message}")
+            logger.info(f"Processing message: {message}")
 
-            # Process each S3 record in the event
             for s3_record in message.get("Records", []):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
 
-                # Fetch the object from S3
-                response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                csv_data = response["Body"].read().decode("utf-8") 
+                logger.info(
+                    f"Processing S3 object from bucket: {bucket}, key: {decoded_key}"
+                )
 
-                # Use pandas to read the CSV content into a DataFrame
-                csv_df = pd.read_csv(io.StringIO(csv_data)) 
-                # Process the CSV entries using the modified function
-                entries, dms_id = parse_csv_to_entries(csv_df, decoded_key)
+                response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
+                logger.info(
+                    f"S3 object {decoded_key} fetched successfully from bucket {bucket}"
+                )
+
+                csv_data = response["Body"].read().decode("utf-8")
+                logger.info(f"CSV data successfully read from S3 object {decoded_key}")
+
+                csv_df = pd.read_csv(io.StringIO(csv_data))
+
+                json_data = csv_df.to_json(orient="records")
+                logger.info("Converted CSV data to JSON format")
+
+                entries, dms_id = parse_json_to_entries(loads(json_data), decoded_key)
+                logger.info(
+                    f"Parsed JSON entries: {len(entries)} entries, DMS ID: {dms_id}"
+                )
 
                 if not dms_id:
+                    logger.error("No dms_id found in the CSV data")
                     raise RuntimeError("No dms_id found in the CSV data")
-
-                # Call the upload function with the parsed entries
+                logger.info(
+                    f"Uploading unified JSON for dms_id {dms_id} and key {decoded_key}"
+                )
                 upload_unified_json(entries, "repair_order", decoded_key, dms_id)
+                logger.info(
+                    f"Upload completed for dms_id {dms_id} and key {decoded_key}"
+                )
 
     except Exception as e:
         logger.exception(f"Error transforming vehicle sale file {event}: {e}")

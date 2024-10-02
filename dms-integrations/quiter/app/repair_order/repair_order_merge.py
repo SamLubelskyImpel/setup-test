@@ -169,7 +169,6 @@ def lambda_handler(event, context):
             vehicles_df_clean = remove_duplicates(
                 vehicles_df, "Vin No", ["OEM Name", "Model"]
             )
-            repairorder_df = repairorder_df.dropna(subset=["Consumer ID", "Vin No"])
 
             valid_records_df, orphans_df = identify_and_separate_records(
                 repairorder_df, customers_df_clean, vehicles_df_clean
@@ -192,7 +191,8 @@ def lambda_handler(event, context):
                     "Warranty Expiration Date_x": "Warranty Expiration Date",
                 },
             )
-
+            merged_df = merged_df.drop_duplicates()
+            merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()]            
             logger.debug(f"Orphan records found: {orphans_df.shape[0]}")
             save_error_file(orphans_df, dealer_id, current_date)
 
