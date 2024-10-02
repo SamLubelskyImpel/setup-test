@@ -1,7 +1,6 @@
 """Merging logic for “Appointments”, “Customers” and “Vehicles” from Quiter."""
 """Much of this code is similar to other files and should be extracted to a separate file in the future"""
 import boto3
-import pandas as pd
 import os
 import logging
 import io
@@ -64,7 +63,7 @@ def lambda_handler(event, context):
             # Save the orphan records to an error file
             if not orphans_df.empty:
                 unique_id = str(uuid4())
-                error_file_key = f"quiter/error_files/service_appointment/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}_orphan_records.csv"
+                error_file_key = f"quiter/error_files/service_appointment/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}_error_records.csv"
                 csv_buffer = io.StringIO()
                 orphans_df.to_csv(csv_buffer, index=False)
                 S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=error_file_key, Body=csv_buffer.getvalue())
