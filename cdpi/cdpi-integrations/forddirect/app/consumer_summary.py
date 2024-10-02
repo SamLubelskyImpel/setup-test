@@ -4,6 +4,13 @@ import logging
 import urllib.parse
 import csv
 from io import StringIO
+from json import loads
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.consumer_profile import ConsumerProfile
 from cdpi_orm.models.integration_partner import IntegrationPartner
@@ -98,6 +105,8 @@ def write_to_rds(entries):
                 if is_updated:
                     session.add(db_consumer_profile)
                     logger.info(f"Consumer profile updated for consumer_id: {entry['consumer_id']}")
+                else:
+                    logger.info(f"Consumer profile unchanged for consumer_id: {entry['consumer_id']}")
 
             session.commit()
 
@@ -110,10 +119,12 @@ def write_to_rds(entries):
     logger.info("Consumers added to the database")
 
 
-def lambda_handler(event, context):
+def record_handler(record: SQSRecord):
     """Process CSV file from S3 and write to RDS"""
-    logger.info(f'Event: {event}')
+    logger.info(f'Record: {record}')
     try:
+        raise
+        event = loads(record["body"])
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         file_key = event['Records'][0]['s3']['object']['key']
         decoded_key = urllib.parse.unquote(file_key)
@@ -128,4 +139,21 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.error(f'Error: {e}')
+        raise
+
+
+def lambda_handler(event, context):
+    logger.info(f"Event: {event}")
+
+    try:
+        processor = BatchProcessor(event_type=EventType.SQS)
+        result = process_partial_response(
+            event=event,
+            record_handler=record_handler,
+            processor=processor,
+            context=context
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error processing batch: {e}")
         raise

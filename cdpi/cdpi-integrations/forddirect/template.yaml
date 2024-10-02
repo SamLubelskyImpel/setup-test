@@ -48,10 +48,10 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-  VpcConfig:
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
+    VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
   SecurityGroup:
@@ -130,4 +130,252 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod/fd-raw/consumer_profile_summary/*",
+                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test/fd-raw/consumer_profile_summary/*"
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod/fd-processed/consumer_profile_summary/*",
+                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test/fd-processed/consumer_profile_summary/*"
+                    ]
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt ConsumerSummaryQueue.Arn
+                  - !GetAtt ConsumerSummaryBatcherQueue.Arn
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
   
+  ConsumerSummaryBatcherLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcher"
+      Handler: consumer_summary_batcher.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 300
+      Environment:
+        Variables:
+          BATCH_SIZE: 2
+
+  ConsumerSummaryBatcherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerSummaryBatcher"
+
+  ConsumerSummaryBatcherQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcher"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConsumerSummaryBatcherDeadLetterQueue.Arn
+        maxReceiveCount: 1
+
+  ConsumerSummaryBatcherDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcherDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  ConsumerSummaryBatcherEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt ConsumerSummaryBatcherQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt ConsumerSummaryBatcherLambda.Arn
+  
+  ConsumerSummaryBatcherQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ConsumerSummaryBatcherQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ConsumerSummaryBatcherQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ConsumerSummaryBatcherQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                        IsProd,
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                      ]
+  
+  ConsumerSummaryBatcherTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt ConsumerSummaryBatcherQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"fd-raw/consumer_profile_summary/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ConsumerSummaryBatcherDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcherDLQ"
+      AlarmDescription: "Alarm for Consumer Summary Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerSummaryBatcherDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
+  
+  ConsumerSummaryLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ConsumerSummary"
+      Handler: consumer_summary.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 300
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
+          ]
+  
+  ConsumerSummaryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerSummary"
+  
+  ConsumerSummaryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerSummary"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConsumerSummaryDeadLetterQueue.Arn
+        maxReceiveCount: 2
+  
+  ConsumerSummaryDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  ConsumerSummaryEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt ConsumerSummaryQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt ConsumerSummaryLambda.Arn
+
+  ConsumerSummaryQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ConsumerSummaryQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ConsumerSummaryQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ConsumerSummaryQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                        IsProd,
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                      ]
+  
+  ConsumerSummaryTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt ConsumerSummaryQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"fd-processed/consumer_profile_summary/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ConsumerSummaryDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerSummaryDLQ"
+      AlarmDescription: "Alarm for Consumer Summarys Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerSummaryDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
