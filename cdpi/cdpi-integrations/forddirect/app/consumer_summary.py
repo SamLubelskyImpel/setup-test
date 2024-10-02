@@ -5,6 +5,7 @@ import urllib.parse
 import csv
 from io import StringIO
 from json import loads
+from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -58,16 +59,16 @@ def write_to_rds(entries):
         try:
             # Identify integration partner
             db_integration_partner = session.query(
-                IntegrationPartner.id
+                IntegrationPartner
             ).filter(
-                IntegrationPartner.name == "FORD_DIRECT"
+                IntegrationPartner.impel_integration_partner_name == "FORD_DIRECT"
             ).scalar()
             if not db_integration_partner:
                 logger.error("Integration partner FORD_DIRECT not found")
                 return
 
             for entry in entries:
-                logger.info(f"Updating consumer profile: {entry}")
+                logger.info(f"Processing consumer profile: {entry}")
 
                 # Select consumer profile by consumer_id
                 db_consumer_profile = session.query(
@@ -86,19 +87,23 @@ def write_to_rds(entries):
                 # Update sales score
                 new_sales_score = entry.get('dealer_pscore_sales')
                 if new_sales_score and db_consumer_profile.dealer_pscore_sales != new_sales_score:
+                    db_consumer_profile.prev_dealer_pscore_sales = db_consumer_profile.dealer_pscore_sales
                     db_consumer_profile.dealer_pscore_sales = new_sales_score
+                    db_consumer_profile.score_update_date = datetime.now()
                     is_updated = True
 
                 # Update service score
                 new_service_score = entry.get('dealer_pscore_service')
                 if new_service_score and db_consumer_profile.dealer_pscore_service != new_service_score:
+                    db_consumer_profile.prev_dealer_pscore_service = db_consumer_profile.dealer_pscore_service
                     db_consumer_profile.dealer_pscore_service = new_service_score
+                    db_consumer_profile.score_update_date = datetime.now()
                     is_updated = True
 
-                # Update CDP Master Dealer ID
-                new_cdp_master_dealer_id = entry.get('cdp_dealer_consumer_id')
-                if new_cdp_master_dealer_id and db_consumer_profile.cdp_master_dealer_id != new_cdp_master_dealer_id:
-                    db_consumer_profile.cdp_master_dealer_id = new_cdp_master_dealer_id
+                # Update CDP Dealer Consumer ID
+                new_cdp_dealer_consumer_id = entry.get('cdp_dealer_consumer_id')
+                if new_cdp_dealer_consumer_id and db_consumer_profile.cdp_dealer_consumer_id != new_cdp_dealer_consumer_id:
+                    db_consumer_profile.cdp_dealer_consumer_id = new_cdp_dealer_consumer_id
                     is_updated = True
 
                 # Only add the profile to the session if changes are made
@@ -123,7 +128,6 @@ def record_handler(record: SQSRecord):
     """Process CSV file from S3 and write to RDS"""
     logger.info(f'Record: {record}')
     try:
-        raise
         event = loads(record["body"])
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         file_key = event['Records'][0]['s3']['object']['key']

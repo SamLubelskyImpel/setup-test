@@ -176,7 +176,7 @@ Resources:
   ConsumerSummaryBatcherLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcher"
+      FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
       Handler: consumer_summary_batcher.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
@@ -189,12 +189,12 @@ Resources:
   ConsumerSummaryBatcherLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerSummaryBatcher"
+      LogGroupName: !Sub "/aws/lambda/cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
 
   ConsumerSummaryBatcherQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcher"
+      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
@@ -204,7 +204,7 @@ Resources:
   ConsumerSummaryBatcherDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcherDLQ"
+      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcherDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
@@ -258,7 +258,7 @@ Resources:
   ConsumerSummaryBatcherDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "cdpi-${Environment}-ConsumerSummaryBatcherDLQ"
+      AlarmName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcherDLQ"
       AlarmDescription: "Alarm for Consumer Summary Dead Letter Queue"
       ActionsEnabled: true
       Namespace: AWS/SQS
@@ -278,12 +278,12 @@ Resources:
   ConsumerSummaryLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "cdpi-${Environment}-ConsumerSummary"
+      FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummary"
       Handler: consumer_summary.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
       MemorySize: 1024
-      Timeout: 300
+      Timeout: 60
       Layers:
         - !If [
             IsProd,
@@ -294,14 +294,14 @@ Resources:
   ConsumerSummaryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerSummary"
+      LogGroupName: !Sub "/aws/lambda/cdpi-ford-direct-${Environment}-ConsumerSummary"
   
   ConsumerSummaryQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-${Environment}-ConsumerSummary"
+      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummary"
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 300
+      VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ConsumerSummaryDeadLetterQueue.Arn
         maxReceiveCount: 2
@@ -309,7 +309,7 @@ Resources:
   ConsumerSummaryDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-${Environment}-ConsumerSummaryDLQ"
+      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
@@ -363,7 +363,7 @@ Resources:
   ConsumerSummaryDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "cdpi-${Environment}-ConsumerSummaryDLQ"
+      AlarmName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryDLQ"
       AlarmDescription: "Alarm for Consumer Summarys Dead Letter Queue"
       ActionsEnabled: true
       Namespace: AWS/SQS

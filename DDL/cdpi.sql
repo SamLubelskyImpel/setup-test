@@ -162,7 +162,7 @@ CREATE TABLE test.cdpi_consumer_profile (
     integration_partner_id int4 NOT NULL,
 	cdp_master_consumer_id varchar(100) NOT NULL,
 	cdp_dealer_consumer_id varchar(100) NOT NULL,
-	data_load_date timestamptz NULL,
+	score_update_date timestamptz NULL,
 	master_pscore_sales varchar(40) NULL,
     master_pscore_service varchar(40) NULL,
     dealer_pscore_sales varchar(40) NULL,
