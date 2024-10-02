@@ -28,8 +28,7 @@ def process_batch(batch, bucket, product_name, filename, batch_count):
 
     csv_writer.writerows(batch)
 
-    # Example output key
-    # customer-inbound-processed/product/0010a00001e7M7dAAE_2024-09-24T14_00_25Z/batch_0.csv
+    # Example key: customer-inbound-processed/product/0010a00001e7M7dAAE_2024-09-24T14_00_25Z/batch_0.csv
     batch_s3_key = f'customer-inbound-processed/{product_name}/{filename}/batch_{batch_count}.csv'
     s3_client.put_object(Bucket=bucket, Key=batch_s3_key, Body=csv_buffer.getvalue())
 
@@ -48,13 +47,12 @@ def record_handler(record: SQSRecord):
         # Expected name: consumer-inbound/product/0010a00001e7M7dAAE_2024-09-24T14_00_25Z.csv
         product_name = decoded_key.split("/")[1]
         filename = decoded_key.split("/")[-1].split(".")[0]
-        # sfdc_account_id = filename.split("_")[1]
 
         csv_file = s3_client.get_object(Bucket=bucket_name, Key=file_key)
         csv_object = csv_file['Body'].read().decode('utf-8')
 
         csv_reader = csv.reader(io.StringIO(csv_object))
-        headers = next(csv_reader)  # Assuming first row is headers
+        headers = next(csv_reader)
 
         batch = [headers]
         batch_count = 0
@@ -62,7 +60,7 @@ def record_handler(record: SQSRecord):
         for row in csv_reader:
             batch.append(row)
 
-            if len(batch) == BATCH_SIZE:
+            if len(batch)-1 == BATCH_SIZE:
                 process_batch(batch, bucket_name, product_name, filename, batch_count)
                 batch_count += 1
                 batch = [headers]
