@@ -36,7 +36,7 @@ TARGET_COLUMNS = [
 def extract_columns(headers, row):
     """Extract only the target columns from the row."""
     row_dict = dict(zip(headers, row))
-    if "EXT_CONSUMER_ID" not in row_dict:
+    if not row_dict.get('EXT_CONSUMER_ID'):
         return None
 
     # Extract only the target columns
@@ -68,6 +68,7 @@ def filter_rows(bucket, key):
         # Extract columns from the row
         extracted_row = extract_columns(original_headers, row)
         if not extracted_row:
+            logger.info(f"Skipping row without Impel ID: {row}")
             continue
 
         yield extracted_row

@@ -184,7 +184,7 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          BATCH_SIZE: 2
+          BATCH_SIZE: 1000
 
   ConsumerSummaryBatcherLogGroup:
     Type: AWS::Logs::LogGroup
