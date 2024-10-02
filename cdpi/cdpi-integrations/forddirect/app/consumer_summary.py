@@ -118,7 +118,7 @@ def write_to_rds(entries):
         except SQLAlchemyError as e:
             # Rollback in case of any error
             session.rollback()
-            logger.info(f"Error occurred during database operations: {e}")
+            logger.error(f"Error occurred during database operations: {e}")
             raise e
 
     logger.info("Consumers added to the database")

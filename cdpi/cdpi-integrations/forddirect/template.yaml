@@ -185,6 +185,12 @@ Resources:
       Environment:
         Variables:
           BATCH_SIZE: 1000
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
+          ]
 
   ConsumerSummaryBatcherLogGroup:
     Type: AWS::Logs::LogGroup

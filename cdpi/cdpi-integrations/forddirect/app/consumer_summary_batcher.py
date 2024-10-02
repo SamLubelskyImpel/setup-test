@@ -11,6 +11,10 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from cdpi_orm.session_config import DBSession
+from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
+from cdpi_orm.models.integration_partner import IntegrationPartner
+
 
 OUTPUT_BUCKET = os.getenv('OUTPUT_BUCKET')
 BATCH_SIZE = int(os.getenv('BATCH_SIZE', '1000'))
@@ -33,6 +37,22 @@ TARGET_COLUMNS = [
 ]
 
 
+def is_active_dealer(cdp_dealer_id):
+    """Check if the dealer is active."""
+    with DBSession() as session:
+        db_dip = session.query(
+            DealerIntegrationPartner
+        ).join(
+            IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+        ).filter(
+            DealerIntegrationPartner.cdp_dealer_id == cdp_dealer_id,
+            IntegrationPartner.impel_integration_partner_name == "FORD_DIRECT",
+            DealerIntegrationPartner.is_active.is_(True)
+        ).first()
+
+        return bool(db_dip)
+
+
 def extract_columns(headers, row):
     """Extract only the target columns from the row."""
     row_dict = dict(zip(headers, row))
@@ -51,13 +71,10 @@ def filter_rows(bucket, key):
     txt_file = io.TextIOWrapper(response['Body'], encoding='utf-8')
     original_headers = []
 
-    # Process each line
     first_line = True
     for line in txt_file:
-        # Strip any trailing newline characters
         line = line.strip()
 
-        # Split the line using the multi-character delimiter '|^|'
         row = line.split('|^|')
 
         if first_line:
@@ -99,7 +116,10 @@ def record_handler(record: SQSRecord):
         dealer_id = decoded_key.split("/")[2]
         filename = decoded_key.split("/")[-1].split(".")[0]
 
-        # Check if cdp dealer is active??
+        # Check if cdp dealer is active
+        if not is_active_dealer(dealer_id):
+            logger.warning(f"Skipping file processing for inactive dealer: {dealer_id}")
+            return
 
         batch = [TARGET_COLUMNS]
         batch_count = 0
