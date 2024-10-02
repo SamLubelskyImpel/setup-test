@@ -533,7 +533,7 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/quiter-${Environment}-MergeAppointments"
 
-  MergeAppointmentsDLQAlarm:
+  QuiterMergeAppointmentsDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub quiter-${Environment}-MergeAppointmentsDLQAlarm
