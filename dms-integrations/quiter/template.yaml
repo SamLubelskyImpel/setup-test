@@ -259,7 +259,7 @@ Resources:
   QuiterMergeVehicleSalesDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub quiter-${Environment}-QuiterMergeVehicleSalesDLQAlarm
+      AlarmName: !Sub quiter-${Environment}-MergeVehicleSalesDLQAlarm
       AlarmDescription: There are messages in the Quiter merge Vehicle Sales DLQ
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -473,8 +473,6 @@ Resources:
 
   QuiterMergeAppointmentDeadLetterQueue:
     Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub quiter-${Environment}-QuiterMergeAppointmentDLQ
     Properties:
       QueueName: !Sub "quiter-${Environment}-MergeAppointmentsDLQ"
       MessageRetentionPeriod: 1209600
