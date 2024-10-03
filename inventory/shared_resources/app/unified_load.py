@@ -15,6 +15,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
 
+
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
     #  There was an entry whose year was an empty string, so we need to handle this case
