@@ -338,7 +338,6 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          MERGE_QUEUE: !Ref QuiterMergeVehicleSalesQueue
       Events:
         SQSEvent:
           Type: SQS
