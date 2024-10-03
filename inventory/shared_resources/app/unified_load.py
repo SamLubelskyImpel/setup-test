@@ -54,6 +54,9 @@ def extract_inventory_data(json_data):
         if not value:
             return None
 
+        # Remove spaces from the value
+        value = value.strip().replace(' ', '')
+
         if ftype == 'int':
             return int(value.strip())
         elif ftype == 'float':
