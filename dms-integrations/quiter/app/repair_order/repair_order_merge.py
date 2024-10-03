@@ -70,11 +70,9 @@ def lambda_handler(event, context):
             s3_key = data["s3_key"]
             current_date = datetime.now()
 
-            logger.info(f"Extracting date from s3_key: {s3_key}")
             year, month, day = extract_date_from_key(s3_key)
             base_path = f"quiter/landing_zone/{dealer_id}/{year}/{month}/{day}/"
 
-            logger.info(f"Listing objects in S3 bucket with prefix: {base_path}")
             response = s3_client.list_objects_v2(
                 Bucket=INTEGRATIONS_BUCKET, Prefix=base_path
             )
@@ -90,7 +88,6 @@ def lambda_handler(event, context):
 
             logger.debug(f"Files found in S3: {files}")
             found_files = find_matching_files(files)
-            logger.info(f"Matching files found: {found_files}")
 
             if (
                 "Consumer" not in found_files
@@ -105,26 +102,16 @@ def lambda_handler(event, context):
                 )
 
             try:
-                logger.info(
-                    f"Fetching RepairOrder file from S3: {found_files['RepairOrder']}"
-                )
                 repairorder_obj = s3_client.get_object(
                     Bucket=INTEGRATIONS_BUCKET, Key=found_files["RepairOrder"]
-                )
-                logger.info(
-                    f"Fetching Consumer file from S3: {found_files['Consumer']}"
                 )
                 customers_obj = s3_client.get_object(
                     Bucket=INTEGRATIONS_BUCKET, Key=found_files["Consumer"]
                 )
-                logger.info(f"Fetching Vehicle file from S3: {found_files['Vehicle']}")
                 vehicles_obj = s3_client.get_object(
                     Bucket=INTEGRATIONS_BUCKET, Key=found_files["Vehicle"]
                 )
 
-                logger.info(
-                    f"Reading Consumer data from S3 object: {found_files['Consumer']}"
-                )
                 customers_df = read_csv_from_s3(
                     customers_obj["Body"].read(),
                     found_files["Consumer"],
@@ -132,11 +119,7 @@ def lambda_handler(event, context):
                     SNS_CLIENT,
                     TOPIC_ARN,
                 )
-                logger.debug(f"Consumer DataFrame shape: {customers_df.shape}")
 
-                logger.info(
-                    f"Reading Vehicle data from S3 object: {found_files['Vehicle']}"
-                )
                 vehicles_df = read_csv_from_s3(
                     vehicles_obj["Body"].read(),
                     found_files["Vehicle"],
@@ -144,11 +127,7 @@ def lambda_handler(event, context):
                     SNS_CLIENT,
                     TOPIC_ARN,
                 )
-                logger.debug(f"Vehicle DataFrame shape: {vehicles_df.shape}")
 
-                logger.info(
-                    f"Reading RepairOrder data from S3 object: {found_files['RepairOrder']}"
-                )
                 repairorder_df = read_csv_from_s3(
                     repairorder_obj["Body"].read(),
                     found_files["RepairOrder"],
@@ -156,13 +135,11 @@ def lambda_handler(event, context):
                     SNS_CLIENT,
                     TOPIC_ARN,
                 )
-                logger.debug(f"RepairOrder DataFrame shape: {repairorder_df.shape}")
 
             except KeyError as e:
                 logger.error(f"KeyError while fetching or reading files from S3: {e}")
                 raise
 
-            logger.info("Removing duplicates from Consumer and Vehicle dataframes")
             customers_df_clean = remove_duplicates(
                 customers_df, "Dealer Customer No", []
             )
@@ -173,7 +150,6 @@ def lambda_handler(event, context):
             valid_records_df, orphans_df = identify_and_separate_records(
                 repairorder_df, customers_df_clean, vehicles_df_clean
             )
-            logger.info("Merging RepairOrder, Consumer, and Vehicle dataframes")
             merged_df = merge_files(
                 main_df=valid_records_df,
                 customers_df=customers_df_clean,
@@ -192,8 +168,7 @@ def lambda_handler(event, context):
                 },
             )
             merged_df = merged_df.drop_duplicates()
-            merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()]            
-            logger.debug(f"Orphan records found: {orphans_df.shape[0]}")
+            merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()]
             save_error_file(orphans_df, dealer_id, current_date)
 
             logger.info(f"Uploading merged file to S3 for dealer {dealer_id}")

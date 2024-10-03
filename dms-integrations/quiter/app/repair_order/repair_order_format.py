@@ -186,16 +186,11 @@ def lambda_handler(event, context):
         logger.info(f"Lambda triggered with event: {event}")
         for record in event["Records"]:
             message = loads(record["body"])
-            logger.info(f"Processing message: {message}")
 
             for s3_record in message.get("Records", []):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 decoded_key = urllib.parse.unquote(key)
-
-                logger.info(
-                    f"Processing S3 object from bucket: {bucket}, key: {decoded_key}"
-                )
 
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                 logger.info(
@@ -208,12 +203,8 @@ def lambda_handler(event, context):
                 csv_df = pd.read_csv(io.StringIO(csv_data))
 
                 json_data = csv_df.to_json(orient="records")
-                logger.info("Converted CSV data to JSON format")
 
                 entries, dms_id = parse_json_to_entries(loads(json_data), decoded_key)
-                logger.info(
-                    f"Parsed JSON entries: {len(entries)} entries, DMS ID: {dms_id}"
-                )
 
                 if not dms_id:
                     logger.error("No dms_id found in the CSV data")
