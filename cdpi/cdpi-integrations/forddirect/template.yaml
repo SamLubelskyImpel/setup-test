@@ -48,6 +48,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
     VpcConfig:
         SecurityGroupIds:
           - !Ref SecurityGroup
@@ -83,105 +84,294 @@ Resources:
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
 
-  LambdaRole:
-    Type: AWS::IAM::Role
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
     Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+      Description: Policy for forddirect granting access to AWS resources
+      PolicyDocument:
+        Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
             Action:
-              - sts:AssumeRole
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !If [
+                  IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
+                ]
+          - Effect: Allow
+            Action:
+              - ec2:CreateNetworkInterface
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DeleteNetworkInterface
+            Resource: "*"
+          - Effect: "Allow"
+            Action:
+              - s3:*
+            Resource:
+              - !If [
+                IsProd,
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod*",
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test*"
+              ]
+          - Effect: "Allow"
+            Action:
+              - sns:Publish
+            Resource: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
+  InvokePIIOutbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-ford-direct-InvokePIIOutbound-${Environment}
+      Handler: invoke_pii_outbound.lambda_handler
+      CodeUri: ./app
       Policies:
-        - PolicyName: CloudWatchLogsPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "logs:CreateLogGroup"
-                  - "logs:CreateLogStream"
-                  - "logs:PutLogEvents"
-                  - "logs:DescribeLogStreams"
-                Resource: "arn:aws:logs:*:*:*"
-        - PolicyName: AccessSecretsManager
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
-                    ]
-        - PolicyName: LambdaVPCAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: "*"
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:PutObject
-                Resource:
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod/fd-raw/consumer_profile_summary/*",
-                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test/fd-raw/consumer_profile_summary/*"
-                    ]
-                  - !If [
-                      IsProd,
-                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod/fd-processed/consumer_profile_summary/*",
-                      !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test/fd-processed/consumer_profile_summary/*"
-                    ]
-        - PolicyName: SQSAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                  - sqs:ReceiveMessage
-                  - sqs:DeleteMessage
-                  - sqs:GetQueueAttributes
-                Resource:
-                  - !GetAtt ConsumerSummaryQueue.Arn
-                  - !GetAtt ConsumerSummaryBatcherQueue.Arn
-        - PolicyName: SNSPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "sns:Publish"
-                Resource:
-                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-  
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt GeneratePIIOutboundQueue.Arn
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 12 * * ? *)
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
+      Timeout: 30
+      Environment:
+        Variables:
+          GENERATE_PII_QUEUE: !Ref GeneratePIIOutboundQueue
+
+  InvokePIIOutboundAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-ford-direct-InvokePIIOutboundAlarm-${Environment}
+      AlarmDescription: InvokePIIOutboundAlarm execution failed
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokePIIOutbound
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+
+  GeneratePIIOutboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-GeneratePIIOutboundQueue-${Environment}
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt GeneratePIIOutboundDLQ.Arn
+          maxReceiveCount: 3
+
+  GeneratePIIOutboundEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt GeneratePIIOutboundQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt GeneratePIIOutbound.Arn
+
+  GeneratePIIOutbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-ford-direct-GeneratePIIOutbound-${Environment}
+      Handler: generate_pii_outbound.lambda_handler
+      CodeUri: ./app
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt GeneratePIIOutboundQueue.Arn
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
+      Timeout: 60
+
+  GeneratePIIOutboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-GeneratePIIOutboundDLQ-${Environment}
+
+  GeneratePIIOutboundDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-ford-direct-GeneratePIIOutboundDLQAlarm-${Environment}
+      AlarmDescription: There are over 1 unprocessed messages in the GeneratePIIOutboundDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt GeneratePIIOutboundDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  UploadPIIOutboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-UploadPIIOutboundQueue-${Environment}
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt UploadPIIOutboundDLQ.Arn
+          maxReceiveCount: 3
+
+  UploadPIIOutboundQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UploadPIIOutboundQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UploadPIIOutboundQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UploadPIIOutboundQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                        IsProd,
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                      ]
+
+  UploadPIIOutbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-ford-direct-UploadPIIOutbound-${Environment}
+      Handler: upload_pii_outbound.lambda_handler
+      CodeUri: ./app
+      Timeout: 300
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt UploadPIIOutboundQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-SFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-SFTP*"
+                  ]
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-PKEY*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-PKEY*"
+                  ]
+
+  UploadPIIOutboundEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt UploadPIIOutboundQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt UploadPIIOutbound.Arn
+
+  UploadPIIOutboundTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt UploadPIIOutboundQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"fd-pii-outbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  UploadPIIOutboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-UploadPIIOutboundDLQ-${Environment}
+
+  UploadPIIOutboundDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-ford-direct-UploadPIIOutboundDLQAlarm-${Environment}
+      AlarmDescription: There are over 1 unprocessed messages in the UploadPIIOutboundDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UploadPIIOutboundDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   ConsumerSummaryBatcherLambda:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
       Handler: consumer_summary_batcher.lambda_handler
       CodeUri: app/
-      Role: !GetAtt LambdaRole.Arn
       MemorySize: 1024
       Timeout: 300
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource:
+                - !GetAtt ConsumerSummaryQueue.Arn
+                - !GetAtt ConsumerSummaryBatcherQueue.Arn
       Environment:
         Variables:
           BATCH_SIZE: 1000
@@ -221,7 +411,7 @@ Resources:
       EventSourceArn: !GetAtt ConsumerSummaryBatcherQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt ConsumerSummaryBatcherLambda.Arn
-  
+
   ConsumerSummaryBatcherQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -245,7 +435,7 @@ Resources:
                         !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
                         !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
                       ]
-  
+
   ConsumerSummaryBatcherTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -280,28 +470,40 @@ Resources:
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       TreatMissingData: notBreaching
-  
+
   ConsumerSummaryLambda:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummary"
       Handler: consumer_summary.lambda_handler
       CodeUri: app/
-      Role: !GetAtt LambdaRole.Arn
       MemorySize: 1024
       Timeout: 60
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource:
+                - !GetAtt ConsumerSummaryQueue.Arn
+                - !GetAtt ConsumerSummaryBatcherQueue.Arn
       Layers:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
           ]
-  
+
   ConsumerSummaryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-ford-direct-${Environment}-ConsumerSummary"
-  
+
   ConsumerSummaryQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -311,14 +513,14 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ConsumerSummaryDeadLetterQueue.Arn
         maxReceiveCount: 2
-  
+
   ConsumerSummaryDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
-  
+
   ConsumerSummaryEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -350,7 +552,7 @@ Resources:
                         !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
                         !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
                       ]
-  
+
   ConsumerSummaryTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:

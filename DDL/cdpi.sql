@@ -221,6 +221,7 @@ CREATE TABLE test.cdpi_consumer (
     area varchar(80) NULL,
     pobox varchar(80) NULL,
     hh_id varchar(80) NULL,
+    record_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
     db_update_date timestamptz NULL,
     db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -284,7 +285,7 @@ BEGIN
             new_vals := new_vals || jsonb_build_object(col, to_jsonb(col_value_new));
         END IF;
     END LOOP;
-   
+
     -- If no columns were changed, skip the insert
     IF array_length(changed_cols, 1) IS NULL THEN
         RETURN NEW;  -- No changes, so return without inserting
