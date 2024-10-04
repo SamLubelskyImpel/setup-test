@@ -3,7 +3,7 @@ import csv
 import io
 import os
 import logging
-import urllib
+import urllib.parse
 from json import loads
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -48,7 +48,7 @@ def record_handler(record: SQSRecord):
         product_name = decoded_key.split("/")[1]
         filename = decoded_key.split("/")[-1].split(".")[0]
 
-        csv_file = s3_client.get_object(Bucket=bucket_name, Key=file_key)
+        csv_file = s3_client.get_object(Bucket=bucket_name, Key=decoded_key)
         csv_object = csv_file['Body'].read().decode('utf-8')
 
         csv_reader = csv.reader(io.StringIO(csv_object))
