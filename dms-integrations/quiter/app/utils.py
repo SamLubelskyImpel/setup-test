@@ -20,13 +20,6 @@ sns_client = boto3.client("sns")
 # Environment variables
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
-SNS_CLIENT = boto3.client("sns")
-
-SQS_QUEUE_URLS = [
-    environ.get("MERGE_REPAIR_ORDER_QUEUE"),
-    environ.get("MERGE_APPOINTMENT_QUEUE"),
-    environ.get("MERGE_VEHICLE_SALE_QUEUE"),
-]
 
 FILE_PATTERNS = {
     "RepairOrder": ["RO"],
@@ -227,6 +220,19 @@ def find_matching_files(s3_files):
         logger.error(f"Unexpected error in find_matching_files: {e}")
         raise
 
+def list_files_in_s3(base_path):
+    """List files in the S3 path with the given prefix."""
+    try:
+        response = s3_client.list_objects_v2(Bucket=INTEGRATIONS_BUCKET, Prefix=base_path)
+        if 'Contents' not in response:
+            raise ValueError(f"No files found at S3 path: {INTEGRATIONS_BUCKET}/{base_path}")
+        return response.get("Contents", [])
+    except ClientError as e:
+        logger.error(f"Failed to list files in S3: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error when listing files: {e}")
+        raise
 
 def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
     """

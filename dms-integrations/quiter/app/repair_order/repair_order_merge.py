@@ -14,6 +14,7 @@ from utils import (
     identify_and_separate_records,
     read_csv_from_s3,
     find_matching_files,
+    list_files_in_s3,
     save_error_file,
     extract_date_from_key,
     notify_client_engineering,
@@ -27,26 +28,11 @@ logger.setLevel(os.getenv("LOGLEVEL", "INFO").upper())
 
 # AWS clients
 s3_client = boto3.client("s3")
-sns_client = boto3.client("sns")
 
 # Environment variables
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 TOPIC_ARN = os.getenv("CLIENT_ENGINEERING_SNS_TOPIC_ARN")
 SNS_CLIENT = boto3.client("sns")
-
-SQS_QUEUE_URLS = [
-    environ.get("MERGE_REPAIR_ORDER_QUEUE"),
-    environ.get("MERGE_APPOINTMENT_QUEUE"),
-    environ.get("MERGE_VEHICLE_SALE_QUEUE"),
-]
-
-FILE_PATTERNS = {
-    "RepairOrder": ["RO"],
-    "Consumer": ["CONS"],
-    "Vehicle": ["VEH"],
-    "Appointment": ["APPT"],
-    "VehicleSales": ["VS", "SalesTxn", "SaleTxn"],
-}
 
 
 def lambda_handler(event, context):
@@ -73,18 +59,7 @@ def lambda_handler(event, context):
             year, month, day = extract_date_from_key(s3_key)
             base_path = f"quiter/landing_zone/{dealer_id}/{year}/{month}/{day}/"
 
-            response = s3_client.list_objects_v2(
-                Bucket=INTEGRATIONS_BUCKET, Prefix=base_path
-            )
-            files = response.get("Contents", [])
-
-            if not files:
-                logger.error(
-                    f"No files found in S3 bucket for dealer {dealer_id} with prefix {base_path}"
-                )
-                raise ValueError(
-                    f"No files found in the S3 bucket with prefix {base_path}"
-                )
+            files = list_files_in_s3(base_path)
 
             logger.debug(f"Files found in S3: {files}")
             found_files = find_matching_files(files)
@@ -118,6 +93,7 @@ def lambda_handler(event, context):
                     "Consumer",
                     SNS_CLIENT,
                     TOPIC_ARN,
+                    dtype={"Dealer ID": "string"},
                 )
 
                 vehicles_df = read_csv_from_s3(
@@ -126,6 +102,7 @@ def lambda_handler(event, context):
                     "Vehicle",
                     SNS_CLIENT,
                     TOPIC_ARN,
+                    dtype={"Dealer ID": "string"},
                 )
 
                 repairorder_df = read_csv_from_s3(
@@ -134,6 +111,7 @@ def lambda_handler(event, context):
                     "RepairOrder",
                     SNS_CLIENT,
                     TOPIC_ARN,
+                    dtype={"Dealer ID": "string"},
                 )
 
             except KeyError as e:

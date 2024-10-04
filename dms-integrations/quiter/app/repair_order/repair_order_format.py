@@ -200,7 +200,7 @@ def lambda_handler(event, context):
                 csv_data = response["Body"].read().decode("utf-8")
                 logger.info(f"CSV data successfully read from S3 object {decoded_key}")
 
-                csv_df = pd.read_csv(io.StringIO(csv_data))
+                csv_df = pd.read_csv(io.StringIO(csv_data),dtype={'Dealer ID': 'string'})
 
                 json_data = csv_df.to_json(orient="records")
 
