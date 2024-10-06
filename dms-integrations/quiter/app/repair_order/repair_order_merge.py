@@ -19,7 +19,7 @@ from utils import (
     extract_date_from_key,
     notify_client_engineering,
     merge_files,
-    remove_duplicates,
+    clean_data,
 )
 
 # Set up logging
@@ -118,10 +118,10 @@ def lambda_handler(event, context):
                 logger.error(f"KeyError while fetching or reading files from S3: {e}")
                 raise
 
-            customers_df_clean = remove_duplicates(
+            customers_df_clean = clean_data(
                 customers_df, "Dealer Customer No", []
             )
-            vehicles_df_clean = remove_duplicates(
+            vehicles_df_clean = clean_data(
                 vehicles_df, "Vin No", ["OEM Name", "Model"]
             )
 

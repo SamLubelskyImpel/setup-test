@@ -38,17 +38,17 @@ def detect_file_encoding(file_content):
     return encoding
 
 
-def remove_duplicates(df, id_column, important_columns):
+def clean_data(df, id_column, important_columns):
     """
-    Remove duplicates based on a specific ID column and prioritize rows with the most data.
+    Clean a DataFrame by keeping the record with the most complete data for each unique identifier.
+
+    - Sorts rows by the unique ID and the important columns.
+    - Drops duplicates by the unique ID, keeping the one with more complete data (fewer NaN values).
 
     Args:
-        df (pd.DataFrame): The DataFrame to clean.
-        id_column (str): The column used to identify duplicates (e.g., 'customer_id').
-        important_columns (list): List of columns that are prioritized when deciding which row to keep.
-
-    Returns:
-        pd.DataFrame: Cleaned DataFrame without duplicates.
+    - df (pd.DataFrame): The DataFrame to clean.
+    - id_column (str): The name of the column that contains the unique identifier (e.g., 'Vin No', 'Dealer Customer No').
+    - important_columns (list): Columns that are prioritized when deciding which row to keep.
     """
     try:
         if id_column not in df.columns:
@@ -220,12 +220,17 @@ def find_matching_files(s3_files):
         logger.error(f"Unexpected error in find_matching_files: {e}")
         raise
 
+
 def list_files_in_s3(base_path):
     """List files in the S3 path with the given prefix."""
     try:
-        response = s3_client.list_objects_v2(Bucket=INTEGRATIONS_BUCKET, Prefix=base_path)
-        if 'Contents' not in response:
-            raise ValueError(f"No files found at S3 path: {INTEGRATIONS_BUCKET}/{base_path}")
+        response = s3_client.list_objects_v2(
+            Bucket=INTEGRATIONS_BUCKET, Prefix=base_path
+        )
+        if "Contents" not in response:
+            raise ValueError(
+                f"No files found at S3 path: {INTEGRATIONS_BUCKET}/{base_path}"
+            )
         return response.get("Contents", [])
     except ClientError as e:
         logger.error(f"Failed to list files in S3: {e}")
@@ -233,6 +238,7 @@ def list_files_in_s3(base_path):
     except Exception as e:
         logger.error(f"Unexpected error when listing files: {e}")
         raise
+
 
 def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
     """
