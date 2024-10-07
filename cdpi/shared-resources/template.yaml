@@ -269,7 +269,41 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
-
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-processed/*"
+        - PolicyName: SQSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt ConsumerIngestionQueue.Arn
+                  - !GetAtt ConsumerIngestionBatcherQueue.Arn
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+    
   CdpiOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -280,3 +314,193 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
+
+  ConsumerIngestionBatcherLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcher"
+      Handler: consumer_ingestion_batcher.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 300
+      Environment:
+        Variables:
+          BATCH_SIZE: 10
+
+  ConsumerIngestionBatcherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerIngestionBatcher"
+      RetentionInDays: 30
+
+  ConsumerIngestionBatcherQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcher"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConsumerIngestionBatcherDeadLetterQueue.Arn
+        maxReceiveCount: 1
+
+  ConsumerIngestionBatcherDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcherDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  ConsumerIngestionBatcherEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt ConsumerIngestionBatcherQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt ConsumerIngestionBatcherLambda.Arn
+  
+  ConsumerIngestionBatcherQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ConsumerIngestionBatcherQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ConsumerIngestionBatcherQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ConsumerIngestionBatcherQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
+
+  ConsumerIngestionBatcherTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref SharedS3ToSNSTopic
+      Endpoint: !GetAtt ConsumerIngestionBatcherQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  
+  ConsumerIngestionBatcherDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcherDLQAlarm"
+      AlarmDescription: "Alarm for Consumer Ingestion Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerIngestionBatcherDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
+
+  ConsumerIngestionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ConsumerIngestion"
+      Handler: consumer_ingestion.lambda_handler
+      CodeUri: app/
+      Layers:
+        - !Ref CdpiOrmLayer
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 300
+
+  ConsumerIngestionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerIngestion"
+      RetentionInDays: 30
+  
+  ConsumerIngestionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerIngestion"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ConsumerIngestionDeadLetterQueue.Arn
+        maxReceiveCount: 2
+
+  ConsumerIngestionDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  ConsumerIngestionEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt ConsumerIngestionQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt ConsumerIngestionLambda.Arn
+
+  ConsumerIngestionQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ConsumerIngestionQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ConsumerIngestionQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ConsumerIngestionQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
+
+  ConsumerIngestionTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref SharedS3ToSNSTopic
+      Endpoint: !GetAtt ConsumerIngestionQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound-processed/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ConsumerIngestionDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ConsumerIngestionDLQAlarm"
+      AlarmDescription: "Alarm for Consumer Ingestion Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ConsumerIngestionDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
+
