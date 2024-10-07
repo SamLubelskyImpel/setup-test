@@ -3,9 +3,7 @@ import json
 import logging
 import urllib.parse
 import boto3
-# import pandas as pd
 from rds_instance import RDSInstance
-# from psycopg2.extras import execute_values
 from json import loads
 from io import BytesIO
 
@@ -55,8 +53,9 @@ def extract_inventory_data(json_data):
         if not value:
             return None
 
-        # Remove spaces from the value
-        value = value.strip().replace(' ', '')
+        # Remove spaces from the value for inv_inventory|cylinders
+        if field == 'inv_inventory|cylinders':
+            value = value.strip().replace(' ', '')
 
         if ftype == 'int':
             return int(value.strip())
