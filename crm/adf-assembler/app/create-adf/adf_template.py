@@ -66,3 +66,54 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "postal_code": "postalcode",
     "comment": "comments",
 }
+
+
+HONDA_ADF_TEMPLATE = """
+<adf>
+    <prospect status="new">
+        <id source="ActivEngage" sequence="1">18014964</id>
+        <id source="IPAddress">172.124.188.247</id>
+        <id source="UserAgent">Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like MacOS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Mobile/15E148Safari/604.1</id>
+        <id source="URL">https://www.honda.com/inventory/new-2022-honda-Accord-4dr-car-kmhll4xxaa289858/</id>
+        <id source="TPCA_Consent">NULL</id>
+        <id source="LeadSubProgram">New Chat Sales Lead</id>
+        <id source="MediaType">WEB</id>
+        <requestdate>2022-03-15T16:55:23+00:00</requestdate>
+        <vehicle status="new" interest="buy">
+            <make>Honda</make>
+            <year>2022</year>
+            <model>Accord</model>
+            <vin> JHLRW2H59KX00000</vin>
+            <stock></stock>
+            <comments></comments>
+        </vehicle>
+        <customer>
+            <contact>
+            <name part="first" type="individual">Hailees</name>
+            <name part="last" type="individual">Comet</name>
+            <email>haileescomet2@gmail.com</email>
+            <phone type="voice" time="day"><![CDATA[516-504-0006]]></phone>
+            <address>
+            <street line="1"></street>
+            <city></city>
+            <regioncode></regioncode>
+            <postalcode>77373</postalcode>
+            </address>
+            </contact>
+            <timeframe>
+            <description>2 weeks</description>
+            </timeframe>
+            <comments>Chat Transcript without any PCI data.</comments>
+        </customer>
+        <vendor>
+            <id source=" Honda Dealer Code">208625</id>
+            <vendorname>Lou Sobh Honda</vendorname>
+        </vendor>
+        <provider>
+            <name>ActivEngage - Chat</name>
+            <service>90534</service>
+            <url>https://conversations.activEngage.com/</url>
+        </provider>
+    </prospect>
+</adf>
+"""

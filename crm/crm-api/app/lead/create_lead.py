@@ -334,6 +334,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             try:
                 if dip_metadata:
                     adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    oem_recipient = dip_metadata.get("oem_recipient", "")
                     sftp_config = dip_metadata.get("adf_sftp_config", {})
                 else:
                     logger.warning(f"No metadata found for dealer: {product_dealer_id}")
@@ -342,7 +343,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
                     "partner_name": integration_partner_name,
-                    "sftp_config": sftp_config
+                    "sftp_config": sftp_config, 
+                    "oem_recipient": oem_recipient
                 }
                 sqs_client = boto3.client('sqs')
 
