@@ -14,6 +14,8 @@ Conditions:
     Fn::Equals:
     - Ref: AWS::AccountId
     - 196800776222
+  IsNonProd:
+    !Not [!Condition IsProd]
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
 
 Mappings:
@@ -119,6 +121,34 @@ Resources:
           - Effect: Allow
             Principal:
               AWS: !FindInMap [ ProductAccountsArn, 'sales-ai', !Ref 'AWS::AccountId' ]
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSharedBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
+              - Effect: "Allow"
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
+
+  SalesAITempRole:  # this is a temporary role for development only
+    Type: AWS::IAM::Role
+    Condition: IsNonProd
+    Properties:
+      RoleName: !Sub 'cdpi-sales-ai-temp-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: arn:aws:iam::078045093221:root # Sales AI prod account id
             Action:
               - sts:AssumeRole
       Policies:
