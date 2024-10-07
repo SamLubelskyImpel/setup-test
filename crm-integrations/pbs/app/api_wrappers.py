@@ -155,8 +155,8 @@ class PbsApiWrapper:
         endpoint = f"{self.base_url}/json/reply/DealGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "ContractSince": start_time,
-            "ContractUntil": end_time
+            "ContractSince": end_time,
+            "ContractUntil": start_time
         }
         try:
             response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
