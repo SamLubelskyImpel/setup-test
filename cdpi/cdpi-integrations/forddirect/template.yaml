@@ -346,3 +346,128 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
+
+
+# INBOUND
+  MatchingPIIInbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-ford-direct-MatchingPIIInbound-${Environment}
+      Handler: matching_pii_inbound.lambda_handler
+      CodeUri: ./app
+      Timeout: 300
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt MatchingPIIInboundQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-SFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-SFTP*"
+                  ]
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-PKEY*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-PKEY*"
+                  ]
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
+          
+  MatchingPIIInboundQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-MatchingPIIInboundQueue-${Environment}
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt MatchingPIIInboundDLQ.Arn
+          maxReceiveCount: 3
+
+  MatchingPIIInboundDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-ford-direct-MatchingPIIInboundDLQ-${Environment}
+
+  MatchingPIIInboundQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref MatchingPIIInboundQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: MatchingPIIInboundQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt MatchingPIIInboundQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                        IsProd,
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                      ]
+
+  MatchingPIIInboundDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-ford-direct-MatchingPIIInboundDLQAlarm-${Environment}
+      AlarmDescription: There are over 1 unprocessed messages in the MatchingPIIInboundDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt MatchingPIIInboundDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  MatchingPIIInboundTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt MatchingPIIInboundQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  MatchingPIIInboundEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt MatchingPIIInboundQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt MatchingPIIInbound.Arn
