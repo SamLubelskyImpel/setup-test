@@ -48,10 +48,11 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-  VpcConfig:
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
+        DOWNLOAD_QUEUE: !Ref DownloadQueue
+  # VpcConfig:
+  #     SecurityGroupIds:
+  #       - !Ref SecurityGroup
+  #     SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
   SecurityGroup:
@@ -120,6 +121,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-web*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-web*",
+                    ]
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -130,7 +136,88 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
+  #       - PolicyName: SQSPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "sqs:ReceiveMessage"
+  #                 - "sqs:SendMessage"
+  #               Resource:
+  #                 - !GetAtt DownloadQueue.Arn
+  #       - PolicyName: SNSPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "sns:Publish"
+  #               Resource:
+  #               - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
+  SFTPNotifyWebhook:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: webhook.lambda_handler
+      FunctionName: !Sub forddirect-${Environment}-webhook
+      Runtime: 'python3.9'
+      MemorySize: 128
+      Timeout: 30
+      Events:
+        HttpApi:
+          Type: Api
+          Properties:
+            Path: /sftp-notify
+            Method: POST
+            RestApiId: !Ref ApiGatewayRestApi
+      Role: !GetAtt LambdaRole.Arn
+
+  SFTPNotifyWebhookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/forddirect-${Environment}-webhook"
+
+  ApiGatewayRestApi:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: 'FordDirectWebhookAPI'
+      Description: 'API for triggering SFTP download via webhook'
+      StageName: !Ref Environment
+      # Domain:
+      #   DomainName: !If [ IsProd, 'fd-webhook.impel.io', !Sub 'fd-webhook.testenv.impel.io' ]
+      #   CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+      #   SecurityPolicy: TLS_1_2
+        # Route53:
+        #   HostedZoneName: !If [ IsProd, 'impel.io.', 'testenv.impel.io.' ]
+        #   IpV6: true
+      # Auth:
+      #   DefaultAuthorizer: DefaultAuth
+      #   Authorizers:
+      #     DefaultAuth:
+      #       FunctionPayloadType: REQUEST
+      #       FunctionArn: !GetAtt LambdaAuthorizer.Arn
+      #       Identity:
+      #         Headers:
+      #           - x_api_key
+      #           - partner_id
+      #         ReauthorizeEvery: 300
+
+  DownloadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub forddirect-${Environment}-DownloadQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DownloadQueueDLQ.Arn
+        maxReceiveCount: 3
+      VisibilityTimeout: 900
+
+  DownloadQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub forddirect-${Environment}-DownloadQueueDLQ
+  
   # FordDirectCDPIWebhook:
   #   Type: AWS::Serverless::Api
   #   Properties:
