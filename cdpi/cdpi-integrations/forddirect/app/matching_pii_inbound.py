@@ -17,7 +17,6 @@ logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
 # Initialize S3 client
 s3 = boto3.client('s3')
 
-# Constants for matching FordDirect fields
 FORD_DIRECT_SUCCESS_STATUS = '1'
 
 def fetch_s3_file(bucket_name: str, file_key: str) -> List[str]:
@@ -33,55 +32,18 @@ def fetch_s3_file(bucket_name: str, file_key: str) -> List[str]:
 
 def parse_pii_file(file_lines: List[str]) -> List[Dict[str, Any]]:
     """Parse the PII file into a list of dictionaries (for each consumer row)."""
-    header, *data_lines = file_lines  # Assuming the first row is the header
-    fields = header.strip().split("|^|")  # Split the header into fields
+    header, *data_lines = file_lines  
+    fields = header.strip().split("|^|")
     
     parsed_rows = []
     for line in data_lines:
         line_data = line.strip().split("|^|")
         row = dict(zip(fields, line_data))
         
-        # Filter rows based on success status
         if row.get('MATCH_RESULT') == FORD_DIRECT_SUCCESS_STATUS:
             parsed_rows.append(row)
     
     return parsed_rows
-
-# def merge_consumer_rows(pii_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-#     """Merge rows with the same EXT_CONSUMER_ID."""
-#     merged_data = {}
-#     for row in pii_rows:
-#         consumer_id = row['EXT_CONSUMER_ID']
-#         if consumer_id not in merged_data:
-#             merged_data[consumer_id] = row
-#         else:
-#             # Merge PII fields if needed (ensure no overwriting useful data)
-#             merged_data[consumer_id].update(row)
-    
-#     return merged_data
-
-# def merge_consumer_rows(pii_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-#     """Merge rows with the same EXT_CONSUMER_ID, handle multiple Ford IDs."""
-#     merged_data = {}
-    
-#     for row in pii_rows:
-#         consumer_id = row['EXT_CONSUMER_ID']
-        
-#         if consumer_id not in merged_data:
-#             merged_data[consumer_id] = row
-#         else:
-#             # Check if Ford IDs exist and handle them carefully
-#             existing_row = merged_data[consumer_id]
-#             logger.info(f"existing_row:{existing_row}")
-#             if 'FDGUID' in row and row['FDGUID'] != existing_row.get('FDGUID'):
-#                 logging.warning(f"Multiple FDGUIDs found for {consumer_id}. Using the first one.")
-                
-#             # Merge non-Ford fields if needed (ensure no overwriting useful data)
-#             for key, value in row.items():
-#                 if key not in ['FDGUID']:  # Don't overwrite Ford IDs
-#                     existing_row[key] = value
-    
-#     return merged_data
 
 def merge_consumer_rows(pii_rows):
     """Merge multiple PII rows into a single consumer dictionary per EXT_CONSUMER_ID."""
@@ -89,7 +51,6 @@ def merge_consumer_rows(pii_rows):
     for row in pii_rows:
         ext_consumer_id = row['EXT_CONSUMER_ID']
         if ext_consumer_id not in merged_data:
-            # Initialize the consumer record
             merged_data[ext_consumer_id] = {
                 'EXT_CONSUMER_ID': ext_consumer_id,
                 'DEALER_IDENTIFIER': row['DEALER_IDENTIFIER'],
@@ -111,7 +72,6 @@ def merge_consumer_rows(pii_rows):
                     f"Using {merged_data[ext_consumer_id]['FDGUID']}, ignoring {row['FDGUID']}"
                 )
         
-        # Update the corresponding PII field based on PII_Type
         pii_type = row['PII_Type']
         pii_value = row['PII']
         if pii_type == 'email':
@@ -126,79 +86,74 @@ def merge_consumer_rows(pii_rows):
     return merged_data
 
 
-
-def upsert_consumer_profile(merged_data: Dict[str, Any], session: Session):
-    """Upsert the consumer profiles into the database."""
+def upsert_consumer_profile(merged_data: Dict[str, Any], session: Session) -> Dict[str, List[int]]:
+    """Upsert the consumer profiles into the database and return IDs of updated or created records."""
+    updated_ids = []
+    created_ids = []
+    
     for consumer_id, consumer_data in merged_data.items():
-        logger.info(f"consumer_id:{consumer_id}")
-        # Check if the consumer profile already exists
-        existing_profile = session.query(ConsumerProfile).filter_by(consumer_id=consumer_id).first()
+        # use the pacode as the integration_partner_id
+        integration_partner_id = consumer_data.get('pacode')
+        
+        # Query for the existing profile using consumer_id and integration_partner_id
+        existing_profile = session.query(ConsumerProfile).filter_by(
+            consumer_id=consumer_id, 
+            integration_partner_id=integration_partner_id
+        ).first()
         
         if existing_profile:
             # Update existing profile
-            logger.info(f"Updating ConsumerProfile for consumer_id {consumer_id}")
-            # Update each field as necessary, only if new values are provided
             existing_profile.cdp_master_consumer_id = consumer_data.get('FDGUID', existing_profile.cdp_master_consumer_id)
             existing_profile.cdp_dealer_consumer_id = consumer_data.get('FDDGUID', existing_profile.cdp_dealer_consumer_id)
             existing_profile.db_update_date = datetime.utcnow()
-            # Commit the changes
-            return 'hi'
             session.commit()
+            
+            updated_ids.append(existing_profile.id)
         else:
             # Insert new profile
-            logger.info(f"Creating new ConsumerProfile for consumer_id {consumer_id}")
             new_profile = ConsumerProfile(
                 consumer_id=consumer_id,
+                integration_partner_id=integration_partner_id,
                 cdp_master_consumer_id=consumer_data.get('FDGUID'),
                 cdp_dealer_consumer_id=consumer_data.get('FDDGUID'),
                 db_creation_date=datetime.utcnow(),
             )
-            return 'hi dev'
             session.add(new_profile)
             session.commit()
-        
-        # If there are multiple PII types, make sure to handle them
-        handle_pii_types(consumer_data, existing_profile or new_profile, session)
+            
+            created_ids.append(new_profile.id)
+    
+    return {
+        'updated': updated_ids,
+        'created': created_ids
+    }
 
-
-
-def handle_pii_types(consumer_data: Dict[str, Any], profile: ConsumerProfile, session: Session):
-    """Handle multiple PII types (email, lName, etc.) for a given consumer."""
-    pii_type = consumer_data.get('PII_Type')
-    pii_value = consumer_data.get('PII')
-
-    if pii_type == 'email' and pii_value:
-        profile.email = pii_value  # Assuming you have an email field in the profile
-    elif pii_type == 'lName' and pii_value:
-        profile.last_name = pii_value  # Assuming you have a last_name field in the profile
-    elif pii_type == 'phone' and pii_value:
-        profile.phone = pii_value  # Assuming you have a phone field in the profile
-    logger.info(pii_type)
-    return 'hi'
-    session.commit()  # Commit any changes made to the PII fields
     
 def record_handler(record: Dict[str, Any]):
     """Process an individual record from the SQS event."""
     logger.info(f'Record: {record}')
     
     try:
-        # Extract bucket name and file key from SQS event
         event = loads(record['body'])
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         file_key = event['Records'][0]['s3']['object']['key']
         
         # Fetch and parse S3 file
         file_lines = fetch_s3_file(bucket_name, file_key)
-        logger.info(f"file_lines:{file_lines}")
         pii_rows = parse_pii_file(file_lines)
         
         # Merge rows by consumer ID
         merged_data = merge_consumer_rows(pii_rows)
         logger.info(f"merged_data:{merged_data}")
-        return 'hi dev'
+
         # Upsert into the database
         with DBSession() as session:
-            upsert_consumer_profile(merged_data, session)
+            result = upsert_consumer_profile(merged_data, session)
+            # Log the IDs of updated and created profiles
+            if result['updated']:
+                logger.info(f"Updated profiles with IDs: {result['updated']}")
+            if result['created']:
+                logger.info(f"Created profiles with IDs: {result['created']}")
         
         logger.info(f'Successfully processed file: {file_key}')
     
