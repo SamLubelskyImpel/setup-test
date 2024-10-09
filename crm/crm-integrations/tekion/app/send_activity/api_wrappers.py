@@ -131,56 +131,66 @@ class TekionApiWrapper:
     def get_lead_information(self) -> dict:
         url = f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}"
         lead_data = self.__call_api(url, method="GET")['data'][0]
-        if not lead_data.get('externalId'):
-            logger.warning("Activity type Note can't be created if lead was invalid")
+        logger.info(f"Lead data: {lead_data}")
+        if not lead_data.get('id'):
+            logger.warning("Activity can't be created if lead was invalid")
             raise InvalidLeadException(f"This is lead: \n{dumps(lead_data, indent=2)}")
         return lead_data
 
     def __create_outbound_call(self):
         lead_data = self.get_lead_information()
         _, appt_time = self.convert_utc_to_timezone(self.__activity.activity_requested_ts)
-        lead_data['notes'] = [{
+        if 'notes' not in lead_data:
+            lead_data['notes'] = []
+        lead_data['notes'].append({
             "description": f"Sales AI sent customer message at {appt_time}",
             "name": "Sales AI",
             "title": "First Contact"
-        }]
+        })
+        logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Outbound call was successfully created !\n{json_response}")
         return json_response['id']
 
     def __create_phone_call_task(self):
         lead_data = self.get_lead_information()
         date, time = self.convert_utc_to_timezone(self.__activity.activity_requested_ts)
-        lead_data['notes'] = [{
+        if 'notes' not in lead_data:
+            lead_data['notes'] = []
+        lead_data['notes'].append({
             "description": f"Customer wants you to call them\nDate: {date}\nTime: {time}",
             "name": "Sales AI",
             "title": "Phone call request"
-        }]
+        })
+        logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Phone call was successfully created !\n{json_response}")
         return json_response['id']
 
     def __create_appointment(self):
         lead_data = self.get_lead_information()
         appt_date, appt_time = self.convert_utc_to_timezone(self.__activity.activity_due_ts)
-        lead_data['notes'] = [{
+        if 'notes' not in lead_data:
+            lead_data['notes'] = []
+        lead_data['notes'].append({
             "description": f"{self.__activity.notes}\nDate: {appt_date}\nTime: {appt_time}",
             "name": "Sales AI",
             "title": "Appointment"
-        }]
+        })
+        logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Appointment was successfully created !\n{json_response}")
         return json_response['id']
 
@@ -189,16 +199,19 @@ class TekionApiWrapper:
         if not self.__activity.notes:
             logger.warning("Activity type Note can't be created if note is empty")
             raise InvalidNoteException("Note can't be empty or invalid")
-        lead_data['notes'] = [{
+        if 'notes' not in lead_data:
+            lead_data['notes'] = []
+        lead_data['notes'].append({
             "description": self.__activity.notes,
             "name": "Sales AI",
             "title": "Note"
-        }]
+        })
+        logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
             url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
             payload=lead_data,
             method="PUT"
-        )['data']['notes'][0]
+        )['data']['notes'][-1]
         logger.info(f"Note was successfully created !\n{json_response}")
         return json_response['id']
 

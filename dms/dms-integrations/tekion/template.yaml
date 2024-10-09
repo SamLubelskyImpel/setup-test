@@ -176,6 +176,7 @@ Resources:
       CodeUri: app/
       Handler: repair_orders.lambda_handler
       Timeout: 900
+      MemorySize: 1024
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
@@ -230,6 +231,7 @@ Resources:
       CodeUri: app/
       Handler: historical_data.lambda_handler
       Timeout: 900
+      MemorySize: 1024
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
@@ -278,6 +280,7 @@ Resources:
       CodeUri: app/
       Handler: vehicle_sale.lambda_handler
       Timeout: 900
+      MemorySize: 1024
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"

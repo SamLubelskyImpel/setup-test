@@ -3,9 +3,7 @@ import json
 import logging
 import urllib.parse
 import boto3
-# import pandas as pd
 from rds_instance import RDSInstance
-# from psycopg2.extras import execute_values
 from json import loads
 from io import BytesIO
 
@@ -14,6 +12,7 @@ ENVIRONMENT = os.environ['ENVIRONMENT']
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
+
 
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
@@ -53,6 +52,10 @@ def extract_inventory_data(json_data):
         value = json_data.get(field)
         if not value:
             return None
+
+        # Remove spaces from the value for inv_inventory|cylinders
+        if field == 'inv_inventory|cylinders':
+            value = value.strip().replace(' ', '')
 
         if ftype == 'int':
             return int(value.strip())

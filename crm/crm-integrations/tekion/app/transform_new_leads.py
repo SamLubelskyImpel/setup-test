@@ -24,6 +24,7 @@ CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
+PARTNER_KEY = environ.get("PARTNER_KEY")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -83,38 +84,61 @@ def format_ts(input_ts: str) -> str:
 
 
 def parse_email(emails):
-    """Parse the emails."""
+    """Parse the email and return a dictionary with email details."""
+    default_email = {
+        "emailId": "",
+        "optedForCommunication": False
+    }
+
     if not emails:
-        return None
+        return default_email
 
     preferred_email = emails[0]
-
     for email in emails:
-        if email.get('isPrimary') is True:
+        if email.get('emailType') == "PRIMARY":
             preferred_email = email
             break
 
-    return preferred_email
+    return {
+        "emailId": preferred_email.get("emailId", ""),
+        "optedForCommunication": preferred_email.get("optedForCommunication", False)
+    }
 
 
 def parse_phone_number(phones):
-    """Parse the phone number."""
+    """Parse the phone number and return a dictionary with phone details."""
+    default_phone = {
+        "number": "",
+        "optedForCommunication": False
+    }
+
     if not phones:
-        return None
+        return default_phone
 
     preferred_phone = phones[0]
     for phone in phones:
-        if phone.get('type') == 'CELL':
+        if phone.get('phoneType') == "PRIMARY":
             preferred_phone = phone
             break
 
-    return preferred_phone
+    return {
+        "number": preferred_phone.get("number", ""),
+        "optedForCommunication": preferred_phone.get("optedForCommunication", False)
+    }
 
 
 def parse_address(addresses):
-    """Parse the address."""
+    """Parse the address and return a dictionary with address components."""
+    default_address = {
+        "line1": "",
+        "line2": "",
+        "city": "",
+        "country": "",
+        "zip": ""
+    }
+
     if not addresses:
-        return None
+        return default_address
 
     preferred_address = addresses[0]
     for address in addresses:
@@ -122,7 +146,13 @@ def parse_address(addresses):
             preferred_address = address
             break
 
-    return preferred_address
+    return {
+        "line1": preferred_address.get("line1", ""),
+        "line2": preferred_address.get("line2", ""),
+        "city": preferred_address.get("city", ""),
+        "country": preferred_address.get("country", ""),
+        "zip": preferred_address.get("zip", "")
+    }
 
 
 def extract_salesperson(salespersons):
@@ -153,11 +183,13 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_consumer = {}
             db_salesperson = {}
 
-            lead_origin = item.get('source', {}).get('sourceType', '')
-            if lead_origin not in ['Internet']:
+            lead_origin = item.get('source', {}).get('sourceType', '').upper()
+            if lead_origin not in ['INTERNET', 'OEM']:
                 logger.info(f"Skipping lead with origin: {lead_origin}")
                 continue
 
+            # Extract crm_dealer_id, placed in lead data by invoke.
+            crm_dealer_id = item.get('impel_crm_dealer_id')
             crm_lead_id = item.get('id', '')
 
             db_lead["crm_lead_id"] = crm_lead_id
@@ -170,7 +202,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["lead_source_detail"] = item.get('source', {}).get('subSource', '')
 
             vehicles = item.get('vehicles', [])
-            trade_ins = item.get('tradeIns', [{}])[0]
+            trade_ins = item.get('tradeIns', [{}])[0] if item.get('tradeIns') else {}
+
             for vehicle in vehicles:
                 db_vehicle = {
                     "vin": vehicle.get('vin', ''),
@@ -198,18 +231,22 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["vehicles_of_interest"] = db_vehicles
 
             consumer = item.get('customers', [{}])[0]
+            address = parse_address(consumer.get('addresses', []))
+            email = parse_email(consumer.get('emails', []))
+            phone = parse_phone_number(consumer.get('phones', []))
+
             db_consumer = {
                 "first_name": consumer.get('firstName', ''),
                 "last_name": consumer.get('lastName', ''),
                 "middle_name": consumer.get('middleName', ''),
-                "email": parse_email(consumer.get('emails', [])).get("emailId"),
-                "phone": parse_phone_number(consumer.get('phones', [])).get("number"),
-                "address": parse_address(consumer.get('addresses', [])).get("line1") + " " + parse_address(consumer.get('addresses', [])).get("line2"),
-                "city": parse_address(consumer.get('addresses', [])).get("city"),
-                "country": parse_address(consumer.get('addresses', [])).get("country"),
-                "postal_code": parse_address(consumer.get('addresses', [])).get("zip"),
-                "email_optin_flag": parse_email(consumer.get('emails', [])).get("optedForCommunication"),
-                "sms_optin_flag": parse_phone_number(consumer.get('phones', [])).get("optedForCommunication"),
+                "email": email["emailId"],
+                "phone": phone["number"],
+                "address": f"{address['line1']} {address['line2']}".strip(),
+                "city": address["city"],
+                "country": address["country"],
+                "postal_code": address["zip"],
+                "email_optin_flag": email["optedForCommunication"],
+                "sms_optin_flag": phone["optedForCommunication"]
             }
 
             if not db_consumer["email"] and not db_consumer["phone"]:
@@ -222,13 +259,42 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             entry = {
                 "product_dealer_id": product_dealer_id,
                 "lead": db_lead,
-                "consumer": db_consumer
+                "consumer": db_consumer,
+                "crm_dealer_id": crm_dealer_id
             }
 
             entries.append(entry)
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        raise
+
+
+def get_lead(crm_lead_id: str, crm_dealer_id: str, crm_api_key: str) -> Any:
+    """Check if lead exists through CRM API."""
+    queryStringParameters = f"crm_dealer_id={crm_dealer_id}&integration_partner_name={PARTNER_KEY}"
+    url = f'https://{CRM_API_DOMAIN}/leads/crm/{crm_lead_id}?{queryStringParameters}'
+
+    headers = {
+        'partner_id': UPLOAD_SECRET_KEY,
+        'x_api_key': crm_api_key
+    }
+
+    response = requests.get(url, headers=headers)
+    logger.info(f"CRM API Get Lead responded with: {response.status_code}")
+
+    if response.status_code == 200:
+        response_data = response.json()
+        lead_id = response_data.get('lead_id')
+        return lead_id
+    elif response.status_code == 404:
+        logger.info(f"Lead with crm_lead_id {crm_lead_id} not found.")
+        return None
+    elif response.status_code == 400:
+        logger.info(f"Multiple leads found with crm_lead_id {crm_lead_id}.")
+        return crm_lead_id
+    else:
+        logger.error(f"Error getting lead with crm_lead_id {crm_lead_id}: {response.text}")
         raise
 
 
@@ -239,17 +305,27 @@ def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
         product_dealer_id = entry["product_dealer_id"]
         consumer = entry["consumer"]
         lead = entry["lead"]
+        crm_dealer_id = entry["crm_dealer_id"]
+        crm_lead_id = lead.get("crm_lead_id", "")
+
+        # Check for existing lead
+        if crm_lead_id:
+            existing_lead = get_lead(lead["crm_lead_id"], crm_dealer_id, crm_api_key)
+            if existing_lead:
+                logger.warning(f"[THREAD {index}] Lead already exists: {crm_lead_id} for dealer {product_dealer_id}. Skipping entry.")
+                return True
+
         unified_crm_consumer_id = upload_to_db(consumer, f"consumers?dealer_id={product_dealer_id}", crm_api_key, index, "consumer_id")
         lead["consumer_id"] = unified_crm_consumer_id
         unified_crm_lead_id = upload_to_db(lead, "leads", crm_api_key, index, "lead_id")
         logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
+
     except Exception as e:
-        if '409' in str(e):
-            # Log the 409 error and continue with the next entry
-            logger.warning(f"[THREAD {index}] {e}")
-        else:
-            logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
-            return False
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
+            product_dealer_id, crm_dealer_id, crm_lead_id, e)
+        )
+        logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
+        return False
 
     return True
 
