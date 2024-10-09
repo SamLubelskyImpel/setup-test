@@ -1,79 +1,215 @@
 import logging
 import os
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
-from typing import Any
-import  boto3
+from typing import Any, List, Dict
+import boto3
 from json import loads
-import paramiko
-from io import StringIO
+from sqlalchemy.orm import Session
+from cdpi_orm.session_config import DBSession
+from cdpi_orm.models.consumer_profile import ConsumerProfile
+from datetime import datetime
 import urllib.parse
 
-
-IS_PROD = int(os.environ.get('IS_PROD'))
-
+# Set up logging
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
 
+# Initialize S3 client
 s3 = boto3.client('s3')
-secrets = boto3.client('secretsmanager')
+
+# Constants for matching FordDirect fields
+FORD_DIRECT_SUCCESS_STATUS = '1'
+
+def fetch_s3_file(bucket_name: str, file_key: str) -> List[str]:
+    """Download the S3 file and return its contents as lines."""
+    decoded_key = urllib.parse.unquote(file_key)
+    download_path = f'/tmp/{os.path.basename(decoded_key)}'
+    s3.download_file(bucket_name, decoded_key, download_path)
+    logger.info(f'Downloaded file from S3: {download_path}')
+    
+    # Read file contents as list of rows
+    with open(download_path, 'r') as f:
+        return f.readlines()
+
+def parse_pii_file(file_lines: List[str]) -> List[Dict[str, Any]]:
+    """Parse the PII file into a list of dictionaries (for each consumer row)."""
+    header, *data_lines = file_lines  # Assuming the first row is the header
+    fields = header.strip().split("|^|")  # Split the header into fields
+    
+    parsed_rows = []
+    for line in data_lines:
+        line_data = line.strip().split("|^|")
+        row = dict(zip(fields, line_data))
+        
+        # Filter rows based on success status
+        if row.get('MATCH_RESULT') == FORD_DIRECT_SUCCESS_STATUS:
+            parsed_rows.append(row)
+    
+    return parsed_rows
+
+# def merge_consumer_rows(pii_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+#     """Merge rows with the same EXT_CONSUMER_ID."""
+#     merged_data = {}
+#     for row in pii_rows:
+#         consumer_id = row['EXT_CONSUMER_ID']
+#         if consumer_id not in merged_data:
+#             merged_data[consumer_id] = row
+#         else:
+#             # Merge PII fields if needed (ensure no overwriting useful data)
+#             merged_data[consumer_id].update(row)
+    
+#     return merged_data
+
+# def merge_consumer_rows(pii_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+#     """Merge rows with the same EXT_CONSUMER_ID, handle multiple Ford IDs."""
+#     merged_data = {}
+    
+#     for row in pii_rows:
+#         consumer_id = row['EXT_CONSUMER_ID']
+        
+#         if consumer_id not in merged_data:
+#             merged_data[consumer_id] = row
+#         else:
+#             # Check if Ford IDs exist and handle them carefully
+#             existing_row = merged_data[consumer_id]
+#             logger.info(f"existing_row:{existing_row}")
+#             if 'FDGUID' in row and row['FDGUID'] != existing_row.get('FDGUID'):
+#                 logging.warning(f"Multiple FDGUIDs found for {consumer_id}. Using the first one.")
+                
+#             # Merge non-Ford fields if needed (ensure no overwriting useful data)
+#             for key, value in row.items():
+#                 if key not in ['FDGUID']:  # Don't overwrite Ford IDs
+#                     existing_row[key] = value
+    
+#     return merged_data
+
+def merge_consumer_rows(pii_rows):
+    """Merge multiple PII rows into a single consumer dictionary per EXT_CONSUMER_ID."""
+    merged_data = {}
+    for row in pii_rows:
+        ext_consumer_id = row['EXT_CONSUMER_ID']
+        if ext_consumer_id not in merged_data:
+            # Initialize the consumer record
+            merged_data[ext_consumer_id] = {
+                'EXT_CONSUMER_ID': ext_consumer_id,
+                'DEALER_IDENTIFIER': row['DEALER_IDENTIFIER'],
+                'FDGUID': row['FDGUID'],
+                'FDDGUID': row['FDDGUID'],
+                'STATUS': row['STATUS'],
+                'pacode': row['pacode'],
+                'MATCH_RESULT': row['MATCH_RESULT'],
+                'fName': None,
+                'lName': None,
+                'email': None,
+                'phone': None
+            }
+        else:
+            # Check for FDGUID consistency and log if there's a mismatch
+            if row['FDGUID'] != merged_data[ext_consumer_id]['FDGUID']:
+                logger.warning(
+                    f"Multiple FDGUIDs detected for {ext_consumer_id}. "
+                    f"Using {merged_data[ext_consumer_id]['FDGUID']}, ignoring {row['FDGUID']}"
+                )
+        
+        # Update the corresponding PII field based on PII_Type
+        pii_type = row['PII_Type']
+        pii_value = row['PII']
+        if pii_type == 'email':
+            merged_data[ext_consumer_id]['email'] = pii_value
+        elif pii_type == 'lName':
+            merged_data[ext_consumer_id]['lName'] = pii_value
+        elif pii_type == 'fName':
+            merged_data[ext_consumer_id]['fName'] = pii_value
+        elif pii_type == 'phone':
+            merged_data[ext_consumer_id]['phone'] = pii_value
+    
+    return merged_data
 
 
-def get_ssh_config():
-    secret_name = f'{"prod" if IS_PROD else "test"}/CDPI/FD-SFTP'
-    response = loads(secrets.get_secret_value(SecretId=secret_name)['SecretString'])
-    return response['hostname'], response['username']
+
+def upsert_consumer_profile(merged_data: Dict[str, Any], session: Session):
+    """Upsert the consumer profiles into the database."""
+    for consumer_id, consumer_data in merged_data.items():
+        logger.info(f"consumer_id:{consumer_id}")
+        # Check if the consumer profile already exists
+        existing_profile = session.query(ConsumerProfile).filter_by(consumer_id=consumer_id).first()
+        
+        if existing_profile:
+            # Update existing profile
+            logger.info(f"Updating ConsumerProfile for consumer_id {consumer_id}")
+            # Update each field as necessary, only if new values are provided
+            existing_profile.cdp_master_consumer_id = consumer_data.get('FDGUID', existing_profile.cdp_master_consumer_id)
+            existing_profile.cdp_dealer_consumer_id = consumer_data.get('FDDGUID', existing_profile.cdp_dealer_consumer_id)
+            existing_profile.db_update_date = datetime.utcnow()
+            # Commit the changes
+            return 'hi'
+            session.commit()
+        else:
+            # Insert new profile
+            logger.info(f"Creating new ConsumerProfile for consumer_id {consumer_id}")
+            new_profile = ConsumerProfile(
+                consumer_id=consumer_id,
+                cdp_master_consumer_id=consumer_data.get('FDGUID'),
+                cdp_dealer_consumer_id=consumer_data.get('FDDGUID'),
+                db_creation_date=datetime.utcnow(),
+            )
+            return 'hi dev'
+            session.add(new_profile)
+            session.commit()
+        
+        # If there are multiple PII types, make sure to handle them
+        handle_pii_types(consumer_data, existing_profile or new_profile, session)
 
 
-def get_ssh_pkey():
-    secret_name = f'{"prod" if IS_PROD else "test"}/CDPI/FD-PKEY'
-    return secrets.get_secret_value(SecretId=secret_name)['SecretString']
 
+def handle_pii_types(consumer_data: Dict[str, Any], profile: ConsumerProfile, session: Session):
+    """Handle multiple PII types (email, lName, etc.) for a given consumer."""
+    pii_type = consumer_data.get('PII_Type')
+    pii_value = consumer_data.get('PII')
 
-def record_handler(record):
+    if pii_type == 'email' and pii_value:
+        profile.email = pii_value  # Assuming you have an email field in the profile
+    elif pii_type == 'lName' and pii_value:
+        profile.last_name = pii_value  # Assuming you have a last_name field in the profile
+    elif pii_type == 'phone' and pii_value:
+        profile.phone = pii_value  # Assuming you have a phone field in the profile
+    logger.info(pii_type)
+    return 'hi'
+    session.commit()  # Commit any changes made to the PII fields
+    
+def record_handler(record: Dict[str, Any]):
+    """Process an individual record from the SQS event."""
     logger.info(f'Record: {record}')
-
+    
     try:
-        event = loads(record.body)
+        # Extract bucket name and file key from SQS event
+        event = loads(record['body'])
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         file_key = event['Records'][0]['s3']['object']['key']
-        decoded_key = urllib.parse.unquote(file_key)
-        logger.info('setup resources')
-        # # Download the S3 file to /tmp (Lambda's temp storage)
-        # download_path = f'/tmp/{os.path.basename(decoded_key)}'
-        # s3.download_file(bucket_name, decoded_key, download_path)
-
-        # sftp_host, sftp_username = get_ssh_config()
-        # private_key_content = get_ssh_pkey()
-
-        # # Load private key using Paramiko
-        # private_key = paramiko.RSAKey.from_private_key(StringIO(private_key_content))
-
-        # # Establish SFTP connection
-        # transport = paramiko.Transport((sftp_host, 22))
-        # transport.connect(username=sftp_username, pkey=private_key)
-        # sftp = paramiko.SFTPClient.from_transport(transport)
-
-        # # Define the SFTP target directory and file path
-        # sftp_target_directory = 'impel/input/pii_match' if IS_PROD else 'impel/input/pii_match_test'
-        # sftp_target_path = os.path.join(sftp_target_directory, os.path.basename(decoded_key))
-
-        # # Upload the file to SFTP
-        # sftp.put(download_path, sftp_target_path)
-
-        # logger.info(f"File uploaded to FD: {sftp_target_path}")
-
-        # # Close SFTP connection
-        # sftp.close()
-        # transport.close()
-    except:
-        logger.exception(f'Failed to upload file to FD')
+        
+        # Fetch and parse S3 file
+        file_lines = fetch_s3_file(bucket_name, file_key)
+        logger.info(f"file_lines:{file_lines}")
+        pii_rows = parse_pii_file(file_lines)
+        
+        # Merge rows by consumer ID
+        merged_data = merge_consumer_rows(pii_rows)
+        logger.info(f"merged_data:{merged_data}")
+        return 'hi dev'
+        # Upsert into the database
+        with DBSession() as session:
+            upsert_consumer_profile(merged_data, session)
+        
+        logger.info(f'Successfully processed file: {file_key}')
+    
+    except Exception as e:
+        logger.exception(f'Error processing record: {str(e)}')
         raise
 
-
 def lambda_handler(event: Any, context: Any):
-    """Lambda function entry point for processing SQS messages."""
+    """Main Lambda handler function for processing SQS events."""
     logger.info(f"Event: {event}")
-
+    
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
@@ -83,6 +219,7 @@ def lambda_handler(event: Any, context: Any):
             context=context
         )
         return result
-    except:
-        logger.exception(f"Error processing records")
+    
+    except Exception as e:
+        logger.exception(f"Error processing event: {str(e)}")
         raise

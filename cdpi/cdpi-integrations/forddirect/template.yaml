@@ -462,7 +462,7 @@ Resources:
       Endpoint: !GetAtt MatchingPIIInboundQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"fd-raw/pii_match/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   MatchingPIIInboundEventMapping:
     Type: AWS::Lambda::EventSourceMapping
