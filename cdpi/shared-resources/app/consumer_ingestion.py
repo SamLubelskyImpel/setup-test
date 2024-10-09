@@ -48,7 +48,8 @@ FIELD_MAPPINGS = {
     "country": "country",
     "zip": "zip",
     "zipextra": "zipextra",
-    "pobox": "pobox"
+    "pobox": "pobox",
+    "record_date": "record_date"
 }
 
 
