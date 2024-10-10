@@ -3,6 +3,7 @@ from json import loads
 from os import environ
 import boto3
 import psycopg2
+import psycopg2.extras
 from datetime import datetime, timezone
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -309,3 +310,64 @@ class RDSInstance:
                     # uncomment for debugging
                     # option_description, is_priority = result if result else ("N/A", "N/A")
                     # logger.warning(f"Link between inventory ID {inventory_id} and option ID {option_id} already exists, skipping. Option description: '{option_description}', is_priority: {is_priority}")
+
+    def bulk_insert_options(self, option_data_list):
+        """Insert multiple option records in a single transaction."""
+        try:
+            # Check for existing options and filter out duplicates
+            existing_option_ids = []
+            new_option_data_list = []
+            for option_data in option_data_list:
+                existing_option_id = self.check_existing_record(
+                    table="inv_option",
+                    check_columns=["option_description", "is_priority"],
+                    data=option_data
+                )
+                if existing_option_id:
+                    existing_option_ids.append(existing_option_id)
+                else:
+                    new_option_data_list.append(option_data)
+
+            # Perform bulk insert for new options
+            if new_option_data_list:
+                new_option_data_list_values = [
+                    (option_data['option_description'], option_data['is_priority'])
+                    for option_data in new_option_data_list
+                ]
+
+                with self.rds_connection.cursor() as cursor:
+                    insert_query = f"""
+                    INSERT INTO {self.schema}.inv_option (option_description, is_priority)
+                    VALUES %s
+                    RETURNING id
+                    """
+                    psycopg2.extras.execute_values(
+                        cursor, insert_query, new_option_data_list_values, template="(%s, %s)", page_size=100
+                    )
+                    new_option_ids = [row[0] for row in cursor.fetchall()]
+                    self.rds_connection.commit()
+            else:
+                new_option_ids = []
+
+            return existing_option_ids + new_option_ids
+        except Exception as e:
+            self.rds_connection.rollback()
+            raise e
+
+    def bulk_link_option_to_inventory(self, inventory_id, option_ids):
+        """Link options to an inventory item via inv_option_inventory, avoiding duplicates."""
+        try:
+            with self.rds_connection.cursor() as cursor:
+                insert_query = f"""
+                INSERT INTO {self.schema}.inv_option_inventory (inv_inventory_id, inv_option_id)
+                VALUES %s
+                ON CONFLICT DO NOTHING
+                """
+                values = [(inventory_id, option_id) for option_id in option_ids]
+                psycopg2.extras.execute_values(
+                    cursor, insert_query, values, template=None, page_size=100
+                )
+                self.rds_connection.commit()
+        except Exception as e:
+            self.rds_connection.rollback()
+            raise e
