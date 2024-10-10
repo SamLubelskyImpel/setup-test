@@ -136,7 +136,7 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
 
         for json_data in json_data_list:
             count += 1
-            logger.info(f"Processing record {count} of {total_records}")
+            # logger.info(f"Processing record {count} of {total_records}")
 
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
@@ -149,18 +149,6 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             inventory_data['dealer_integration_partner_id'] = dealer_integration_partner_id
             inventory_id = rds_instance.insert_inventory_item(inventory_data)
             processed_inventory_ids.append(inventory_id)
-
-            # Insert options data
-            # if json_data.get('inv_options|inv_options'):
-            #     option_ids = []
-            #     for option_json in json_data['inv_options|inv_options']:
-            #         option_data = extract_option_data(option_json)
-            #         option_id = rds_instance.insert_option(option_data)
-            #         option_ids.append(option_id)
-            #     rds_instance.link_option_to_inventory(inventory_id, option_ids)
-            # else:
-            #     identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
-            #     logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
 
             # Insert options data
             if json_data.get('inv_options|inv_options'):
@@ -177,6 +165,8 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             else:
                 identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
                 logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
+
+        logger.info("Data processing completed. Total records processed: %d",total_records)
 
         #  Use dealer_integration_partner_id to update the value of on_lot for vehicles
         dealer_id = dealer_integration_partner_id
