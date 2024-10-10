@@ -53,12 +53,21 @@ FIELD_MAPPINGS = {
 }
 
 
+class EmptyFileError(Exception):
+    pass
+
+
 def parse(csv_object):
     """Parse CSV object and extract entries"""
     csv_reader = csv.DictReader(StringIO(csv_object))
     entries = []
     product_dealer_id = None
     sfdc_account_id = None
+
+    # Check if the CSV has a row with values
+    if not any(csv_reader):
+        logger.warning('No rows found in the CSV')
+        raise EmptyFileError
 
     for row in csv_reader:
         if not product_dealer_id:
@@ -168,6 +177,9 @@ def record_handler(record: SQSRecord):
 
         entries, product_dealer_id, sfdc_account_id = parse(csv_object)
         write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id)
+
+    except EmptyFileError:
+        return
     except Exception as e:
         logger.error(f'Error: {e}')
         raise
