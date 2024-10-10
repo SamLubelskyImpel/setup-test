@@ -93,7 +93,6 @@ def lambda_handler(event, context):
                     "Consumer",
                     SNS_CLIENT,
                     TOPIC_ARN,
-                    dtype={"Dealer ID": "string"},
                 )
 
                 vehicles_df = read_csv_from_s3(
@@ -102,7 +101,6 @@ def lambda_handler(event, context):
                     "Vehicle",
                     SNS_CLIENT,
                     TOPIC_ARN,
-                    dtype={"Dealer ID": "string"},
                 )
 
                 repairorder_df = read_csv_from_s3(
