@@ -139,7 +139,7 @@ Resources:
           ResponseTemplates:
             application/json: '{"message": "$context.authorizer.key"}'
           StatusCode: '403'
-        CONFLICT:
+        BAD_REQUEST_BODY:
           ResponseTemplates:
             application/json: '{"message": "Dealer with impel_dealer_id already exists."}'
           StatusCode: '409'

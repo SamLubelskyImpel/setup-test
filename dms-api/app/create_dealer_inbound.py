@@ -84,8 +84,11 @@ def create_dealer_handler(event, context):
     zip_code = body.get('zip_code')
     full_name = body.get('full_name')
 
+
     with DBSession() as session:
         try:
+            logger.info(impel_dealer_id)
+            logger.info(location_name)
             dealer = create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_code, full_name)
             dealer_id = dealer.id
         except IntegrityError:
