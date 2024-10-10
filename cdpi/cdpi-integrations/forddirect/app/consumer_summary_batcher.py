@@ -28,10 +28,7 @@ s3_client = boto3.client('s3')
 
 TARGET_COLUMNS = [
     "c_fddguid",
-    "d_pacode",
-    "epm_sales_date",
     "epm_sales_decile",
-    "esm_service_date",
     "esm_service_decile",
     "EXT_CONSUMER_ID"
 ]
