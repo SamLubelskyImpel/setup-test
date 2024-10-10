@@ -139,7 +139,6 @@ def record_handler(record: Dict[str, Any]):
 
         # Merge rows by consumer ID
         merged_data = merge_consumer_rows(pii_rows)
-        logger.info(f"merged_data:{merged_data}")
 
         # Upsert into the database
         with DBSession() as session:
