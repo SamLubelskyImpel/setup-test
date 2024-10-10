@@ -183,6 +183,11 @@ def lambda_handler(event, _):
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
+
+                # Temp switch off until optimizations:
+                logger.warning(f"File loading temporarily disabled. Ignoring file: {key}")
+                return
+
                 process_and_upload_data(bucket, key, rds_instance)
             count += 1
     except Exception:
