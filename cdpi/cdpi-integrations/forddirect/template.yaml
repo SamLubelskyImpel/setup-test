@@ -48,7 +48,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
+        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-prod-${AWS::Region}', !Sub 'cdpi-test-${AWS::Region}' ]
     VpcConfig:
         SecurityGroupIds:
           - !Ref SecurityGroup
@@ -112,8 +112,8 @@ Resources:
             Resource:
               - !If [
                 IsProd,
-                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod*",
-                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test*"
+                !Sub "arn:aws:s3:::cdpi-prod-${AWS::Region}*",
+                !Sub "arn:aws:s3:::cdpi-test-${AWS::Region}*"
               ]
           - Effect: "Allow"
             Action:
@@ -123,7 +123,7 @@ Resources:
   InvokePIIOutbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub cdpi-ford-direct-InvokePIIOutbound-${Environment}
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-InvokePIIOutbound
       Handler: invoke_pii_outbound.lambda_handler
       CodeUri: ./app
       Policies:
@@ -153,7 +153,7 @@ Resources:
   InvokePIIOutboundAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub cdpi-ford-direct-InvokePIIOutboundAlarm-${Environment}
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-InvokePIIOutboundAlarm
       AlarmDescription: InvokePIIOutboundAlarm execution failed
       Namespace: AWS/Lambda
       MetricName: Errors
@@ -171,7 +171,7 @@ Resources:
   GeneratePIIOutboundQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-GeneratePIIOutboundQueue-${Environment}
+      QueueName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 60
       RedrivePolicy:
@@ -189,7 +189,7 @@ Resources:
   GeneratePIIOutbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub cdpi-ford-direct-GeneratePIIOutbound-${Environment}
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutbound
       Handler: generate_pii_outbound.lambda_handler
       CodeUri: ./app
       Policies:
@@ -213,12 +213,12 @@ Resources:
   GeneratePIIOutboundDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-GeneratePIIOutboundDLQ-${Environment}
+      QueueName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundDLQ
 
   GeneratePIIOutboundDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub cdpi-ford-direct-GeneratePIIOutboundDLQAlarm-${Environment}
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundDLQAlarm
       AlarmDescription: There are over 1 unprocessed messages in the GeneratePIIOutboundDLQ
       ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
@@ -238,7 +238,7 @@ Resources:
   UploadPIIOutboundQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-UploadPIIOutboundQueue-${Environment}
+      QueueName: !Sub cdpi-${Environment}-ford-direct-UploadPIIOutboundQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
@@ -265,14 +265,14 @@ Resources:
                   ArnEquals:
                       aws:SourceArn: !If [
                         IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
                       ]
 
   UploadPIIOutbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub cdpi-ford-direct-UploadPIIOutbound-${Environment}
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-UploadPIIOutbound
       Handler: upload_pii_outbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
@@ -318,8 +318,8 @@ Resources:
       RawMessageDelivery: true
       TopicArn: !If [
         IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
       ]
       Endpoint: !GetAtt UploadPIIOutboundQueue.Arn
       FilterPolicyScope: MessageBody
@@ -329,12 +329,12 @@ Resources:
   UploadPIIOutboundDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-UploadPIIOutboundDLQ-${Environment}
+      QueueName: !Sub cdpi-${Environment}-ford-direct-UploadPIIOutboundDLQ
 
   UploadPIIOutboundDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub cdpi-ford-direct-UploadPIIOutboundDLQAlarm-${Environment}
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-UploadPIIOutboundDLQAlarm
       AlarmDescription: There are over 1 unprocessed messages in the UploadPIIOutboundDLQ
       ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
@@ -354,7 +354,7 @@ Resources:
   ConsumerSummaryBatcherLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
+      FunctionName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryBatcher"
       Handler: consumer_summary_batcher.lambda_handler
       CodeUri: app/
       MemorySize: 1024
@@ -390,7 +390,7 @@ Resources:
   ConsumerSummaryBatcherQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcher"
+      QueueName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryBatcher"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
@@ -400,7 +400,7 @@ Resources:
   ConsumerSummaryBatcherDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcherDLQ"
+      QueueName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryBatcherDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
@@ -432,8 +432,8 @@ Resources:
                   ArnEquals:
                       aws:SourceArn: !If [
                         IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
                       ]
 
   ConsumerSummaryBatcherTopicSubscription:
@@ -443,8 +443,8 @@ Resources:
       RawMessageDelivery: true
       TopicArn: !If [
         IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
       ]
       Endpoint: !GetAtt ConsumerSummaryBatcherQueue.Arn
       FilterPolicyScope: MessageBody
@@ -454,7 +454,7 @@ Resources:
   ConsumerSummaryBatcherDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryBatcherDLQ"
+      AlarmName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryBatcherDLQ"
       AlarmDescription: "Alarm for Consumer Summary Dead Letter Queue"
       ActionsEnabled: true
       Namespace: AWS/SQS
@@ -474,7 +474,7 @@ Resources:
   ConsumerSummaryLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummary"
+      FunctionName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummary"
       Handler: consumer_summary.lambda_handler
       CodeUri: app/
       MemorySize: 1024
@@ -502,12 +502,12 @@ Resources:
   ConsumerSummaryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/cdpi-ford-direct-${Environment}-ConsumerSummary"
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-ConsumerSummary"
 
   ConsumerSummaryQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummary"
+      QueueName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummary"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 60
       RedrivePolicy:
@@ -517,7 +517,7 @@ Resources:
   ConsumerSummaryDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryDLQ"
+      QueueName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
@@ -549,8 +549,8 @@ Resources:
                   ArnEquals:
                       aws:SourceArn: !If [
                         IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
                       ]
 
   ConsumerSummaryTopicSubscription:
@@ -560,8 +560,8 @@ Resources:
       RawMessageDelivery: true
       TopicArn: !If [
         IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
       ]
       Endpoint: !GetAtt ConsumerSummaryQueue.Arn
       FilterPolicyScope: MessageBody
@@ -571,7 +571,7 @@ Resources:
   ConsumerSummaryDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "cdpi-ford-direct-${Environment}-ConsumerSummaryDLQ"
+      AlarmName: !Sub "cdpi-${Environment}-ford-direct-ConsumerSummaryDLQ"
       AlarmDescription: "Alarm for Consumer Summarys Dead Letter Queue"
       ActionsEnabled: true
       Namespace: AWS/SQS
@@ -588,11 +588,11 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       TreatMissingData: notBreaching
 
-# INBOUND
+  # INBOUND
   MatchingPIIInbound:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub cdpi-ford-direct-MatchingPIIInbound-${Environment}
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-MatchingPIIInbound
       Handler: matching_pii_inbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
@@ -616,7 +616,7 @@ Resources:
   MatchingPIIInboundQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-MatchingPIIInboundQueue-${Environment}
+      QueueName: !Sub cdpi-${Environment}0ford-direct-MatchingPIIInboundQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
@@ -626,7 +626,7 @@ Resources:
   MatchingPIIInboundDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-ford-direct-MatchingPIIInboundDLQ-${Environment}
+      QueueName: !Sub cdpi-${Environment}-ford-direct-MatchingPIIInboundDLQ
 
   MatchingPIIInboundQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -648,14 +648,14 @@ Resources:
                   ArnEquals:
                       aws:SourceArn: !If [
                         IsProd,
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
                       ]
 
   MatchingPIIInboundDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub cdpi-ford-direct-MatchingPIIInboundDLQAlarm-${Environment}
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-MatchingPIIInboundDLQAlarm
       AlarmDescription: There are over 1 unprocessed messages in the MatchingPIIInboundDLQ
       ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
@@ -679,8 +679,8 @@ Resources:
       RawMessageDelivery: true
       TopicArn: !If [
         IsProd,
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-prod",
-        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-shared-sns-s3-topic-${AWS::Region}-test"
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
       ]
       Endpoint: !GetAtt MatchingPIIInboundQueue.Arn
       FilterPolicyScope: MessageBody

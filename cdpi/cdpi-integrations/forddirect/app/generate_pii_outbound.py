@@ -117,6 +117,7 @@ def record_handler(record: SQSRecord):
         logger.info(f'Uploaded PII file to {key}')
     except:
         logger.exception(f'Failed to generate PII file for {dealer_id}')
+        raise
 
 
 def lambda_handler(event: Any, context: Any):

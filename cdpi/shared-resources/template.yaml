@@ -26,6 +26,13 @@ Mappings:
     service-ai:
       '196800776222': 'arn:aws:iam::261695625069:root'
       '143813444726': 'arn:aws:iam::261695625069:root'
+  ProductSyndicationRoles:
+    sales-ai:
+      '196800776222': ''
+      '143813444726': 'arn:aws:iam::856787491001:role/customer-insights-us-west-2-test-UnifiedDataTest'
+    service-ai:
+      '196800776222': ''
+      '143813444726': 'arn:aws:iam::261695625069:role/unified-AWS-role-staging'
   Subnets:
     us-east-1:
       '196800776222':
@@ -56,6 +63,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-prod-${AWS::Region}', !Sub 'cdpi-test-${AWS::Region}' ]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -67,7 +75,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub 'cdpi-shared-${AWS::Region}-${Environment}'
+      BucketName: !Sub 'cdpi-${Environment}-${AWS::Region}'
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -88,15 +96,15 @@ Resources:
   SharedS3ToSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub 'cdpi-shared-sns-s3-topic-${AWS::Region}-${Environment}'
-      TopicName: !Sub 'cdpi-shared-sns-s3-topic-${AWS::Region}-${Environment}'
+      DisplayName: !Sub 'cdpi-${Environment}-sns-s3-topic-${AWS::Region}'
+      TopicName: !Sub 'cdpi-${Environment}-sns-s3-topic-${AWS::Region}'
 
   SharedS3ToSNSPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
       PolicyDocument:
         Version: '2012-10-17'
-        Id: !Sub 'cdpi-shared-sns-s3-policy-${AWS::Region}-${Environment}'
+        Id: !Sub 'cdpi-${Environment}-sns-s3-policy-${AWS::Region}'
         Statement:
         - Sid: S3ToSNS
           Effect: Allow
@@ -107,7 +115,7 @@ Resources:
           Resource: !Ref SharedS3ToSNSTopic
           Condition:
             ArnLike:
-              aws:SourceArn: !Sub 'arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}'
+              aws:SourceArn: !Sub 'arn:aws:s3:::cdpi-${Environment}-${AWS::Region}'
       Topics:
         - Ref: SharedS3ToSNSTopic
 
@@ -132,11 +140,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/sales-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
+                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
 
   SalesAITempRole:  # this is a temporary role for development only
     Type: AWS::IAM::Role
@@ -160,11 +168,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/sales-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
+                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
 
   ServiceAIRole:
     Type: AWS::IAM::Role
@@ -187,11 +195,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/service-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/service-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
+                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -279,8 +287,8 @@ Resources:
                   - s3:ListBucket
                   - s3:PutObject
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/*"
-                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-processed/*"
+                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/*"
+                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound-processed/*"
         - PolicyName: SQSAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -303,7 +311,7 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-    
+
   CdpiOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -350,7 +358,7 @@ Resources:
       QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionBatcherDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
-  
+
   ConsumerIngestionBatcherEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -358,7 +366,7 @@ Resources:
       EventSourceArn: !GetAtt ConsumerIngestionBatcherQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt ConsumerIngestionBatcherLambda.Arn
-  
+
   ConsumerIngestionBatcherQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -389,7 +397,7 @@ Resources:
       FilterPolicyScope: MessageBody
       FilterPolicy:
         '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
-  
+
   ConsumerIngestionBatcherDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -427,7 +435,7 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerIngestion"
       RetentionInDays: 30
-  
+
   ConsumerIngestionQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -444,7 +452,7 @@ Resources:
       QueueName: !Sub "cdpi-${Environment}-ConsumerIngestionDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
-  
+
   ConsumerIngestionEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -503,4 +511,278 @@ Resources:
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       TreatMissingData: notBreaching
+
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for CDPI shared granting access to AWS resources
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !If [
+                  IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
+                ]
+          - Effect: Allow
+            Action:
+              - ec2:CreateNetworkInterface
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DeleteNetworkInterface
+            Resource: "*"
+          - Effect: "Allow"
+            Action:
+              - s3:*
+            Resource:
+              - !If [
+                IsProd,
+                !Sub "arn:aws:s3:::cdpi-prod-${AWS::Region}*",
+                !Sub "arn:aws:s3:::cdpi-test-${AWS::Region}*"
+              ]
+
+  GetActiveDealers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-GetActiveDealers
+      Handler: get_active_dealers.lambda_handler
+      CodeUri: ./app/score_syndication
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt PullScoresQueue.Arn
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0/5 * * * ? *)
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
+      Timeout: 30
+      Environment:
+        Variables:
+          PULL_SCORES_QUEUE: !Ref PullScoresQueue
+
+  GetActiveDealersLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-GetActiveDealers"
+
+  PullScoresQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-PullScoresQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt PullScoresDLQ.Arn
+          maxReceiveCount: 3
+
+  PullScoresEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt PullScoresQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt PullScores.Arn
+
+  PullScores:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-PullScores
+      Handler: pull_scores.lambda_handler
+      CodeUri: ./app/score_syndication
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt PullScoresQueue.Arn
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
+      Timeout: 60
+
+  PullScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-PullScores"
+
+  PullScoresDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-PullScoresDLQ
+
+  PullScoresDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-PullScoresDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the PullScoresDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PullScoresDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  SyndicateScoresQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-SyndicateScoresQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt SyndicateScoresDLQ.Arn
+          maxReceiveCount: 3
+
+  SyndicateScoresQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SyndicateScoresQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: SyndicateScoresQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt SyndicateScoresQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                        IsProd,
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+                        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
+                      ]
+
+  SyndicateScores:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-SyndicateScores
+      Handler: syndicate.lambda_handler
+      CodeUri: ./app/score_syndication
+      Timeout: 300
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt SyndicateScoresQueue.Arn
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [
+                IsProd,
+                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/SyndicationConfig*",
+                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/SyndicationConfig*"
+              ]
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sts:AssumeRole
+              Resource:
+                - !FindInMap [ ProductSyndicationRoles, 'sales-ai', !Ref 'AWS::AccountId' ]
+                - !FindInMap [ ProductSyndicationRoles, 'service-ai', !Ref 'AWS::AccountId' ]
+      Environment:
+        Variables:
+          SALESAI_ARN: !FindInMap [ ProductSyndicationRoles, 'sales-ai', !Ref 'AWS::AccountId' ]
+          SERVICEAI_ARN: !FindInMap [ ProductSyndicationRoles, 'service-ai', !Ref 'AWS::AccountId' ]
+
+  SyndicateScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-SyndicateScores"
+
+  SyndicateScoresEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt SyndicateScoresQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SyndicateScores.Arn
+
+  SyndicateScoresTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-prod-sns-s3-topic-${AWS::Region}",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cdpi-test-sns-s3-topic-${AWS::Region}"
+      ]
+      Endpoint: !GetAtt SyndicateScoresQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"scores-syndication/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  SyndicateScoresDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-SyndicateScoresDLQ
+
+  SyndicateScoresDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-SyndicateScoresDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the SyndicateScoresDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SyndicateScoresDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  # To be used for prod deployment
+  # SyndicationConfig:
+  #   Type: AWS::SecretsManager::Secret
+  #   Properties:
+  #     Name: !Sub ${Environment}/CDPI/SyndicationConfig
+  #     Description: Credentials for products score syndication.
+  #   DeletionPolicy: Retain
 
