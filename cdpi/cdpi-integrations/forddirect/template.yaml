@@ -49,8 +49,7 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         DOWNLOAD_QUEUE: !Ref DownloadQueue
-        # ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:us-east-1:143813444726:claire_test_sns_topic:1a3637ae-9463-4522-8333-9abc1d3f7779"
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         BUCKET_NAME: !If [ IsProd,
           !Sub "cdpi-prod-${AWS::Region}",
           !Sub "cdpi-test-${AWS::Region}"
@@ -132,6 +131,16 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-web*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-web*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-SFTP*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-SFTP*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-PKEY*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-PKEY*",
+                    ]
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -163,6 +172,21 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::cdpi-prod-${AWS::Region}/*",
+                      !Sub "arn:aws:s3:::cdpi-test-${AWS::Region}/*"
+                    ]
 
   SFTPNotifyWebhook:
     Type: 'AWS::Serverless::Function'

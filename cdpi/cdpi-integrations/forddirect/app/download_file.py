@@ -1,12 +1,11 @@
 import logging
 import os
-from typing import Any
 import  boto3
 from json import loads
 import paramiko
 from io import StringIO, BytesIO
+from datetime import datetime
 import urllib.parse
-import pandas as pd
 
 
 IS_PROD = int(os.environ.get('IS_PROD'))
@@ -32,10 +31,12 @@ def get_ssh_pkey():
 
 def validate_file(sftp, remote_file_path):
     file_info = sftp.stat(remote_file_path)
-    file_size = file_info.st_size
+    file_size = int(file_info.st_size)
+
+    logger.info(f"Attempting to download file of size {file_size} bytes")
 
     if file_size > 750000000:
-        raise Exception("File is larger than 750 MB. Unable to download")
+        raise Exception(f"File {os.path.basename(remote_file_path)} is larger than 750 MB. Unable to download")
     return
 
 def stream_file_in_chunks(sftp, remote_file_path, s3_file_path, chunk_size=32768):
@@ -49,6 +50,7 @@ def stream_file_in_chunks(sftp, remote_file_path, s3_file_path, chunk_size=32768
                 if not data:
                     break
                 file_buffer.write(data)
+            file_buffer.seek(0)
             s3.upload_fileobj(file_buffer, BUCKET_NAME, s3_file_path)
 
 
@@ -57,10 +59,10 @@ def lambda_handler(event, context):
 
     try:
         for record in event["Records"]:
-            message = loads(record.body)
+            message = loads(record["body"])
 
             file_path = message["file_path"]
-            decoded_key = urllib.parse.unquote(file_key)
+            decoded_key = urllib.parse.unquote(file_path)
 
             sftp_host, sftp_username = get_ssh_config()
             private_key_content = get_ssh_pkey()
@@ -78,8 +80,9 @@ def lambda_handler(event, context):
 
             # Download the file from SFTP
             file_type = message["file_type"]
-            s3_path = f'download/{file_type}/{os.path.basename(file_path)}'
-            download_file_in_chunks(sftp, file_path, s3_path)
+            current_date = datetime.now()
+            s3_path = f'download/{file_type}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(file_path)}'
+            stream_file_in_chunks(sftp, file_path, s3_path)
 
             logger.info(f"File downloaded from FD: {file_path} to S3 {s3_path}")
 
@@ -87,8 +90,8 @@ def lambda_handler(event, context):
             sftp.close()
             transport.close()
 
-    except e:
-        logger.exception(f'Failed to upload file to FD: {e}')
+    except Exception as e:
+        logger.exception(f'Failed to upload file to S3: {e}')
         notify_client_engineering(e)
         raise
 

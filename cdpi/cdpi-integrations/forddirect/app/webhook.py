@@ -1,4 +1,3 @@
-import random
 import logging
 from datetime import datetime, timezone
 from json import loads, dumps
@@ -27,7 +26,7 @@ FILE_TYPES = [
     ]
 
 def send_to_queue(queue_url, file_type, file_path):
-    """Call SQS queue to invoke API call for specific dealer."""
+    """Call SQS queue to download file from specified SFTP path."""
     data = {
         "dealer_id": dealer_id,
         "end_dt_str": end_dt_str,
@@ -39,7 +38,8 @@ def send_to_queue(queue_url, file_type, file_path):
     )
 
 def authenticate_request(event, context):
-    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
+    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager. 
+    Then check that the request body contains no errors"""
     logger.info(event)
 
     endpoint = event["path"]
@@ -85,7 +85,7 @@ def authenticate_request(event, context):
             ),
             "headers": {"Content-Type": "application/json"},
         }
-        return authenticated, message
+        raise e
         
     try:
         secret = loads(secret["SecretString"])[str(partner_id)]
@@ -131,7 +131,7 @@ def authenticate_request(event, context):
                     "headers": {"Content-Type": "application/json"},
                 }
                 return authenticated, message
-        except e:
+        except Exception as e:
             logger.exception(e)
             message = {
                 "statusCode": 400,
@@ -205,7 +205,7 @@ def lambda_handler(event, context):
                 .isoformat(),
             )
         return message
-    except e:
+    except Exception as e:
         logger.exception(f"Error invoking ford direct {event}")
         notify_client_engineering(e)
         raise 
