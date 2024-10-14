@@ -10,7 +10,7 @@ import urllib.parse
 
 IS_PROD = int(os.environ.get('IS_PROD'))
 TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
-BUCKET_NAME = os.environ.get('BUCKET_NAME')
+BUCKET_NAME = os.environ.get('SHARED_BUCKET')
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
