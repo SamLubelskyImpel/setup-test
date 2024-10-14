@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
 
-FD_FILE_HEADER = 'EXT_CONSUMER_ID|^|DEALER_IDENTIFIER|^|PII|^|PII_Type|^|Record_Date\n'
+FD_FILE_HEADER = 'ext_consumer_id|^|DEALER_IDENTIFIER|^|PII|^|PII_Type|^|Record_Date\n'
 SHARED_BUCKET = os.environ.get('SHARED_BUCKET')
 IS_PROD = int(os.environ.get('IS_PROD'))
 PII_ADDRESS_MAP = {

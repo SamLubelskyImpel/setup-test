@@ -28,7 +28,7 @@ FIELD_MAPPINGS = {
     "cdp_dealer_consumer_id": "c_fddguid",
     "dealer_pscore_sales": "epm_sales_decile",
     "dealer_pscore_service": "esm_service_decile",
-    "consumer_id": "EXT_CONSUMER_ID"
+    "consumer_id": "ext_consumer_id"
 }
 
 

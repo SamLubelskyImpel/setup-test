@@ -30,7 +30,7 @@ TARGET_COLUMNS = [
     "c_fddguid",
     "epm_sales_decile",
     "esm_service_decile",
-    "EXT_CONSUMER_ID"
+    "ext_consumer_id"
 ]
 
 
@@ -53,7 +53,7 @@ def is_active_dealer(cdp_dealer_id):
 def extract_columns(headers, row):
     """Extract only the target columns from the row."""
     row_dict = dict(zip(headers, row))
-    if not row_dict.get('EXT_CONSUMER_ID'):
+    if not row_dict.get('ext_consumer_id', '').replace('"', '').strip():
         return None
 
     # Extract only the target columns

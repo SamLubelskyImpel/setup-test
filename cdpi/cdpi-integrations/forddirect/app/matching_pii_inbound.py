@@ -35,7 +35,7 @@ def fetch_s3_file(bucket_name: str, file_key: str) -> List[str]:
 
 def parse_pii_file(file_lines: List[str]) -> List[Dict[str, Any]]:
     """Parse the PII file into a list of dictionaries (for each consumer row)."""
-    header, *data_lines = file_lines  
+    header, *data_lines = file_lines
     fields = header.strip().split("|^|")
 
     parsed_rows = []
@@ -50,7 +50,7 @@ def parse_pii_file(file_lines: List[str]) -> List[Dict[str, Any]]:
 
 
 def merge_consumer_rows(pii_rows):
-    """Merge multiple PII rows into a single consumer dictionary per EXT_CONSUMER_ID."""
+    """Merge multiple PII rows into a single consumer dictionary per ext_consumer_id."""
     merged_data = {}
     for row in pii_rows:
         ext_consumer_id = row['EXT_CONSUMER_ID']
