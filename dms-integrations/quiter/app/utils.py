@@ -106,6 +106,7 @@ def merge_files(
             right_on=main_to_customers_keys[1],
             how="inner",
         )
+        
         merged_df = pd.merge(
             merged_df,
             vehicles_df,
@@ -240,7 +241,7 @@ def list_files_in_s3(base_path):
         raise
 
 
-def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
+def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype=None):
     """
     Helper function to read CSV file from S3 and handle encoding errors.
 
@@ -250,24 +251,45 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn):
     - file_type: A string to indicate the type of the file being processed (e.g., 'Consumer', 'Vehicle')
     - sns_client: The boto3 SNS client for sending error notifications
     - topic_arn: The SNS topic ARN for notifications
+    - dtype: Optional, a dictionary to specify data types for specific columns
 
     Returns:
     - DataFrame of the CSV content if successful, else raises an error
     """
     try:
-        return pd.read_csv(
-            io.BytesIO(s3_body),
-            delimiter=";",
-            encoding="us-ascii",
-            on_bad_lines="skip",
-            dtype={"Dealer ID": "string"},
-            engine="python",
-        )
+        return pd.read_csv(io.BytesIO(s3_body), delimiter=';', encoding='us-ascii', on_bad_lines='warn', dtype=dtype)
     except Exception as e:
         error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
         logger.error(error_message)
         notify_client_engineering(error_message, sns_client, topic_arn)
         raise
+
+
+def standardize_data_types(repairorder_df, customers_df, vehicles_df):
+    """
+    Standardize the data types of key columns in the DataFrames.
+    """
+    logger.info("Starting to standardize data types for key columns.")
+
+    try:
+        logger.debug("Standardizing 'Consumer ID' in repairorder_df.")
+        repairorder_df['Consumer ID'] = repairorder_df['Consumer ID'].astype(str)
+
+        logger.debug("Standardizing 'Dealer Customer No' in customers_df.")
+        customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
+        logger.debug("Standardizing 'Vin No' in repairorder_df.")
+        repairorder_df['Vin No'] = repairorder_df['Vin No'].astype(str)
+
+        logger.debug("Standardizing 'Vin No' in vehicles_df.")
+        vehicles_df['Vin No'] = vehicles_df['Vin No'].astype(str)
+
+        logger.info("Data type standardization completed successfully.")
+
+    except Exception as e:
+        logger.error(f"Error during data type standardization: {e}")
+        raise
+
+    return repairorder_df, customers_df, vehicles_df
 
 
 def identify_and_separate_records(repairorder_df, customers_df, vehicles_df):
@@ -281,30 +303,37 @@ def identify_and_separate_records(repairorder_df, customers_df, vehicles_df):
     (missing either a customer or vehicle).
     """
     try:
-        missing_customers = repairorder_df[
-            ~repairorder_df["Consumer ID"].isin(customers_df["Dealer Customer No"])
-        ]
-        missing_customer_ids = missing_customers["Consumer ID"].unique()
+        logger.info("Starting the identification of orphan records.")
 
-        missing_vehicles = repairorder_df[
-            ~repairorder_df["Vin No"].isin(vehicles_df["Vin No"])
-        ]
-        missing_vin_numbers = missing_vehicles["Vin No"].unique()
+        repairorder_df, customers_df, vehicles_df = standardize_data_types(
+            repairorder_df, customers_df, vehicles_df
+        )
+
+        missing_customers = repairorder_df[~repairorder_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
+        missing_customer_ids = missing_customers['Consumer ID'].unique()
+        logger.info(f"Identified {len(missing_customers)} missing customer records.")
+
+        missing_vehicles = repairorder_df[~repairorder_df['Vin No'].isin(vehicles_df['Vin No'])]
+        missing_vin_numbers = missing_vehicles['Vin No'].unique()
+        logger.info(f"Identified {len(missing_vehicles)} missing vehicle records.")
 
         orphans_df = repairorder_df[
-            repairorder_df["Consumer ID"].isin(missing_customer_ids)
-            | repairorder_df["Vin No"].isin(missing_vin_numbers)
+            repairorder_df['Consumer ID'].isin(missing_customer_ids) | 
+            repairorder_df['Vin No'].isin(missing_vin_numbers)
         ]
+        logger.info(f"Found {len(orphans_df)} orphan records.")
 
         valid_records_df = repairorder_df[
-            ~repairorder_df["Consumer ID"].isin(missing_customer_ids)
-            & ~repairorder_df["Vin No"].isin(missing_vin_numbers)
+            ~repairorder_df['Consumer ID'].isin(missing_customer_ids) & 
+            ~repairorder_df['Vin No'].isin(missing_vin_numbers)
         ]
+        logger.info(f"Separated {len(valid_records_df)} valid records.")
 
         return valid_records_df, orphans_df
+
     except KeyError as e:
         logger.error(f"KeyError during record identification: {e}")
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in identify_and_separate_records: {e}")
+        logger.error(f"Unexpected error during record identification: {e}")
         raise

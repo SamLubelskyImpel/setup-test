@@ -49,9 +49,6 @@ def lambda_handler(event, context):
     try:
         for record in event["Records"]:
             data = loads(record["body"])
-            logger.info(f"Processing new event with dealer_id: {data['dealer_id']}")
-            logger.debug(f"Full event body: {data}")
-
             dealer_id = data["dealer_id"]
             s3_key = data["s3_key"]
             current_date = datetime.now()
@@ -87,6 +84,7 @@ def lambda_handler(event, context):
                     Bucket=INTEGRATIONS_BUCKET, Key=found_files["Vehicle"]
                 )
 
+
                 customers_df = read_csv_from_s3(
                     customers_obj["Body"].read(),
                     found_files["Consumer"],
@@ -109,8 +107,10 @@ def lambda_handler(event, context):
                     "RepairOrder",
                     SNS_CLIENT,
                     TOPIC_ARN,
-                    dtype={"Dealer ID": "string"},
+                    dtype={"Dealer ID": "string", "Dealer Customer No": "string"},
                 )
+
+                logger.info(f"retrieved and converted files, repairorder_df:{repairorder_df}, vehicles_df: {vehicles_df}, customers_df: {customers_df}")
 
             except KeyError as e:
                 logger.error(f"KeyError while fetching or reading files from S3: {e}")
@@ -126,6 +126,7 @@ def lambda_handler(event, context):
             valid_records_df, orphans_df = identify_and_separate_records(
                 repairorder_df, customers_df_clean, vehicles_df_clean
             )
+
             merged_df = merge_files(
                 main_df=valid_records_df,
                 customers_df=customers_df_clean,
