@@ -1,4 +1,3 @@
-"""Invoke every day and take all active dealers from quiter to pull data from ftp server."""
 import random
 import logging
 from datetime import datetime, timezone
@@ -11,8 +10,9 @@ import boto3
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-SQS_CLIENT = boto3.client("sqs")
+sqs_client = boto3.client("sqs")
 DOWNLOAD_QUEUE = environ.get("DOWNLOAD_QUEUE")
+TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 
 is_prod = environ.get("ENVIRONMENT", "test") == "prod"
 
@@ -26,17 +26,17 @@ FILE_TYPES = [
     "other" 
     ]
 
-def send_to_queue(queue_url, dealer_id, end_dt_str):
+def send_to_queue(queue_url, file_type, file_path):
     """Call SQS queue to invoke API call for specific dealer."""
     data = {
         "dealer_id": dealer_id,
         "end_dt_str": end_dt_str,
     }
     logger.info(f"Sending {data} to {queue_url}")
-    # SQS_CLIENT.send_message(
-    #     QueueUrl=queue_url,
-    #     MessageBody=dumps(data)
-    # )
+    sqs_client.send_message(
+        QueueUrl=queue_url,
+        MessageBody=dumps(data)
+    )
 
 def authenticate_request(event, context):
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
@@ -70,9 +70,9 @@ def authenticate_request(event, context):
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            logger.error("Could not locate secret value")
+            logger.exception("Could not locate secret value")
         else:
-            logger.error("Unknown error occurred fetching secret")
+            logger.exception("Unknown error occurred fetching secret")
         message = {
             "statusCode": 500,
             "body": dumps(
@@ -91,9 +91,9 @@ def authenticate_request(event, context):
         secret = loads(secret["SecretString"])[str(partner_id)]
         secret_data = loads(secret)
     except KeyError:
-        logger.error(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Invalid partner id")
+        logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Invalid partner id")
         message = {
-            "statusCode": 403,
+            "statusCode": 401,
             "body": dumps(
                 {
                     "message": "Unauthorized.",
@@ -119,7 +119,7 @@ def authenticate_request(event, context):
 
             if file_type not in FILE_TYPES or not file_path or not message:
                 message = {
-                    "statusCode": 401,
+                    "statusCode": 400,
                     "body": dumps(
                         {
                         "message": "Request body is missing or invalid.",
@@ -132,9 +132,9 @@ def authenticate_request(event, context):
                 }
                 return authenticated, message
         except e:
-            logger.error(e)
+            logger.exception(e)
             message = {
-                "statusCode": 401,
+                "statusCode": 400,
                 "body": dumps(
                     {
                     "message": "Request body is missing or invalid.",
@@ -162,9 +162,9 @@ def authenticate_request(event, context):
         authenticated = True
         return authenticated, message
     else:
-        logger.error(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Incorrect API key provided")
+        logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Incorrect API key provided")
         message = {
-            "statusCode": 403,
+            "statusCode": 401,
             "body": dumps(
                 {
                     "message": "Unauthorized.",
@@ -205,6 +205,18 @@ def lambda_handler(event, context):
                 .isoformat(),
             )
         return message
-    except Exception:
-        logger.exception(f"Error invoking quiter {event}")
-        raise
+    except e:
+        logger.exception(f"Error invoking ford direct {event}")
+        notify_client_engineering(e)
+        raise 
+
+def notify_client_engineering(error_message):
+    """Send a notification to the client engineering SNS topic."""
+    sns_client = boto3.client("sns")
+
+    sns_client.publish(
+        TopicArn=TOPIC_ARN,
+        Subject="Ford Direct SFTP Notify Webhook Error",
+        Message=str(error_message),
+    )
+    return

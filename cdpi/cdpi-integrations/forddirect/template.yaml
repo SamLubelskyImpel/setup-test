@@ -49,6 +49,11 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         DOWNLOAD_QUEUE: !Ref DownloadQueue
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        BUCKET_NAME: !If [ IsProd,
+          !Sub "cdpi-prod-${AWS::Region}",
+          !Sub "cdpi-test-${AWS::Region}"
+        ]
   # VpcConfig:
   #     SecurityGroupIds:
   #       - !Ref SecurityGroup
@@ -136,25 +141,27 @@ Resources:
                   - ec2:DescribeNetworkInterfaces
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
-  #       - PolicyName: SQSPolicy
-  #         PolicyDocument:
-  #           Version: "2012-10-17"
-  #           Statement:
-  #             - Effect: "Allow"
-  #               Action:
-  #                 - "sqs:ReceiveMessage"
-  #                 - "sqs:SendMessage"
-  #               Resource:
-  #                 - !GetAtt DownloadQueue.Arn
-  #       - PolicyName: SNSPolicy
-  #         PolicyDocument:
-  #           Version: "2012-10-17"
-  #           Statement:
-  #             - Effect: "Allow"
-  #               Action:
-  #                 - "sns:Publish"
-  #               Resource:
-  #               - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:SendMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt DownloadQueue.Arn
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
   SFTPNotifyWebhook:
     Type: 'AWS::Serverless::Function'
@@ -185,24 +192,6 @@ Resources:
       Name: 'FordDirectWebhookAPI'
       Description: 'API for triggering SFTP download via webhook'
       StageName: !Ref Environment
-      # Domain:
-      #   DomainName: !If [ IsProd, 'fd-webhook.impel.io', !Sub 'fd-webhook.testenv.impel.io' ]
-      #   CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-      #   SecurityPolicy: TLS_1_2
-        # Route53:
-        #   HostedZoneName: !If [ IsProd, 'impel.io.', 'testenv.impel.io.' ]
-        #   IpV6: true
-      # Auth:
-      #   DefaultAuthorizer: DefaultAuth
-      #   Authorizers:
-      #     DefaultAuth:
-      #       FunctionPayloadType: REQUEST
-      #       FunctionArn: !GetAtt LambdaAuthorizer.Arn
-      #       Identity:
-      #         Headers:
-      #           - x_api_key
-      #           - partner_id
-      #         ReauthorizeEvery: 300
 
   DownloadQueue:
     Type: AWS::SQS::Queue
@@ -217,54 +206,19 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub forddirect-${Environment}-DownloadQueueDLQ
-  
-  # FordDirectCDPIWebhook:
-  #   Type: AWS::Serverless::Api
-  #   Properties:
-  #     Name: !Sub "FD-Webhook-${Environment}"
-  #     StageName: !Ref Environment
-  #     Domain:
-  #       DomainName: !If [ IsProd, 'fd-webhook.impel.io', !Sub 'fd-webhook${DomainSuffix}.testenv.impel.io' ]
-  #       CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-  #       SecurityPolicy: TLS_1_2
-  #     Auth:
-  #       DefaultAuthorizer: DefaultAuth
-  #       Authorizers:
-  #         DefaultAuth:
-  #           FunctionPayloadType: REQUEST
-  #           FunctionArn: !GetAtt Authorizer.Arn
-  #           Identity:
-  #             Headers:
-  #               - partner_id
-  #               - x_api_key
-  #             Context:
-  #               - resourcePath
-  #             ReauthorizeEvery: 0
-  #     AccessLogSetting:
-  #       DestinationArn: !GetAtt APILogGroup.Arn
-  #       Format: >-
-  #         {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-  #     DefinitionBody:
-  #       Fn::Transform:
-  #         Name: AWS::Include
-  #         Parameters:
-  #           Location: "./swagger/crm-api-oas-interpolated.yaml"
-  #     GatewayResponses:
-  #       BAD_REQUEST_PARAMETERS:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.error.validationErrorString"}'
-  #       BAD_REQUEST_BODY:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.error.validationErrorString"}'
-  #       UNAUTHORIZED:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "This request is unauthorized."}'
-  #         StatusCode: "401"
-  #       ACCESS_DENIED:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.authorizer.key"}'
-  #         StatusCode: "403"
-  #       DEFAULT_5xx:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
-  
+
+  DownloadFileLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub forddirect-${Environment}-DownloadLambda
+      CodeUri: app/
+      Handler: download_file.lambda_handler
+      Timeout: 660
+      MemorySize: 512
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt DownloadQueue.Arn
+      Role: !GetAtt LambdaRole.Arn
