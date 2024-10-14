@@ -98,7 +98,7 @@ def notify_client_engineering(error_message):
 
     sns_client.publish(
         TopicArn=TOPIC_ARN,
-        Subject="FordDirect Lambda Error",
+        Subject="FordDirect Download Lambda Error",
         Message=str(error_message),
     )
     return

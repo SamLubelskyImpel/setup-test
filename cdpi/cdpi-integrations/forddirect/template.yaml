@@ -49,15 +49,16 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         DOWNLOAD_QUEUE: !Ref DownloadQueue
-        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        # ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:us-east-1:143813444726:claire_test_sns_topic:1a3637ae-9463-4522-8333-9abc1d3f7779"
         BUCKET_NAME: !If [ IsProd,
           !Sub "cdpi-prod-${AWS::Region}",
           !Sub "cdpi-test-${AWS::Region}"
         ]
-  # VpcConfig:
-  #     SecurityGroupIds:
-  #       - !Ref SecurityGroup
-  #     SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
+    VpcConfig:
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
   SecurityGroup:
