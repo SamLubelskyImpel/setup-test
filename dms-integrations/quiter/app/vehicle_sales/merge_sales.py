@@ -97,12 +97,15 @@ def lambda_handler(event, context):
                 }
             )
 
-            # Save merged data back to S3
-            csv_buffer = merged_df.to_csv(index=False)
-            unique_id = str(uuid.uuid4())
-            merged_s3_key = f"quiter/fi_closed_deal/{year}/{month}/{day}/{unique_id}.csv"
-            s3_client.put_object(Bucket=BUCKET_NAME, Key=merged_s3_key, Body=csv_buffer)
-            logger.info(f"Merged Vehicle Sales file saved to {merged_s3_key} in S3.")
+            if merged_df.empty:
+                logger.warning(f"Merged Vehicle Sales file is empty for dealer {dealer_id}. No file will be saved.")
+            else:
+                # Save merged data back to S3
+                csv_buffer = merged_df.to_csv(index=False)
+                unique_id = str(uuid.uuid4())
+                merged_s3_key = f"quiter/fi_closed_deal/{year}/{month}/{day}/{unique_id}.csv"
+                s3_client.put_object(Bucket=BUCKET_NAME, Key=merged_s3_key, Body=csv_buffer)
+                logger.info(f"Merged Vehicle Sales file saved to {merged_s3_key} in S3.")
 
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
