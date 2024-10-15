@@ -84,12 +84,15 @@ def lambda_handler(event, context):
                     'Warranty Expiration Date_x': 'Warranty Expiration Date'
                 }
             )
- 
-            csv_buffer = merged_df.to_csv(index=False)
-            s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/{str(uuid4())}.csv"
-            S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer)
 
-            logger.info(f"Merged file saved to {s3_key} in the raw zone.")
+            if merged_df.empty:
+                logger.warning(f"Merged Vehicle Sales file is empty for dealer {dealer_id}. No file will be saved.")
+            else:
+                csv_buffer = merged_df.to_csv(index=False)
+                s3_key = f"quiter/service_appointment/{current_date.year}/{current_date.month}/{current_date.day}/{str(uuid4())}.csv"
+                S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=s3_key, Body=csv_buffer)
+
+                logger.info(f"Merged file saved to {s3_key} in the raw zone.")
             
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
