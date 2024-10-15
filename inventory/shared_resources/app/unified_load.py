@@ -115,7 +115,7 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime, provider_dealer_id):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
-                # return
+                return
 
         # Retrieve dealer_integration_partner_id
         provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
