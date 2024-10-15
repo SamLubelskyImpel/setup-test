@@ -159,14 +159,3 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except Exception as e:
         logger.exception(f"Error transforming vehicle sale file {event}: {e}")
         raise
-
-def notify_client_engineering(error_message):
-    """Send a notification to the client engineering SNS topic."""
-    sns_client = boto3.client("sns")
-
-    sns_client.publish(
-        TopicArn=TOPIC_ARN,
-        Subject="QuiterFormatInsertFilesAppointment Lambda Error",
-        Message=str(error_message),
-    )
-    return

@@ -69,7 +69,7 @@ def lambda_handler(event, context):
                 S3_CLIENT.put_object(Bucket=BUCKET_NAME, Key=error_file_key, Body=csv_buffer.getvalue())
 
                 # Send notification about the error file
-                notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}", SNS_CLIENT, TOPIC_ARN)
+                notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}", SNS_CLIENT, TOPIC_ARN, "QuiterMergeAppointment Lambda Error")
 
             merged_df = merge_files(
                 main_df=valid_records_df,
@@ -93,15 +93,15 @@ def lambda_handler(event, context):
             
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
-        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN)
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeAppointment Lambda Error")
         raise
 
     except ClientError as e:
         logger.error(f"AWS S3 error: {e}")
-        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN)
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeAppointment Lambda Error")
         raise
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN)
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeAppointment Lambda Error")
         raise

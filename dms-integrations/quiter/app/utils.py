@@ -215,13 +215,14 @@ def save_to_s3(df, bucket_name, key):
 
 
 
-def notify_client_engineering(error_message, sns_client, topic_arn):
+def notify_client_engineering(error_message, sns_client, topic_arn, subject):
     """Send a notification to the client engineering SNS topic."""
     sns_client.publish(
         TopicArn=topic_arn,
-        Subject="QuiterMergeVehicleSales Lambda Error",
+        Subject=subject,
         Message=str(error_message),
     )
+
 
 def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype=None):
     """

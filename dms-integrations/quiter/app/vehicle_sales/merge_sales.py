@@ -73,7 +73,6 @@ def lambda_handler(event, context):
 
             valid_records_df, error_records_df = identify_and_separate_records(vehicle_sales_df, cleaned_customers_df, cleaned_vehicles_df)
 
-
             # Save the orphan records to an error file
             if not error_records_df.empty:
                 unique_id = str(uuid.uuid4())
@@ -81,7 +80,7 @@ def lambda_handler(event, context):
                 save_to_s3(error_records_df, BUCKET_NAME, error_file_key)
 
                 # Send notification about the error file
-                notify_client_engineering(f"Orphan records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN)
+                notify_client_engineering(f"Missing data records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
 
             # Merge the data
             merged_df = merge_files(
@@ -107,13 +106,13 @@ def lambda_handler(event, context):
 
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN)
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
     except ClientError as e:
         logger.error(f"AWS S3 error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN)
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN)
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
