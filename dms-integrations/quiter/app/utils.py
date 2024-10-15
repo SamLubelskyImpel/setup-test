@@ -16,8 +16,10 @@ BUCKET_NAME = os.environ["INTEGRATIONS_BUCKET"]
 TOPIC_ARN = os.environ["CLIENT_ENGINEERING_SNS_TOPIC_ARN"]
 
 FILE_PATTERNS = {
+    "RepairOrder": ["RO"],
     "Consumer": ["CONS"],
     "Vehicle": ["VEH"],
+    "Appointments": ["APPT"],
     "VehicleSales": ["VS", "SalesTxn", "SaleTxn"]
 }
 
@@ -155,35 +157,35 @@ def clean_data(df, id_column, important_columns):
         logger.error(f"Unexpected error in clean_data: {e}")
         raise
 
-def identify_and_separate_records(vehicle_sales_df, customers_df, vehicles_df):
+def identify_and_separate_records(main_df, customers_df, vehicles_df):
     """
     Identify orphan records and separate valid records.
     
-    Orphan records are those in the vehicle sales file that do not have a corresponding 
+    Orphan records are those in the main file that do not have a corresponding 
     entry in the consumer or vehicle files.
     
     This function separates valid records (with corresponding entries) from orphan records 
     (missing either a customer or vehicle).
     """
     try:
-        # Identify orphan consumer records by checking if 'Consumer ID' in vehicle_sales_df is not present in customers_df
-        missing_customers = vehicle_sales_df[~vehicle_sales_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
+        # Identify orphan consumer records by checking if 'Consumer ID' in main_df is not present in customers_df
+        missing_customers = main_df[~main_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
         missing_customer_ids = missing_customers['Consumer ID'].unique()
 
-        # Identify orphan vehicle records by checking if 'Vin No' in vehicle_sales_df is not present in vehicles_df
-        missing_vehicles = vehicle_sales_df[~vehicle_sales_df['Vin No'].isin(vehicles_df['Vin No'])]
+        # Identify orphan vehicle records by checking if 'Vin No' in main_df is not present in vehicles_df
+        missing_vehicles = main_df[~main_df['Vin No'].isin(vehicles_df['Vin No'])]
         missing_vin_numbers = missing_vehicles['Vin No'].unique()
 
         # Combine missing records (those with missing customer or vehicle)
-        orphans_df = vehicle_sales_df[
-            vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) | 
-            vehicle_sales_df['Vin No'].isin(missing_vin_numbers)
+        orphans_df = main_df[
+            main_df['Consumer ID'].isin(missing_customer_ids) | 
+            main_df['Vin No'].isin(missing_vin_numbers)
         ]
 
         # Valid records are those not in the orphan list
-        valid_records_df = vehicle_sales_df[
-            ~vehicle_sales_df['Consumer ID'].isin(missing_customer_ids) & 
-            ~vehicle_sales_df['Vin No'].isin(missing_vin_numbers)
+        valid_records_df = main_df[
+            ~main_df['Consumer ID'].isin(missing_customer_ids) & 
+            ~main_df['Vin No'].isin(missing_vin_numbers)
         ]
 
         return valid_records_df, orphans_df
@@ -193,6 +195,7 @@ def identify_and_separate_records(vehicle_sales_df, customers_df, vehicles_df):
     except Exception as e:
         logger.error(f"Unexpected error in identify_and_separate_records: {e}")
         raise
+
 
 def save_to_s3(df, bucket_name, key):
     """
