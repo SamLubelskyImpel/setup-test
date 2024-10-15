@@ -80,7 +80,7 @@ def lambda_handler(event, context):
                 save_to_s3(error_records_df, BUCKET_NAME, error_file_key)
 
                 # Send notification about the error file
-                notify_client_engineering(f"Missing data records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
+                notify_client_engineering(f"Missing data records found. Error file saved at {error_file_key}", sns_client, TOPIC_ARN, "QuiterMergeVehicleSales Lambda Error")
 
             # Merge the data
             merged_df = merge_files(
@@ -106,13 +106,13 @@ def lambda_handler(event, context):
 
     except ValueError as e:
         logger.error(f"Data mismatch error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeVehicleSales Lambda Error")
         raise
     except ClientError as e:
         logger.error(f"AWS S3 error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeVehicleSales Lambda Error")
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
+        notify_client_engineering(e, sns_client, TOPIC_ARN, "QuiterMergeVehicleSales Lambda Error")
         raise
