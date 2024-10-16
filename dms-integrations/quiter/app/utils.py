@@ -272,15 +272,15 @@ def standardize_data_types(repairorder_df, customers_df, vehicles_df):
     logger.info("Starting to standardize data types for key columns.")
 
     try:
-        logger.debug("Standardizing 'Consumer ID' in repairorder_df.")
+        logger.info("Standardizing 'Consumer ID' in repairorder_df.")
         repairorder_df['Consumer ID'] = repairorder_df['Consumer ID'].astype(str)
 
-        logger.debug("Standardizing 'Dealer Customer No' in customers_df.")
+        logger.info("Standardizing 'Dealer Customer No' in customers_df.")
         customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
-        logger.debug("Standardizing 'Vin No' in repairorder_df.")
+        logger.info("Standardizing 'Vin No' in repairorder_df.")
         repairorder_df['Vin No'] = repairorder_df['Vin No'].astype(str)
 
-        logger.debug("Standardizing 'Vin No' in vehicles_df.")
+        logger.info("Standardizing 'Vin No' in vehicles_df.")
         vehicles_df['Vin No'] = vehicles_df['Vin No'].astype(str)
 
         logger.info("Data type standardization completed successfully.")
