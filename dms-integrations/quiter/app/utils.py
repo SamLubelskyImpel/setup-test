@@ -168,6 +168,11 @@ def identify_and_separate_records(main_df, customers_df, vehicles_df):
     (missing either a customer or vehicle).
     """
     try:
+        # Ensure both Consumer ID and Dealer Customer No are strings for comparison
+        # This was done because the test files that we tested against were always different
+        main_df['Consumer ID'] = main_df['Consumer ID'].astype(str)
+        customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
+
         # Identify orphan consumer records by checking if 'Consumer ID' in main_df is not present in customers_df
         missing_customers = main_df[~main_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
         missing_customer_ids = missing_customers['Consumer ID'].unique()
@@ -195,6 +200,7 @@ def identify_and_separate_records(main_df, customers_df, vehicles_df):
     except Exception as e:
         logger.error(f"Unexpected error in identify_and_separate_records: {e}")
         raise
+
 
 
 def save_to_s3(df, bucket_name, key):
