@@ -25,11 +25,12 @@ FILE_TYPES = [
     "other" 
     ]
 
-def send_to_queue(queue_url, file_type, file_path):
+def send_to_queue(queue_url, partner_id, file_type, file_path):
     """Call SQS queue to download file from specified SFTP path."""
     data = {
-        "dealer_id": dealer_id,
-        "end_dt_str": end_dt_str,
+        "partner_id": partner_id,
+        "file_path": file_path,
+        "file_type": file_type
     }
     logger.info(f"Sending {data} to {queue_url}")
     sqs_client.send_message(
@@ -37,7 +38,7 @@ def send_to_queue(queue_url, file_type, file_path):
         MessageBody=dumps(data)
     )
 
-def authenticate_request(event, context):
+def authenticate_request(event):
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager. 
     Then check that the request body contains no errors"""
     logger.info(event)
@@ -64,75 +65,47 @@ def authenticate_request(event, context):
         "headers": {"Content-Type": "application/json"},
     }
     
-    try:
-        secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/cdpi-web"
-        )
-    except ClientError as e:
-        if e.response["Error"]["Code"] == "ResourceNotFoundException":
-            logger.exception("Could not locate secret value")
-        else:
-            logger.exception("Unknown error occurred fetching secret")
-        message = {
-            "statusCode": 500,
-            "body": dumps(
-            {
-                "message": "Internal Server Error. Please contact Impel support.",
-                "recv_timestamp": datetime.utcnow()
-                .replace(tzinfo=timezone.utc)
-                .isoformat(),
-            }
-            ),
-            "headers": {"Content-Type": "application/json"},
-        }
-        raise e
+    # try:
+    #     secret = SM_CLIENT.get_secret_value(
+    #         SecretId=f"{'prod' if is_prod else 'test'}/cdpi-web"
+    #     )
+    # except ClientError as e:
+    #     if e.response["Error"]["Code"] == "ResourceNotFoundException":
+    #         logger.exception("Could not locate secret value")
+    #     else:
+    #         logger.exception("Unknown error occurred fetching secret")
+    #     raise e
         
+    # try:
+    #     secret = loads(secret["SecretString"])[str(partner_id)]
+    #     secret_data = loads(secret)
+    # except KeyError:
+    #     logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Invalid partner id")
+    #     message = {
+    #         "statusCode": 401,
+    #         "body": dumps(
+    #             {
+    #                 "message": "Unauthorized.",
+    #                 "recv_timestamp": datetime.utcnow()
+    #                 .replace(tzinfo=timezone.utc)
+    #                 .isoformat(),
+    #             }
+    #         ),
+    #         "headers": {"Content-Type": "application/json"},
+    #     }
+    #     return authenticated, message
+
+    # authorized = api_key == secret_data["api_key"]
+
+    # if authorized:
+
     try:
-        secret = loads(secret["SecretString"])[str(partner_id)]
-        secret_data = loads(secret)
-    except KeyError:
-        logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Invalid partner id")
-        message = {
-            "statusCode": 401,
-            "body": dumps(
-                {
-                    "message": "Unauthorized.",
-                    "recv_timestamp": datetime.utcnow()
-                    .replace(tzinfo=timezone.utc)
-                    .isoformat(),
-                }
-            ),
-            "headers": {"Content-Type": "application/json"},
-        }
-        return authenticated, message
+        body = loads(event["body"])
 
-    authorized = api_key == secret_data["api_key"]
+        file_path = body.get("file_path", None)
+        file_type = body.get("file_type", "missing")
 
-    if authorized:
-
-        try:
-            body = loads(event["body"])
-
-            message = body.get("message", None)
-            file_path = body.get("file_path", None)
-            file_type = body.get("file_type", "missing")
-
-            if file_type not in FILE_TYPES or not file_path or not message:
-                message = {
-                    "statusCode": 400,
-                    "body": dumps(
-                        {
-                        "message": "Request body is missing or invalid.",
-                        "recv_timestamp": datetime.utcnow()
-                        .replace(tzinfo=timezone.utc)
-                        .isoformat(),
-                        }
-                    ),
-                    "headers": {"Content-Type": "application/json"},
-                }
-                return authenticated, message
-        except Exception as e:
-            logger.exception(e)
+        if file_type not in FILE_TYPES or not file_path:
             message = {
                 "statusCode": 400,
                 "body": dumps(
@@ -146,44 +119,27 @@ def authenticate_request(event, context):
                 "headers": {"Content-Type": "application/json"},
             }
             return authenticated, message
-
+    except Exception as e:
+        logger.exception(e)
         message = {
-            "statusCode": 200,
+            "statusCode": 400,
             "body": dumps(
                 {
-                    "message": "Accepted.",
-                    "recv_timestamp": datetime.utcnow()
-                    .replace(tzinfo=timezone.utc)
-                    .isoformat(),
-                }
-            ),
-            "headers": {"Content-Type": "application/json"},
-        }
-        authenticated = True
-        return authenticated, message
-    else:
-        logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Incorrect API key provided")
-        message = {
-            "statusCode": 401,
-            "body": dumps(
-                {
-                    "message": "Unauthorized.",
-                    "recv_timestamp": datetime.utcnow()
-                    .replace(tzinfo=timezone.utc)
-                    .isoformat(),
+                "message": "Request body is missing or invalid.",
+                "recv_timestamp": datetime.utcnow()
+                .replace(tzinfo=timezone.utc)
+                .isoformat(),
                 }
             ),
             "headers": {"Content-Type": "application/json"},
         }
         return authenticated, message
 
-def lambda_handler(event, context):
-    logger.info(event)
-    message =  {
-        "statusCode": 500,
+    message = {
+        "statusCode": 200,
         "body": dumps(
             {
-                "message": "Internal Server Error. Please contact Impel support.",
+                "message": "Accepted.",
                 "recv_timestamp": datetime.utcnow()
                 .replace(tzinfo=timezone.utc)
                 .isoformat(),
@@ -191,20 +147,46 @@ def lambda_handler(event, context):
         ),
         "headers": {"Content-Type": "application/json"},
     }
+    authenticated = True
+    return authenticated, message
+    # else:
+    #     logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Incorrect API key provided")
+    #     message = {
+    #         "statusCode": 401,
+    #         "body": dumps(
+    #             {
+    #                 "message": "Unauthorized.",
+    #                 "recv_timestamp": datetime.utcnow()
+    #                 .replace(tzinfo=timezone.utc)
+    #                 .isoformat(),
+    #             }
+    #         ),
+    #         "headers": {"Content-Type": "application/json"},
+    #     }
+    #     return authenticated, message
+
+def lambda_handler(event):
+    logger.info(event)
 
     try:
-        authenticated, message = authenticate_request(event, context)
+        authenticated, message = authenticate_request(event)
         if authenticated:
             headers = {k.lower(): v for k, v in event['headers'].items()}
             partner_id = headers.get('partner_id')
+            body = loads(event["body"])
+
+            file_path = body.get("file_path", None)
+            file_type = body.get("file_type", "missing")
+
             send_to_queue(
                 DOWNLOAD_QUEUE,
                 partner_id,
-                datetime.utcnow()
-                .replace(tzinfo=timezone.utc)
-                .isoformat(),
+                file_type,
+                file_path
             )
+
         return message
+        
     except Exception as e:
         logger.exception(f"Error invoking ford direct {event}")
         notify_client_engineering(e)

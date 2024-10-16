@@ -138,13 +138,6 @@ Resources:
             Resource: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
           - Effect: "Allow"
             Action:
-              - "logs:CreateLogGroup"
-              - "logs:CreateLogStream"
-              - "logs:PutLogEvents"
-              - "logs:DescribeLogStreams"
-             Resource: "arn:aws:logs:*:*:*"
-          - Effect: "Allow"
-            Action:
               - "sqs:ReceiveMessage"
               - "sqs:SendMessage"
               - "sqs:DeleteMessage"
@@ -726,23 +719,93 @@ Resources:
       EventSourceArn: !GetAtt MatchingPIIInboundQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt MatchingPIIInbound.Arn
-      
+  
+# WEBHOOK
+  
+  # Authorizer:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
+  #     CodeUri: app/
+  #     Handler: authorizer.lambda_handler
+  #     Timeout: 120
+  #     MemorySize: 1024
+  #     Policies:
+  #       - !Ref LambdaExecutionPolicy
+
+
+  FordDirectWebhookAPI:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: 'FordDirectWebhookAPI'
+      Description: 'API for triggering SFTP download via webhook'
+      StageName: !Ref Environment
+
+  # FordDirectWebhookAPI:
+  #   Type: 'AWS::Serverless::Api'
+  #   Properties:
+  #     Name: 'FordDirectWebhookAPI'
+  #     Description: 'API for triggering SFTP download via webhook'
+  #     StageName: !Ref Environment
+  #     Auth:
+  #       DefaultAuthorizer: DefaultAuth
+  #       Authorizers:
+  #         DefaultAuth:
+  #           FunctionPayloadType: REQUEST
+  #           FunctionArn: !GetAtt Authorizer.Arn
+  #           Identity:
+  #             Headers:
+  #               - partner_id
+  #               - x_api_key
+  #             Context:
+  #               - resourcePath
+  #             ReauthorizeEvery: 0
+  #     AccessLogSetting:
+  #       DestinationArn: !GetAtt FordDirectWebhookAPILogGroup.Arn
+  #       Format: >-
+  #         {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+  #     DefinitionBody:
+  #       Fn::Transform:
+  #         Name: AWS::Include
+  #         Parameters:
+  #           Location: "./swagger/cdpi-fd-webhook.yaml"
+  #     GatewayResponses:
+  #       BAD_REQUEST_PARAMETERS:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.error.validationErrorString"}'
+  #       BAD_REQUEST_BODY:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.error.validationErrorString"}'
+  #       UNAUTHORIZED:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "This request is unauthorized."}'
+  #         StatusCode: "401"
+  #       ACCESS_DENIED:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "$context.authorizer.key"}'
+  #         StatusCode: "403"
+  #       DEFAULT_5xx:
+  #         ResponseTemplates:
+  #           application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+  # FordDirectWebhookAPILogGroup:
+  #   Type: AWS::Logs::LogGroup
+
   SFTPNotifyWebhook:
     Type: 'AWS::Serverless::Function'
     Properties:
       CodeUri: app/
       Handler: webhook.lambda_handler
       FunctionName: !Sub forddirect-${Environment}-webhook
-      Runtime: 'python3.9'
       MemorySize: 128
       Timeout: 30
       Events:
-        HttpApi:
+        Post:
           Type: Api
           Properties:
             Path: /sftp-notify
             Method: POST
-            RestApiId: !Ref ApiGatewayRestApi
+            RestApiId: !Ref FordDirectWebhookAPI
       Policies:
         - !Ref LambdaExecutionPolicy
 
@@ -750,13 +813,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/forddirect-${Environment}-webhook"
-
-  ApiGatewayRestApi:
-    Type: 'AWS::Serverless::Api'
-    Properties:
-      Name: 'FordDirectWebhookAPI'
-      Description: 'API for triggering SFTP download via webhook'
-      StageName: !Ref Environment
 
   DownloadQueue:
     Type: AWS::SQS::Queue
@@ -778,13 +834,13 @@ Resources:
       FunctionName: !Sub forddirect-${Environment}-DownloadLambda
       CodeUri: app/
       Handler: download_file.lambda_handler
-      Timeout: 660
-      MemorySize: 512
+      Timeout: 900
+      MemorySize: 1024
       Events:
         SQSEvent:
           Type: SQS
           Properties:
             Enabled: True
             Queue: !GetAtt DownloadQueue.Arn
-       Policies:
+      Policies:
         - !Ref LambdaExecutionPolicy
