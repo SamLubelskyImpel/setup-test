@@ -48,14 +48,7 @@ def default_get(json_dict, key, default_value=None):
     return json_value if json_value is not None else default_value
 
 
-def convert_unix_to_timestamp(unix_time):
-    """Convert unix time to datetime object"""
-    if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
-        return None
-    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
-
-
-def parse_json_to_entries(json_data, s3_uri):
+def parse_json_to_entries(json_data):
     """ "Format quiter json data to unified format."""
     entries = []
     dms_id = None
@@ -66,108 +59,56 @@ def parse_json_to_entries(json_data, s3_uri):
         db_consumer = {}
         db_op_codes = []
 
-        db_metadata = {
-            "Region": REGION,
-            "PartitionYear": s3_uri.split("/")[2],
-            "PartitionMonth": s3_uri.split("/")[3],
-            "PartitionDate": s3_uri.split("/")[4],
-            "s3_url": s3_uri,
-        }
-
         dms_id = repair_order.get("Dealer ID")
         db_dealer_integration_partner = {"dms_id": dms_id}
 
-        db_service_repair_order["repair_order_no"] = default_get(
-            repair_order, "repairOrderNumber"
-        )
-        created_time = default_get(repair_order, "createdTime")
-        db_service_repair_order["ro_open_date"] = convert_unix_to_timestamp(
-            created_time
-        )
-        db_service_repair_order["ro_close_date"] = default_get(
-            repair_order, "closedTime"
-        )
-        closed_time = default_get(repair_order, "closedTime")
-        db_service_repair_order["ro_close_date"] = convert_unix_to_timestamp(
-            closed_time
-        )
+        db_service_repair_order["repair_order_no"] = default_get(repair_order, "Repair Order No")
+        ro_open_date = default_get(repair_order, "Repair Order Open Date")
+        ro_open_formated_date = datetime.strptime(ro_open_date, '%d/%m/%y').strftime('%Y-%m-%d')
 
-        primary_advisor = default_get(repair_order, "primaryAdvisor", [])
-        for advisor in primary_advisor:
-            first_name = default_get(advisor, "firstName")
-            last_name = default_get(advisor, "lastName")
-            if first_name or last_name:
-                db_service_repair_order["advisor_name"] = f"{first_name} {last_name}"
+        ro_close_date = default_get(repair_order, "Repair Order Close Date")
+        ro_close_formated_date = datetime.strptime(ro_close_date, '%d/%m/%y').strftime('%Y-%m-%d')
 
-        invoice = default_get(repair_order, "invoice", {})
-        db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
-        customer_pay = default_get(invoice, "customerPay", {})
-        db_service_repair_order["consumer_total_amount"] = default_get(
-            customer_pay, "amount"
-        )
-        warranty_pay = default_get(invoice, "warrantyPay", {})
-        db_service_repair_order["warranty_total_amount"] = default_get(
-            warranty_pay, "amount"
-        )
+        db_service_repair_order["ro_open_date"] = ro_open_formated_date
+        db_service_repair_order["ro_close_date"] = ro_close_formated_date
 
-        txn_pay_type_arr = set()
-        comment = set()
-        jobs = default_get(repair_order, "jobs", [])
-        for job in jobs:
-            pay_type = default_get(job, "payType")
-            if pay_type:
-                txn_pay_type_arr.add(pay_type)
-            concern = default_get(job, "concern")
-            if concern:
-                comment.add(concern)
-            operations = default_get(job, "operations", [])
-            for operation in operations:
-                db_op_code = {}
-                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
-                db_op_code["op_code|op_code_desc"] = (
-                    default_get(operation, "opcodeDescription") or ""
-                )[:305]
-                db_op_codes.append(db_op_code)
+        db_service_repair_order["advisor_name"] = default_get(repair_order, "Advisor Name")
+        db_service_repair_order["total_amount"] = default_get(repair_order, "Total Amount")
+        db_service_repair_order["consumer_total_amount"] = default_get(repair_order, "Consumer Total Amount")
+        db_service_repair_order["warranty_total_amount"] = default_get(repair_order, "Warranty Total Amount")
 
-        db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
-        db_service_repair_order["comment"] = ",".join(list(txn_pay_type_arr))
+        txn_pay_type = default_get(repair_order, "Txn Pay Type")
+        db_service_repair_order["txn_pay_type"] = txn_pay_type if txn_pay_type else ""
 
-        vehicle = default_get(repair_order, "vehicle", {})
-        db_vehicle["vin"] = default_get(vehicle, "vin")
-        db_vehicle["make"] = default_get(vehicle, "make")
-        db_vehicle["model"] = default_get(vehicle, "model")
-        db_vehicle["year"] = default_get(vehicle, "year")
-        mileage_in = default_get(vehicle, "mileageIn")
-        if default_get(mileage_in, "unit", "").upper() == "MI":
-            db_vehicle["mileage"] = default_get(mileage_in, "value")
+        db_service_repair_order["comment"] = default_get(repair_order, "Comment")
 
-        customer = default_get(repair_order, "customer", {})
-        db_consumer["first_name"] = default_get(customer, "firstName")
-        db_consumer["last_name"] = default_get(customer, "lastName")
-        db_consumer["email"] = default_get(customer, "email")
-        phones = default_get(customer, "phones", [])
-        for phone in phones:
-            phone_type = default_get(phone, "phoneType", "")
-            phone_number = default_get(phone, "number")
-            if phone_type.upper() == "MOBILE":
-                db_consumer["cell_phone"] = phone_number
-            elif phone_type.upper() == "HOME":
-                db_consumer["home_phone"] = phone_number
-        address = default_get(customer, "address", {})
-        db_consumer["city"] = default_get(address, "city")
-        db_consumer["state"] = default_get(address, "state")
-        db_consumer["postal_code"] = default_get(address, "zip")
-        address_line1 = default_get(address, "line1")
-        address_line2 = default_get(address, "line2")
-        if address_line1 and address_line2:
-            db_consumer["address"] = f"{address_line1} {address_line2}"
-        elif address_line1:
-            db_consumer["address"] = address_line1
+        op_codes = default_get(repair_order, "Operation Code", "").split("|")
+        op_code_descs = default_get(repair_order, "OP Cde Desc", "").split("|")
 
-        metadata = dumps(db_metadata)
-        db_vehicle["metadata"] = metadata
-        db_consumer["metadata"] = metadata
-        db_service_repair_order["metadata"] = metadata
+        for op_code, op_code_desc in zip(op_codes, op_code_descs):
+            db_op_code = {
+                "op_code|op_code": op_code,
+                "op_code|op_code_desc": op_code_desc[:305]
+            }
+            db_op_codes.append(db_op_code)
+
+        db_vehicle["vin"] = default_get(repair_order, "Vin No")
+        db_vehicle["make"] = default_get(repair_order, "Make")
+        db_vehicle["model"] = default_get(repair_order, "Model")
+        db_vehicle["year"] = default_get(repair_order, "Year")
+        db_vehicle["mileage"] = default_get(repair_order, "Mileage In")
+
+        db_consumer["first_name"] = default_get(repair_order, "First Name")
+        db_consumer["last_name"] = default_get(repair_order, "Last Name")
+        db_consumer["email"] = default_get(repair_order, "Email")
+        db_consumer["cell_phone"] = default_get(repair_order, "Cell Phone")
+        db_consumer["home_phone"] = default_get(repair_order, "Home Phone")
+        db_consumer["city"] = default_get(repair_order, "City")
+        db_consumer["state"] = default_get(repair_order, "State")
+        db_consumer["postal_code"] = default_get(repair_order, "Postal Code")
+
+        address_line1 = default_get(repair_order, "Metro")
+        db_consumer["address"] = address_line1 if address_line1 else ""
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
@@ -177,6 +118,7 @@ def parse_json_to_entries(json_data, s3_uri):
             "op_codes.op_codes": db_op_codes,
         }
         entries.append(entry)
+
     return entries, dms_id
 
 
@@ -204,7 +146,9 @@ def lambda_handler(event, context):
 
                 json_data = csv_df.to_json(orient="records")
 
-                entries, dms_id = parse_json_to_entries(loads(json_data), decoded_key)
+                logger.info(f"json data {json_data}")
+
+                entries, dms_id = parse_json_to_entries(loads(json_data))
 
                 if not dms_id:
                     logger.error("No dms_id found in the CSV data")

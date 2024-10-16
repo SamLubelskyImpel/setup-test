@@ -151,7 +151,7 @@ def lambda_handler(event, context):
             logger.info(f"Uploading merged file to S3 for dealer {dealer_id}")
             csv_buffer = merged_df.to_csv(index=False)
             unique_id = str(uuid.uuid4())
-            s3_key = f"quiter/repair_order/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}.csv"
+            s3_key = f"quiter/repair_order/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}.csv"
             s3_client.put_object(
                 Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=csv_buffer
             )
