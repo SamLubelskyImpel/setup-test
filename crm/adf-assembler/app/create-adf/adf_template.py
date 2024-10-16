@@ -67,52 +67,47 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "comment": "comments",
 }
 
+OEM_MAPPING = {
+    "vehicle": {
+        "status": ' status="{status_value}"',
+        "interest": ' interest="{interest_value}"',
+        "year": "<year>{year_value}</year>",
+        "make": "<make>{make_value}</make>",
+        "model": "<model>{model_value}</model>",
+        "vin": "<vin>{vin_value}</vin>",
+        "stock": "<stock>{stock_value}</stock>",
+        "comments": "<comments>{comments_value}</comments>",
+    },
+    "customer": {
+        "first_name": '<name part="first" type="individual">{first_name_value}</name>',
+        "last_name": '<name part="last" type="individual">{last_name_value}</name>',
+        "phone": "<phone><![CDATA[{phone_value}]]></phone>",
+        "email": "<email>{email_value}</email>",
+        "address": {
+            "street": '<street line="1">{street_value}</street>',
+            "city": "<city>{city_value}</city>",
+            "regioncode": "<regioncode>{regioncode_value}</regioncode>",
+            "postalcode": "<postalcode>{postalcode_value}</postalcode>",
+        }
+    },
+    "vendor": {
+        "id": '<id source="{oem_recipient} Dealer Code">{dealer_code}</id>',
+        "vendorname": "<vendorname>{vendorname_value}</vendorname>",
+    }
+}
 
-HONDA_ADF_TEMPLATE = """
+OEM_ADF_TEMPLATE = """
 <adf>
     <prospect status="new">
         <id source="ActivEngage" sequence="1">18014964</id>
-        <id source="IPAddress">172.124.188.247</id>
-        <id source="UserAgent">Mozilla/5.0 (iPhone; CPU iPhone OS 15_2 like MacOS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Mobile/15E148Safari/604.1</id>
-        <id source="URL">https://www.honda.com/inventory/new-2022-honda-Accord-4dr-car-kmhll4xxaa289858/</id>
-        <id source="TPCA_Consent">NULL</id>
         <id source="LeadSubProgram">New Chat Sales Lead</id>
-        <id source="MediaType">WEB</id>
-        <requestdate>2022-03-15T16:55:23+00:00</requestdate>
-        <vehicle status="new" interest="buy">
-            <make>Honda</make>
-            <year>2022</year>
-            <model>Accord</model>
-            <vin> JHLRW2H59KX00000</vin>
-            <stock></stock>
-            <comments></comments>
-        </vehicle>
-        <customer>
-            <contact>
-            <name part="first" type="individual">Hailees</name>
-            <name part="last" type="individual">Comet</name>
-            <email>haileescomet2@gmail.com</email>
-            <phone type="voice" time="day"><![CDATA[516-504-0006]]></phone>
-            <address>
-            <street line="1"></street>
-            <city></city>
-            <regioncode></regioncode>
-            <postalcode>77373</postalcode>
-            </address>
-            </contact>
-            <timeframe>
-            <description>2 weeks</description>
-            </timeframe>
-            <comments>Chat Transcript without any PCI data.</comments>
-        </customer>
-        <vendor>
-            <id source=" Honda Dealer Code">208625</id>
-            <vendorname>Lou Sobh Honda</vendorname>
-        </vendor>
+        <requestdate>{request_date}</requestdate>
+        {vehicle_of_interest}
+        {customer}
+        {vendor}
         <provider>
-            <name>ActivEngage - Chat</name>
-            <service>90534</service>
-            <url>https://conversations.activEngage.com/</url>
+            <name>Impel-Chat</name>
+            <service>{service_value}</service>
         </provider>
     </prospect>
 </adf>

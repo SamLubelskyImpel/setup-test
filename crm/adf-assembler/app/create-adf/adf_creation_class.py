@@ -1,15 +1,14 @@
-import re
 import boto3
 import logging
 import requests
+from os import environ
 from json import loads
 from datetime import datetime
 from adf_template import LEAD_DATA_TO_ADF_MAPPER, BASE_ADF_TEMPLATE
-from os import environ
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
+CRM_API_DOMAIN = "crm-api-test.testenv.impel.io"#environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = "impel"#environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -23,10 +22,12 @@ class CRMApiError(Exception):
 class AdfCreation:
     """Class for creating an ADF (Automotive Dealership Format) from a lead ID and appointment time if necessary."""
 
-    def __init__(self) -> None:
+    def __init__(self, oem_recipient) -> None:
         """Initialize API Wrapper."""
         self.partner_id = CRM_API_SECRET_KEY
         self.api_key = self._get_secrets()
+
+        self.oem_recipient = oem_recipient
 
         self.adf_file = BASE_ADF_TEMPLATE
         self.mapper = LEAD_DATA_TO_ADF_MAPPER
@@ -211,7 +212,6 @@ class AdfCreation:
             self.customer, self.customer_contact, self.customer_address = self._create_customer(consumer)
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
-            # self.vendor = self.generate_adf_from_lead_data(dealer, "vendor")
 
             return self.adf_file.format(
                 lead_id=lead_id,

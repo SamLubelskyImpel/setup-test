@@ -264,11 +264,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     payload = {
                         "lead_id": lead_id,
                         "recipients": adf_recipients,
-                        "activity_time": activity_due_dealer_ts,
                         "partner_name": partner_name,
                         "sftp_config": sftp_config,
-                        "oem_recipient": oem_recipient
-
+                        "oem_recipient": oem_recipient,
+                        "activity_time": activity_due_dealer_ts
                     }
 
                     sqs_client = boto3.client('sqs')
