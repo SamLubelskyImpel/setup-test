@@ -76,11 +76,9 @@ def parse_json_to_entries(json_data):
         db_service_repair_order["total_amount"] = default_get(repair_order, "Total Amount")
         db_service_repair_order["consumer_total_amount"] = default_get(repair_order, "Consumer Total Amount")
         db_service_repair_order["warranty_total_amount"] = default_get(repair_order, "Warranty Total Amount")
-
-        txn_pay_type = default_get(repair_order, "Txn Pay Type")
-        db_service_repair_order["txn_pay_type"] = txn_pay_type if txn_pay_type else ""
-
+        db_service_repair_order["txn_pay_type"] = default_get(repair_order, "Txn Pay Type", "")
         db_service_repair_order["comment"] = default_get(repair_order, "Comment")
+        db_service_repair_order["recommendation"] = default_get(repair_order, "Recommendation")
 
         op_codes = default_get(repair_order, "Operation Code", "").split("|")
         op_code_descs = default_get(repair_order, "OP Cde Desc", "").split("|")
@@ -97,6 +95,10 @@ def parse_json_to_entries(json_data):
         db_vehicle["model"] = default_get(repair_order, "Model")
         db_vehicle["year"] = default_get(repair_order, "Year")
         db_vehicle["mileage"] = default_get(repair_order, "Mileage In")
+        db_vehicle["type"] = default_get(repair_order, "Vehicle Type")
+        db_vehicle["oem_name"] = default_get(repair_order, "OEM Name")
+        db_vehicle["warranty_expiration_miles"] = default_get(repair_order, "Warranty Expiration Miles")
+        db_vehicle["warranty_expiration_date"] = default_get(repair_order, "Warranty Expiration Date")
 
         db_consumer["first_name"] = default_get(repair_order, "First Name")
         db_consumer["last_name"] = default_get(repair_order, "Last Name")
@@ -106,9 +108,12 @@ def parse_json_to_entries(json_data):
         db_consumer["city"] = default_get(repair_order, "City")
         db_consumer["state"] = default_get(repair_order, "State")
         db_consumer["postal_code"] = default_get(repair_order, "Postal Code")
+        db_consumer["address"] = default_get(repair_order, "Metro", "")
 
-        address_line1 = default_get(repair_order, "Metro")
-        db_consumer["address"] = address_line1 if address_line1 else ""
+        db_consumer["email_optin_flag"] = default_get(repair_order, "Email Optin Flag")
+        db_consumer["phone_optin_flag"] = default_get(repair_order, "Phone Optin Flag")
+        db_consumer["postal_mail_optin_flag"] = default_get(repair_order, "Postal Mail Optin Flag")
+        db_consumer["sms_optin_flag"] = default_get(repair_order, "SMS Optin Flag")
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
@@ -120,7 +125,6 @@ def parse_json_to_entries(json_data):
         entries.append(entry)
 
     return entries, dms_id
-
 
 def lambda_handler(event, context):
     """Transform Quiter deals files."""
