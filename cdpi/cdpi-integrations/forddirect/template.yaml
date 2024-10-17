@@ -728,8 +728,8 @@ Resources:
       FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
-      Timeout: 120
-      MemorySize: 1024
+      Timeout: 30
+      MemorySize: 128
       Policies:
         - !Ref LambdaExecutionPolicy
 
@@ -814,6 +814,26 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub forddirect-${Environment}-DownloadQueueDLQ
+
+  DownloadFileDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DownloadFileDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DownloadFileDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DownloadQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   DownloadFileLambda:
     Type: AWS::Serverless::Function

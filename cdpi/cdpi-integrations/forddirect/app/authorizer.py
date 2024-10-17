@@ -54,9 +54,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
         return {
             "policyDocument": policy, 
             "principalId": partner_id,
-            "context": {
-                "integration_partner": secret_data.get("integration_partner", None)
-            }
+            "context": {}
         }
     else:
         logger.info(f"Access denied for partner_id {partner_id} to endpoint {method_arn}")
