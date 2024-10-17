@@ -48,6 +48,8 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        DOWNLOAD_QUEUE: !Ref DownloadQueue
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-prod-${AWS::Region}', !Sub 'cdpi-test-${AWS::Region}' ]
     VpcConfig:
         SecurityGroupIds:
@@ -100,6 +102,21 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
                 ]
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-web*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-web*",
+                ]
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-SFTP*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-SFTP*",
+                ]
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-PKEY*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-PKEY*",
+                ]
           - Effect: Allow
             Action:
               - ec2:CreateNetworkInterface
@@ -119,6 +136,14 @@ Resources:
             Action:
               - sns:Publish
             Resource: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+          - Effect: "Allow"
+            Action:
+              - "sqs:ReceiveMessage"
+              - "sqs:SendMessage"
+              - "sqs:DeleteMessage"
+              - "sqs:GetQueueAttributes"
+            Resource:
+              - !GetAtt DownloadQueue.Arn
 
   InvokePIIOutbound:
     Type: AWS::Serverless::Function
@@ -694,3 +719,135 @@ Resources:
       EventSourceArn: !GetAtt MatchingPIIInboundQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt MatchingPIIInbound.Arn
+  
+# WEBHOOK
+  
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
+      CodeUri: app/
+      Handler: authorizer.lambda_handler
+      Timeout: 30
+      MemorySize: 128
+      Policies:
+        - !Ref LambdaExecutionPolicy
+
+  FordDirectWebhookAPI:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: 'FordDirectWebhookAPI'
+      Description: 'API for triggering SFTP download via webhook'
+      StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: DefaultAuth
+        Authorizers:
+          DefaultAuth:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt Authorizer.Arn
+            Identity:
+              Headers:
+                - partner_id
+                - x_api_key
+              Context:
+                - resourcePath
+              ReauthorizeEvery: 0
+      AccessLogSetting:
+        DestinationArn: !GetAtt FordDirectWebhookAPILogGroup.Arn
+        Format: >-
+          {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+      GatewayResponses:
+        BAD_REQUEST_PARAMETERS:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        UNAUTHORIZED:
+          ResponseTemplates:
+            application/json: '{"message": "This request is unauthorized."}'
+          StatusCode: "401"
+        ACCESS_DENIED:
+          ResponseTemplates:
+            application/json: '{"message": "$context.authorizer.key"}'
+          StatusCode: "403"
+        DEFAULT_5xx:
+          ResponseTemplates:
+            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+  FordDirectWebhookAPILogGroup:
+    Type: AWS::Logs::LogGroup
+
+  SFTPNotifyWebhook:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: webhook.lambda_handler
+      FunctionName: !Sub forddirect-${Environment}-webhook
+      MemorySize: 128
+      Timeout: 30
+      Events:
+        HttpApi:
+          Type: Api
+          Properties:
+            Path: /sftp-notify
+            Method: POST
+            RestApiId: !Ref FordDirectWebhookAPI
+      Policies:
+        - !Ref LambdaExecutionPolicy
+
+  SFTPNotifyWebhookLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/forddirect-${Environment}-webhook"
+
+  DownloadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub forddirect-${Environment}-DownloadQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DownloadQueueDLQ.Arn
+        maxReceiveCount: 3
+      VisibilityTimeout: 900
+
+  DownloadQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub forddirect-${Environment}-DownloadQueueDLQ
+
+  DownloadFileDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DownloadFileDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DownloadFileDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DownloadQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  DownloadFileLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub forddirect-${Environment}-DownloadLambda
+      CodeUri: app/
+      Handler: download_file.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt DownloadQueue.Arn
+      Policies:
+        - !Ref LambdaExecutionPolicy
