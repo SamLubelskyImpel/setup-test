@@ -48,9 +48,9 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         DOWNLOAD_QUEUE: !Ref DownloadQueue
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-prod-${AWS::Region}', !Sub 'cdpi-test-${AWS::Region}' ]
     VpcConfig:
         SecurityGroupIds:
           - !Ref SecurityGroup
@@ -129,8 +129,8 @@ Resources:
             Resource:
               - !If [
                 IsProd,
-                !Sub "arn:aws:s3:::cdpi-prod-${AWS::Region}*",
-                !Sub "arn:aws:s3:::cdpi-test-${AWS::Region}*"
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod*",
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test*"
               ]
           - Effect: "Allow"
             Action:
@@ -719,9 +719,9 @@ Resources:
       EventSourceArn: !GetAtt MatchingPIIInboundQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt MatchingPIIInbound.Arn
-  
+
 # WEBHOOK
-  
+
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:

@@ -63,7 +63,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-prod-${AWS::Region}', !Sub 'cdpi-test-${AWS::Region}' ]
+        SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -75,7 +75,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub 'cdpi-${Environment}-${AWS::Region}'
+      BucketName: !Sub 'cdpi-shared-${AWS::Region}-${Environment}'
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -115,7 +115,7 @@ Resources:
           Resource: !Ref SharedS3ToSNSTopic
           Condition:
             ArnLike:
-              aws:SourceArn: !Sub 'arn:aws:s3:::cdpi-${Environment}-${AWS::Region}'
+              aws:SourceArn: !Sub 'arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}'
       Topics:
         - Ref: SharedS3ToSNSTopic
 
@@ -140,11 +140,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/sales-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
 
   SalesAITempRole:  # this is a temporary role for development only
     Type: AWS::IAM::Role
@@ -168,11 +168,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/sales-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/sales-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
 
   ServiceAIRole:
     Type: AWS::IAM::Role
@@ -195,11 +195,11 @@ Resources:
                 Action:
                   - s3:*
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/service-ai/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/service-ai/*"
               - Effect: "Allow"
                 Action:
                   - s3:ListBucket
-                Resource: !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}"
+                Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}"
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -287,8 +287,8 @@ Resources:
                   - s3:ListBucket
                   - s3:PutObject
                 Resource:
-                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound/*"
-                  - !Sub "arn:aws:s3:::cdpi-${Environment}-${AWS::Region}/customer-inbound-processed/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-processed/*"
         - PolicyName: SQSAccess
           PolicyDocument:
             Version: "2012-10-17"
