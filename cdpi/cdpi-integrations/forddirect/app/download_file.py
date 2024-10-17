@@ -39,9 +39,9 @@ def validate_file(sftp, remote_file_path):
         raise Exception(f"File {os.path.basename(remote_file_path)} is larger than 750 MB. Unable to download")
     return
 
-def stream_file_in_chunks(sftp, remote_file_path, s3_file_path):
+def stream_file_to_s3(sftp, remote_file_path, s3_file_path):
     """
-    Downloads a file in chunks from SFTP to handle large file downloads more gracefully.
+    Downloads a file from SFTP to s3 bucket.
     """
     with BytesIO() as file_buffer:
         with sftp.file(remote_file_path, 'rb') as remote_file:
@@ -77,7 +77,7 @@ def lambda_handler(event, context):
             current_date = datetime.now()
             partner_id = message["partner_id"]
             s3_path = f'download/{partner_id}/{file_type}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(file_path)}'
-            stream_file_in_chunks(sftp, file_path, s3_path)
+            stream_file_to_s3(sftp, file_path, s3_path)
 
             logger.info(f"File downloaded from FD: {file_path} to S3 {s3_path}")
 

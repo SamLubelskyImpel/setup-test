@@ -722,17 +722,16 @@ Resources:
   
 # WEBHOOK
   
-  # Authorizer:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
-  #     CodeUri: app/
-  #     Handler: authorizer.lambda_handler
-  #     Timeout: 120
-  #     MemorySize: 1024
-  #     Policies:
-  #       - !Ref LambdaExecutionPolicy
-
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
+      CodeUri: app/
+      Handler: authorizer.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - !Ref LambdaExecutionPolicy
 
   FordDirectWebhookAPI:
     Type: 'AWS::Serverless::Api'
@@ -740,56 +739,44 @@ Resources:
       Name: 'FordDirectWebhookAPI'
       Description: 'API for triggering SFTP download via webhook'
       StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: DefaultAuth
+        Authorizers:
+          DefaultAuth:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt Authorizer.Arn
+            Identity:
+              Headers:
+                - partner_id
+                - x_api_key
+              Context:
+                - resourcePath
+              ReauthorizeEvery: 0
+      AccessLogSetting:
+        DestinationArn: !GetAtt FordDirectWebhookAPILogGroup.Arn
+        Format: >-
+          {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+      GatewayResponses:
+        BAD_REQUEST_PARAMETERS:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        UNAUTHORIZED:
+          ResponseTemplates:
+            application/json: '{"message": "This request is unauthorized."}'
+          StatusCode: "401"
+        ACCESS_DENIED:
+          ResponseTemplates:
+            application/json: '{"message": "$context.authorizer.key"}'
+          StatusCode: "403"
+        DEFAULT_5xx:
+          ResponseTemplates:
+            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
 
-  # FordDirectWebhookAPI:
-  #   Type: 'AWS::Serverless::Api'
-  #   Properties:
-  #     Name: 'FordDirectWebhookAPI'
-  #     Description: 'API for triggering SFTP download via webhook'
-  #     StageName: !Ref Environment
-  #     Auth:
-  #       DefaultAuthorizer: DefaultAuth
-  #       Authorizers:
-  #         DefaultAuth:
-  #           FunctionPayloadType: REQUEST
-  #           FunctionArn: !GetAtt Authorizer.Arn
-  #           Identity:
-  #             Headers:
-  #               - partner_id
-  #               - x_api_key
-  #             Context:
-  #               - resourcePath
-  #             ReauthorizeEvery: 0
-  #     AccessLogSetting:
-  #       DestinationArn: !GetAtt FordDirectWebhookAPILogGroup.Arn
-  #       Format: >-
-  #         {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-  #     DefinitionBody:
-  #       Fn::Transform:
-  #         Name: AWS::Include
-  #         Parameters:
-  #           Location: "./swagger/cdpi-fd-webhook.yaml"
-  #     GatewayResponses:
-  #       BAD_REQUEST_PARAMETERS:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.error.validationErrorString"}'
-  #       BAD_REQUEST_BODY:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.error.validationErrorString"}'
-  #       UNAUTHORIZED:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "This request is unauthorized."}'
-  #         StatusCode: "401"
-  #       ACCESS_DENIED:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "$context.authorizer.key"}'
-  #         StatusCode: "403"
-  #       DEFAULT_5xx:
-  #         ResponseTemplates:
-  #           application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
-
-  # FordDirectWebhookAPILogGroup:
-  #   Type: AWS::Logs::LogGroup
+  FordDirectWebhookAPILogGroup:
+    Type: AWS::Logs::LogGroup
 
   SFTPNotifyWebhook:
     Type: 'AWS::Serverless::Function'
@@ -800,7 +787,7 @@ Resources:
       MemorySize: 128
       Timeout: 30
       Events:
-        Post:
+        HttpApi:
           Type: Api
           Properties:
             Path: /sftp-notify

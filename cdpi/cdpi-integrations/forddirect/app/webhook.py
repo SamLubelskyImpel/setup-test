@@ -3,15 +3,13 @@ from datetime import datetime, timezone
 from json import loads, dumps
 from os import environ
 from botocore.exceptions import ClientError
-
-
 import boto3
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sqs_client = boto3.client("sqs")
 DOWNLOAD_QUEUE = environ.get("DOWNLOAD_QUEUE")
-TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
+TOPIC_ARN = environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 
 is_prod = environ.get("ENVIRONMENT", "test") == "prod"
 
@@ -38,7 +36,7 @@ def send_to_queue(queue_url, partner_id, file_type, file_path):
         MessageBody=dumps(data)
     )
 
-def authenticate_request(event):
+def verify_request_body(event):
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager. 
     Then check that the request body contains no errors"""
     logger.info(event)
@@ -65,40 +63,6 @@ def authenticate_request(event):
         "headers": {"Content-Type": "application/json"},
     }
     
-    # try:
-    #     secret = SM_CLIENT.get_secret_value(
-    #         SecretId=f"{'prod' if is_prod else 'test'}/cdpi-web"
-    #     )
-    # except ClientError as e:
-    #     if e.response["Error"]["Code"] == "ResourceNotFoundException":
-    #         logger.exception("Could not locate secret value")
-    #     else:
-    #         logger.exception("Unknown error occurred fetching secret")
-    #     raise e
-        
-    # try:
-    #     secret = loads(secret["SecretString"])[str(partner_id)]
-    #     secret_data = loads(secret)
-    # except KeyError:
-    #     logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Invalid partner id")
-    #     message = {
-    #         "statusCode": 401,
-    #         "body": dumps(
-    #             {
-    #                 "message": "Unauthorized.",
-    #                 "recv_timestamp": datetime.utcnow()
-    #                 .replace(tzinfo=timezone.utc)
-    #                 .isoformat(),
-    #             }
-    #         ),
-    #         "headers": {"Content-Type": "application/json"},
-    #     }
-    #     return authenticated, message
-
-    # authorized = api_key == secret_data["api_key"]
-
-    # if authorized:
-
     try:
         body = loads(event["body"])
 
@@ -110,10 +74,7 @@ def authenticate_request(event):
                 "statusCode": 400,
                 "body": dumps(
                     {
-                    "message": "Request body is missing or invalid.",
-                    "recv_timestamp": datetime.utcnow()
-                    .replace(tzinfo=timezone.utc)
-                    .isoformat(),
+                    "message": "Request body is missing or invalid."
                     }
                 ),
                 "headers": {"Content-Type": "application/json"},
@@ -125,10 +86,7 @@ def authenticate_request(event):
             "statusCode": 400,
             "body": dumps(
                 {
-                "message": "Request body is missing or invalid.",
-                "recv_timestamp": datetime.utcnow()
-                .replace(tzinfo=timezone.utc)
-                .isoformat(),
+                "message": "Request body is missing or invalid."
                 }
             ),
             "headers": {"Content-Type": "application/json"},
@@ -149,28 +107,13 @@ def authenticate_request(event):
     }
     authenticated = True
     return authenticated, message
-    # else:
-    #     logger.exception(f"Access denied for partner_id {partner_id} to endpoint {endpoint}. Incorrect API key provided")
-    #     message = {
-    #         "statusCode": 401,
-    #         "body": dumps(
-    #             {
-    #                 "message": "Unauthorized.",
-    #                 "recv_timestamp": datetime.utcnow()
-    #                 .replace(tzinfo=timezone.utc)
-    #                 .isoformat(),
-    #             }
-    #         ),
-    #         "headers": {"Content-Type": "application/json"},
-    #     }
-    #     return authenticated, message
 
-def lambda_handler(event):
+def lambda_handler(event, context):
     logger.info(event)
 
     try:
-        authenticated, message = authenticate_request(event)
-        if authenticated:
+        verified, message = verify_request_body(event)
+        if verified:
             headers = {k.lower(): v for k, v in event['headers'].items()}
             partner_id = headers.get('partner_id')
             body = loads(event["body"])
@@ -184,7 +127,6 @@ def lambda_handler(event):
                 file_type,
                 file_path
             )
-
         return message
         
     except Exception as e:
