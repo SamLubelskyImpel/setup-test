@@ -136,12 +136,16 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
 
         for json_data in json_data_list:
             count += 1
-            # logger.info(f"Processing record {count} of {total_records}")
+            logger.info(f"Processing record {count} of {total_records}")
+
+            logger.info("Started vehicle insertion for count: %d", count)
 
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
             vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
             vehicle_id = rds_instance.insert_vehicle(vehicle_data)
+
+            logger.info("Started inventory insertion for count: %d", count)
 
             # Insert inventory data
             inventory_data = extract_inventory_data(json_data)
@@ -157,8 +161,13 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
                     option_data = extract_option_data(option_json)
                     option_data_list.append(option_data)
 
+                logger.info("Started options insertion for count: %d", count)
+
                 # Perform bulk insert
+                # option_ids = rds_instance.bulk_insert_options(option_data_list)
                 option_ids = rds_instance.bulk_insert_options(option_data_list)
+
+                logger.info("Started link option insertion for count: %d", count)
 
                 # Link the inserted options to the inventory
                 rds_instance.bulk_link_option_to_inventory(inventory_id, option_ids)

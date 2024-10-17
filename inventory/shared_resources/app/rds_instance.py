@@ -398,3 +398,47 @@ class RDSInstance:
         except Exception as e:
             self.rds_connection.rollback()
             raise e
+
+    def bulk_insert_all_options(self, option_data_list):
+        """Insert multiple option records in a single transaction."""
+        try:
+            new_option_data_list_values = [
+                (option_data["option_description"], option_data["is_priority"])
+                for option_data in option_data_list
+            ]
+
+            with self.rds_connection.cursor() as cursor:
+                # Insert new options
+                insert_query = f"""
+                INSERT INTO {self.schema}.inv_option (option_description, is_priority)
+                VALUES %s
+                ON CONFLICT (option_description, is_priority) DO NOTHING
+                RETURNING id
+                """
+                psycopg2.extras.execute_values(
+                    cursor,
+                    insert_query,
+                    new_option_data_list_values,
+                    template="(%s, %s)",
+                    page_size=100,
+                )
+
+                # Fetch IDs of inserted or existing options
+                select_query = f"""
+                SELECT id FROM {self.schema}.inv_option
+                WHERE (option_description, is_priority) IN %s
+                """
+
+                option_descriptions_priorities = tuple(
+                    (option_data["option_description"], option_data["is_priority"]) for option_data in option_data_list
+                )
+
+                cursor.execute(select_query, (option_descriptions_priorities,))
+                all_option_ids = [row[0] for row in cursor.fetchall()]
+
+                self.rds_connection.commit()
+
+            return all_option_ids
+        except Exception as e:
+            self.rds_connection.rollback()
+            raise e
