@@ -265,34 +265,7 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype
         raise
 
 
-def standardize_data_types(repairorder_df, customers_df, vehicles_df):
-    """
-    Standardize the data types of key columns in the DataFrames.
-    """
-    logger.info("Starting to standardize data types for key columns.")
-
-    try:
-        logger.info("Standardizing 'Consumer ID' in repairorder_df.")
-        repairorder_df['Consumer ID'] = repairorder_df['Consumer ID'].astype(str)
-
-        logger.info("Standardizing 'Dealer Customer No' in customers_df.")
-        customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
-        logger.info("Standardizing 'Vin No' in repairorder_df.")
-        repairorder_df['Vin No'] = repairorder_df['Vin No'].astype(str)
-
-        logger.info("Standardizing 'Vin No' in vehicles_df.")
-        vehicles_df['Vin No'] = vehicles_df['Vin No'].astype(str)
-
-        logger.info("Data type standardization completed successfully.")
-
-    except Exception as e:
-        logger.error(f"Error during data type standardization: {e}")
-        raise
-
-    return repairorder_df, customers_df, vehicles_df
-
-
-def identify_and_separate_records(repairorder_df, customers_df, vehicles_df):
+def identify_and_separate_records(main_df, customers_df, vehicles_df):
     """
     Identify orphan records and separate valid records.
 
@@ -305,27 +278,26 @@ def identify_and_separate_records(repairorder_df, customers_df, vehicles_df):
     try:
         logger.info("Starting the identification of orphan records.")
 
-        repairorder_df, customers_df, vehicles_df = standardize_data_types(
-            repairorder_df, customers_df, vehicles_df
-        )
+        main_df['Consumer ID'] = main_df['Consumer ID'].astype(str)
+        customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
 
-        missing_customers = repairorder_df[~repairorder_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
+        missing_customers = main_df[~main_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
         missing_customer_ids = missing_customers['Consumer ID'].unique()
         logger.info(f"Identified {len(missing_customers)} missing customer records.")
 
-        missing_vehicles = repairorder_df[~repairorder_df['Vin No'].isin(vehicles_df['Vin No'])]
+        missing_vehicles = main_df[~main_df['Vin No'].isin(vehicles_df['Vin No'])]
         missing_vin_numbers = missing_vehicles['Vin No'].unique()
         logger.info(f"Identified {len(missing_vehicles)} missing vehicle records.")
 
-        orphans_df = repairorder_df[
-            repairorder_df['Consumer ID'].isin(missing_customer_ids) | 
-            repairorder_df['Vin No'].isin(missing_vin_numbers)
+        orphans_df = main_df[
+            main_df['Consumer ID'].isin(missing_customer_ids) | 
+            main_df['Vin No'].isin(missing_vin_numbers)
         ]
         logger.info(f"Found {len(orphans_df)} orphan records.")
 
-        valid_records_df = repairorder_df[
-            ~repairorder_df['Consumer ID'].isin(missing_customer_ids) & 
-            ~repairorder_df['Vin No'].isin(missing_vin_numbers)
+        valid_records_df = main_df[
+            ~main_df['Consumer ID'].isin(missing_customer_ids) & 
+            ~main_df['Vin No'].isin(missing_vin_numbers)
         ]
         logger.info(f"Separated {len(valid_records_df)} valid records.")
 
