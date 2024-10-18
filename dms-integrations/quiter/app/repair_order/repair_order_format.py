@@ -94,7 +94,6 @@ def parse_json_to_entries(json_data):
         db_vehicle["make"] = default_get(repair_order, "Make")
         db_vehicle["model"] = default_get(repair_order, "Model")
         db_vehicle["year"] = default_get(repair_order, "Year")
-        db_vehicle["mileage"] = default_get(repair_order, "Mileage In")
         db_vehicle["type"] = default_get(repair_order, "Vehicle Type")
         db_vehicle["oem_name"] = default_get(repair_order, "OEM Name")
         db_vehicle["warranty_expiration_miles"] = default_get(repair_order, "Warranty Expiration Miles")
