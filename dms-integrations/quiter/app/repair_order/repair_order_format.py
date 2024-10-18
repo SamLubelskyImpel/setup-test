@@ -140,27 +140,21 @@ def lambda_handler(event, context):
                 decoded_key = urllib.parse.unquote(key)
 
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
-                logger.info(
-                    f"S3 object {decoded_key} fetched successfully from bucket {bucket}"
-                )
+  
 
                 csv_data = response["Body"].read().decode("utf-8")
-                logger.info(f"CSV data successfully read from S3 object {decoded_key}")
 
                 csv_df = pd.read_csv(io.StringIO(csv_data),dtype={'Dealer ID': 'string'})
 
                 json_data = csv_df.to_json(orient="records")
 
-                logger.info(f"json data {json_data}")
 
                 entries, dms_id = parse_json_to_entries(loads(json_data))
 
                 if not dms_id:
                     logger.error("No dms_id found in the CSV data")
                     raise RuntimeError("No dms_id found in the CSV data")
-                logger.info(
-                    f"Uploading unified JSON for dms_id {dms_id} and key {decoded_key}"
-                )
+
                 upload_unified_json(entries, "repair_order", decoded_key, dms_id)
                 logger.info(
                     f"Upload completed for dms_id {dms_id} and key {decoded_key}"

@@ -110,7 +110,6 @@ def lambda_handler(event, context):
                     dtype={"Dealer ID": "string", "Dealer Customer No": "string"},
                 )
 
-                logger.info(f"retrieved and converted files, repairorder_df:{repairorder_df}, vehicles_df: {vehicles_df}, customers_df: {customers_df}")
 
             except KeyError as e:
                 logger.error(f"KeyError while fetching or reading files from S3: {e}")
