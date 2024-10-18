@@ -14,6 +14,7 @@ s3_client = boto3.client("s3")
 
 BUCKET_NAME = os.environ["INTEGRATIONS_BUCKET"]
 TOPIC_ARN = os.environ["CLIENT_ENGINEERING_SNS_TOPIC_ARN"]
+INTEGRATIONS_BUCKET = os.environ.get("INTEGRATIONS_BUCKET")
 
 FILE_PATTERNS = {
     "RepairOrder": ["RO"],
@@ -255,3 +256,25 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype
         logger.error(error_message)
         notify_client_engineering(error_message, sns_client, topic_arn)
         raise
+
+
+def save_error_file(df, dealer_id, current_date):
+    """
+    Save orphan records to an error file in S3 and send a notification.
+    Args:
+        df (pd.DataFrame): DataFrame containing orphan records.
+        dealer_id (str): Dealer ID associated with the records.
+        current_date (datetime): Current date to use in the S3 key.
+    """
+    if df.empty:
+        return
+    unique_id = str(uuid.uuid4())
+    error_file_key = f"quiter/error_files/repair_order/{dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}_orphan_records.csv"
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    s3_client.put_object(
+        Bucket=INTEGRATIONS_BUCKET, Key=error_file_key, Body=csv_buffer.getvalue()
+    )
+    subject = "Orphan records detected in Quiter"
+    message = f"Orphan records detected for dealer {dealer_id}."
+    notify_client_engineering(subject, message)

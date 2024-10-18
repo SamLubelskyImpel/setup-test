@@ -144,26 +144,31 @@ def lambda_handler(event, context):
                     "Warranty Expiration Date_x": "Warranty Expiration Date",
                 },
             )
+
             merged_df = merged_df.drop_duplicates()
             merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()]
+            
             save_error_file(orphans_df, dealer_id, current_date)
 
-            logger.info(f"Uploading merged file to S3 for dealer {dealer_id}")
-            csv_buffer = merged_df.to_csv(index=False)
-            unique_id = str(uuid.uuid4())
-            s3_key = f"quiter/repair_order/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}.csv"
-            s3_client.put_object(
-                Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=csv_buffer
-            )
+            if merged_df.empty:
+                logger.warning(f"Merged Repair order file is empty for dealer {dealer_id}. No file will be saved.")
+            else:
+                logger.info(f"Uploading merged file to S3 for dealer {dealer_id}")
+                csv_buffer = merged_df.to_csv(index=False)
+                unique_id = str(uuid.uuid4())
+                s3_key = f"quiter/repair_order/{current_date.year}/{current_date.month}/{current_date.day}/{unique_id}.csv"
+                s3_client.put_object(
+                    Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=csv_buffer
+                )
     except ValueError as e:
         logger.error(f"ValueError encountered: {e}")
-        notify_client_engineering("Data consistency error in Quiter", str(e))
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
     except ClientError as e:
         logger.error(f"ClientError encountered during S3 operation: {e}")
-        notify_client_engineering("AWS S3 error in Quiter", str(e))
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
     except Exception as e:
         logger.error(f"Unexpected error encountered: {e}")
-        notify_client_engineering("Unexpected error in Quiter", str(e))
+        notify_client_engineering(e, SNS_CLIENT, TOPIC_ARN, "QuiterMergeRepairOrder Lambda Error")
         raise
