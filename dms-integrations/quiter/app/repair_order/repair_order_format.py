@@ -99,6 +99,7 @@ def parse_json_to_entries(json_data):
         db_vehicle["oem_name"] = default_get(repair_order, "OEM Name")
         db_vehicle["warranty_expiration_miles"] = default_get(repair_order, "Warranty Expiration Miles")
         db_vehicle["warranty_expiration_date"] = default_get(repair_order, "Warranty Expiration Date")
+        db_vehicle["vehicle_class"] = default_get(repair_order, "Vehicle Class")
 
         db_consumer["first_name"] = default_get(repair_order, "First Name")
         db_consumer["last_name"] = default_get(repair_order, "Last Name")
@@ -109,11 +110,12 @@ def parse_json_to_entries(json_data):
         db_consumer["state"] = default_get(repair_order, "State")
         db_consumer["postal_code"] = default_get(repair_order, "Postal Code")
         db_consumer["address"] = default_get(repair_order, "Metro", "")
-
         db_consumer["email_optin_flag"] = default_get(repair_order, "Email Optin Flag")
         db_consumer["phone_optin_flag"] = default_get(repair_order, "Phone Optin Flag")
         db_consumer["postal_mail_optin_flag"] = default_get(repair_order, "Postal Mail Optin Flag")
         db_consumer["sms_optin_flag"] = default_get(repair_order, "SMS Optin Flag")
+        db_consumer["master_consumer_id"] = default_get(repair_order, "Master Consumer ID")
+        db_consumer["dealer_customer_no"] = default_get(repair_order, "Dealer Customer No")
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
