@@ -2,6 +2,7 @@ import boto3
 import pandas as pd
 import os
 import logging
+import uuid
 
 from botocore.exceptions import ClientError
 import re
@@ -15,6 +16,7 @@ s3_client = boto3.client("s3")
 BUCKET_NAME = os.environ["INTEGRATIONS_BUCKET"]
 TOPIC_ARN = os.environ["CLIENT_ENGINEERING_SNS_TOPIC_ARN"]
 INTEGRATIONS_BUCKET = os.environ.get("INTEGRATIONS_BUCKET")
+SNS_CLIENT = boto3.client("sns")
 
 FILE_PATTERNS = {
     "RepairOrder": ["RO"],
@@ -254,7 +256,7 @@ def read_csv_from_s3(s3_body, file_name, file_type, sns_client, topic_arn, dtype
     except Exception as e:
         error_message = f"Error processing '{file_type}' file: {file_name} - {str(e)}"
         logger.error(error_message)
-        notify_client_engineering(error_message, sns_client, topic_arn)
+        notify_client_engineering(error_message, sns_client, topic_arn, 'Error Reading CSV')
         raise
 
 
@@ -277,4 +279,4 @@ def save_error_file(df, dealer_id, current_date):
     )
     subject = "Orphan records detected in Quiter"
     message = f"Orphan records detected for dealer {dealer_id}."
-    notify_client_engineering(subject, message)
+    notify_client_engineering(message, SNS_CLIENT, TOPIC_ARN, subject)
