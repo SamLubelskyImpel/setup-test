@@ -720,7 +720,7 @@ Resources:
     Properties:
       Description: Merge repair orders, customers, and vehicles files and save to S3 raw zone
       CodeUri: app/
-      Handler: repair_order_merge.lambda_handler
+      Handler: repair_order.repair_order_merge.lambda_handler
       Timeout: 900
       MemorySize: 512
       Policies:
@@ -865,7 +865,7 @@ Resources:
     Properties:
       Description: Lambda to format raw repair orders into unified format and upload to unified S3
       CodeUri: app/
-      Handler: repair_order_format.lambda_handler
+      Handler: repair_order.repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:

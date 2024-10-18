@@ -31,13 +31,19 @@ IGNORE_POSSIBLE_COLUMNS = [
 
 def validate_unified_df_columns(df):
     """Validate unified DF format."""
+
     rds_instance = RDSInstance(IS_PROD)
     unified_column_names = rds_instance.get_unified_column_names()
+    logger.debug(f"Unified column names fetched from RDS: {unified_column_names}")
+
     df_table_names = set()
     df_col_names = set()
+
     for col in df.columns:
         df_table = str(col).split("|")[0]
         df_table_names.add(df_table)
+        logger.debug(f"Processing column: {col} from table: {df_table}")
+
         if df_table in MANY_TO_X_TABLES:
             for array in df[col]:
                 for struct in array:
@@ -45,10 +51,9 @@ def validate_unified_df_columns(df):
                         df_col_names.add(key)
         else:
             df_col_names.add(col)
-
-    # Validate all columns in the DF exist in the database
     for df_col in df_col_names:
         if df_col not in unified_column_names:
+            logger.error(f"DF column {df_col} not found in database schema")
             raise RuntimeError(
                 f"DF column {df_col} not found in database {unified_column_names}"
             )
@@ -59,7 +64,6 @@ def validate_unified_df_columns(df):
             if unified_column_name.split("|")[0] == df_table_name:
                 possible_columns.add(unified_column_name)
 
-    # Validate all columns in the database exist in the DF
     missing_columns = []
     for possible_unified_column in possible_columns:
         possible_table, possible_column = possible_unified_column.split("|")
@@ -69,13 +73,15 @@ def validate_unified_df_columns(df):
             and possible_unified_column not in df_col_names
         ):
             missing_columns.append(possible_unified_column)
-    if missing_columns:
-        logger.warning(f"DF missing potential column {missing_columns}")
 
-    # Check for empty columns
+    if missing_columns:
+        logger.warning(f"DF is missing potential columns: {missing_columns}")
+
     columns_with_no_data = df.columns[df.isna().all()].to_list()
     if columns_with_no_data:
-        logger.warning(f"DF columns {columns_with_no_data} contain no data")
+        logger.warning(
+            f"DF contains empty columns with no data: {columns_with_no_data}"
+        )
 
 
 def convert_unified_df(json_list):
