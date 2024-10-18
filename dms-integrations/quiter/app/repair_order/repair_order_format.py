@@ -10,7 +10,7 @@ import pandas as pd
 import io
 import urllib
 from botocore.exceptions import ClientError
-from unified_data import upload_unified_json
+from unified_df import upload_unified_json
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

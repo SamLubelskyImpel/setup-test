@@ -859,50 +859,12 @@ Resources:
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
-
   QuiterFormatRepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
       Description: Lambda to format raw repair orders into unified format and upload to unified S3
       CodeUri: app/
       Handler: repair_order.repair_order_format.lambda_handler
-      Timeout: 900
-      MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource:
-                - !If 
-                  - IsProd
-                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
-                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                - !If 
-                  - IsProd
-                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
-                  - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt QuiterFormatRepairOrderQueue.Arn
-    Type: AWS::Serverless::Function
-    Properties:
-      Description: Lambda to format raw repair orders into unified format and upload to unified S3
-      CodeUri: app/
-      Handler: repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:

@@ -160,6 +160,13 @@ def clean_data(df, id_column, important_columns):
         logger.error(f"Unexpected error in clean_data: {e}")
         raise
 
+def clean_id_column(df, column_name):
+    """
+    Cleans up an ID column by ensuring it's a string and removing any floating point artifacts like '.0'.
+    """
+    return df[column_name].apply(lambda x: str(int(x)) if isinstance(x, (int, float)) else str(x))
+
+
 def identify_and_separate_records(main_df, customers_df, vehicles_df):
     """
     Identify orphan records and separate valid records.
@@ -171,10 +178,9 @@ def identify_and_separate_records(main_df, customers_df, vehicles_df):
     (missing either a customer or vehicle).
     """
     try:
-        # Ensure both Consumer ID and Dealer Customer No are strings for comparison
-        # This was done because the test files that we tested against were always different
-        main_df['Consumer ID'] = main_df['Consumer ID'].astype(str)
-        customers_df['Dealer Customer No'] = customers_df['Dealer Customer No'].astype(str)
+        # Ensure both Consumer ID and Dealer Customer No are cleaned for comparison
+        main_df['Consumer ID'] = clean_id_column(main_df, 'Consumer ID')
+        customers_df['Dealer Customer No'] = clean_id_column(customers_df, 'Dealer Customer No')
 
         # Identify orphan consumer records by checking if 'Consumer ID' in main_df is not present in customers_df
         missing_customers = main_df[~main_df['Consumer ID'].isin(customers_df['Dealer Customer No'])]
@@ -203,7 +209,6 @@ def identify_and_separate_records(main_df, customers_df, vehicles_df):
     except Exception as e:
         logger.error(f"Unexpected error in identify_and_separate_records: {e}")
         raise
-
 
 
 def save_to_s3(df, bucket_name, key):

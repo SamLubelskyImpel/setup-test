@@ -45,8 +45,8 @@ def lambda_handler(event, context):
             customers_obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=found_files["Consumer"])
             vehicles_obj = S3_CLIENT.get_object(Bucket=BUCKET_NAME, Key=found_files["Vehicle"])
 
-            customers_df = read_csv_from_s3(customers_obj['Body'].read(), found_files["Consumer"], "Consumer", SNS_CLIENT, TOPIC_ARN, dtype={'Dealer ID': 'string'})
-            vehicles_df = read_csv_from_s3(vehicles_obj['Body'].read(), found_files["Vehicle"], "Vehicle", SNS_CLIENT, TOPIC_ARN, dtype={'Dealer ID': 'string'})
+            customers_df = read_csv_from_s3(customers_obj['Body'].read(), found_files["Consumer"], "Consumer", SNS_CLIENT, TOPIC_ARN)
+            vehicles_df = read_csv_from_s3(vehicles_obj['Body'].read(), found_files["Vehicle"], "Vehicle", SNS_CLIENT, TOPIC_ARN)
             appointments_df = read_csv_from_s3(appointments_obj['Body'].read(), found_files["Appointments"], "Appointment", SNS_CLIENT, TOPIC_ARN, dtype={'Dealer ID': 'string'})
 
             # Clean the customer and vehicle data using the unified function

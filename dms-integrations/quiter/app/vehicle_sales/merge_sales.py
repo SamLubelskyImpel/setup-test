@@ -28,12 +28,6 @@ sns_client = boto3.client("sns")
 BUCKET_NAME = os.environ["INTEGRATIONS_BUCKET"]
 TOPIC_ARN = os.environ["CLIENT_ENGINEERING_SNS_TOPIC_ARN"]
 
-FILE_PATTERNS = {
-    "Consumer": ["CONS"],
-    "Vehicle": ["VEH"],
-    "VehicleSales": ["VS", "SalesTxn", "SaleTxn"]
-}
-
 
 def lambda_handler(event, context):
     try:
@@ -68,8 +62,9 @@ def lambda_handler(event, context):
             # Clean the customer and vehicle data using the unified function
             cleaned_customers_df = clean_data(customers_df, 'Dealer Customer No', [])
             cleaned_vehicles_df = clean_data(vehicles_df, 'Vin No', ['OEM Name', 'Model'])
-            
+
             vehicle_sales_df = vehicle_sales_df.dropna(subset=['Consumer ID', 'Vin No'])
+
 
             valid_records_df, error_records_df = identify_and_separate_records(vehicle_sales_df, cleaned_customers_df, cleaned_vehicles_df)
 
