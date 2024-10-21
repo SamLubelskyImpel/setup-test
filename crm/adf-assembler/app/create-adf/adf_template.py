@@ -99,8 +99,9 @@ OEM_MAPPING = {
 OEM_ADF_TEMPLATE = """
 <adf>
     <prospect status="new">
-        <id source="ActivEngage" sequence="1">18014964</id>
+        <id source="ActivEngage" sequence="1">{lead_id}</id>
         <id source="LeadSubProgram">New Chat Sales Lead</id>
+        <id source="MediaType">WEB</id>
         <requestdate>{request_date}</requestdate>
         {vehicle_of_interest}
         {customer}

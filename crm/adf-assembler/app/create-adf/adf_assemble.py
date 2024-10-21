@@ -7,11 +7,11 @@ from json import dumps, loads
 from datetime import datetime
 from adf_creation_class import AdfCreation
 from oem_adf_creation import OemAdfCreation
-# import sftp
+import sftp
 
-BUCKET = "crm-integrations-test"#environ.get("INTEGRATIONS_BUCKET")
-ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
-ADF_SENDER_EMAIL_ADDRESS = "kbakradze@impel.ai"#environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+ADF_SENDER_EMAIL_ADDRESS = environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
 
 s3_client = client("s3")
 secret_client = client("secretsmanager")
@@ -48,32 +48,35 @@ def lambda_handler(event: Any, context: Any) -> Any:
         add_summary_to_appointment_comment = adf_integration_config.get(
             "add_summary_to_appointment_comment", True
         )  # default to True
-        oem_recipient = body.get("oem_recipient", "")
+        oem_recipient = body.get("oem_recipient", "").lower()
 
 
         if oem_recipient:
+            secret = secret_client.get_secret_value(
+                SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-partner-api"
+            )
+            secret_data = loads(secret["SecretString"])
+            api_data = loads(secret_data[f"{oem_recipient}_oem"])
 
             oem_class = OemAdfCreation(oem_recipient)
-            formatted_adf = oem_class.create_adf_data(body.get('lead_id'))
-            print(formatted_adf)
-            # secret = secret_client.get_secret_value(
-            #     SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-partner-api"
-            # )
-            # secret_data = loads(secret["SecretString"])
-            # api_data = loads(secret_data[f"{oem_recipient}_oem"])
+            formatted_adf = oem_class.create_adf_data(body.get('lead_id'), api_data['dealer_code'])
+            is_voi = oem_class.vehicle_of_interest
 
-            # headers = {
-            #     "Content-Type": "application/xml",
-            #     "authkey": api_data["auth_key"],
-            # }
 
-            # response = requests.post(
-            #     f"{api_data['url']}leads/submit", headers=headers, data=formatted_adf
-            # )
+            headers = {
+                "Content-Type": "application/xml",
+                "authkey": api_data["auth_key"],
+            }
 
-            # print(formatted_adf, end='\n\n')
+            api_url = f"{api_data['url']}leads/submit" if is_voi else  f"{api_data['url']}contacts/submit"
 
-            # print(response.text)
+            response = requests.post(
+                api_url, headers=headers, data=formatted_adf
+            )
+
+            print(formatted_adf, end='\n\n')
+
+            print(response.text)
 
         else:
             adf_creation = AdfCreation()
@@ -115,7 +118,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if not sftp_config:
                     raise Exception("SFTP configuration is missing")
 
-                # sftp.put_adf(sftp_config, formatted_adf, f"{filename}.xml")
+                sftp.put_adf(sftp_config, formatted_adf, f"{filename}.xml")
 
                 return {
                     "statusCode": 200,
@@ -129,16 +132,3 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         raise
-
-
-if __name__ == "__main__":
-    lambda_handler(
-        event={
-            "lead_id": "68",
-            "recipients": [],
-            "partner_name": "CHAT_AI",
-            "oem_recipient": "honda",
-            "sftp_config": {},
-        },
-        context="",
-    )

@@ -1,10 +1,8 @@
 import re
-import boto3
 import logging
-import requests
 from os import environ
-from json import loads
 from datetime import datetime
+from shared_class import BaseClass
 from adf_template import OEM_MAPPING, OEM_ADF_TEMPLATE
 
 ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
@@ -13,20 +11,16 @@ CRM_API_SECRET_KEY = "impel"#environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = boto3.client("secretsmanager")
-
 
 class CRMApiError(Exception):
     pass
 
 
-class OemAdfCreation:
+class OemAdfCreation(BaseClass):
     """Class for creating an ADF (Automotive Dealership Format) from a lead ID and appointment time if necessary."""
-
     def __init__(self, oem_recipient) -> None:
         """Initialize API Wrapper."""
-        self.partner_id = CRM_API_SECRET_KEY
-        self.api_key = self._get_secrets("crm-api", self.partner_id)["api_key"]
+        super().__init__()
 
         self.oem_recipient = oem_recipient
         self.oem_api = self._get_secrets("crm-partner-api", f"{oem_recipient}_oem")
@@ -41,13 +35,16 @@ class OemAdfCreation:
         self.customer = ""
         self.vendor = ""
 
-    def _get_secrets(self, secret_name, secret_data_key):
-        """Retrieve API secret from AWS Secrets Manager."""
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
-        )
-        secret_data = loads(secret["SecretString"])
-        return loads(secret_data[secret_data_key])
+        self.service_code = {
+            "acura":{
+                "contact": 95081,
+                "lead":95079
+            },
+            "honda": {
+                "contact": 90534,
+                "lead":90534
+            }
+        }
 
     def _generate_vehicle_adf(self, vehicle_of_interest):
         v_status = vehicle_of_interest.get("condition", "ANY")
@@ -110,23 +107,7 @@ class OemAdfCreation:
             + "\n</contact>\n</customer>"
         )
 
-    def call_crm_api(self, url):
-        """Call CRM API."""
-        try:
-            response = requests.get(
-                url=url,
-                headers={
-                    "x_api_key": self.api_key,
-                    "partner_id": self.partner_id,
-                },
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
-            logger.error(f"Error occurred calling CRM API: {e}")
-            raise CRMApiError(f"Error occurred calling CRM API: {e}")
-
-    def create_adf_data(self, lead_id):
+    def create_adf_data(self, lead_id, dealer_code):
         try:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
@@ -140,18 +121,20 @@ class OemAdfCreation:
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
-                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_recipient, 'dealer_code': 208625 })}\n"
+                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_recipient, 'dealer_code': dealer_code })}\n"
                 f"{self.mapper['vendor']['vendorname'].format(vendorname_value = dealer.get('dealer_name'))}"
             )
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
 
+            service = "lead" if self.vehicle_of_interest else "contact"
 
             return self.adf_file.format(
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
                 vehicle_of_interest = self.vehicle,
                 customer = self.customer,
                 vendor = self.vendor,
-                service_value = 90534
+                service_value = self.service_code[self.oem_recipient][service],
+                lead_id = lead_id
             )
 
         except CRMApiError as e:
