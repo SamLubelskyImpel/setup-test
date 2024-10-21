@@ -163,7 +163,8 @@ def clean_data(df, id_column, important_columns):
 def clean_id_column(df, column_name):
     """
     Cleans up an ID column by ensuring it's a string and removing any floating point artifacts like '.0'.
-    Replaces NaN values with an empty string and logs the processing.
+    Replaces NaN values with an empty string.
+    This was created because there was a data mismatch, and we also need to replace NaN values with string, not skip.
     """
     def process_value(x):
         if pd.isna(x):
