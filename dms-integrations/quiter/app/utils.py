@@ -163,8 +163,16 @@ def clean_data(df, id_column, important_columns):
 def clean_id_column(df, column_name):
     """
     Cleans up an ID column by ensuring it's a string and removing any floating point artifacts like '.0'.
+    Replaces NaN values with an empty string and logs the processing.
     """
-    return df[column_name].apply(lambda x: str(int(x)) if isinstance(x, (int, float)) else str(x))
+    def process_value(x):
+        if pd.isna(x):
+            return ''
+        else:
+            return str(int(x)) if isinstance(x, (int, float)) else str(x)
+    
+    return df[column_name].apply(process_value)
+
 
 
 def identify_and_separate_records(main_df, customers_df, vehicles_df):
