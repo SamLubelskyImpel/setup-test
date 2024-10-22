@@ -359,7 +359,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 sqs_client.send_message(
                     QueueUrl=EVENT_LISTENER_QUEUE,
-                    MessageBody=dumps({"lead_id": lead_id, "crm_lead_id": crm_lead_id})
+                    MessageBody=dumps({"lead_id": lead_id})
                 )
             except Exception as e:
                 raise DASyndicationError(e)
@@ -390,6 +390,4 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     # TODO add exception for events
-
-    if crm_lead_id: return {"statusCode": 201, "body": dumps({"lead_id": lead_id, "crm_lead_id": crm_lead_id})}
-    else: return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}
+    return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}

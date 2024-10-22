@@ -21,7 +21,7 @@ class EventListenerError(Exception):
     pass
 
 
-def send_to_event_listener(lead_id: int, crm_lead_id: str) -> None:
+def send_to_event_listener(lead_id: int) -> None:
     """Send notification to DA Event listener."""
     try:
         listener_secrets = get_secret(
@@ -30,8 +30,7 @@ def send_to_event_listener(lead_id: int, crm_lead_id: str) -> None:
 
         data = {
             "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
-            "crm_lead_id": crm_lead_id
+            "lead_id": lead_id
         }
         response = requests.post(
             url=listener_secrets["API_URL"],
@@ -62,10 +61,9 @@ def record_handler(record: SQSRecord) -> None:
         message = json.loads(message_body)
 
         lead_id = message['lead_id']
-        crm_lead_id = message['crm_lead_id']
 
         logger.info(f"Processing lead_id: {lead_id}")
-        send_to_event_listener(lead_id, crm_lead_id)
+        send_to_event_listener(lead_id)
     except EventListenerError:
         raise
 
