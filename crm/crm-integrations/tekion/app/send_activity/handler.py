@@ -16,6 +16,7 @@ logger.setLevel(LOG_LEVEL.upper())
 
 crm_api = CrmApiWrapper()
 
+
 def record_handler(record: SQSRecord):
     """Create activity on Tekion."""
     logger.info(
@@ -58,5 +59,6 @@ def lambda_handler(event, context: LambdaContext):
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise
+
 
 __all__ = ['lambda_handler', 'record_handler']

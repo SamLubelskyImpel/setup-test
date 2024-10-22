@@ -156,12 +156,12 @@ Resources:
   TekionCRMTokenRotationQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "tekion-crm-${Environment}-TekionCRMTokenRotationQueueDLQ"
+      QueueName: !Sub "tekion-crm-${Environment}-TokenRotationQueueDLQ"
 
   TekionCRMTokenRotationQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'tekion-token-rotation-failures-queue-${Environment}'
+      QueueName: !Sub 'tekion-crm-${Environment}-TokenRotationQueue'
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionCRMTokenRotationQueueDLQ.Arn
@@ -202,6 +202,7 @@ Resources:
   InvokeTekionCRMTokenRotationFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-InvokeTokenRotation
       Description: Invoke Tekion's token rotation
       Role: !GetAtt LambdaRole.Arn
       CodeUri: app/
@@ -212,8 +213,8 @@ Resources:
   InvokeTekionCRMTokenRotationErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub tekion-token-rotation-error-${Environment}
-      AlarmDescription: There are messages in the Tekion token rotation error
+      AlarmName: !Sub tekion-crm-${Environment}-InvokeTokenRotation
+      AlarmDescription: There are messages in the token rotation error
       ActionsEnabled: true
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
@@ -233,7 +234,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionCRMTokenRotationQueueDLQ-${Environment}
+      AlarmName: !Sub tekion-crm-${Environment}-TokenRotationQueueDLQ
       AlarmDescription: There are messages in the Tekion token rotation order DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -289,7 +290,7 @@ Resources:
   InvokeDataPullEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 10
+      BatchSize: 1
       EventSourceArn: !GetAtt InvokeDataPullQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt InvokeDataPull.Arn
@@ -330,7 +331,6 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  # Transform new leads
   TransformNewLeadsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -426,11 +426,10 @@ Resources:
         - Id: "TransformNewLeadsTarget"
           Arn: !GetAtt TransformNewLeadsQueue.Arn
 
-  # Lead updates
   GetLeadUpdatesFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub tekion-${Environment}-get-lead-updates
+      FunctionName: !Sub tekion-crm-${Environment}-GetLeadUpdates
       CodeUri: app/
       Handler: get_lead_updates.lambda_handler
       Role: !GetAtt LambdaRole.Arn
@@ -440,12 +439,12 @@ Resources:
   GetLeadUpdatesLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/tekion-${Environment}-get-lead-updates
+      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-GetLeadUpdates
 
   GetLeadUpdatesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub tekion-${Environment}-get-lead-updates
+      AlarmName: !Sub tekion-crm-${Environment}-GetLeadUpdates
       AlarmDescription: Tekion Lead Updates failed 3 times within 15 minutes
       ActionsEnabled: !If [IsProd, true, false]
       AlarmActions:
@@ -462,11 +461,10 @@ Resources:
       Threshold: 3
       TreatMissingData: notBreaching
 
-  # Dealer's Salespersons
   GetDealerSalespersonsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub tekion-crm-${Environment}-get-dealer-salespersons
+      FunctionName: !Sub tekion-crm-${Environment}-GetDealerSalespersons
       CodeUri: app/
       Handler: get_dealer_salespersons.lambda_handler
       Role: !GetAtt LambdaRole.Arn
@@ -476,20 +474,20 @@ Resources:
   GetDealerSalespersonsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-get-dealer-salespersons
+      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-GetDealerSalespersons
 
   GetDealerSalespersonsErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub tekion-crm-${Environment}-get-dealer-salespersons
-      AlarmDescription: Tekion Lead Updates failed 3 times within 15 minutes
+      AlarmName: !Sub tekion-crm-${Environment}-GetDealerSalespersons
+      AlarmDescription: Tekion Get dealer salespersons failed 3 times within 15 minutes
       ActionsEnabled: !If [IsProd, true, false]
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref GetLeadUpdatesFunction
+          Value: !Ref GetDealerSalespersonsFunction
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -498,11 +496,10 @@ Resources:
       Threshold: 3
       TreatMissingData: notBreaching
 
-  # Create activity
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "tekion-${Environment}-SendActivityQueue"
+      QueueName: !Sub "tekion-crm-${Environment}-SendActivityQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -511,14 +508,14 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "tekion-${Environment}-SendActivityDLQ"
+      QueueName: !Sub "tekion-crm-${Environment}-SendActivityDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
   SendActivityEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 10
+      BatchSize: 1
       EventSourceArn: !GetAtt SendActivityQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt SendActivity.Arn
@@ -526,7 +523,7 @@ Resources:
   SendActivity:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub tekion-${Environment}-SendActivity
+      FunctionName: !Sub tekion-crm-${Environment}-SendActivity
       CodeUri: app/
       Handler: send_activity.lambda_handler
       Timeout: 30
@@ -536,7 +533,7 @@ Resources:
   SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub tekion-${Environment}-SendActivityDLQ
+      AlarmName: !Sub tekion-crm-${Environment}-SendActivityDLQ
       AlarmDescription: There are over 1 unprocessed messages in the Tekion SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -556,9 +553,8 @@ Resources:
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/tekion-${Environment}-SendActivity"
+      LogGroupName: !Sub "/aws/lambda/tekion-crm-${Environment}-SendActivity"
 
-  # Monitoring
   MonitoringTekionCRM:
     Type: AWS::Serverless::Function
     Properties:
@@ -612,5 +608,16 @@ Resources:
       - SendActivityLogGroup
     Properties:
       LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringTransfromLeadSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - TransformNewLeadsLogGroup
+    Properties:
+      LogGroupName: !Ref TransformNewLeadsLogGroup
       DestinationArn: !GetAtt MonitoringTekionCRM.Arn
       FilterPattern: "SUPPORT ALERT"
