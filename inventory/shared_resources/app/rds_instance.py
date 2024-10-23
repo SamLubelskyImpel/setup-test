@@ -334,54 +334,7 @@ class RDSInstance:
         else:
             return self.insert_and_get_id("inv_inventory", inventory_data)
 
-    def bulk_insert_options(self, option_data_list):
-        """Insert multiple option records in a single transaction."""
-        try:
-            # Check for existing options and filter out duplicates
-            existing_option_ids = []
-            new_option_data_list = []
-            for option_data in option_data_list:
-                existing_option_id = self.check_existing_record(
-                    table="inv_option",
-                    check_columns=["option_description", "is_priority"],
-                    data=option_data,
-                )
-                if existing_option_id:
-                    existing_option_ids.append(existing_option_id)
-                else:
-                    new_option_data_list.append(option_data)
-
-            # Perform bulk insert for new options
-            if new_option_data_list:
-                new_option_data_list_values = [
-                    (option_data["option_description"], option_data["is_priority"])
-                    for option_data in new_option_data_list
-                ]
-
-                with self.rds_connection.cursor() as cursor:
-                    insert_query = f"""
-                    INSERT INTO {self.schema}.inv_option (option_description, is_priority)
-                    VALUES %s
-                    RETURNING id
-                    """
-                    psycopg2.extras.execute_values(
-                        cursor,
-                        insert_query,
-                        new_option_data_list_values,
-                        template="(%s, %s)",
-                        page_size=100,
-                    )
-                    new_option_ids = [row[0] for row in cursor.fetchall()]
-                    self.rds_connection.commit()
-            else:
-                new_option_ids = []
-
-            return existing_option_ids + new_option_ids
-        except Exception as e:
-            self.rds_connection.rollback()
-            raise e
-
-    def bulk_link_option_to_inventory(self, inventory_id, option_ids):
+    def link_option_to_inventory(self, inventory_id, option_ids):
         """Link options to an inventory item via inv_option_inventory, avoiding duplicates."""
         try:
             with self.rds_connection.cursor() as cursor:
@@ -399,46 +352,85 @@ class RDSInstance:
             self.rds_connection.rollback()
             raise e
 
-    def bulk_insert_all_options(self, option_data_list):
-        """Insert multiple option records in a single transaction."""
+    def bulk_check_existing_records(self, table, check_columns, data_list):
+        """Check for existing records using a bulk transaction."""
         try:
-            new_option_data_list_values = [
-                (option_data["option_description"], option_data["is_priority"])
-                for option_data in option_data_list
-            ]
+            # Construct the WHERE clause for the bulk check
+            conditions = []
+            values = []
+            for data in data_list:
+                condition = " AND ".join([f"{col} = %s" for col in check_columns])
+                conditions.append(f"({condition})")
+                values.extend([data[col] for col in check_columns])
+
+            where_clause = " OR ".join(conditions)
+
+            query = f"""
+                SELECT id, {', '.join(check_columns)}
+                FROM {self.schema}.{table}
+                WHERE {where_clause}
+            """
 
             with self.rds_connection.cursor() as cursor:
-                # Insert new options
-                insert_query = f"""
-                INSERT INTO {self.schema}.inv_option (option_description, is_priority)
-                VALUES %s
-                ON CONFLICT (option_description, is_priority) DO NOTHING
-                RETURNING id
-                """
-                psycopg2.extras.execute_values(
-                    cursor,
-                    insert_query,
-                    new_option_data_list_values,
-                    template="(%s, %s)",
-                    page_size=100,
-                )
+                cursor.execute(query, values)
+                results = cursor.fetchall()
 
-                # Fetch IDs of inserted or existing options
-                select_query = f"""
-                SELECT id FROM {self.schema}.inv_option
-                WHERE (option_description, is_priority) IN %s
-                """
+                # Map the results to a dictionary
+                existing_records = {
+                    tuple(result[1:]): result[0] for result in results
+                }
 
-                option_descriptions_priorities = tuple(
-                    (option_data["option_description"], option_data["is_priority"]) for option_data in option_data_list
-                )
+            return existing_records
+        except Exception as e:
+            self.rds_connection.rollback()
+            raise e
 
-                cursor.execute(select_query, (option_descriptions_priorities,))
-                all_option_ids = [row[0] for row in cursor.fetchall()]
+    def insert_options(self, option_data_list):
+        """Insert multiple option records in a single bulk transaction."""
+        try:
+            # Check for existing options and filter out duplicates
+            existing_records = self.bulk_check_existing_records(
+                table="inv_option",
+                check_columns=["option_description", "is_priority"],
+                data_list=option_data_list,
+            )
 
-                self.rds_connection.commit()
+            existing_option_ids = []
+            new_option_data_list = []
+            for option_data in option_data_list:
+                key = (option_data["option_description"], option_data["is_priority"])
+                if key in existing_records:
+                    existing_option_ids.append(existing_records[key])
+                else:
+                    new_option_data_list.append(option_data)
 
-            return all_option_ids
+            # Perform bulk insert for new options
+            if new_option_data_list:
+                new_option_data_list_values = [
+                    (option_data["option_description"], option_data["is_priority"])
+                    for option_data in new_option_data_list
+                ]
+
+                with self.rds_connection.cursor() as cursor:
+                    insert_query = f"""
+                    INSERT INTO {self.schema}.inv_option (option_description, is_priority)
+                    VALUES %s
+                    ON CONFLICT (option_description, is_priority) DO NOTHING
+                    RETURNING id
+                    """
+                    psycopg2.extras.execute_values(
+                        cursor,
+                        insert_query,
+                        new_option_data_list_values,
+                        template="(%s, %s)",
+                        page_size=100,
+                    )
+                    new_option_ids = [row[0] for row in cursor.fetchall()]
+                    self.rds_connection.commit()
+            else:
+                new_option_ids = []
+
+            return existing_option_ids + new_option_ids
         except Exception as e:
             self.rds_connection.rollback()
             raise e

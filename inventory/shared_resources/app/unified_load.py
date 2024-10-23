@@ -130,22 +130,11 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
 
         processed_inventory_ids = []
 
-        # Count the total number of processed records
-        count = 0
-        total_records = len(json_data_list)
-
         for json_data in json_data_list:
-            count += 1
-            logger.info(f"Processing record {count} of {total_records}")
-
-            logger.info("Started vehicle insertion for count: %d", count)
-
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
             vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
             vehicle_id = rds_instance.insert_vehicle(vehicle_data)
-
-            logger.info("Started inventory insertion for count: %d", count)
 
             # Insert inventory data
             inventory_data = extract_inventory_data(json_data)
@@ -161,16 +150,11 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
                     option_data = extract_option_data(option_json)
                     option_data_list.append(option_data)
 
-                logger.info("Started options insertion for count: %d", count)
-
                 # Perform bulk insert
-                # option_ids = rds_instance.bulk_insert_options(option_data_list)
-                option_ids = rds_instance.bulk_insert_options(option_data_list)
-
-                logger.info("Started link option insertion for count: %d", count)
+                option_ids = rds_instance.insert_options(option_data_list)
 
                 # Link the inserted options to the inventory
-                rds_instance.bulk_link_option_to_inventory(inventory_id, option_ids)
+                rds_instance.link_option_to_inventory(inventory_id, option_ids)
             else:
                 identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
                 logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
