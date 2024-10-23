@@ -540,8 +540,8 @@ Resources:
             Resource:
               - !If [
                 IsProd,
-                !Sub "arn:aws:s3:::cdpi-prod-${AWS::Region}*",
-                !Sub "arn:aws:s3:::cdpi-test-${AWS::Region}*"
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-prod*",
+                !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-test*"
               ]
 
   GetActiveDealers:

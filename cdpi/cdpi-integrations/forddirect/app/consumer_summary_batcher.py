@@ -107,7 +107,7 @@ def record_handler(record: SQSRecord):
         event = loads(record["body"])
         bucket_name = event['Records'][0]['s3']['bucket']['name']
         file_key = event['Records'][0]['s3']['object']['key']
-        # Expected name: fd-raw/consumer_profile_summary/dealer_id/consumerprofilesummary_impel_00703_20240910130020.txt
+        # Expected name: fd-raw/consumer_profile_summary/dealer_id/year/month/day/consumerprofilesummary_impel_00703_20240910130020.txt
         decoded_key = urllib.parse.unquote(file_key)
 
         dealer_id = decoded_key.split("/")[2]

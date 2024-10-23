@@ -54,7 +54,7 @@ def record_handler(record):
         sftp = paramiko.SFTPClient.from_transport(transport)
 
         # Define the SFTP target directory and file path
-        sftp_target_directory = 'impel/input/pii_match' if IS_PROD else 'impel/input/pii_match_test'
+        sftp_target_directory = 'input/pii_match' if IS_PROD else 'input/pii_match_test'
         sftp_target_path = os.path.join(sftp_target_directory, os.path.basename(decoded_key))
 
         # Upload the file to SFTP

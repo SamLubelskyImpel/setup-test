@@ -75,8 +75,8 @@ def lambda_handler(event, context):
             # Download the file from SFTP
             file_type = message["file_type"]
             current_date = datetime.now()
-            partner_id = message["partner_id"]
-            s3_path = f'download/{partner_id}/{file_type}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(file_path)}'
+            cdp_dealer_id = file_path.split('/')[2]
+            s3_path = f'fd-raw/{file_type}/{cdp_dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(file_path)}'
             stream_file_to_s3(sftp, file_path, s3_path)
 
             logger.info(f"File downloaded from FD: {file_path} to S3 {s3_path}")

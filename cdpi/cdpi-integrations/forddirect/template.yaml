@@ -641,7 +641,7 @@ Resources:
   MatchingPIIInboundQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-${Environment}0ford-direct-MatchingPIIInboundQueue
+      QueueName: !Sub cdpi-${Environment}-ford-direct-MatchingPIIInboundQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:

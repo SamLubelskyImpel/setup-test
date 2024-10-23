@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from json import dumps
 import boto3
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 
 logger = logging.getLogger()
@@ -43,18 +44,24 @@ def make_address_json(consumer: dict):
 def make_pii_rows(consumer_dict: dict, dealer_id: str) -> list:
     """Make PII rows for a consumer record."""
     pii_rows = []
+
+    record_date = consumer_dict["record_date"]
+    if type(record_date) == str:  # record_date becomes a str on the audit_log e.g. 2024-10-21 13:50:49+00
+        record_date = datetime.strptime(record_date + '00', '%Y-%m-%d %H:%M:%S%z')
+    record_date = record_date.strftime('%Y-%m-%dT%H:%M:%S')
+
     if 'first_name' in consumer_dict:
-        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["first_name"]}|^|fName|^|{consumer_dict["record_date"]}\n')
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["first_name"]}|^|fName|^|{record_date}\n')
     if 'last_name' in consumer_dict:
-        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["last_name"]}|^|lName|^|{consumer_dict["record_date"]}\n')
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["last_name"]}|^|lName|^|{record_date}\n')
     if 'email' in consumer_dict:
-        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["email"]}|^|email|^|{consumer_dict["record_date"]}\n')
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["email"]}|^|email|^|{record_date}\n')
     if 'phone' in consumer_dict:
-        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["phone"]}|^|phone|^|{consumer_dict["record_date"]}\n')
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["phone"]}|^|phone|^|{record_date}\n')
 
     address_updates = make_address_json(consumer_dict)
     if address_updates:
-        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{address_updates}|^|address|^|{consumer_dict["record_date"]}\n')
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{address_updates}|^|address|^|{record_date}\n')
 
     return pii_rows
 

@@ -54,7 +54,8 @@ def record_handler(record: SQSRecord):
     bucket_name = event['Records'][0]['s3']['bucket']['name']
     file_key: str = event['Records'][0]['s3']['object']['key']
     decoded_key = urllib.parse.unquote(file_key)
-    product, filename = decoded_key.split('/')[-3], decoded_key.split('/')[-1]
+    split_key = decoded_key.split('/')
+    product, filename = split_key[1], split_key[-1]
 
     try:
         # Download the S3 file to /tmp (Lambda's temp storage)
