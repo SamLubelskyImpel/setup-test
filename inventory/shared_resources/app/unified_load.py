@@ -159,7 +159,8 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
                 identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
                 logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
 
-        logger.info("Data processing completed. Total records processed: %d",total_records)
+        logger.info("Data processing completed. Total records processed: %d",
+                    len(json_data_list))
 
         #  Use dealer_integration_partner_id to update the value of on_lot for vehicles
         dealer_id = dealer_integration_partner_id
