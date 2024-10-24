@@ -356,14 +356,11 @@ class RDSInstance:
         """Check for existing records using a bulk transaction."""
         try:
             # Construct the WHERE clause for the bulk check
-            conditions = []
             values = []
             for data in data_list:
-                condition = " AND ".join([f"{col} = %s" for col in check_columns])
-                conditions.append(f"({condition})")
-                values.extend([data[col] for col in check_columns])
+                values.append(tuple([data[col] for col in check_columns]))
 
-            where_clause = " OR ".join(conditions)
+            where_clause = f"({', '.join(check_columns)}) IN %s"
 
             query = f"""
                 SELECT id, {', '.join(check_columns)}
@@ -372,7 +369,7 @@ class RDSInstance:
             """
 
             with self.rds_connection.cursor() as cursor:
-                cursor.execute(query, values)
+                cursor.execute(query, (tuple(values),))
                 results = cursor.fetchall()
 
                 # Map the results to a dictionary
