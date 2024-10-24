@@ -137,8 +137,8 @@ class OemAdfCreation(BaseClass):
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
-            self.vehicle_of_interest = any(vehicle_of_interest.get(field) is not None for field in ['vin', 'year', 'make', 'model'])
-            if self.vehicle_of_interest:
+            is_vehicle_of_interest = any(vehicle_of_interest.get(field) is not None for field in ['vin', 'year', 'make', 'model'])
+            if is_vehicle_of_interest:
                 self.vehicle = self._generate_vehicle_adf(vehicle_of_interest)
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
@@ -151,7 +151,7 @@ class OemAdfCreation(BaseClass):
             )
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
 
-            service = "lead" if self.vehicle_of_interest else "contact"
+            service = "lead" if is_vehicle_of_interest else "contact"
 
             formatted_adf = self.adf_file.format(
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -163,7 +163,10 @@ class OemAdfCreation(BaseClass):
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
-            return self._jdpa_api_call(formatted_adf), self.vehicle_of_interest
+            response = self._jdpa_api_call(formatted_adf)
+            logger.info(f"Response from JDPA: {response}")
+            
+            return is_vehicle_of_interest
         
         except CRMApiError as e:
             logger.error(f"CRMApiError: {e}")
