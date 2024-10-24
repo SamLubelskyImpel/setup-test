@@ -1,13 +1,14 @@
 import re
 import logging
 from os import environ
+from requests import post
 from datetime import datetime
 from shared_class import BaseClass
 from adf_template import OEM_MAPPING, OEM_ADF_TEMPLATE
 
-ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
-CRM_API_DOMAIN = "crm-api-test.testenv.impel.io"#environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = "impel"#environ.get("UPLOAD_SECRET_KEY")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -24,6 +25,7 @@ class OemAdfCreation(BaseClass):
 
         self.oem_recipient = oem_recipient
         self.oem_api = self._get_secrets("crm-partner-api", f"{oem_recipient}_oem")
+        self.oem_dealer_code = self.oem_api['dealer_code']
 
         self.adf_file = OEM_ADF_TEMPLATE
         self.mapper = OEM_MAPPING
@@ -107,7 +109,32 @@ class OemAdfCreation(BaseClass):
             + "\n</contact>\n</customer>"
         )
 
-    def create_adf_data(self, lead_id, dealer_code):
+    def _jdpa_api_call(self, formatted_adf):
+        try:
+            headers = {
+                "Content-Type": "application/xml",
+                "authkey": self.oem_api["auth_key"],
+            }
+
+            api_url = f"{self.oem_api['url']}leads/submit" if self.vehicle_of_interest else  f"{self.oem_api['url']}contacts/submit"
+
+            response = post(
+                api_url, headers=headers, data=formatted_adf
+            )
+
+            response.raise_for_status()
+
+            if "0_Accepted" in response.text:
+                logger.info("ADF was successfully sended to JDPA")
+            else:
+                logger.error(f"ADF submission failed. Response: \n{response.text}")
+            
+            return response.text
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred during ADF submission. \n {e}")
+            raise e
+
+    def create_adf_data(self, lead_id):
         try:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
@@ -121,14 +148,14 @@ class OemAdfCreation(BaseClass):
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
-                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_recipient, 'dealer_code': dealer_code })}\n"
+                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_recipient, 'dealer_code': self.oem_dealer_code })}\n"
                 f"{self.mapper['vendor']['vendorname'].format(vendorname_value = dealer.get('dealer_name'))}"
             )
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
 
             service = "lead" if self.vehicle_of_interest else "contact"
 
-            return self.adf_file.format(
+            formatted_adf = self.adf_file.format(
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
                 vehicle_of_interest = self.vehicle,
                 customer = self.customer,
@@ -136,6 +163,13 @@ class OemAdfCreation(BaseClass):
                 service_value = self.service_code[self.oem_recipient][service],
                 lead_id = lead_id
             )
+            logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
+            return self._jdpa_api_call(formatted_adf)
+        
         except CRMApiError as e:
+            logger.error(f"CRMApiError: {e}")
+            raise e
+        except Exception as e:
+            logger.exception(f"An unexpected error occurred: {e}")
             raise e

@@ -4,9 +4,9 @@ from datetime import datetime
 from shared_class import BaseClass
 from adf_template import LEAD_DATA_TO_ADF_MAPPER, BASE_ADF_TEMPLATE
 
-ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
-CRM_API_DOMAIN = "crm-api-test.testenv.impel.io"#environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = "impel"#environ.get("UPLOAD_SECRET_KEY")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())

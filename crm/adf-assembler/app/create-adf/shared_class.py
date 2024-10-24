@@ -4,8 +4,8 @@ from os import environ
 from json import loads
 from boto3 import client
 
-ENVIRONMENT = "test"#environ.get("ENVIRONMENT", "test")
-CRM_API_SECRET_KEY = "impel"#environ.get("UPLOAD_SECRET_KEY")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 
 logging.basicConfig(level=logging.INFO)
