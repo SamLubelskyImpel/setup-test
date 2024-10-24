@@ -36,23 +36,31 @@ def _lambda_handler(event, context):
         secret = sm_client.get_secret_value(
             SecretId=f"{'prod' if is_prod else 'test'}/DmsDataService"
         )
-        secret = json.loads(secret["SecretString"]).get(str(client_id), {})
+        # secret = json.loads(secret["SecretString"]).get(str(client_id), {})
+        # secret = json.loads(secret["SecretString"]).get(str(client_id))
+        secret = json.loads(secret["SecretString"])[str(client_id)]
+        # if client_id not in secret_data:
+        #     raise KeyError(f"Invalid Client ID:'{client_id}' not found in secrets")
         secret_data = json.loads(secret)
     except ClientError as e:
         logger.error("Error retrieving secret: %s", e)
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
             return {"policyDocument": policy, "principalId": client_id}
         else:
+            logger.info("in else with 500")
             return {
                 "statusCode": 500,
                 "body": json.dumps({"message": "Internal Server Error"})
             }
     except KeyError:
+        logger.info("in key errorrr")
         logger.error("Invalid client_id: %s", client_id)
-        return {
-            "statusCode": 401,
-            "body": json.dumps({"message": "Unauthorized"})
-        }
+        logger.info("in key errorrr")
+        return {"policyDocument": policy, "principalId": client_id}
+        # return {
+        #     "statusCode": 401,
+        #     "body": json.dumps({"message": "Unauthorized"})
+        # }
     except Exception as e:
         logger.exception("Unexpected error occurred")
         return {
@@ -65,7 +73,7 @@ def _lambda_handler(event, context):
     
     if authorized:
         policy["Statement"][0]["Effect"] = "Allow"
-        return {"policyDocument": policy, "principalId": client_id}
+        return {"policyDocument": policy, "principalId": client_id, "statusCode": 401}
     
     logger.warning("Unauthorized access attempt by client_id: %s", client_id)
     return {
@@ -78,6 +86,10 @@ def lambda_handler(event, context):
     try:
         return _lambda_handler(event, context)
     except Exception as e:
+        logger.info("in lambda handlerrr")
+        # logger.info(e)
+        # logger.exception("Exception in lambda_handler: %s", e)
+        # raise
         logger.exception("Exception in lambda_handler: %s", e)
         return {
             "statusCode": 500,
