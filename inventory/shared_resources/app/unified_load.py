@@ -113,6 +113,10 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
         if sample_data:
             incoming_received_datetime = sample_data.get('inv_inventory|received_datetime')
             provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
+            if provider_dealer_id == '215441':
+                logger.warning(f"Temporarily Skipping data processing for provider dealer ID: {provider_dealer_id} (Flexicar)")
+                return
+
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime, provider_dealer_id):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
                 return
@@ -185,6 +189,11 @@ def lambda_handler(event, _):
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
+
+                # Temp switch off until optimizations:
+                logger.warning(f"File loading temporarily disabled. Ignoring file: {key}")
+                return
+
                 process_and_upload_data(bucket, key, rds_instance)
     except Exception:
         logger.exception("Error in Lambda handler")
