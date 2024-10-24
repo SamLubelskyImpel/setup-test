@@ -107,14 +107,14 @@ class OemAdfCreation(BaseClass):
             + "\n</contact>\n</customer>"
         )
 
-    def _jdpa_api_call(self, formatted_adf):
+    def _jdpa_api_call(self, formatted_adf, is_vehicle_of_interest):
         try:
             headers = {
                 "Content-Type": "application/xml",
                 "authkey": self.oem_api["auth_key"],
             }
 
-            api_url = f"{self.oem_api['url']}leads/submit" if self.vehicle_of_interest else  f"{self.oem_api['url']}contacts/submit"
+            api_url = f"{self.oem_api['url']}leads/submit" if is_vehicle_of_interest else  f"{self.oem_api['url']}contacts/submit"
 
             response = post(
                 api_url, headers=headers, data=formatted_adf
@@ -163,7 +163,7 @@ class OemAdfCreation(BaseClass):
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
-            response = self._jdpa_api_call(formatted_adf)
+            response = self._jdpa_api_call(formatted_adf, is_vehicle_of_interest)
             logger.info(f"Response from JDPA: {response}")
             
             return is_vehicle_of_interest
