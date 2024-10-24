@@ -1,5 +1,4 @@
 import logging
-import requests
 from os import environ
 from typing import Any
 from boto3 import client
@@ -14,8 +13,6 @@ ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 ADF_SENDER_EMAIL_ADDRESS = environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
 
 s3_client = client("s3")
-secret_client = client("secretsmanager")
-
 logger = logging.getLogger()
 logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
 
