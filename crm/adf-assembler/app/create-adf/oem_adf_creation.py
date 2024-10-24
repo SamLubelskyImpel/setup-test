@@ -31,8 +31,6 @@ class OemAdfCreation(BaseClass):
         self.mapper = OEM_MAPPING
         self.formatter = "<{name}>{data}</{name}>\n"
 
-        self.vehicle_of_interest = True
-
         self.vehicle = ""
         self.customer = ""
         self.vendor = ""
@@ -124,7 +122,7 @@ class OemAdfCreation(BaseClass):
 
             response.raise_for_status()
 
-            if "0_Accepted" in response.text:
+            if "0_ACCEPTED" in response.text:
                 logger.info("ADF was successfully sended to JDPA")
             else:
                 logger.error(f"ADF submission failed. Response: \n{response.text}")
@@ -165,7 +163,7 @@ class OemAdfCreation(BaseClass):
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
-            return self._jdpa_api_call(formatted_adf)
+            return self._jdpa_api_call(formatted_adf), self.vehicle_of_interest
         
         except CRMApiError as e:
             logger.error(f"CRMApiError: {e}")

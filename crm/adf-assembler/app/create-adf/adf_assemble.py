@@ -50,8 +50,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         if oem_recipient:
             oem_class = OemAdfCreation(oem_recipient)
-            formatted_adf = oem_class.create_adf_data(body.get('lead_id'))
-            if not oem_class.vehicle_of_interest:
+            formatted_adf, is_voi = oem_class.create_adf_data(body.get('lead_id'))
+            if not is_voi:
                 return {
                     "statusCode": 200,
                     "body": dumps({"message": "Adf file was successfully sended to JDPA API."}),
