@@ -65,11 +65,12 @@ def parse(csv_object):
     sfdc_account_id = None
 
     # Check if the CSV has a row with values
-    if not any(csv_reader):
+    rows = list(csv_reader)
+    if not rows:
         logger.warning('No rows found in the CSV')
         raise EmptyFileError
 
-    for row in csv_reader:
+    for row in rows:
         if not product_dealer_id:
             product_dealer_id = row.get('dealer_id')
         if not sfdc_account_id:
