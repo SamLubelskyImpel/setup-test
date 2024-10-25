@@ -75,7 +75,7 @@ OEM_MAPPING = {
         "make": "<make>{make_value}</make>",
         "model": "<model>{model_value}</model>",
         "vin": "<vin>{vin_value}</vin>",
-        "stock": "<stock>{stock_value}</stock>",
+        "stock_number": "<stock>{stock_number_value}</stock>",
         "comments": "<comments>{comments_value}</comments>",
     },
     "customer": {
@@ -84,10 +84,10 @@ OEM_MAPPING = {
         "phone": "<phone><![CDATA[{phone_value}]]></phone>",
         "email": "<email>{email_value}</email>",
         "address": {
-            "street": '<street line="1">{street_value}</street>',
+            "address": '<street line="1">{address_value}</street>',
             "city": "<city>{city_value}</city>",
-            "regioncode": "<regioncode>{regioncode_value}</regioncode>",
-            "postalcode": "<postalcode>{postalcode_value}</postalcode>",
+            "country": "<country>{country_value}</country>",
+            "postal_code": "<postalcode>{postal_code_value}</postalcode>",
         }
     },
     "vendor": {

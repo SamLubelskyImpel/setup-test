@@ -1,3 +1,4 @@
+import sftp
 import logging
 from os import environ
 from typing import Any
@@ -6,7 +7,6 @@ from json import dumps, loads
 from datetime import datetime
 from adf_creation_class import AdfCreation
 from oem_adf_creation import OemAdfCreation
-import sftp
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -49,12 +49,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
 
         if oem_recipient:
-            oem_class = OemAdfCreation(oem_recipient)
-            is_vehicle_of_interest = oem_class.create_adf_data(body.get('lead_id'))
-            if is_vehicle_of_interest:
+            try:
+                oem_class = OemAdfCreation(oem_recipient)
+                is_vehicle_of_interest = oem_class.create_adf_data(body.get('lead_id'))
+                if is_vehicle_of_interest:
+                    return {
+                        "statusCode": 200,
+                        "body": dumps({"message": "Adf file was successfully sended to JDPA API."}),
+                    }
+            except Exception as e:
+                logger.exception(f"Error occurred while creating or sending ADF to JDPA.\n{e}")
                 return {
-                    "statusCode": 200,
-                    "body": dumps({"message": "Adf file was successfully sended to JDPA API."}),
+                    "statusCode": 500,
+                    "body": dumps({"error": "Failed to create and send ADF to JDPA."}),
                 }
 
         adf_creation = AdfCreation()

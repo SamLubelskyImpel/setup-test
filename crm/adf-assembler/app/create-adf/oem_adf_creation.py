@@ -19,13 +19,13 @@ class CRMApiError(Exception):
 
 class OemAdfCreation(BaseClass):
     """Class for creating an ADF (Automotive Dealership Format) from a lead ID and appointment time if necessary."""
-    def __init__(self, oem_recipient) -> None:
+    def __init__(self, oem_recipient:object) -> None:
         """Initialize API Wrapper."""
         super().__init__()
 
-        self.oem_recipient = oem_recipient
-        self.oem_api = self._get_secrets("crm-partner-api", f"{oem_recipient}_oem")
-        self.oem_dealer_code = self.oem_api['dealer_code']
+        self.oem_recipient = oem_recipient.get("name")
+        self.oem_dealer_code = oem_recipient.get("dealer_code")
+        self.oem_api = self._get_secrets("crm-integrations-partner", f"{oem_recipient.upper()}_OEM")
 
         self.adf_file = OEM_ADF_TEMPLATE
         self.mapper = OEM_MAPPING
@@ -76,7 +76,7 @@ class OemAdfCreation(BaseClass):
         default_mapper = {
             'first_name': "1 Not Available" if self.oem_recipient.lower() == 'honda' else "Anonamous First",
             'last_name': "1 Not Available" if self.oem_recipient.lower() == 'honda' else "Anonamous Last",
-            'postalcode': 00000
+            'postal_code': 00000
         }
         consumer_data = []
 
@@ -88,6 +88,11 @@ class OemAdfCreation(BaseClass):
                     digits = re.findall(r'\d', value)
                     if len(digits) >= 10:
                         value = ''.join(digits[-10:])
+                    else:
+                        logger.warning(f"Phone number format is invalid or too short for customer: {value}")
+                        value = ""
+                    consumer_data.append(item.format(**{f"{key}_value": value}))
+
                 consumer_data.append(
                     item.format(**{f"{key}_value": value})
                 )
@@ -107,15 +112,14 @@ class OemAdfCreation(BaseClass):
             + "\n</contact>\n</customer>"
         )
 
-    def _jdpa_api_call(self, formatted_adf, is_vehicle_of_interest):
+    def _jdpa_api_call(self, formatted_adf, service):
         try:
             headers = {
                 "Content-Type": "application/xml",
                 "authkey": self.oem_api["auth_key"],
             }
 
-            api_url = f"{self.oem_api['url']}leads/submit" if is_vehicle_of_interest else  f"{self.oem_api['url']}contacts/submit"
-
+            api_url = f"{self.oem_api['url']}{service}s/submit"
             response = post(
                 api_url, headers=headers, data=formatted_adf
             )
@@ -126,7 +130,7 @@ class OemAdfCreation(BaseClass):
                 logger.info("ADF was successfully sended to JDPA")
             else:
                 logger.error(f"ADF submission failed. Response: \n{response.text}")
-            
+                raise response.text
             return response.text
         except Exception as e:
             logger.exception(f"An unexpected error occurred during ADF submission. \n {e}")
@@ -137,9 +141,13 @@ class OemAdfCreation(BaseClass):
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
+            vehicle_of_interest |= {"comments": vehicle.get("lead_comment", "")}
+
             is_vehicle_of_interest = any(vehicle_of_interest.get(field) is not None for field in ['vin', 'year', 'make', 'model'])
             if is_vehicle_of_interest:
                 self.vehicle = self._generate_vehicle_adf(vehicle_of_interest)
+            else:
+                logger.info(f"No valid vehicle of interest found for lead {lead_id}. Skipping VOI-specific ADF data.")
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
             self.customer = self._generate_customer_adf(consumer)
@@ -163,7 +171,7 @@ class OemAdfCreation(BaseClass):
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
-            response = self._jdpa_api_call(formatted_adf, is_vehicle_of_interest)
+            response = self._jdpa_api_call(formatted_adf, service)
             logger.info(f"Response from JDPA: {response}")
             
             return is_vehicle_of_interest
