@@ -381,8 +381,11 @@ def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product
         f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
     )
 
+    crm_lead_id = lead.get("crm_lead_id", None)
+
     if response.status_code == 409:
-        raise DuplicateLeadError("Could not create lead, lead with same data already exists.")
+        logger.error(f"Could not create lead, Lead with crm_lead_id {crm_lead_id} already exists.")
+        raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
     unified_crm_lead_id = response.json().get("lead_id")
 
