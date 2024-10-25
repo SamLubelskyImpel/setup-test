@@ -23,9 +23,9 @@ class OemAdfCreation(BaseClass):
         """Initialize API Wrapper."""
         super().__init__()
 
-        self.oem_recipient = oem_recipient.get("name")
+        self.oem_name = oem_recipient.get("name").upper()
         self.oem_dealer_code = oem_recipient.get("dealer_code")
-        self.oem_api = self._get_secrets("crm-integrations-partner", f"{oem_recipient.upper()}_OEM")
+        self.oem_api = self._get_secrets("crm-integrations-partner", f"{self.oem_name}_OEM")
 
         self.adf_file = OEM_ADF_TEMPLATE
         self.mapper = OEM_MAPPING
@@ -35,14 +35,20 @@ class OemAdfCreation(BaseClass):
         self.customer = ""
         self.vendor = ""
 
-        self.service_code = {
-            "acura":{
+        self.default_mapper = {
+            "ACURA":{
                 "contact": 95081,
-                "lead":95079
+                "lead":95079,
+                "first_name": "Anonamous First",
+                "last_name": "Anonamous First",
+                'postal_code': "00000"
             },
-            "honda": {
+            "HONDA": {
                 "contact": 90534,
-                "lead":90534
+                "lead":90534,
+                "first_name": "1 Not Available",
+                "last_name": "1 Not Available",
+                'postal_code': "00000"
             }
         }
 
@@ -53,7 +59,7 @@ class OemAdfCreation(BaseClass):
         vehicle_param_interest = self.mapper['vehicle']['interest'].format(interest_value=v_interest)
 
         default_mapper = {
-            'make': self.oem_recipient.upper(),
+            'make': self.oem_name,
             'year': datetime.now().year,
             'model': 'Any/All'
         }
@@ -73,38 +79,34 @@ class OemAdfCreation(BaseClass):
         )
 
     def _generate_customer_adf(self, consumer: dict):
-        default_mapper = {
-            'first_name': "1 Not Available" if self.oem_recipient.lower() == 'honda' else "Anonamous First",
-            'last_name': "1 Not Available" if self.oem_recipient.lower() == 'honda' else "Anonamous Last",
-            'postal_code': 00000
-        }
+        default_mapper = self.default_mapper[self.oem_name]
         consumer_data = []
 
         for key, item in self.mapper['customer'].items():
-            default_value = default_mapper.get(key, "")
-            value = consumer.get(key) if consumer.get(key) else default_value
-            if key != "address":
-                if key == 'phone':
-                    digits = re.findall(r'\d', value)
-                    if len(digits) >= 10:
-                        value = ''.join(digits[-10:])
-                    else:
-                        logger.warning(f"Phone number format is invalid or too short for customer: {value}")
-                        value = ""
-                    consumer_data.append(item.format(**{f"{key}_value": value}))
+            value = consumer.get(key)
+            if not value:
+                value = default_mapper.get(key, "")
 
-                consumer_data.append(
-                    item.format(**{f"{key}_value": value})
-                )
-            else:
+            if key == 'phone':
+                digits = re.findall(r'\d', value)
+                if len(digits) >= 10:
+                    value = ''.join(digits[-10:])
+                else:
+                    logger.warning(f"Invalid or too-short phone number format for customer: {value}")
+                    value = ""
+                consumer_data.append(item.format(phone_value=value))
+            elif key == "address":
+                # Format each part of the address
+                address_data = []
                 for address_key, address_item in item.items():
-                    address_data = []
-                    address_data.append(
-                        address_item.format(**{f"{address_key}_value": value})
-                    )
-                consumer_data.append(
-                    "<address>\n" + '\n'.join(address_data) + "\n</address>"
-                )
+                    address_value = consumer.get(address_key)
+                    if not address_value:
+                        address_value = default_mapper.get(address_key, "")       
+                    address_data.append(address_item.format(**{f"{address_key}_value": address_value}))
+                consumer_data.append("<address>\n" + "\n".join(address_data) + "\n</address>")
+            else:
+                # Standard case for non-address fields
+                consumer_data.append(item.format(**{f"{key}_value": value or default_mapper.get(key, "")}))
 
         return (
             f"<customer>\n<contact>\n"
@@ -154,7 +156,7 @@ class OemAdfCreation(BaseClass):
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
-                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_recipient, 'dealer_code': self.oem_dealer_code })}\n"
+                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_name, 'dealer_code': self.oem_dealer_code })}\n"
                 f"{self.mapper['vendor']['vendorname'].format(vendorname_value = dealer.get('dealer_name'))}"
             )
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
@@ -166,7 +168,7 @@ class OemAdfCreation(BaseClass):
                 vehicle_of_interest = self.vehicle,
                 customer = self.customer,
                 vendor = self.vendor,
-                service_value = self.service_code[self.oem_recipient][service],
+                service_value = self.default_mapper[self.oem_name][service],
                 lead_id = lead_id
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")

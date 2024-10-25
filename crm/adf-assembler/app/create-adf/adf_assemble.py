@@ -45,7 +45,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         add_summary_to_appointment_comment = adf_integration_config.get(
             "add_summary_to_appointment_comment", True
         )  # default to True
-        oem_recipient = body.get("oem_recipient", "").lower()
+        oem_recipient = body.get("oem_recipient", {})
 
 
         if oem_recipient:
