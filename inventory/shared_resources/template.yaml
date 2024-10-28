@@ -413,6 +413,7 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Timeout: 900
       MemorySize: 1024
+      ReservedConcurrentExecutions: 1
 
   UnifiedLoadEventMapping:
     Type: AWS::Lambda::EventSourceMapping
