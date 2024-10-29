@@ -157,6 +157,26 @@ PSXDIGITAL_CONFIG = {
     ],
 }
 
+PIXELMOTION_CONFIG = {
+    "provider": "pixelmotion",
+    "tag": "vehicle",
+    "headers": [
+        "VIN",
+        "Year",
+        "Make",
+        "Model",
+        "Trim",
+        "StockNum",
+        "MSRP",
+        "FinalPrice",
+        "Condition",
+        "Miles",
+        "VehicleType",
+        "ImageURLs",
+        "VDPRUL",
+    ],
+}
+
 def get_provider_config(provider):
     """Get the config for a given provider."""
     if provider == "dealerspike":
@@ -167,4 +187,6 @@ def get_provider_config(provider):
         return DX1_CONFIG
     if provider == "psxdigital":
         return PSXDIGITAL_CONFIG
+    if provider == "pixelmotion":
+        return PIXELMOTION_CONFIG
     raise RuntimeError(f"Unsupported web provider: {provider}")

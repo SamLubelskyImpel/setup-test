@@ -3,9 +3,7 @@ import json
 import logging
 import urllib.parse
 import boto3
-# import pandas as pd
 from rds_instance import RDSInstance
-# from psycopg2.extras import execute_values
 from json import loads
 from io import BytesIO
 
@@ -14,6 +12,7 @@ ENVIRONMENT = os.environ['ENVIRONMENT']
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
+
 
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
@@ -53,6 +52,10 @@ def extract_inventory_data(json_data):
         value = json_data.get(field)
         if not value:
             return None
+
+        # Remove spaces from the value for inv_inventory|cylinders
+        if field == 'inv_inventory|cylinders':
+            value = value.strip().replace(' ', '')
 
         if ftype == 'int':
             return int(value.strip())
@@ -110,6 +113,10 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
         if sample_data:
             incoming_received_datetime = sample_data.get('inv_inventory|received_datetime')
             provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
+            if provider_dealer_id == '215441':
+                logger.warning(f"Temporarily Skipping data processing for provider dealer ID: {provider_dealer_id} (Flexicar)")
+                return
+
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime, provider_dealer_id):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
                 return
@@ -176,6 +183,11 @@ def lambda_handler(event, _):
             for s3_record in message["Records"]:
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
+
+                # Temp switch off until optimizations:
+                logger.warning(f"File loading temporarily disabled. Ignoring file: {key}")
+                return
+
                 process_and_upload_data(bucket, key, rds_instance)
             count += 1
     except Exception:
