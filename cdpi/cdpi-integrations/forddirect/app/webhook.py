@@ -1,27 +1,25 @@
 import logging
-from datetime import datetime, timezone
 from json import loads, dumps
 from os import environ
-from botocore.exceptions import ClientError
 import boto3
+
+DOWNLOAD_QUEUE = environ.get("DOWNLOAD_QUEUE")
+TOPIC_ARN = environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
+FILE_TYPES = [
+    "consumer_profile_summary",
+    "consumer_profile_summary_enterprise",
+    "consumer_signal_detail",
+    "dealer_attributes",
+    "inventory",
+    "pii_attributes",
+    "pii_match",
+    "other"
+]
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sqs_client = boto3.client("sqs")
-DOWNLOAD_QUEUE = environ.get("DOWNLOAD_QUEUE")
-TOPIC_ARN = environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 
-is_prod = environ.get("ENVIRONMENT", "test") == "prod"
-
-FILE_TYPES = [ 
-    "consumer_profile_summary", 
-    "consumer_signal_detail", 
-    "dealer_attributes", 
-    "inventory", 
-    "pii_attributes", 
-    "pii_match", 
-    "other" 
-    ]
 
 def send_to_queue(queue_url, partner_id, file_type, file_path):
     """Call SQS queue to download file from specified SFTP path."""
@@ -36,45 +34,24 @@ def send_to_queue(queue_url, partner_id, file_type, file_path):
         MessageBody=dumps(data)
     )
 
-def verify_request_body(event):
-    """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager. 
-    Then check that the request body contains no errors"""
+
+def validate_request_body(event):
+    """Validate the request body of the incoming webhook notification based on the OAS specification."""
     logger.info(event)
 
-    endpoint = event["path"]
-
-    headers = {k.lower(): v for k, v in event['headers'].items()}
-    partner_id = headers.get('partner_id')
-    api_key = headers.get('x_api_key')
-
-    SM_CLIENT = boto3.client("secretsmanager")
-
     authenticated = False
-    message = {
-        "statusCode": 500,
-        "body": dumps(
-            {
-                "message": "Internal Server Error. Please contact Impel support.",
-                "recv_timestamp": datetime.utcnow()
-                .replace(tzinfo=timezone.utc)
-                .isoformat(),
-            }
-        ),
-        "headers": {"Content-Type": "application/json"},
-    }
-    
     try:
         body = loads(event["body"])
 
-        file_path = body.get("file_path", None)
-        file_type = body.get("file_type", "missing")
+        file_path = str(body["file_path"])
+        file_type = str(body["file_type"])
 
-        if file_type not in FILE_TYPES or not file_path:
+        if not file_path or file_type not in FILE_TYPES:
             message = {
                 "statusCode": 400,
                 "body": dumps(
                     {
-                    "message": "Request body is missing or invalid."
+                        "message": "File path not provided or file type is invalid."
                     }
                 ),
                 "headers": {"Content-Type": "application/json"},
@@ -86,7 +63,7 @@ def verify_request_body(event):
             "statusCode": 400,
             "body": dumps(
                 {
-                "message": "Request body is missing or invalid."
+                    "message": "Request body is missing or invalid."
                 }
             ),
             "headers": {"Content-Type": "application/json"},
@@ -97,10 +74,7 @@ def verify_request_body(event):
         "statusCode": 200,
         "body": dumps(
             {
-                "message": "Accepted.",
-                "recv_timestamp": datetime.utcnow()
-                .replace(tzinfo=timezone.utc)
-                .isoformat(),
+                "message": "Accepted."
             }
         ),
         "headers": {"Content-Type": "application/json"},
@@ -108,11 +82,12 @@ def verify_request_body(event):
     authenticated = True
     return authenticated, message
 
+
 def lambda_handler(event, context):
     logger.info(event)
 
     try:
-        verified, message = verify_request_body(event)
+        verified, message = validate_request_body(event)
         if verified:
             headers = {k.lower(): v for k, v in event['headers'].items()}
             partner_id = headers.get('partner_id')
@@ -128,11 +103,20 @@ def lambda_handler(event, context):
                 file_path
             )
         return message
-        
+
     except Exception as e:
         logger.exception(f"Error invoking ford direct {event}")
         notify_client_engineering(e)
-        raise 
+        return {
+            "statusCode": 500,
+            "body": dumps(
+                {
+                    "message": "Internal Server Error. Please contact Impel support."
+                }
+            ),
+            "headers": {"Content-Type": "application/json"},
+        }
+
 
 def notify_client_engineering(error_message):
     """Send a notification to the client engineering SNS topic."""

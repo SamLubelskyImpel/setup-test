@@ -1,14 +1,13 @@
 import logging
 import os
-import  boto3
+import boto3
 from json import loads
 import paramiko
-from io import StringIO, BytesIO
+from io import StringIO
 from datetime import datetime
 import urllib.parse
 
-
-IS_PROD = int(os.environ.get('IS_PROD'))
+ENVIRONMENT = os.environ.get('ENVIRONMENT')
 TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 BUCKET_NAME = os.environ.get('SHARED_BUCKET')
 
@@ -20,18 +19,22 @@ secrets = boto3.client('secretsmanager')
 
 
 def get_ssh_config():
-    secret_name = f'{"prod" if IS_PROD else "test"}/CDPI/FD-SFTP'
+    secret_name = f'{"prod" if ENVIRONMENT == "prod" else "test"}/CDPI/FD-SFTP'
     response = loads(secrets.get_secret_value(SecretId=secret_name)['SecretString'])
     return response['hostname'], response['username']
 
 
 def get_ssh_pkey():
-    secret_name = f'{"prod" if IS_PROD else "test"}/CDPI/FD-PKEY'
+    secret_name = f'{"prod" if ENVIRONMENT == "prod" else "test"}/CDPI/FD-PKEY'
     return secrets.get_secret_value(SecretId=secret_name)['SecretString']
 
+
 def validate_file(sftp, remote_file_path):
-    file_info = sftp.stat(remote_file_path)
-    file_size = int(file_info.st_size)
+    try:
+        file_info = sftp.stat(remote_file_path)
+        file_size = int(file_info.st_size)
+    except FileNotFoundError:
+        raise Exception(f"File {os.path.basename(remote_file_path)} not found on SFTP server")
 
     logger.info(f"Attempting to download file of size {file_size} bytes")
 
@@ -39,19 +42,18 @@ def validate_file(sftp, remote_file_path):
         raise Exception(f"File {os.path.basename(remote_file_path)} is larger than 750 MB. Unable to download")
     return
 
+
 def stream_file_to_s3(sftp, remote_file_path, s3_file_path):
-    """
-    Downloads a file from SFTP to s3 bucket.
-    """
-    with BytesIO() as file_buffer:
-        with sftp.file(remote_file_path, 'rb') as remote_file:
-            s3.upload_fileobj(remote_file, BUCKET_NAME, s3_file_path)
+    """Downloads a file from SFTP to s3 bucket."""
+    with sftp.file(remote_file_path, 'rb') as remote_file:
+        s3.upload_fileobj(remote_file, BUCKET_NAME, s3_file_path)
 
 
 def lambda_handler(event, context):
-    logger.info(f'Record: {event}')
-
+    """Download a file from SFTP and upload to S3."""
     try:
+        logger.info(f'Record: {event}')
+
         for record in event["Records"]:
             message = loads(record["body"])
 
@@ -70,25 +72,27 @@ def lambda_handler(event, context):
             sftp = paramiko.SFTPClient.from_transport(transport)
 
             # Validate file is within acceptable size range
-            validate_file(sftp, file_path)
+            validate_file(sftp, decoded_key)
 
             # Download the file from SFTP
             file_type = message["file_type"]
             current_date = datetime.now()
-            cdp_dealer_id = file_path.split('/')[2]
-            s3_path = f'fd-raw/{file_type}/{cdp_dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(file_path)}'
-            stream_file_to_s3(sftp, file_path, s3_path)
+            cdp_dealer_id = decoded_key.split('/')[2]
+            s3_path = f'fd-raw/{file_type}/{cdp_dealer_id}/{current_date.year}/{current_date.month}/{current_date.day}/{os.path.basename(decoded_key)}'
+            stream_file_to_s3(sftp, decoded_key, s3_path)
 
-            logger.info(f"File downloaded from FD: {file_path} to S3 {s3_path}")
+            logger.info(f"File downloaded from FD: {decoded_key} to S3 {s3_path}")
 
             # Close SFTP connection
             sftp.close()
             transport.close()
 
     except Exception as e:
-        logger.exception(f'Failed to upload file to S3: {e}')
-        notify_client_engineering(e)
+        message = f"SFTP FD File Download Failed: {e}"
+        logger.exception(message)
+        notify_client_engineering(message)
         raise
+
 
 def notify_client_engineering(error_message):
     """Send a notification to the client engineering SNS topic."""

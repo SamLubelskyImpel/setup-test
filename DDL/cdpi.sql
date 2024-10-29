@@ -1,7 +1,7 @@
 ------------- Schema functions
--- DROP FUNCTION test.create_db_creation_date_and_role();
+-- DROP FUNCTION prod.create_db_creation_date_and_role();
 
-CREATE OR REPLACE FUNCTION test.create_db_creation_date_and_role()
+CREATE OR REPLACE FUNCTION prod.create_db_creation_date_and_role()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
@@ -13,9 +13,9 @@ END;
 $function$
 ;
 
--- DROP FUNCTION test.update_db_update_date_and_role();
+-- DROP FUNCTION prod.update_db_update_date_and_role();
 
-CREATE OR REPLACE FUNCTION test.update_db_update_date_and_role()
+CREATE OR REPLACE FUNCTION prod.update_db_update_date_and_role()
  RETURNS trigger
  LANGUAGE plpgsql
 AS $function$
@@ -30,13 +30,13 @@ $function$
 
 ------------- Table Schemas + Triggers
 
--- test.cdpi_integration_partner definition
+-- prod.cdpi_integration_partner definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_integration_partner;
+-- DROP TABLE prod.cdpi_integration_partner;
 
-CREATE TABLE test.cdpi_integration_partner (
+CREATE TABLE prod.cdpi_integration_partner (
 	id serial4 NOT NULL,
 	impel_integration_partner_name varchar(40) NOT NULL,
 	db_update_role varchar(255) NULL,
@@ -51,20 +51,20 @@ CREATE TABLE test.cdpi_integration_partner (
 create trigger tr_create_db_creation_date_and_role before
 insert
     on
-    test.cdpi_integration_partner for each row execute function create_db_creation_date_and_role();
+    prod.cdpi_integration_partner for each row execute function prod.create_db_creation_date_and_role();
 create trigger tr_update_db_update_date_and_role before
 update
     on
-    test.cdpi_integration_partner for each row execute function update_db_update_date_and_role();
+    prod.cdpi_integration_partner for each row execute function prod.update_db_update_date_and_role();
 
 
--- test.cdpi_dealer definition
+-- prod.cdpi_dealer definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_dealer;
+-- DROP TABLE prod.cdpi_dealer;
 
-CREATE TABLE test.cdpi_dealer (
+CREATE TABLE prod.cdpi_dealer (
 	id serial4 NOT NULL,
     dealer_name varchar(80) NOT NULL,
 	salesai_dealer_id varchar(80) NULL,
@@ -82,20 +82,20 @@ CREATE TABLE test.cdpi_dealer (
 create trigger tr_create_db_creation_date_and_role before
 insert
     on
-    test.cdpi_dealer for each row execute function create_db_creation_date_and_role();
+    prod.cdpi_dealer for each row execute function prod.create_db_creation_date_and_role();
 create trigger tr_update_db_update_date_and_role before
 update
     on
-    test.cdpi_dealer for each row execute function update_db_update_date_and_role();
+    prod.cdpi_dealer for each row execute function prod.update_db_update_date_and_role();
 
 
--- test.cdpi_product definition
+-- prod.cdpi_product definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_product;
+-- DROP TABLE prod.cdpi_product;
 
-CREATE TABLE test.cdpi_product (
+CREATE TABLE prod.cdpi_product (
 	id serial4 NOT NULL,
 	product_name varchar(40) NOT NULL,
 	db_update_role varchar(255) NULL,
@@ -110,20 +110,20 @@ CREATE TABLE test.cdpi_product (
 create trigger tr_create_db_creation_date_and_role before
 insert
     on
-    test.cdpi_product for each row execute function create_db_creation_date_and_role();
+    prod.cdpi_product for each row execute function prod.create_db_creation_date_and_role();
 create trigger tr_update_db_update_date_and_role before
 update
     on
-    test.cdpi_product for each row execute function update_db_update_date_and_role();
+    prod.cdpi_product for each row execute function prod.update_db_update_date_and_role();
 
 
--- test.cdpi_dealer_integration_partner definition
+-- prod.cdpi_dealer_integration_partner definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_dealer_integration_partner;
+-- DROP TABLE prod.cdpi_dealer_integration_partner;
 
-CREATE TABLE test.cdpi_dealer_integration_partner (
+CREATE TABLE prod.cdpi_dealer_integration_partner (
 	id serial4 NOT NULL,
     integration_partner_id int4 NOT NULL,
 	dealer_id int4 NOT NULL,
@@ -134,8 +134,8 @@ CREATE TABLE test.cdpi_dealer_integration_partner (
     db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	CONSTRAINT pk_cdpi_dealer_integration_partner PRIMARY KEY (id),
 	CONSTRAINT uq_integration_dealer UNIQUE (integration_partner_id, cdp_dealer_id),
-	CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES test.cdpi_integration_partner(id),
-	CONSTRAINT fk_cdpi_dealer FOREIGN KEY (dealer_id) REFERENCES test.cdpi_dealer(id)
+	CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES prod.cdpi_integration_partner(id),
+	CONSTRAINT fk_cdpi_dealer FOREIGN KEY (dealer_id) REFERENCES prod.cdpi_dealer(id)
 );
 
 -- Table Triggers
@@ -143,62 +143,20 @@ CREATE TABLE test.cdpi_dealer_integration_partner (
 create trigger tr_create_db_creation_date_and_role before
 insert
     on
-    test.cdpi_dealer_integration_partner for each row execute function create_db_creation_date_and_role();
+    prod.cdpi_dealer_integration_partner for each row execute function prod.create_db_creation_date_and_role();
 create trigger tr_update_db_update_date_and_role before
 update
     on
-    test.cdpi_dealer_integration_partner for each row execute function update_db_update_date_and_role();
+    prod.cdpi_dealer_integration_partner for each row execute function prod.update_db_update_date_and_role();
 
 
--- test.cdpi_consumer_profile definition
-
--- Drop table
-
--- DROP TABLE test.cdpi_consumer_profile;
-
-CREATE TABLE test.cdpi_consumer_profile (
-	id serial4 NOT NULL,
-    consumer_id int4 NOT NULL,
-    integration_partner_id int4 NOT NULL,
-	cdp_master_consumer_id varchar(100) NOT NULL,
-	cdp_dealer_consumer_id varchar(100) NOT NULL,
-	score_update_date timestamptz NULL,
-	master_pscore_sales varchar(40) NULL,
-    master_pscore_service varchar(40) NULL,
-    dealer_pscore_sales varchar(40) NULL,
-    dealer_pscore_service varchar(40) NULL,
-    prev_master_pscore_sales varchar(40) NULL,
-    prev_master_pscore_service varchar(40) NULL,
-    prev_dealer_pscore_sales varchar(40) NULL,
-    prev_dealer_pscore_service varchar(40) NULL,
-	db_update_role varchar(255) NULL,
-    db_update_date timestamptz NULL,
-    db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	CONSTRAINT pk_cdpi_consumer_profile PRIMARY KEY (id),
-    CONSTRAINT uq_cdpi_consumer_integration_partner UNIQUE (consumer_id, integration_partner_id),
-    CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES test.cdpi_consumer(id),
-    CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES test.cdpi_integration_partner(id)
-);
-
--- Table Triggers
-
-create trigger tr_create_db_creation_date_and_role before
-insert
-    on
-    test.cdpi_consumer_profile for each row execute function create_db_creation_date_and_role();
-create trigger tr_update_db_update_date_and_role before
-update
-    on
-    test.cdpi_consumer_profile for each row execute function update_db_update_date_and_role();
-
-
--- test.cdpi_consumer definition
+-- prod.cdpi_consumer definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_consumer;
+-- DROP TABLE prod.cdpi_consumer;
 
-CREATE TABLE test.cdpi_consumer (
+CREATE TABLE prod.cdpi_consumer (
 	id serial4 NOT NULL,
     product_id int4 NOT NULL,
     dealer_id int4 NOT NULL,
@@ -227,8 +185,8 @@ CREATE TABLE test.cdpi_consumer (
     db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	CONSTRAINT pk_cdpi_consumer PRIMARY KEY (id),
 	CONSTRAINT uq_product_consumer UNIQUE (dealer_id, product_id, source_consumer_id),
-	CONSTRAINT fk_cdpi_dealer FOREIGN KEY (dealer_id) REFERENCES test.cdpi_dealer(id),
-    CONSTRAINT fk_cdpi_product FOREIGN KEY (product_id) REFERENCES test.cdpi_product(id)
+	CONSTRAINT fk_cdpi_dealer FOREIGN KEY (dealer_id) REFERENCES prod.cdpi_dealer(id),
+    CONSTRAINT fk_cdpi_product FOREIGN KEY (product_id) REFERENCES prod.cdpi_product(id)
 );
 
 -- Table Triggers
@@ -236,13 +194,13 @@ CREATE TABLE test.cdpi_consumer (
 create trigger tr_create_db_creation_date_and_role before
 insert
     on
-    test.cdpi_consumer for each row execute function create_db_creation_date_and_role();
+    prod.cdpi_consumer for each row execute function prod.create_db_creation_date_and_role();
 create trigger tr_update_db_update_date_and_role before
 update
     on
-    test.cdpi_consumer for each row execute function update_db_update_date_and_role();
+    prod.cdpi_consumer for each row execute function prod.update_db_update_date_and_role();
 
-CREATE TABLE test.cdpi_audit_log (
+CREATE TABLE prod.cdpi_audit_log (
     id SERIAL PRIMARY KEY,
     table_name varchar NOT NULL,
     operation varchar NOT NULL,  -- e.g., 'UPDATE', 'INSERT'
@@ -255,7 +213,7 @@ CREATE TABLE test.cdpi_audit_log (
 );
 
 
-CREATE OR REPLACE FUNCTION log_audit_update() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION prod.log_audit_update() RETURNS TRIGGER AS $$
 DECLARE
     changed_cols varchar[] := ARRAY[]::varchar[];  -- Initialize an empty array for changed columns
     old_vals JSONB := '{}'::JSONB;  -- JSONB to hold old values
@@ -292,7 +250,7 @@ BEGIN
     END IF;
 
     -- Insert the audit log entry with dynamically captured update_role
-    INSERT INTO test.cdpi_audit_log (table_name, operation, row_id, changed_columns, old_values, new_values, db_update_role)
+    INSERT INTO prod.cdpi_audit_log (table_name, operation, row_id, changed_columns, old_values, new_values, db_update_role)
     VALUES (TG_TABLE_NAME, TG_OP, NEW.id, changed_cols, old_vals, new_vals, current_user);
 
     RETURN NEW;
@@ -301,5 +259,46 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE TRIGGER audit_update_trigger
-AFTER UPDATE ON test.cdpi_consumer
-FOR EACH ROW EXECUTE FUNCTION log_audit_update();
+AFTER UPDATE ON prod.cdpi_consumer
+FOR EACH ROW EXECUTE FUNCTION prod.log_audit_update();
+   
+-- prod.cdpi_consumer_profile definition
+
+-- Drop table
+
+-- DROP TABLE prod.cdpi_consumer_profile;
+
+CREATE TABLE prod.cdpi_consumer_profile (
+	id serial4 NOT NULL,
+    consumer_id int4 NOT NULL,
+    integration_partner_id int4 NOT NULL,
+	cdp_master_consumer_id varchar(100) NOT NULL,
+	cdp_dealer_consumer_id varchar(100) NOT NULL,
+	score_update_date timestamptz NULL,
+	master_pscore_sales varchar(40) NULL,
+    master_pscore_service varchar(40) NULL,
+    dealer_pscore_sales varchar(40) NULL,
+    dealer_pscore_service varchar(40) NULL,
+    prev_master_pscore_sales varchar(40) NULL,
+    prev_master_pscore_service varchar(40) NULL,
+    prev_dealer_pscore_sales varchar(40) NULL,
+    prev_dealer_pscore_service varchar(40) NULL,
+	db_update_role varchar(255) NULL,
+    db_update_date timestamptz NULL,
+    db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	CONSTRAINT pk_cdpi_consumer_profile PRIMARY KEY (id),
+    CONSTRAINT uq_cdpi_consumer_integration_partner UNIQUE (consumer_id, integration_partner_id),
+    CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES prod.cdpi_consumer(id),
+    CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES prod.cdpi_integration_partner(id)
+);
+
+-- Table Triggers
+
+create trigger tr_create_db_creation_date_and_role before
+insert
+    on
+    prod.cdpi_consumer_profile for each row execute function prod.create_db_creation_date_and_role();
+create trigger tr_update_db_update_date_and_role before
+update
+    on
+    prod.cdpi_consumer_profile for each row execute function prod.update_db_update_date_and_role();

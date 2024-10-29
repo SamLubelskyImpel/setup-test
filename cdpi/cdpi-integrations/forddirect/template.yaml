@@ -104,8 +104,8 @@ Resources:
                 ]
               - !If [
                    IsProd,
-                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-web*",
-                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-web*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-Webhook*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-Webhook*",
                 ]
               - !If [
                    IsProd,
@@ -239,6 +239,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundDLQ
+      MessageRetentionPeriod: 1209600
 
   GeneratePIIOutboundDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -652,6 +653,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-MatchingPIIInboundDLQ
+      MessageRetentionPeriod: 1209600
 
   MatchingPIIInboundQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -725,7 +727,7 @@ Resources:
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "forddirect-webhook-${Environment}-Authorizer"
+      FunctionName: !Sub "cdpi-${Environment}-ford-direct-WebhookAuthorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
       Timeout: 30
@@ -783,7 +785,7 @@ Resources:
     Properties:
       CodeUri: app/
       Handler: webhook.lambda_handler
-      FunctionName: !Sub forddirect-${Environment}-webhook
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-Webhook
       MemorySize: 128
       Timeout: 30
       Events:
@@ -799,12 +801,13 @@ Resources:
   SFTPNotifyWebhookLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/forddirect-${Environment}-webhook"
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-Webhook"
 
   DownloadQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub forddirect-${Environment}-DownloadQueue
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DownloadQueue
+      MessageRetentionPeriod: 1209600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DownloadQueueDLQ.Arn
         maxReceiveCount: 3
@@ -813,7 +816,8 @@ Resources:
   DownloadQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub forddirect-${Environment}-DownloadQueueDLQ
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DownloadQueueDLQ
+      MessageRetentionPeriod: 1209600
 
   DownloadFileDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -838,7 +842,7 @@ Resources:
   DownloadFileLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub forddirect-${Environment}-DownloadLambda
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-DownloadLambda
       CodeUri: app/
       Handler: download_file.lambda_handler
       Timeout: 900

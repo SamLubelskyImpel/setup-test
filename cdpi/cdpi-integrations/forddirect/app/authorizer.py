@@ -12,6 +12,7 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 
 is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
+
 def _lambda_handler(event: Any, context: Any) -> Any:
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
@@ -33,7 +34,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         secret = SM_CLIENT.get_secret_value(
-            SecretId=f"{'prod' if is_prod else 'test'}/cdpi-web"
+            SecretId=f"{'prod' if is_prod else 'test'}/CDPI/FD-Webhook"
         )
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
