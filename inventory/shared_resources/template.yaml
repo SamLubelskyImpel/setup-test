@@ -339,10 +339,10 @@ Resources:
     Properties:
       QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 900
+      VisibilityTimeout: 120
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
-          maxReceiveCount: 5
+          maxReceiveCount: 25
 
   UnifiedLoadDeadLetterQueue:
     Type: AWS::SQS::Queue
