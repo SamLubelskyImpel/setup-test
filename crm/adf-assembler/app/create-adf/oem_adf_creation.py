@@ -78,7 +78,7 @@ class OemAdfCreation(BaseClass):
             + "</vehicle>"
         )
 
-    def _generate_customer_adf(self, consumer: dict):
+    def _generate_customer_adf(self, consumer: dict, comment_value: str):
         default_mapper = self.default_mapper[self.oem_name]
         consumer_data = []
 
@@ -108,10 +108,12 @@ class OemAdfCreation(BaseClass):
                 # Standard case for non-address fields
                 consumer_data.append(item.format(**{f"{key}_value": value or default_mapper.get(key, "")}))
 
+        comment_tag = f"\n<comments><![CDATA[{comment_value}]]></comments>" if comment_value else ""
+
         return (
             f"<customer>\n<contact>\n"
             + '\n'.join(consumer_data)
-            + "\n</contact>\n</customer>"
+            + f"\n</contact>{comment_tag}\n</customer>"
         )
 
     def _jdpa_api_call(self, formatted_adf, service):
@@ -132,7 +134,7 @@ class OemAdfCreation(BaseClass):
                 logger.info("ADF was successfully sended to JDPA")
             else:
                 logger.error(f"ADF submission failed. Response: \n{response.text}")
-                raise response.text
+                raise RuntimeError(f"ADF submission failed with response: {response.text}")
             return response.text
         except Exception as e:
             logger.exception(f"An unexpected error occurred during ADF submission. \n {e}")
@@ -143,7 +145,6 @@ class OemAdfCreation(BaseClass):
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
-            vehicle_of_interest |= {"comments": vehicle.get("lead_comment", "")}
 
             is_vehicle_of_interest = any(vehicle_of_interest.get(field) is not None for field in ['vin', 'year', 'make', 'model'])
             if is_vehicle_of_interest:
@@ -152,7 +153,7 @@ class OemAdfCreation(BaseClass):
                 logger.info(f"No valid vehicle of interest found for lead {lead_id}. Skipping VOI-specific ADF data.")
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
-            self.customer = self._generate_customer_adf(consumer)
+            self.customer = self._generate_customer_adf(consumer, comment_value=vehicle.get("lead_comment"))
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (

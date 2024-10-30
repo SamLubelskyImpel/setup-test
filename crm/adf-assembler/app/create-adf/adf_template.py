@@ -76,7 +76,6 @@ OEM_MAPPING = {
         "model": "<model>{model_value}</model>",
         "vin": "<vin>{vin_value}</vin>",
         "stock_number": "<stock>{stock_number_value}</stock>",
-        "comments": "<comments>{comments_value}</comments>",
     },
     "customer": {
         "first_name": '<name part="first" type="individual">{first_name_value}</name>',
