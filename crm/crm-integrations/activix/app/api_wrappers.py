@@ -135,34 +135,7 @@ class ActivixApiWrapper:
 
         return str(response_json.get("data", {}).get("id", ""))
 
-
     def __insert_note(self):
-        """Insert note on CRM."""
-        url = "{}/communications".format(ACTIVIX_API_DOMAIN)
-
-        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
-
-        payload = {
-            "lead_id": int(self.__activity["crm_lead_id"]),
-            "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
-            "type": communication_type,
-            "executed_at": date,
-            "executed_by": self.__user_id,
-            "description": self.__activity["notes"]
-        }
-
-        logger.info(f"Payload to CRM: {payload}")
-        response = self.__call_api(url, payload)
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
-
-        return str(response_json.get("data", "").get("id", ""))
-
-
-    def __insert_notev2(self):
         """Insert note on CRM."""
         lead_id = int(self.__activity["crm_lead_id"])
         url = "{}/leads/{}/notes".format(ACTIVIX_API_DOMAIN, lead_id)
@@ -209,7 +182,7 @@ class ActivixApiWrapper:
     def create_activity(self):
         """Create activity on CRM."""
         if self.__activity["activity_type"] == "note":
-            return self.__insert_notev2()
+            return self.__insert_note()
         elif self.__activity["activity_type"] == "appointment":
             return self.__create_appointment()
         elif self.__activity["activity_type"] == "outbound_call":
