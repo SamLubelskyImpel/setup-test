@@ -778,11 +778,29 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  # To be used for prod deployment
+  # Not needed, manual secret creation for prod
   # SyndicationConfig:
   #   Type: AWS::SecretsManager::Secret
   #   Properties:
   #     Name: !Sub ${Environment}/CDPI/SyndicationConfig
   #     Description: Credentials for products score syndication.
   #   DeletionPolicy: Retain
+
+  SharedLayerDBAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-SharedLayerDBAlarm"
+      AlarmDescription: Alarm for the CDPI Shared Layer DB when CPU usage exceeds 60%
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 60  # 1 minute
+      EvaluationPeriods: 1
+      Threshold: 75
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !If [ IsProd, unified-data-cdpi-prod, unified-data-cdpi-test ]
 
