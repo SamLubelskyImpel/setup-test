@@ -127,11 +127,11 @@ def main():
     else:
         print('Please, include a file type in the filename: RepairOrders or Deals')
 
-    # ftp_credentials = get_ftp_credentials()
-    host = "swipetospinfiles.files.com"  # ftp_credentials['host']
-    user = "prod_tekion_dms"  # ftp_credentials['user']
-    password = "K25!A!n^zD*Pz2zyYSjrpR33^@3xARgP^B$%!oz%&StE&CWK6g4bxAGt8DThbAAGRm5sjjG4"  # ftp_credentials['password']
-    remote_directory = 'prod_tekion_dms'  # f"/{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
+    ftp_credentials = get_ftp_credentials()
+    host = ftp_credentials['host']
+    user = ftp_credentials['user']
+    password = ftp_credentials['password']
+    remote_directory = f"/{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
     local_file_path = os.path.join(os.getcwd(), filename)  # Save the file in the current directory
 
     ftp = connect_to_ftp(host, user, password)
