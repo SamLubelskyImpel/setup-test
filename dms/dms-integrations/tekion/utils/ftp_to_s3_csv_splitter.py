@@ -1,5 +1,11 @@
-"""Download a file from FTP, split it into smaller chunks and upload to S3.
-This script assumes you have downloaded the raw CSV file locally.
+"""Download a historical file from FTP, split it into smaller chunks and upload to S3.
+This script takes a filename as a command line argument, downloads the file from FTP,
+splits the file into smaller chunks (30 MB), then uploads each chunk to S3 for processing.
+
+Notes to consider:
+    - This script is only handles RO and F&I historical files.
+    - Historical files vary in naming convention. Make sure to update this script is setup to identify the file type.
+      (Pending standardization from Tekion DMS)
 
 AWS_PROFILE=unified-admin python ./ftp_to_s3_csv_splitter.py 2201580_ServiceHistory.csv
 """
@@ -121,11 +127,11 @@ def main():
     else:
         print('Please, include a file type in the filename: RepairOrders or Deals')
 
-    ftp_credentials = get_ftp_credentials()
-    host = ftp_credentials['host']
-    user = ftp_credentials['user']
-    password = ftp_credentials['password']
-    remote_directory = f"/{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
+    # ftp_credentials = get_ftp_credentials()
+    host = "swipetospinfiles.files.com"  # ftp_credentials['host']
+    user = "prod_tekion_dms"  # ftp_credentials['user']
+    password = "K25!A!n^zD*Pz2zyYSjrpR33^@3xARgP^B$%!oz%&StE&CWK6g4bxAGt8DThbAAGRm5sjjG4"  # ftp_credentials['password']
+    remote_directory = 'prod_tekion_dms'  # f"/{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
     local_file_path = os.path.join(os.getcwd(), filename)  # Save the file in the current directory
 
     ftp = connect_to_ftp(host, user, password)
