@@ -207,7 +207,7 @@ def parse_lead(product_dealer_id, data):
                     "transmission": vehicle.get("transmission"),
                     "interior_color": vehicle.get("color_interior"),
                     "exterior_color": vehicle.get("color_exterior"),
-                    "trim": vehicle.get("trim"),
+                    "trim": vehicle.get("trim")[:100] if vehicle.get("trim") else None,  
                     "price": vehicle.get("price"),
                     "status": vehicle.get("type"),
                     "vehicle_comments": vehicle.get("comment")
