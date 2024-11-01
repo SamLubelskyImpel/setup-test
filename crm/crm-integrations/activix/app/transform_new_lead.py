@@ -5,6 +5,7 @@ from json import loads
 from os import environ
 import logging
 from typing import Any
+import traceback
 from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
@@ -185,7 +186,7 @@ def parse_lead(product_dealer_id, data):
             "crm_lead_id": crm_lead_id,
             "lead_status": lead_status,
             "lead_substatus": "",
-            "lead_comment": data.get("comment", "")[:5000],
+            "lead_comment": data.get("comment", "")[:5000] if data.get("comment") else "",
             "lead_origin": data.get("type", ""),
             "lead_source": data.get("source", ""),
             "lead_source_detail": data.get("provider", "")
@@ -251,6 +252,8 @@ def parse_lead(product_dealer_id, data):
 
     except Exception as e:
         logger.error(f"Error parsing JSON: {e}")
+        traceback_info = traceback.format_exc()
+        logger.error(f"Traceback: {traceback_info}")
         raise
 
 
