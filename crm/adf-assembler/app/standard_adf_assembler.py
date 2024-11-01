@@ -5,8 +5,7 @@ from typing import Any
 from boto3 import client
 from json import dumps, loads
 from datetime import datetime
-from adf_creation_class import AdfCreation
-from oem_adf_creation import OemAdfCreation
+from shared.adf_creation_class import AdfCreation
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -14,7 +13,7 @@ ADF_SENDER_EMAIL_ADDRESS = environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
 
 s3_client = client("s3")
 logger = logging.getLogger()
-logger.setLevel(logging.getLevelName(environ.get("LOGLEVEL", "INFO").upper()))
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -45,24 +44,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         add_summary_to_appointment_comment = adf_integration_config.get(
             "add_summary_to_appointment_comment", True
         )  # default to True
-        oem_recipient = body.get("oem_recipient", {})
-
-
-        if oem_recipient:
-            try:
-                oem_class = OemAdfCreation(oem_recipient)
-                is_vehicle_of_interest = oem_class.create_adf_data(body.get('lead_id'))
-                if is_vehicle_of_interest:
-                    return {
-                        "statusCode": 200,
-                        "body": dumps({"message": "Adf file was successfully sended to JDPA API."}),
-                    }
-            except Exception as e:
-                logger.exception(f"Error occurred while creating or sending ADF to JDPA.\n{e}")
-                return {
-                    "statusCode": 500,
-                    "body": dumps({"error": "Failed to create and send ADF to JDPA."}),
-                }
 
         adf_creation = AdfCreation()
         formatted_adf = adf_creation.create_adf_data(

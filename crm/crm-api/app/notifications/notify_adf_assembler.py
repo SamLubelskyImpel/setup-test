@@ -1,20 +1,25 @@
 """Forward event to ADF Assembler from CRM API."""
+import boto3
 import logging
-import os
-import json
-import requests
+from os import environ
 from typing import Any
+from json import loads, dumps
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
     process_partial_response,
 )
-from utils import send_email_notification, get_secret
+from utils import send_email_notification
+
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 logger = logging.getLogger()
-logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+sqs_client = boto3.client('sqs')
+s3_client = boto3.client('s3')
 
 class ADFAssemblerError(Exception):
     """An exception indicating a failure to send an event to the ADF Assembler."""
@@ -24,26 +29,21 @@ class ADFAssemblerError(Exception):
 def send_to_adf_assembler(event: Any) -> None:
     """Send event to ADF Assembler."""
     try:
-        assembler_secrets = get_secret(
-            secret_name="adf-assembler", secret_key="create_adf"
+        s3_object = loads(
+            s3_client.get_object(
+                Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
+            )["Body"]
+            .read()
+            .decode("utf-8")
         )
-        api_url, api_key = assembler_secrets.values()
+        sqs_url = s3_object.get("STANDARD_ADF_QUEUE")
+        if event.get("oem_partner"):
+            sqs_url = s3_object.get("OEM_PARTNER_ADF_QUEUE")
 
-        response = requests.post(
-            url=api_url,
-            data=json.dumps(event),
-            headers={
-                "x_api_key": api_key,
-                "action_id": "create_adf",
-                'Content-Type': 'application/json'
-            }
+        sqs_client.send_message(
+            QueueUrl=sqs_url,
+            MessageBody=dumps(event)
         )
-        logger.info(f"ADF Assembler responded with status: {response.status_code}")
-        response.raise_for_status()
-
-    except requests.exceptions.Timeout:
-        logger.error("Timeout occurred calling ADF Assembler for the event")
-        raise ADFAssemblerError("Timeout error for event.")
     except Exception as e:
         message = f"Error sending the event to ADF Assembler: {e}"
         logger.error(message)
@@ -56,7 +56,7 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message_body = record['body']
-        event = json.loads(message_body)
+        event = loads(message_body)
 
         logger.info(f"Processing event: {event}")
         send_to_adf_assembler(event)

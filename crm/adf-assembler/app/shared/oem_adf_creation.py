@@ -19,12 +19,12 @@ class CRMApiError(Exception):
 
 class OemAdfCreation(BaseClass):
     """Class for creating an ADF (Automotive Dealership Format) from a lead ID and appointment time if necessary."""
-    def __init__(self, oem_recipient:object) -> None:
+    def __init__(self, oem_partner:object) -> None:
         """Initialize API Wrapper."""
         super().__init__()
 
-        self.oem_name = oem_recipient.get("name").upper()
-        self.oem_dealer_code = oem_recipient.get("dealer_code")
+        self.oem_name = oem_partner.get("name").upper()
+        self.oem_dealer_code = oem_partner.get("dealer_code")
         self.oem_api = self._get_secrets("crm-integrations-partner", f"{self.oem_name}_OEM")
 
         self.adf_file = OEM_ADF_TEMPLATE
@@ -157,7 +157,7 @@ class OemAdfCreation(BaseClass):
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
-                f"{self.mapper['vendor']['id'].format(**{ 'oem_recipient': self.oem_name, 'dealer_code': self.oem_dealer_code })}\n"
+                f"{self.mapper['vendor']['id'].format(**{ 'oem_partner': self.oem_name, 'dealer_code': self.oem_dealer_code })}\n"
                 f"{self.mapper['vendor']['vendorname'].format(vendorname_value = dealer.get('dealer_name'))}"
             )
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
