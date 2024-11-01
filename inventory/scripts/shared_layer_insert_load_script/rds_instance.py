@@ -176,7 +176,7 @@ class RDSInstance:
         """
         Insert an inventory item record if the vehicle_id does not exist in the database,
         """
-        unique_columns = ["vehicle_id"]
+        unique_columns = ["vehicle_id", "dealer_integration_partner_id"]
 
         check_data = {
             col: inventory_data.get(col)
