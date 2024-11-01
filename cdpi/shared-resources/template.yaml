@@ -340,7 +340,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerIngestionBatcher"
-      RetentionInDays: 30
 
   ConsumerIngestionBatcherQueue:
     Type: AWS::SQS::Queue
@@ -434,7 +433,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ConsumerIngestion"
-      RetentionInDays: 30
 
   ConsumerIngestionQueue:
     Type: AWS::SQS::Queue

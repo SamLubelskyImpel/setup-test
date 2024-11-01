@@ -52,7 +52,11 @@ def record_handler(record: SQSRecord):
         csv_object = csv_file['Body'].read().decode('utf-8')
 
         csv_reader = csv.reader(io.StringIO(csv_object))
-        headers = next(csv_reader)
+        try:
+            headers = next(csv_reader)
+        except StopIteration:
+            logger.warning(f"Ignoring Empty file {decoded_key}")
+            return
 
         batch = [headers]
         batch_count = 0
