@@ -273,14 +273,10 @@ def list_s3_keys(prefix, bucket_name=BUCKET_NAME):
 # This script loads and inserts inventory data into the database for a given date and partner
 if __name__ == "__main__":
     try:
-        KEY_PREFIX_DATE = "unified/icc/2024/10/24/00"
+        KEY_PREFIX_DATE = "unified/coxau/2024/10/24"
         logger.info("Starting script execution")
 
         reversed_keys = list_s3_keys(KEY_PREFIX_DATE)[::-1]
-
-        # reversed_keys = [
-        #     "unified/icc/2024/10/23/16/215441.json"
-        # ]
 
         for key in reversed_keys:
             logger.info(f"Processing key: {key}")
