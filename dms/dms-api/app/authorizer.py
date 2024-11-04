@@ -20,9 +20,7 @@ def _lambda_handler(event, context):
     headers = {k.lower(): v for k, v in event['headers'].items()}
     client_id = headers.get('client_id')
     api_key = headers.get('x_api_key')
-    logger.info("Client ID: %s", client_id)   
-    logger.info("API Key: %s", api_key)
-
+    
     sm_client = boto3.client("secretsmanager")
 
     policy = {
