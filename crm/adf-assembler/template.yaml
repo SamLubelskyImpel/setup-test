@@ -149,50 +149,50 @@ Resources:
                         - !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
   
   # Standard ADF Assembler Resources
-    StandardAdfAssembler:
+    AdfAssembler:
         Type: AWS::Serverless::Function
         Properties:
-            FunctionName: !Sub "standard-adf-assembler-${Environment}"
+            FunctionName: !Sub "adf-assembler-${Environment}"
             CodeUri: app/
-            Handler: standard_adf_assembler.lambda_handler
+            Handler: adf_assembler.lambda_handler
             Timeout: 30
             Role: !GetAtt LambdaRole.Arn
 
-    StandardAdfAssemblerQueue:
+    AdfAssemblerQueue:
         Type: AWS::SQS::Queue
         Properties:
-            QueueName: !Sub "standard-adf-assembler-${Environment}-StandardAdfAssemblerQueue"
+            QueueName: !Sub "adf-assembler-${Environment}-AdfAssemblerQueue"
             VisibilityTimeout: 60
             RedrivePolicy:
-                deadLetterTargetArn: !GetAtt StandardAdfAssemblerDeadLetterQueue.Arn
+                deadLetterTargetArn: !GetAtt AdfAssemblerDeadLetterQueue.Arn
                 maxReceiveCount: 3
 
-    StandardAdfAssemblerDeadLetterQueue:
+    AdfAssemblerDeadLetterQueue:
         Type: AWS::SQS::Queue
         Properties:
-            QueueName: !Sub "standard-adf-assembler-${Environment}-StandardAdfAssemblerDLQ"
+            QueueName: !Sub "adf-assembler-${Environment}-AdfAssemblerDLQ"
             MessageRetentionPeriod: 604800
             VisibilityTimeout: 10
 
-    StandardAdfAssemblerEventMapping:
+    AdfAssemblerEventMapping:
         Type: AWS::Lambda::EventSourceMapping
         Properties:
             BatchSize: 1
-            EventSourceArn: !GetAtt StandardAdfAssemblerQueue.Arn
+            EventSourceArn: !GetAtt AdfAssemblerQueue.Arn
             MaximumBatchingWindowInSeconds: 0
-            FunctionName: !GetAtt StandardAdfAssembler.Arn
+            FunctionName: !GetAtt AdfAssembler.Arn
 
-    StandardAdfAssemblerDLQAlarm:
+    AdfAssemblerDLQAlarm:
         Type: AWS::CloudWatch::Alarm
         Properties:
-            AlarmName: !Sub "standard-adf-assembler-${Environment}-StandardAdfAssemblerDLQ"
+            AlarmName: !Sub "adf-assembler-${Environment}-AdfAssemblerDLQ"
             AlarmDescription: Triggered when Standard ADF DLQ has more than 1 unprocessed message
             ActionsEnabled: true
             AlarmActions:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
             Dimensions:
                 - Name: QueueName
-                  Value: !GetAtt StandardAdfAssemblerDeadLetterQueue.QueueName
+                  Value: !GetAtt AdfAssemblerDeadLetterQueue.QueueName
             EvaluationPeriods: 1
             MetricName: ApproximateNumberOfMessagesVisible
             Namespace: AWS/SQS
