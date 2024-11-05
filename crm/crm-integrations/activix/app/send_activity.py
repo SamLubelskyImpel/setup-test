@@ -36,7 +36,7 @@ def record_handler(record: SQSRecord):
         activix_activity_id = activix_crm_api.create_activity()
         logger.info(f"Activix responded with activity ID: {activix_activity_id}")
 
-        crm_api.update_activity(activity["activity_id"], activix_activity_id)
+        if activix_activity_id: crm_api.update_activity(activity["activity_id"], activix_activity_id)
 
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Activix")

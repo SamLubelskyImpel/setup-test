@@ -113,9 +113,6 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
         if sample_data:
             incoming_received_datetime = sample_data.get('inv_inventory|received_datetime')
             provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
-            if provider_dealer_id == '215441':
-                logger.warning(f"Temporarily Skipping data processing for provider dealer ID: {provider_dealer_id} (Flexicar)")
-                return
 
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime, provider_dealer_id):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
@@ -133,6 +130,7 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             return
 
         processed_inventory_ids = []
+
         for json_data in json_data_list:
             # Insert vehicle data
             vehicle_data = extract_vehicle_data(json_data)
@@ -148,15 +146,22 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
 
             # Insert options data
             if json_data.get('inv_options|inv_options'):
-                option_ids = []
+                option_data_list = []
                 for option_json in json_data['inv_options|inv_options']:
                     option_data = extract_option_data(option_json)
-                    option_id = rds_instance.insert_option(option_data)
-                    option_ids.append(option_id)
+                    option_data_list.append(option_data)
+
+                # Perform bulk insert
+                option_ids = rds_instance.insert_options(option_data_list)
+
+                # Link the inserted options to the inventory
                 rds_instance.link_option_to_inventory(inventory_id, option_ids)
             else:
                 identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
                 logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
+
+        logger.info("Data processing completed. Total records processed: %d",
+                    len(json_data_list))
 
         #  Use dealer_integration_partner_id to update the value of on_lot for vehicles
         dealer_id = dealer_integration_partner_id
@@ -174,9 +179,7 @@ def lambda_handler(event, _):
     """
     try:
         rds_instance = RDSInstance()
-        count = 0
         for record in event['Records']:
-            logger.info(f"Processing record {count}")
             message = loads(record["body"])
             logger.info(f"Received message: {message}")
 
@@ -184,7 +187,6 @@ def lambda_handler(event, _):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 process_and_upload_data(bucket, key, rds_instance)
-            count += 1
     except Exception:
         logger.exception("Error in Lambda handler")
         raise
