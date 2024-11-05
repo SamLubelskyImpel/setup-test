@@ -90,7 +90,7 @@ OEM_MAPPING = {
         }
     },
     "vendor": {
-        "id": '<id source="{oem_recipient} Dealer Code">{dealer_code}</id>',
+        "id": '<id source="{oem_partner} Dealer Code">{dealer_code}</id>',
         "vendorname": "<vendorname>{vendorname_value}</vendorname>",
     }
 }
