@@ -3,8 +3,8 @@ import logging
 from os import environ
 from requests import post
 from datetime import datetime
-from shared_class import BaseClass
-from adf_template import OEM_MAPPING, OEM_ADF_TEMPLATE
+from .shared_class import BaseClass
+from .adf_template import OEM_MAPPING, OEM_ADF_TEMPLATE
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")

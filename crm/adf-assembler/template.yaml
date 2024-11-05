@@ -143,8 +143,8 @@ Resources:
                         - "sqs:DeleteMessage"
                         - "sqs:GetQueueAttributes"
                         Resource:
-                        - !GetAtt StandardAdfAssemblerQueue.Arn
-                        - !GetAtt StandardAdfAssemblerDeadLetterQueue.Arn
+                        - !GetAtt AdfAssemblerQueue.Arn
+                        - !GetAtt AdfAssemblerDeadLetterQueue.Arn
                         - !GetAtt HondaAcuraAdfAssemblerQueue.Arn
                         - !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
   
