@@ -2,6 +2,7 @@ import json
 import logging
 from get_dealer_salespersons_handler import lambda_handler
 
+
 # Caplog is one of the default fixtures that is included in pytest.
 def test_get_dealer_salespersons(caplog):
     # Create a dummy event with the test dealer ID (all zeros)

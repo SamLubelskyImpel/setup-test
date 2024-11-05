@@ -51,6 +51,6 @@ def send_alert_notification(alert_title, alert_body, alert_type="SUPPORT ALERT")
     sns_client.publish(
         TopicArn=REPORTING_TOPIC_ARN,
         Message=alert_body,
-        Subject=f'CRM Shared Layer Alerts: DealerPeak - {alert_title}',
+        Subject=f'CRM Shared Layer Alerts: PBS - {alert_title}',
         MessageStructure='string'
     )

@@ -237,4 +237,3 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except Exception as e:
         logger.error(f"Error processing batch: {e}")
         raise
-    return

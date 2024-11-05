@@ -3,7 +3,7 @@ import logging
 from os import environ
 from requests import post, put
 from json import dumps, loads
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
 from requests.auth import HTTPBasicAuth
 
 # Configuration Constants

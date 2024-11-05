@@ -25,6 +25,7 @@ secret_client = client("secretsmanager")
 
 crm_api = CRMAPIWrapper()
 
+
 def record_handler(record: SQSRecord):
     """Create activity on PBS CRM."""
     logger.info(f"Record: {record}")
@@ -54,7 +55,6 @@ def record_handler(record: SQSRecord):
             activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
         )
         raise
-
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
