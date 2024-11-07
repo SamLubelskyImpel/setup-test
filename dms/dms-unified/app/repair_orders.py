@@ -43,6 +43,10 @@ def insert_repair_order_parquet(key, df):
         ] = db_dealer_integration_partner_id
         df["op_code|dealer_integration_partner_id"] = db_dealer_integration_partner_id
 
+        # Log DataFrame before dropping duplicates
+        logger.info(f"DataFrame before dropping duplicates:\n{df.head()}")
+
+
         # Unique dealer_integration_partner_id, repair_order_no SQL can't insert duplicates
         service_repair_order_unique_constraint = [
             "service_repair_order|dealer_integration_partner_id",
@@ -51,7 +55,8 @@ def insert_repair_order_parquet(key, df):
         df = df.drop_duplicates(
             subset=service_repair_order_unique_constraint, keep="first"
         ).reset_index(drop=True)
-
+        # Log DataFrame after dropping duplicates
+        logger.info(f"DataFrame after dropping duplicates:\n{df.head()}")
         inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
         df["service_repair_order|consumer_id"] = inserted_consumer_ids
 
@@ -65,6 +70,9 @@ def insert_repair_order_parquet(key, df):
         ]
         additional_service_repair_order_query = f"""ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
                 SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, service_repair_order.{x})' for x in service_repair_order_columns])}"""
+        # Log the insertion query
+        logger.info(f"Inserting service repair orders with query:\n{additional_service_repair_order_query}")
+
         service_repair_order_ids = rds.insert_table_from_df(
             df,
             "service_repair_order",
