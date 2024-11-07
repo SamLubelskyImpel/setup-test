@@ -246,7 +246,7 @@ def perform_updates(
 
     salespersons = {}
     # update salesperson data if new salesperson is assigned to the lead
-    if event_id == "30":
+    if event_id in ("29", "30"):
         new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)  # type: ignore
         if new_salesperson is not None:
             new_salesperson = new_salesperson.text  # type: ignore
