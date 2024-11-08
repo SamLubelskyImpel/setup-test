@@ -33,5 +33,255 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
+        INGEST_LEAD_QUEUE_URL: !Ref IngestLeadQueue
+        DEALERSOCKET_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
 
 Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/activix*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/activix*",
+                  ]
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt LeadSearchQueue.Arn
+                  - !GetAtt IngestLeadQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
+                    IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+
+  LeadSearch:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: !Sub dealersocket-au-${Environment}-LeadSearch
+        CodeUri: app/
+        Handler: lead_search.lambda_handler
+        Timeout: 60
+        MemorySize: 256
+        Role: !GetAtt LambdaRole.Arn
+
+  LeadSearchLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadSearch"
+
+  LeadSearchEventMapping:
+      Type: AWS::Lambda::EventSourceMapping
+      DependsOn: LeadSearch
+      Properties:
+        BatchSize: 1
+        EventSourceArn: !GetAtt LeadSearchQueue.Arn
+        MaximumBatchingWindowInSeconds: 0
+        FunctionName: !GetAtt LeadSearch.Arn
+
+  LeadSearchQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadSearchQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LeadSearchDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  LeadSearchDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadSearchDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  LeadSearchDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "dealersocket-au-${Environment}-LeadSearchDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket LeadSearch DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt LeadSearchDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  LeadSearchQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref LeadSearchQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt LeadSearchQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
+
+  EventBridgeRuleNewLead:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/carsales-dealersocket-au/" }
+      Targets:
+        - Id: "LeadSearchQueueTarget"
+          Arn: !GetAtt LeadSearchQueue.Arn
+
+  IngestLeadQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-IngestLeadQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestLeadDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  IngestLeadDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-IngestLeadDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  IngestLeadDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "dealersocket-au-${Environment}-IngestLeadDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket Ingest New Lead DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt IngestLeadDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  IngestLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealersocket-au-${Environment}-IngestLead
+      CodeUri: app/
+      Handler: ingest_lead.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  IngestLeadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-IngestLead"
+
+  IngestLeadEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: IngestLead
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt IngestLeadQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt IngestLead.Arn
