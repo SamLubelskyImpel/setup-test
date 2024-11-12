@@ -339,10 +339,10 @@ Resources:
     Properties:
       QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 120
+      VisibilityTimeout: 600
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
-          maxReceiveCount: 25
+          maxReceiveCount: 2
 
   UnifiedLoadDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -411,9 +411,8 @@ Resources:
       Handler: unified_load.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 900
+      Timeout: 600
       MemorySize: 1024
-      ReservedConcurrentExecutions: 1
 
   UnifiedLoadEventMapping:
     Type: AWS::Lambda::EventSourceMapping
