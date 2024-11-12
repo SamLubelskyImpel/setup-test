@@ -28,7 +28,7 @@ Mappings:
       '143813444726': 'arn:aws:iam::261695625069:root'
   ProductSyndicationRoles:
     sales-ai:
-      '196800776222': ''
+      '196800776222': 'arn:aws:iam::078045093221:role/customer-insights-us-west-2-prod-UnifiedDataProd'
       '143813444726': 'arn:aws:iam::856787491001:role/customer-insights-us-west-2-test-UnifiedDataTest'
     service-ai:
       '196800776222': ''
