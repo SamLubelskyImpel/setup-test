@@ -57,13 +57,10 @@ FIELD_MAPPINGS = {
         "city_mpg": "CityMPG",
         "engine": "Engine",
         "engine_displacement": "EngineDisplacement",
-        "factory_certified": "FactoryCertified"
-
-    },
-    "inv_options.inv_options": {
-        "option_description": "OptionDescription",
-        "is_priority": "PriorityOptions"
-    },
+        "factory_certified": "FactoryCertified",
+        "options": "OptionDescription",
+        "priority_options": "PriorityOptions"
+    }
 }
 
 
@@ -83,34 +80,31 @@ def transform_csv_to_entries(csv_content, received_datetime, s3_uri):
 
     for row in reader:
         entry = {}
-        options = []
 
         for table, table_mapping in FIELD_MAPPINGS.items():
-            if table != "inv_options.inv_options":  # Handle options separately
-                entry[table] = {}
-                for impel_field, icc_field in table_mapping.items():
-                    if impel_field == "new_or_used":
-                        entry[table][impel_field] = "Used" if row.get(icc_field, "") == "U" else "New"
-                    elif impel_field == "factory_certified":
-                        entry[table][impel_field] = row.get(icc_field, "") == "C"
-                    elif impel_field == "cylinders":
-                        entry[table][impel_field] = row.get(icc_field, "").replace(".", "")
-                    elif impel_field == "photo_url":
-                        entry[table][impel_field] = row.get(icc_field, "").split("|")[0]
-                    else:
-                        entry[table][impel_field] = row.get(icc_field, None)
-            else:
-                priority_options = [desc.strip()[:255] for desc in row.get("PriorityOptions", "").split("|")]
-                option_descriptions = [desc.strip()[:255] for desc in row.get("OptionDescription", "").split("|")] if row.get("OptionDescription") else priority_options
-                options = [{"inv_option|option_description": desc, "inv_option|is_priority": desc in priority_options}
-                           for desc in option_descriptions if desc]
+            entry[table] = {}
+            for impel_field, icc_field in table_mapping.items():
+                if impel_field == "new_or_used":
+                    entry[table][impel_field] = "Used" if row.get(icc_field, "") == "U" else "New"
+                elif impel_field == "factory_certified":
+                    entry[table][impel_field] = row.get(icc_field, "") == "C"
+                elif impel_field == "cylinders":
+                    entry[table][impel_field] = row.get(icc_field, "").replace(".", "")
+                elif impel_field == "photo_url":
+                    entry[table][impel_field] = row.get(icc_field, "").split("|")[0]
+                elif impel_field == "options":
+                    entry[table][impel_field] = [desc.strip()[:255] for desc in row.get("OptionDescription", "").split("|")] if row.get("OptionDescription") else []
+                elif impel_field == "priority_options":
+                    entry[table][impel_field] = [desc.strip()[:255] for desc in row.get("PriorityOptions", "").split("|")] if row.get("PriorityOptions") else []
+                else:
+                    entry[table][impel_field] = row.get(icc_field, None)
 
-        entry = process_entry(entry, received_datetime, s3_uri, options)
+        entry = process_entry(entry, received_datetime, s3_uri)
         entries.append(entry)
     return entries
 
 
-def process_entry(entry, received_datetime, source_s3_uri, options):
+def process_entry(entry, received_datetime, source_s3_uri):
     """
     Process and possibly modify an entry before it's added to the final list
 
@@ -127,7 +121,6 @@ def process_entry(entry, received_datetime, source_s3_uri, options):
         entry['inv_inventory']['on_lot'] = True
         entry['inv_inventory']['received_datetime'] = received_datetime
 
-    entry['inv_options.inv_options'] = options if options else []
     return entry
 
 
