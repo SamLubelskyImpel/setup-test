@@ -30,6 +30,12 @@ def record_handler(record: SQSRecord):
     Transform the lead, and upload to CRM Shared Layer
     """
     logger.info(f"Record: {record}")
+    body = loads(record.body)
+
+    # Create customer
+
+    # Create lead
+
 
 
 def lambda_handler(event: Any, context: Any) -> Any:

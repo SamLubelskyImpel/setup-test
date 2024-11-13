@@ -4,15 +4,12 @@ and send to IngestLeadQueue.
 """
 
 import logging
-from datetime import datetime
 from json import dumps, loads
 from os import environ
 from typing import Any
-from uuid import uuid4
 
 import boto3
-import requests
-from requests.auth import HTTPBasicAuth
+import xmltodict
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
@@ -20,8 +17,9 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
-INGEST_LEAD_QUEUE_URL = environ.get("INGEST_LEAD_QUEUE_URL")
+from dealer_socket_client import DealerSocketClient
+
+LEAD_TRANSFORMATION_QUEUE_URL = environ.get("LEAD_TRANSFORMATION_QUEUE_URL")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -43,7 +41,7 @@ def send_message_to_queue(queue_url: str, message: dict):
         return response
     except Exception as e:
         logger.error(f"Error sending message to queue: {queue_url}")
-        raise e
+        raise
 
 
 def record_handler(record: SQSRecord):
@@ -60,17 +58,56 @@ def record_handler(record: SQSRecord):
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
-        json_data = loads(content)
-        logger.info(f"Raw data: {json_data}")
+        carsales_json_data = loads(content)
+        logger.info(f"Raw data: {carsales_json_data}")
 
+        # Extract prospect data
+        prospect = carsales_json_data["Prospect"]
 
+        # Initialize DealerSocket client
+        dealersocket_client = DealerSocketClient()
+
+        # Query customer based on prospect data
+        entity_xml_response = dealersocket_client.query_entity(prospect)
+        entity_response = xmltodict.parse(entity_xml_response)
+
+        # Query event based on dealer_id, entity_id, and event
+        vendor = "your_vendor"
+        dealer_id = carsales_json_data.get("SellerIdentifier")
+
+        if not dealer_id:
+            logger.error("Missing SellerIdentifier in raw carsales data")
+            raise ValueError("Missing SellerIdentifier in raw carsales data")
+
+        entity_id = entity_response.get("ShowCustomerInformation", {}) \
+            .get("ShowCustomerInformationDataArea", {}) \
+            .get("CustomerInformation", {}) \
+            .get("CustomerInformationDetail", {}) \
+            .get("CustomerParty", {}) \
+            .get("PartyID")
+
+        if not entity_id:
+            logger.error("Missing entity_id in entity response")
+            raise ValueError("Missing entity_id in entity response")
+
+        event_response = dealersocket_client.query_event(
+            vendor,
+            dealer_id,
+            entity_id
+        )
+
+        # Merge response with Carsales data
+        merged_data = {
+            "carsales_data": carsales_json_data,
+            "entity_response": entity_response,
+            "event_response": event_response
+        }
 
         # Send message to IngestLeadQueue
-        message = loads(record.body)
-        send_message_to_queue(queue_url=INGEST_LEAD_QUEUE_URL, message=message)
+        send_message_to_queue(LEAD_TRANSFORMATION_QUEUE_URL, merged_data)
     except Exception as e:
         logger.error(f"Error processing record: {e}")
-        raise e
+        raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:

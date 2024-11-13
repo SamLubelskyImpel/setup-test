@@ -33,8 +33,9 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
-        INGEST_LEAD_QUEUE_URL: !Ref IngestLeadQueue
-        DEALERSOCKET_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
+        INGEST_LEAD_QUEUE_URL: !Ref LeadTransformationQueue
+        DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
+        DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
 
 Resources:
   LambdaRole:
@@ -102,7 +103,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt LeadSearchQueue.Arn
-                  - !GetAtt IngestLeadQueue.Arn
+                  - !GetAtt LeadTransformationQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -226,33 +227,33 @@ Resources:
         - Id: "LeadSearchQueueTarget"
           Arn: !GetAtt LeadSearchQueue.Arn
 
-  IngestLeadQueue:
+  LeadTransformationQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealersocket-au-${Environment}-IngestLeadQueue"
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadTransformationQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt IngestLeadDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt LeadTransformationDeadLetterQueue.Arn
         maxReceiveCount: 3
 
-  IngestLeadDeadLetterQueue:
+  LeadTransformationDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "dealersocket-au-${Environment}-IngestLeadDLQ"
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadTransformationDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
-  IngestLeadDLQAlarm:
+  LeadTransformationDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "dealersocket-au-${Environment}-IngestLeadDLQ"
+      AlarmName: !Sub "dealersocket-au-${Environment}-LeadTransformationDLQ"
       AlarmDescription: There are over 1 unprocessed messages in the Dealersocket Ingest New Lead DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt IngestLeadDeadLetterQueue.QueueName
+          Value: !GetAtt LeadTransformationDeadLetterQueue.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -262,26 +263,26 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  IngestLead:
+  LeadTransformation:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub dealersocket-au-${Environment}-IngestLead
+      FunctionName: !Sub dealersocket-au-${Environment}-LeadTransformation
       CodeUri: app/
       Handler: ingest_lead.lambda_handler
       Timeout: 60
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
-  IngestLeadLogGroup:
+  LeadTransformationLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-IngestLead"
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadTransformation"
 
-  IngestLeadEventMapping:
+  LeadTransformationEventMapping:
     Type: AWS::Lambda::EventSourceMapping
-    DependsOn: IngestLead
+    DependsOn: LeadTransformation
     Properties:
       BatchSize: 1
-      EventSourceArn: !GetAtt IngestLeadQueue.Arn
+      EventSourceArn: !GetAtt LeadTransformationQueue.Arn
       MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt IngestLead.Arn
+      FunctionName: !GetAtt LeadTransformation.Arn
