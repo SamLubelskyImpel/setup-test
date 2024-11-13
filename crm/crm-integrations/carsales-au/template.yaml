@@ -35,3 +35,97 @@ Globals:
           ]
 
 Resources:
+  TransformCarSalesData:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub carsales-${Environment}-TransformData
+      CodeUri: app/
+      Handler: transform_data.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+    
+  TransformCarSalesDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-TransformData"
+
+  TransformCarSalesDataEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt TransformCarSalesDataQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt TransformCarSalesData.Arn
+
+  TransformCarSalesDataQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "carsales-${Environment}-TransformQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TransformCarSalesDataDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TransformCarSalesDataDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "carsales-${Environment}-TransformDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+  
+  TransformCarSalesDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "carsales-${Environment}-TransformDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the CarSales Transform DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TransformCarSalesDataDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  TransformCarSalesDataQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref TransformCarSalesDataQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt TransformCarSalesDataQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/carsales-dealersocket-au/" }
+      Targets:
+        - Id: "TransformCarSalesDataTarget"
+          Arn: !GetAtt TransformCarSalesDataQueue.Arn
