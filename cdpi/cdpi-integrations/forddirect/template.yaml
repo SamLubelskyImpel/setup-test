@@ -167,7 +167,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
       Timeout: 30
@@ -230,7 +230,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
       Timeout: 60
@@ -404,7 +404,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
           ]
 
@@ -521,7 +521,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
           ]
 
@@ -635,7 +635,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
 
@@ -722,7 +722,7 @@ Resources:
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt MatchingPIIInbound.Arn
 
-# WEBHOOK
+  # WEBHOOK
 
   Authorizer:
     Type: AWS::Serverless::Function

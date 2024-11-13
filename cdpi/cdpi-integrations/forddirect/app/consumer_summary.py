@@ -65,10 +65,10 @@ def write_to_rds(entries):
             ).scalar()
             if not db_integration_partner:
                 logger.error("Integration partner FORD_DIRECT not found")
-                return
+                raise Exception("Integration partner FORD_DIRECT not found")
 
             for entry in entries:
-                logger.info(f"Processing consumer profile: {entry}")
+                # logger.info(f"Processing consumer profile: {entry}")
 
                 # Select consumer profile by consumer_id
                 db_consumer_profile = session.query(
@@ -109,9 +109,9 @@ def write_to_rds(entries):
                 # Only add the profile to the session if changes are made
                 if is_updated:
                     session.add(db_consumer_profile)
-                    logger.info(f"Consumer profile updated for consumer_id: {entry['consumer_id']}")
-                else:
-                    logger.info(f"Consumer profile unchanged for consumer_id: {entry['consumer_id']}")
+                    # logger.info(f"Consumer profile updated for consumer_id: {entry['consumer_id']}")
+                # else:
+                #     logger.info(f"Consumer profile unchanged for consumer_id: {entry['consumer_id']}")
 
             session.commit()
 
@@ -121,7 +121,7 @@ def write_to_rds(entries):
             logger.error(f"Error occurred during database operations: {e}")
             raise e
 
-    logger.info("Consumers added to the database")
+    logger.info(f"Consumers added to the database: {len(entries)}")
 
 
 def record_handler(record: SQSRecord):

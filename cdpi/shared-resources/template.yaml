@@ -31,7 +31,7 @@ Mappings:
       '196800776222': 'arn:aws:iam::078045093221:role/customer-insights-us-west-2-prod-UnifiedDataProd'
       '143813444726': 'arn:aws:iam::856787491001:role/customer-insights-us-west-2-test-UnifiedDataTest'
     service-ai:
-      '196800776222': ''
+      '196800776222': 'arn:aws:iam::261695625069:role/unified-AWS-role-prod'
       '143813444726': 'arn:aws:iam::261695625069:role/unified-AWS-role-staging'
   Subnets:
     us-east-1:
@@ -563,11 +563,7 @@ Resources:
           Properties:
             Schedule: cron(0/5 * * * ? *)
       Layers:
-        - !If [
-            IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
-          ]
+        - !Ref CdpiOrmLayer
       Timeout: 30
       Environment:
         Variables:
@@ -613,11 +609,7 @@ Resources:
                 - sqs:GetQueueAttributes
               Resource: !GetAtt PullScoresQueue.Arn
       Layers:
-        - !If [
-            IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:1",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
-          ]
+        - !Ref CdpiOrmLayer
       Timeout: 60
 
   PullScoresLogGroup:
@@ -776,14 +768,6 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 1
       TreatMissingData: notBreaching
-
-  # Not needed, manual secret creation for prod
-  # SyndicationConfig:
-  #   Type: AWS::SecretsManager::Secret
-  #   Properties:
-  #     Name: !Sub ${Environment}/CDPI/SyndicationConfig
-  #     Description: Credentials for products score syndication.
-  #   DeletionPolicy: Retain
 
   SharedLayerDBAlarm:
     Type: AWS::CloudWatch::Alarm
