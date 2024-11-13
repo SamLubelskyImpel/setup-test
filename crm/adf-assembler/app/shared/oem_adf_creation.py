@@ -125,7 +125,7 @@ class OemAdfCreation(BaseClass):
 
             api_url = f"{self.oem_api['url']}{service}s/submit"
             response = post(
-                api_url, headers=headers, data=formatted_adf
+                api_url, headers=headers, data=formatted_adf.encode("utf-8")
             )
 
             response.raise_for_status()

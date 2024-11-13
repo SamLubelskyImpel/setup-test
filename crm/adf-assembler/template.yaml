@@ -139,6 +139,7 @@ Resources:
                       Statement:
                       - Effect: "Allow"
                         Action:
+                        - "sqs:SendMessage"
                         - "sqs:ReceiveMessage"
                         - "sqs:DeleteMessage"
                         - "sqs:GetQueueAttributes"
@@ -154,7 +155,7 @@ Resources:
         Properties:
             FunctionName: !Sub "adf-assembler-${Environment}"
             CodeUri: app/
-            Handler: adf_assembler.lambda_handler
+            Handler: standard_adf_assembler.lambda_handler
             Timeout: 30
             Role: !GetAtt LambdaRole.Arn
 

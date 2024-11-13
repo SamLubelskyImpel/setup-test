@@ -1,7 +1,7 @@
 """Forward event to ADF Assembler from CRM API."""
-import boto3
 import logging
 from os import environ
+from boto3 import client
 from typing import Any, Dict
 from json import loads, dumps
 from boto3.exceptions import Boto3Error
@@ -19,8 +19,8 @@ ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-sqs_client = boto3.client('sqs')
-s3_client = boto3.client('s3')
+sqs_client = client('sqs')
+s3_client = client('s3')
 processor = BatchProcessor(event_type=EventType.SQS)
 
 class ADFAssemblerError(Exception):
@@ -52,7 +52,7 @@ def send_to_adf_assembler(event: Dict[str, Any]) -> None:
         if not sqs_url:
             raise ValueError(f"No SQS URL configured for key '{queue_key}'")
 
-        logger.info(f"Sending message to {queue_key}")
+        logger.info(f"Sending message to {queue_key}\nThis is event: {event}")
         sqs_client.send_message(QueueUrl=sqs_url, MessageBody=dumps(event))
         logger.info("Message successfully sent to ADF Assembler.")
     except (Boto3Error, ValueError) as e:
@@ -64,8 +64,7 @@ def send_to_adf_assembler(event: Dict[str, Any]) -> None:
 def record_handler(record: SQSRecord) -> None:
     """Process each SQS record."""
     logger.info(f"Processing record with message ID: {record.message_id}")
-    event = loads(record['body'])
-    send_to_adf_assembler(event)
+    send_to_adf_assembler(record.json_body)
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda entry point to process events."""

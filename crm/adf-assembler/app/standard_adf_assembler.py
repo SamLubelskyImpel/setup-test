@@ -1,28 +1,34 @@
 import sftp
 import logging
 from os import environ
-from typing import Any
+from typing import Any, Dict
 from boto3 import client
 from json import dumps, loads
 from datetime import datetime
 from shared.adf_creation_class import AdfCreation
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 ADF_SENDER_EMAIL_ADDRESS = environ.get("ADF_SENDER_EMAIL_ADDRESS", "")
 
-s3_client = client("s3")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+s3_client = client("s3")
+processor = BatchProcessor(event_type=EventType.SQS)
 
-def lambda_handler(event: Any, context: Any) -> Any:
+
+def standard_adf_assembler(body) -> Any:
     try:
-        logger.info(f"Event: {event}")
-        body = loads(event["body"]) if event.get("body") else event
+        logger.info(f"This is body: {body}")
 
         partner_name = body.get("partner_name", "")
-        logger.info(f"Partner Name: {partner_name}")
 
         current_time = datetime.now().strftime("%Y_%m_%dT%H-%M-%SZ")
         filename = f"{partner_name}_{body.get('lead_id')}_{current_time}"
@@ -97,4 +103,24 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
+        raise
+
+def record_handler(record: SQSRecord) -> None:
+    """Process each SQS record."""
+    logger.info(f"Processing record with message ID: {record.message_id}")
+    standard_adf_assembler(record.json_body)
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Lambda entry point to process events."""
+    logger.info("Starting batch event processing.")
+    try:
+        result = process_partial_response(
+            event=event,
+            record_handler=record_handler,
+            processor=processor,
+            context=context
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Critical error processing batch: {e}")
         raise
