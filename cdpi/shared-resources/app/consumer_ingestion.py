@@ -19,6 +19,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.dialects.postgresql import insert
 
 LOG_LEVEL = environ.get('LOG_LEVEL', 'INFO')
+CE_SNS_TOPIC_ARN = environ.get('CE_SNS_TOPIC_ARN')
+ENVIRONMENT = environ.get('ENVIRONMENT')
 
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
@@ -57,12 +59,22 @@ class EmptyFileError(Exception):
     pass
 
 
+def alert_topic(subject, message):
+    sns_client = boto3.client('sns')
+    sns_client.publish(
+        TopicArn=CE_SNS_TOPIC_ARN,
+        Message=message,
+        Subject=subject
+    )
+
+
 def parse(csv_object):
     """Parse CSV object and extract entries"""
     csv_reader = csv.DictReader(StringIO(csv_object))
     entries = []
     product_dealer_id = None
     sfdc_account_id = None
+    skipped_rows = []
 
     # Check if the CSV has a row with values
     rows = list(csv_reader)
@@ -71,6 +83,9 @@ def parse(csv_object):
         raise EmptyFileError
 
     for row in rows:
+        missing_phone = False
+        missing_email = False
+
         if not product_dealer_id:
             product_dealer_id = row.get('dealer_id')
         if not sfdc_account_id:
@@ -83,19 +98,30 @@ def parse(csv_object):
                 if value:
                     entry[cdpi_field] = value.lower() == 'true'
             else:
+                if cdpi_field == 'phone':
+                    if not row.get(inbound_data_field):
+                        missing_phone = True
+                elif cdpi_field == 'email':
+                    if not row.get(inbound_data_field):
+                        missing_email = True
+
                 entry[cdpi_field] = row.get(inbound_data_field, None)
+
+        if missing_phone and missing_email:
+            skipped_rows.append(row)
+            continue
 
         entries.append(entry)
 
     if not product_dealer_id or not sfdc_account_id:
         logger.error('product_dealer_id or sfdc_account_id not found in the CSV')
-        raise
+        raise Exception('product_dealer_id or sfdc_account_id not found in the CSV')
 
     if not entries:
         logger.error('No entries found in the CSV')
-        raise
+        raise Exception('No entries found in the CSV')
 
-    return entries, product_dealer_id, sfdc_account_id
+    return entries, product_dealer_id, sfdc_account_id, skipped_rows
 
 
 def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
@@ -110,7 +136,7 @@ def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
             ).first()
             if not db_product:
                 logger.error(f"Product {product_name} not found")
-                return
+                raise Exception(f"Product {product_name} not found")
 
             # Identity dealer
             dealer_query = session.query(
@@ -126,10 +152,11 @@ def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
             db_dealer = dealer_query.first()
             if not db_dealer:
                 logger.error(f"Dealer {product_dealer_id} not found for product {product_name}")
-                return
+                raise Exception(f"Dealer {product_dealer_id} not found for product {product_name}")
 
+            logger.info(f"Starting to add consumers to the database for dealer {product_dealer_id}, product {product_name}")
             for entry in entries:
-                logger.info(f"Adding consumer: {entry}")
+                # logger.info(f"Adding consumer: {entry}")
                 # Create consumer
                 insert_stmt = insert(Consumer).values(
                     dealer_id=db_dealer.id,
@@ -146,14 +173,13 @@ def write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id):
                 session.execute(update_stmt)
 
             session.commit()
+            logger.info(f"Consumers added to the database: {len(entries)}")
 
         except SQLAlchemyError as e:
             # Rollback in case of any error
             session.rollback()
             logger.info(f"Error occurred during database operations: {e}")
             raise e
-
-    logger.info("Consumers added to the database")
 
 
 def record_handler(record: SQSRecord):
@@ -176,7 +202,16 @@ def record_handler(record: SQSRecord):
             logger.error(f"Product {product} not found in PRODUCT_MAPPING")
             return
 
-        entries, product_dealer_id, sfdc_account_id = parse(csv_object)
+        entries, product_dealer_id, sfdc_account_id, skipped_rows = parse(csv_object)
+
+        if skipped_rows:
+            logger.warning(f'Skipped rows with missing phone and email: ({len(skipped_rows)}) - {skipped_rows}')
+            subject = f'[CDPI Shared] Missing PII rows found in {product} consumer file'
+            message = (f'File: {decoded_key}\n\n' + f'Dealer ID: {product_dealer_id}\n\n'
+                       + f'Totals rows filtered: {len(skipped_rows)}\n\n'
+                       + f'See logs for details (cdpi-{ENVIRONMENT}-ConsumerIngestion)')
+            alert_topic(subject, message)
+
         write_to_rds(entries, product_name, product_dealer_id, sfdc_account_id)
 
     except EmptyFileError:
