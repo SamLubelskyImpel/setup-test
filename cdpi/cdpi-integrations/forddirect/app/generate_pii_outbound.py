@@ -10,8 +10,6 @@ from datetime import datetime, timedelta, timezone
 from json import dumps
 import boto3
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
@@ -41,12 +39,14 @@ def make_address_json(consumer: dict):
     return dumps(address_dict) if address_dict else None
 
 
-def make_pii_rows(consumer_dict: dict, dealer_id: str) -> list:
+def make_pii_rows(consumer_dict: dict, dealer_id: int) -> list:
     """Make PII rows for a consumer record."""
     pii_rows = []
 
     record_date = consumer_dict["record_date"]
-    if type(record_date) == str:  # record_date becomes a str on the audit_log e.g. 2024-10-21 13:50:49+00
+    if not record_date:
+        record_date = datetime.now(timezone.utc)
+    elif isinstance(record_date, str):  # record_date becomes a str on the audit_log e.g. 2024-10-21 13:50:49+00
         record_date = datetime.strptime(record_date + '00', '%Y-%m-%d %H:%M:%S%z')
     record_date = record_date.strftime('%Y-%m-%dT%H:%M:%S')
 
@@ -122,8 +122,8 @@ def record_handler(record: SQSRecord):
         key = f'fd-pii-outbound/{now.year}/{now.month}/{now.day}/{filename}'
         s3_client.upload_file(Filename=filepath, Bucket=SHARED_BUCKET, Key=key)
         logger.info(f'Uploaded PII file to {key}')
-    except:
-        logger.exception(f'Failed to generate PII file for {dealer_id}')
+    except Exception as e:
+        logger.exception(f'Failed to generate PII file for {dealer_id} : {e}')
         raise
 
 
@@ -140,6 +140,6 @@ def lambda_handler(event: Any, context: Any):
             context=context
         )
         return result
-    except:
-        logger.exception(f"Error processing records")
+    except Exception as e:
+        logger.exception(f"Error processing records: {e}")
         raise

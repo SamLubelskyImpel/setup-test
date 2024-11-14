@@ -204,7 +204,7 @@ CREATE TABLE prod.cdpi_audit_log (
     id SERIAL PRIMARY KEY,
     table_name varchar NOT NULL,
     operation varchar NOT NULL,  -- e.g., 'UPDATE', 'INSERT'
-    row_id varchar NOT NULL,     -- ID of the modified row
+    row_id int4 NOT NULL,     -- ID of the modified row
     changed_columns varchar[],   -- List of changed columns
     old_values JSONB,         -- Values before the update (for updates)
     new_values JSONB,         -- New values after the update
