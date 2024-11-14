@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the momentum crm integration.
+    Deploy the dealersocket-au crm integration.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -63,7 +63,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "momentum-crm-integration-$env" \
+    --stack-name "dealersocket-au-crm-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\""
