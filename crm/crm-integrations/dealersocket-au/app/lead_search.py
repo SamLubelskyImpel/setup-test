@@ -56,6 +56,10 @@ def record_handler(record: SQSRecord):
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
 
+        # Extract crm_dealer.product_dealer_id from the key
+        key_parts = key.split('/')
+        product_dealer_id = key_parts[2]
+
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
         carsales_json_data = loads(content)
@@ -100,7 +104,8 @@ def record_handler(record: SQSRecord):
         merged_data = {
             "carsales_data": carsales_json_data,
             "entity_response": entity_response,
-            "event_response": event_response
+            "event_response": event_response,
+            "product_dealer_id": product_dealer_id
         }
 
         # Send message to IngestLeadQueue

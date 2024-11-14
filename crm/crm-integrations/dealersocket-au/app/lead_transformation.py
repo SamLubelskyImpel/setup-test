@@ -20,9 +20,183 @@ from aws_lambda_powertools.utilities.batch import (
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+sm_client = boto3.client("secretsmanager")
+
+
+def get_secret(secret_name, secret_key) -> Any:
+    """Get secret from Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret = loads(secret["SecretString"])[str(secret_key)]
+    secret_data = loads(secret)
+    return secret_data
+
+
+def create_consumer(consumer_data, product_dealer_id, crm_api_key) -> dict:
+    """Create consumer in db."""
+    try:
+        response = requests.post(
+            url=f"https://{CRM_API_DOMAIN}/consumers",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"dealer_id": product_dealer_id},
+            json=consumer_data,
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API /consumers responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error creating consumer from CRM API: {e}")
+        raise
+
+
+def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
+    """Create lead in db."""
+    try:
+        response = requests.post(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            json=parsed_lead,
+        )
+        if response.status_code == 409:
+            logger.warning(f"Lead already exists in the CRM Shared Layer: {response.text}")
+            return {"status": "conflict", "message": response.text}
+        response.raise_for_status()
+        logger.info(f"CRM API /leads responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error creating lead from CRM API: {e}")
+        raise
+
+
+def get_lead(consumer_id, crm_api_key) -> dict:
+    """Get lead from db."""
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"consumer_id": consumer_id},
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API /leads responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error getting lead from CRM API: {e}")
+        raise
+
+
+def update_lead(lead_id, parsed_lead, crm_api_key) -> dict:
+    """Update lead in db."""
+    try:
+        response = requests.put(
+            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            json=parsed_lead,
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API /leads responded with: {response.status_code}")
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error updating lead from CRM API: {e}")
+        raise
+
+
+def parse_consumer(entity_data) -> dict:
+    """Parse entity data to create crm consumer based on the CRM Integration Mapping"""
+    try:
+        customer_info = (
+            entity_data.get('ShowCustomerInformation', {})
+            .get('ShowCustomerInformationDataArea', {})
+            .get('CustomerInformation', {})
+            .get('CustomerInformationDetail', {})
+            .get('CustomerParty', {})
+            .get('SpecifiedPerson', {})
+        )
+
+        consumer = {
+            "crm_consumer_id": (entity_data.get('ShowCustomerInformation', {})
+                                .get('ShowCustomerInformationDataArea', {})
+                                .get('CustomerInformation', {})
+                                .get('CustomerInformationHeader', {})
+                                .get('SecondaryDealerNumberID', '')),
+            "first_name": customer_info.get('GivenName', ''),
+            "last_name": customer_info.get('FamilyName', ''),
+            "middle_name": customer_info.get('MiddleName', ''),
+            "email": customer_info.get('URICommunication', {}).get('URIID', ''),
+            "phone": next((phone.get('CompleteNumber', '') for phone in customer_info.get('TelephoneCommunication', []) if phone.get('UseCode') == 'Mobile'), ''),
+            "email_optin_flag": True,  # Default value as per the schema
+            "sms_optin_flag": True,    # Default value as per the schema
+            "city": customer_info.get('PostalAddress', {}).get('CityName', ''),
+            "country": "AU",  # Default value as per the CRM Integration Mapping
+            "address": ' '.join(filter(None, [
+                customer_info.get('PostalAddress', {}).get('LineOne', ''),
+                customer_info.get('PostalAddress', {}).get('LineTwo', ''),
+                customer_info.get('PostalAddress', {}).get('LineThree', '')
+            ])),
+            "postal_code": customer_info.get('PostalAddress', {}).get('Postcode', '')
+        }
+
+        return consumer
+    except Exception as e:
+        logger.error(f"Unexpected error parsing consumer data: {e}")
+        raise
+
+
+def parse_lead(event_data, carsales_data, consumer_id) -> dict:
+    """
+    Parse event data to create a lead based on the provided schema and mapping.
+    """
+    try:
+        event = event_data.get('events', [])[0]  # Assuming there's at least one event
+
+        lead_status_mapping = {
+            220: "0 - Unqualified",
+            221: "1 - Up/Contacted",
+            227: "2 - Store Visit",
+            222: "3 - Demo Vehicle",
+            223: "4 - Write Up",
+            224: "5 - Pending F&I",
+            225: "6 - Sold",
+            226: "7 - Lost"
+        }
+
+        lead = {
+            "lead_ts": event.get("insertDate"),  # Not present in the lead schema in the CRM API OAS
+            "lead_status": lead_status_mapping.get(event.get('status'), 'Unknown'),
+            "lead_comment": carsales_data.get("Comments", ''),
+            "lead_origin": "INTERNET",  # Hardcoded as per the mapping
+            "lead_source": "CarSales",  # Hardcoded as per the mapping
+            "vehicles_of_interest": [{
+                "vin": event.get('vin', ''),
+                "stock_number": event.get('stockNumber', ''),
+                "mileage": event.get('currentMileage', 0),
+                "make": event.get('make', ''),
+                "model": event.get('model', ''),
+                "year": event.get('year', ''),
+            }]
+        }
+
+        return lead
+    except Exception as e:
+        logger.error(f"Unexpected error parsing lead data: {e}")
+        raise
+
+
+def match_carsales_filter(lead_data, carsales_data) -> bool:
+    """
+    Check if the lead data matches the carsales
+    stockNumber or make, model, and year.
+    """
+    return (lead_data.get("stock_number") == carsales_data.get("Item").get("StockNumber") or
+            (lead_data.get("vehicles_of_interest").get("make") == carsales_data.get("Item").get("Make") and
+             lead_data.get("vehicles_of_interest")[0].get("model") == carsales_data.get("Item").get("Model") and
+             lead_data.get("vehicles_of_interest").get("year") == carsales_data.get("Item").get("Year")))
 
 
 def record_handler(record: SQSRecord):
@@ -30,12 +204,50 @@ def record_handler(record: SQSRecord):
     Transform the lead, and upload to CRM Shared Layer
     """
     logger.info(f"Record: {record}")
-    body = loads(record.body)
 
-    # Create customer
+    try:
+        body = loads(record.body)
 
-    # Create lead
+        entity_response = body.get("entity_response")
+        events = body.get("event_response")
+        product_dealer_id = body.get("product_dealer_id")
+        carsales_data = body.get("carsales_data")
 
+        # Get CRM API Key
+        crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
+
+        # Create consumer
+        consumer_data = parse_consumer(entity_response)
+        consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
+
+        # Create leads
+        for event in events:
+            lead_data = parse_lead(event, body, consumer_id)
+
+            # Check if the event matches the carsales stockNumber or make, model, and year
+            if match_carsales_filter(lead_data, carsales_data):
+                # Get existing leads
+                existing_leads = get_lead(consumer_id, crm_api_key)
+
+                for existing_lead in existing_leads:
+                    # Check if the existing lead matches the carsales data
+                    if match_carsales_filter(existing_lead, carsales_data):
+                        # Check if the existing lead is older than the new lead
+                        existing_lead_date = datetime.strptime(existing_lead.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
+                        new_lead_date = datetime.strptime(lead_data.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
+
+                        if new_lead_date > existing_lead_date:
+                            # Update the lead
+                            update_lead(existing_lead.get("lead_id"), lead_data, crm_api_key)
+                        else:
+                            logger.info(f"Existing lead is newer or same as the new lead. Skipping update.")
+                if not existing_leads:
+                    create_lead(lead_data, consumer_id, crm_api_key)
+            else:
+                logger.info(f"Event does not match carsales filter: {event}")
+    except Exception as e:
+        logger.error("Error processing record")
+        raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
