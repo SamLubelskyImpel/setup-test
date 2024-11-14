@@ -6,14 +6,14 @@ from json import loads
 from datetime import datetime, timedelta, timezone
 from ftp_wrapper import FtpToS3
 
-
-logger = logging.getLogger()
-logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
 ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("CE_TOPIC")
-SNS_CLIENT = boto3.client('sns')
+FTP_FOLDER = environ.get("FTP_FOLDER")
+
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+s3_client = boto3.client('s3')
 
 
 def get_ftp_credentials():
@@ -35,9 +35,8 @@ def list_new_files(ftp):
     # Get current time and time 24 hours ago
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
-    directory_path = "prod_tekion_dms" if ENVIRONMENT == "prod" else "test_tekion_dms"
-    ftp.cwd(directory_path)
-    logger.info(f"Changed to directory: {directory_path}")
+    ftp.cwd(FTP_FOLDER)
+    logger.info(f"Changed to directory: {FTP_FOLDER}")
     new_files = []
     for file in ftp.nlst():
         file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
@@ -52,7 +51,6 @@ def list_new_files(ftp):
 
 def upload_file_to_s3(local_file, s3_key):
     try:
-        s3_client = boto3.client('s3')
         with open(local_file, 'rb') as data:
             s3_client.put_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key, Body=data)
             logger.info(f"File {local_file} uploaded to S3 as {s3_key}.")
@@ -68,9 +66,9 @@ def process_file(file, ftp, dealer_id, s3_date_path):
             ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
 
             if any(keyword in file for keyword in ["RepairOrder", "RO", "SERVICE"]):
-                s3_key = f"tekion/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
+                s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
             elif any(keyword in file for keyword in ["VehicleSales", "VSH", "SALES"]):
-                s3_key = f"tekion/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
+                s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
             else:
                 raise ValueError(f"Unknown file type for file {file}")
 

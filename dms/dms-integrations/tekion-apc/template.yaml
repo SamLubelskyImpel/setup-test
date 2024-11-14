@@ -70,7 +70,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Delete
     Properties:
-      GroupDescription: Permit traffic from the Tekion lambdas
+      GroupDescription: Permit traffic from the Tekion APC lambdas
       VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
       SecurityGroupEgress:
         - Description: AllowAll
@@ -83,7 +83,7 @@ Resources:
   RDSInboundRule:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      Description: "tekion integration rds access"
+      Description: "tekion apc dms integration rds access"
       GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
@@ -96,6 +96,7 @@ Resources:
   RepairOrderQueue:
     Type: AWS::SQS::Queue
     Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-RepairOrderQueue"
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt RepairOrderDLQ.Arn
@@ -103,10 +104,14 @@ Resources:
 
   RepairOrderDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-RepairOrderDLQ"
+      MessageRetentionPeriod: 1209600
 
   DealsQueue:
     Type: AWS::SQS::Queue
     Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-DealsQueue"
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DealsDLQ.Arn
@@ -114,10 +119,14 @@ Resources:
 
   DealsDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-DealsDLQ"
+      MessageRetentionPeriod: 1209600
 
   HistoricalDataQueue:
     Type: AWS::SQS::Queue
     Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataQueue"
       VisibilityTimeout: 3600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt HistoricalDataDLQ.Arn
@@ -125,10 +134,14 @@ Resources:
 
   HistoricalDataDLQ:
     Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataDLQ"
+      MessageRetentionPeriod: 1209600
 
   InvokeTekionFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-InvokeTekion"
       Description: Invoke data pull for every Tekion dealer
       CodeUri: app/
       Handler: invoke_tekion.lambda_handler
@@ -172,6 +185,7 @@ Resources:
   RepairOrderFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-RepairOrder"
       Description: Tekion Repair Order Data Pull
       CodeUri: app/
       Handler: repair_orders.lambda_handler
@@ -187,8 +201,8 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource:
                 - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
                   ]
             - Sid: AllowS3
               Effect: Allow
@@ -213,7 +227,7 @@ Resources:
               Action:
                 - lambda:InvokeFunction
               Resource:
-                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tekion-refresh-token-${Environment}"
+                - !GetAtt RefreshTokenLambda.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -227,6 +241,7 @@ Resources:
   HistoricalDataFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataPull"
       Description: Tekion Historical Data Pull
       CodeUri: app/
       Handler: historical_data.lambda_handler
@@ -276,6 +291,7 @@ Resources:
   DealsFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-Deals"
       Description: Tekion Deals Data Pull
       CodeUri: app/
       Handler: vehicle_sale.lambda_handler
@@ -291,8 +307,8 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource:
                 - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
                   ]
             - Sid: AllowS3
               Effect: Allow
@@ -317,7 +333,7 @@ Resources:
               Action:
                 - lambda:InvokeFunction
               Resource:
-                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:tekion-refresh-token-${Environment}"
+                - !GetAtt RefreshTokenLambda.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -332,7 +348,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: TekionRepairOrderDLQAlarm
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-RepairOrderDLQAlarm"
       AlarmDescription: There are messages in the Tekion repair order DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -353,7 +369,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: TekionDealsDLQAlarm
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-DealsDLQAlarm"
       AlarmDescription: There are messages in the Tekion deals DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -374,7 +390,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Description: Refresh Tekion token
-      FunctionName: !Sub tekion-refresh-token-${Environment}
+      FunctionName: !Sub tekion-apc-dms-${Environment}-RefreshToken
       CodeUri: app/
       Handler: refresh_token.lambda_handler
       ReservedConcurrentExecutions: 1
@@ -389,8 +405,8 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource:
                 - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/tekion*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/tekion*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
                   ]
             - Sid: AllowS3
               Effect: Allow
@@ -408,13 +424,14 @@ Resources:
   TekionFormatRODLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: TekionFormatRODLQ
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatRODLQ"
+      MessageRetentionPeriod: 1209600
 
   TekionFormatROQueue:
     Type: AWS::SQS::Queue
     DependsOn: TekionFormatRODLQ
     Properties:
-      QueueName: TekionFormatROQueue
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatROQueue"
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionFormatRODLQ.Arn
@@ -432,7 +449,7 @@ Resources:
       Endpoint: !GetAtt TekionFormatROQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionFormatROQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -460,6 +477,7 @@ Resources:
   TekionFormatROInsertFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatROInsert"
       Description: Format Tekion RO data to the unified s3 bucket.
       CodeUri: app/
       Handler: repair_order_format.lambda_handler
@@ -495,7 +513,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionFormatRODLQ-${Environment}
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatRODLQAlarm"
       AlarmDescription: Messages are in the Tekion format RO lambda
       ActionsEnabled: true
       AlarmActions:
@@ -515,13 +533,14 @@ Resources:
   TekionFormatFIDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: TekionFormatFIDLQ
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatFIDLQ"
+      MessageRetentionPeriod: 1209600
 
   TekionFormatFIQueue:
     Type: AWS::SQS::Queue
     DependsOn: TekionFormatFIDLQ
     Properties:
-      QueueName: TekionFormatFIQueue
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatFIQueue"
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionFormatFIDLQ.Arn
@@ -539,7 +558,7 @@ Resources:
       Endpoint: !GetAtt TekionFormatFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionFormatFIQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -567,6 +586,7 @@ Resources:
   TekionFormatFIInsertFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatFIInsert"
       Description: Format Tekion FI data to the unified s3 bucket.
       CodeUri: app/
       Handler: vehicle_sale_format.lambda_handler
@@ -602,7 +622,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionFormatFIDLQ-${Environment}
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatFIDLQAlarm"
       AlarmDescription: Messages are in the Tekion format FI lambda
       ActionsEnabled: true
       AlarmActions:
@@ -622,13 +642,14 @@ Resources:
   TekionFormatHistoricalRODLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: TekionFormatHistoricalRODLQ
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalRODLQ"
+      MessageRetentionPeriod: 1209600
 
   TekionFormatHistoricalROQueue:
     Type: AWS::SQS::Queue
     DependsOn: TekionFormatHistoricalRODLQ
     Properties:
-      QueueName: TekionFormatHistoricalROQueue
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalROQueue"
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionFormatHistoricalRODLQ.Arn
@@ -646,7 +667,7 @@ Resources:
       Endpoint: !GetAtt TekionFormatHistoricalROQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/historical/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/historical/repair_order"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionFormatHistoricalROQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -674,6 +695,7 @@ Resources:
   TekionFormatHistoricalROInsertFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalROInsert"
       Description: Format Tekion Historical RO data to the unified s3 bucket.
       CodeUri: app/
       Handler: historical_repair_order_format.lambda_handler
@@ -709,7 +731,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionFormatHistoricalRODLQ-${Environment}
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalRODLQAlarm"
       AlarmDescription: Messages are in the Tekion format Historical RO lambda
       ActionsEnabled: true
       AlarmActions:
@@ -729,13 +751,14 @@ Resources:
   TekionFormatHistoricalFIDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: TekionFormatHistoricalFIDLQ
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIDLQ"
+      MessageRetentionPeriod: 1209600
 
   TekionFormatHistoricalFIQueue:
     Type: AWS::SQS::Queue
     DependsOn: TekionFormatHistoricalFIDLQ
     Properties:
-      QueueName: TekionFormatHistoricalFIQueue
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIQueue"
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TekionFormatHistoricalFIDLQ.Arn
@@ -753,7 +776,7 @@ Resources:
       Endpoint: !GetAtt TekionFormatHistoricalFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion/historical/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/historical/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionFormatHistoricalFIQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -781,6 +804,7 @@ Resources:
   TekionFormatHistoricalFIInsertFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIInsert"
       Description: Format Tekion Historical FI data to the unified s3 bucket.
       CodeUri: app/
       Handler: historical_vehicle_sale_format.lambda_handler
@@ -816,7 +840,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
     Properties:
-      AlarmName: !Sub TekionFormatHistoricalFIDLQ-${Environment}
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIDLQAlarm"
       AlarmDescription: Messages are in the Tekion format Historical FI lambda
       ActionsEnabled: true
       AlarmActions:

@@ -4,14 +4,12 @@ import logging
 from datetime import datetime
 from json import dumps
 from os import environ
-
 import boto3
-
 from dms_wrapper import DMSWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-SQS_CLIENT = boto3.client("sqs")
+sqs_client = boto3.client("sqs")
 
 APIS = {
     "daily": [
@@ -29,7 +27,7 @@ def send_to_queue(queue_url, dealer_id, end_dt_str):
         "end_dt_str": end_dt_str,
     }
     logger.info(f"Sending {data} to {queue_url}")
-    SQS_CLIENT.send_message(
+    sqs_client.send_message(
         QueueUrl=queue_url,
         MessageBody=dumps(data),
         # Spread out calls, avoid overloading Tekion servers.

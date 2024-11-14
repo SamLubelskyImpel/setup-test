@@ -9,12 +9,12 @@ from os import environ
 from botocore.exceptions import ClientError
 from utils.token import get_token_from_s3, invoke_refresh_token
 
+ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+CE_TOPIC = environ.get("CE_TOPIC")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
-INTEGRATIONS_BUCKET = f"integrations-us-east-1-{'prod' if ENVIRONMENT == 'prod' else 'test'}"
-CE_TOPIC = environ.get("CE_TOPIC")
 
 
 class TekionWrapper:

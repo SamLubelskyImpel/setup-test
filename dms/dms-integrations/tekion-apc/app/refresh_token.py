@@ -4,7 +4,6 @@ from json import loads
 from tekion_wrapper import TekionWrapper
 from utils.token import get_token_from_s3, save_token_to_s3
 
-
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 

@@ -7,10 +7,8 @@ from os import environ
 import boto3
 from unified_df import upload_unified_json
 
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 REGION = environ.get("REGION", "us-east-1")
-IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())

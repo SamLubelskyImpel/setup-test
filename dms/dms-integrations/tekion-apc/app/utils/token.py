@@ -4,16 +4,16 @@ from json import loads, dumps
 from datetime import datetime
 from botocore.exceptions import ClientError
 
-ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
-INTEGRATIONS_BUCKET = f"integrations-us-east-1-{'prod' if ENVIRONMENT == 'prod' else 'test'}"
-REFRESH_TOKEN_LAMBDA = f"tekion-refresh-token-{ENVIRONMENT}"
+ENVIRONMENT = environ.get("ENVIRONMENT")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+REFRESH_TOKEN_LAMBDA = f"tekion-apc-dms-{ENVIRONMENT}-RefreshToken"
 
 
 def get_token_from_s3():
     try:
         token = boto3.client("s3").get_object(
             Bucket=INTEGRATIONS_BUCKET,
-            Key="tekion/auth"
+            Key="tekion-apc/auth"
         )["Body"].read()
 
         token = loads(token)

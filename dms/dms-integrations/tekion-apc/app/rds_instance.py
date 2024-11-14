@@ -1,6 +1,5 @@
 """ Manage RDS connection """
 from json import loads
-
 import boto3
 import psycopg2
 

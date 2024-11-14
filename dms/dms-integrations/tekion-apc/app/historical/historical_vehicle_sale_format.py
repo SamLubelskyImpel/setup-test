@@ -4,17 +4,14 @@ import urllib.parse
 from json import dumps, loads
 from os import environ
 import csv
-
 import boto3
-
 from unified_df import upload_unified_json
+
+REGION = environ.get("REGION", "us-east-1")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-REGION = environ.get("REGION", "us-east-1")
-IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
 

@@ -92,14 +92,14 @@ def main():
         filetype = 'fi_closed_deal'
     else:
         print('Please, include a file type in the filename: RepairOrders or Deals')
-    
+
     ftp_credentials = get_ftp_credentials()
     host = ftp_credentials['host']
     user = ftp_credentials['user']
     password = ftp_credentials['password']
     remote_directory = f"/{'prod' if AWS_PROFILE == 'unified-prod' else 'test'}_tekion_dms"  # Directory on the FTP server where the file is located
     local_file_path = os.path.join(os.getcwd(), filename)  # Save the file in the current directory
-    
+
     ftp = connect_to_ftp(host, user, password)
 
     if ftp:
@@ -110,8 +110,9 @@ def main():
 
         bucket_name = f"integrations-us-east-1-{'prod' if AWS_PROFILE == 'unified-prod' else 'test'}"
         for part_number, data in enumerate(split_file(local_file_path, dms_id), 1):
-            object_name = f'tekion/{filetype}/{year}/{month}/{day}/{dms_id}_historical_Part_{part_number}.json'
+            object_name = f'tekion-apc/{filetype}/{year}/{month}/{day}/{dms_id}_historical_Part_{part_number}.json'
             upload_to_s3(data, bucket_name, object_name)
+
 
 if __name__ == '__main__':
     main()

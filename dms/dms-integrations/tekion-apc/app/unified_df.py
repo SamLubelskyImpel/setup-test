@@ -1,17 +1,15 @@
 import logging
 from os import environ
 from uuid import uuid4
-
 import boto3
 import pandas as pd
 from rds_instance import RDSInstance
 
+IS_PROD = environ.get("IS_PROD")
+INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-ENVIRONMENT = environ.get("ENVIRONMENT", "test")
-REGION = environ.get("REGION", "us-east-1")
-IS_PROD = ENVIRONMENT == "prod"
-INTEGRATIONS_BUCKET = f"integrations-{REGION}-{'prod' if IS_PROD else 'test'}"
 s3_client = boto3.client("s3")
 
 # Many to 1 tables and many to many tables are represented by array of struct columns

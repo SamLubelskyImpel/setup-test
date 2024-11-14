@@ -3,14 +3,13 @@ from json import JSONDecodeError, loads
 from os import environ
 import logging
 import requests
-
 import boto3
 from botocore.exceptions import ClientError
 
+ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 
 
 class DMSWrapper:
