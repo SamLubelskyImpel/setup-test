@@ -1,7 +1,7 @@
 import logging
 from os import environ
-from typing import Any
-from json import loads
+from typing import Any, Dict
+from json import loads, dumps
 from boto3 import client
 from boto3.exceptions import Boto3Error
 from shared.oem_adf_creation import OemAdfCreation
@@ -16,53 +16,74 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 sqs_client = client("sqs")
-s3_client = client('s3')
+s3_client = client("s3")
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 processor = BatchProcessor(event_type=EventType.SQS)
 
-def record_handler(record: SQSRecord) -> None:
-    """Process each record."""
-    logger.info(f"Record: {record}")
+def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
+    """Retrieve configuration from S3."""
     try:
-        body = record.json_body
-        logger.info(f"Processing record body: {body}")
-
-        oem_partner = body.get("oem_partner", {})
-        oem_class = OemAdfCreation(oem_partner)
-        is_vehicle_of_interest = oem_class.create_adf_data(body.get("lead_id"))
-
-        if not is_vehicle_of_interest:
-            try:
-                config_data = s3_client.get_object(
-                    Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
-                )["Body"].read().decode("utf-8")
-                queue_url = loads(config_data)['STANDARD_ADF_QUEUE']
-                sqs_client.send_message(
-                    QueueUrl=queue_url,
-                    MessageBody=record["body"],
-                )
-                logger.info("Successfully sent message to ADF queue.")
-            except Boto3Error as e:
-                logger.error(f"Failed to send message to ADF queue: {e}")
-    except Exception as e:
-        logger.exception(f"Error processing SQS record.\n{e}")
+        logger.info(f"Fetching configuration from S3: Bucket={bucket}, Key={key}")
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        return loads(response["Body"].read().decode("utf-8"))
+    except Boto3Error as e:
+        logger.error(f"Error fetching configuration from S3: {e}")
         raise
 
-
-def lambda_handler(event: Any, context: Any) -> Any:
-    """Process and syndicate event to ADF Assembler."""
-    logger.info(f"Event received: {event}")
+def send_to_sqs(queue_url: str, message_body: str) -> None:
+    """Send a message to SQS."""
     try:
-        result = process_partial_response(
+        logger.info(f"Sending message to SQS: QueueUrl={queue_url}")
+        sqs_client.send_message(QueueUrl=queue_url, MessageBody=message_body)
+        logger.info("Message successfully sent to SQS.")
+    except Boto3Error as e:
+        logger.error(f"Failed to send message to SQS: {e}")
+        raise
+
+def process_record(record: SQSRecord) -> None:
+    """Process a single SQS record."""
+    logger.info(f"Processing record: {record}")
+    try:
+        body = record.json_body
+        logger.debug(f"Record body: {body}")
+
+        oem_partner = body.get("oem_partner", {})
+        lead_id = body.get("lead_id")
+        if not lead_id:
+            logger.warning("Missing 'lead_id' in record body.")
+            return
+
+        oem_class = OemAdfCreation(oem_partner)
+        is_vehicle_of_interest = oem_class.create_adf_data(lead_id)
+
+        if not is_vehicle_of_interest:
+            config_key = f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
+            config_data = get_configuration(BUCKET, config_key)
+            queue_url = config_data.get("STANDARD_ADF_QUEUE")
+
+            if not queue_url:
+                logger.error("STANDARD_ADF_QUEUE not found in configuration.")
+                return
+
+            send_to_sqs(queue_url, dumps(body))
+
+    except Exception as e:
+        logger.exception(f"Error processing record: {e}")
+        raise
+
+def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
+    """Lambda function handler."""
+    logger.info("Lambda invocation started.")
+    try:
+        return process_partial_response(
             event=event,
-            record_handler=record_handler,
+            record_handler=process_record,
             processor=processor,
             context=context,
         )
-        return result
     except Exception as e:
-        logger.error(f"Error processing batch: {e}")
+        logger.error(f"Critical error in batch processing: {e}")
         raise

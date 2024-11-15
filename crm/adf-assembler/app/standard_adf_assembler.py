@@ -98,17 +98,16 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Processing record with message ID: {record.message_id}")
     standard_adf_assembler(record.json_body)
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Lambda entry point to process events."""
-    logger.info("Starting batch event processing.")
+def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
+    """Lambda function handler."""
+    logger.info("Lambda invocation started.")
     try:
-        result = process_partial_response(
+        return process_partial_response(
             event=event,
             record_handler=record_handler,
             processor=processor,
-            context=context
+            context=context,
         )
-        return result
     except Exception as e:
-        logger.error(f"Critical error processing batch: {e}")
+        logger.error(f"Critical error in batch processing: {e}")
         raise
