@@ -240,7 +240,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         mileage=vehicle.get("mileage"),
                         make=vehicle.get("make"),
                         model=vehicle.get("model"),
-                        manufactured_year=vehicle.get("year"),
+                        manufactured_year=None if type(vehicle.get("year")) == str else vehicle.get("year"),
                         oem_name=vehicle.get("oem_name"),
                         body_style=vehicle.get("body_style"),
                         transmission=vehicle.get("transmission"),

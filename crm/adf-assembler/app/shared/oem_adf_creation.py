@@ -146,7 +146,7 @@ class OemAdfCreation(BaseClass):
 
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
 
-            is_vehicle_of_interest = any(vehicle_of_interest.get(field) is not None for field in ['vin', 'year', 'make', 'model'])
+            is_vehicle_of_interest = any(vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model'])
             if is_vehicle_of_interest:
                 self.vehicle = self._generate_vehicle_adf(vehicle_of_interest)
             else:
