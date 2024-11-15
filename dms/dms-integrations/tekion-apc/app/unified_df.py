@@ -5,7 +5,6 @@ import boto3
 import pandas as pd
 from rds_instance import RDSInstance
 
-IS_PROD = environ.get("IS_PROD")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
@@ -29,7 +28,7 @@ IGNORE_POSSIBLE_COLUMNS = [
 
 def validate_unified_df_columns(df):
     """Validate unified DF format."""
-    rds_instance = RDSInstance(IS_PROD)
+    rds_instance = RDSInstance()
     unified_column_names = rds_instance.get_unified_column_names()
     df_table_names = set()
     df_col_names = set()

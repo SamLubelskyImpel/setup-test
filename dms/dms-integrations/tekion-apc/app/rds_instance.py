@@ -2,14 +2,16 @@
 from json import loads
 import boto3
 import psycopg2
+from os import environ
+
+ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 
 
 class RDSInstance:
     """Manage RDS connection."""
 
-    def __init__(self, is_prod):
-        self.is_prod = is_prod
-        self.schema = f"{'prod' if self.is_prod else 'stage'}"
+    def __init__(self):
+        self.schema = f"{'prod' if ENVIRONMENT == 'prod' else 'stage'}"
         self.rds_connection = self.get_rds_connection()
 
     def get_rds_connection(self):
@@ -17,7 +19,7 @@ class RDSInstance:
         sm_client = boto3.client("secretsmanager")
         secret_string = loads(
             sm_client.get_secret_value(
-                SecretId="prod/DMSDB" if self.is_prod else "test/DMSDB"
+                SecretId="prod/DMSDB" if ENVIRONMENT == 'prod' else "test/DMSDB"
             )["SecretString"]
         )
         return psycopg2.connect(

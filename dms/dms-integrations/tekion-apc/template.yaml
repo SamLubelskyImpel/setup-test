@@ -52,7 +52,6 @@ Globals:
       Variables:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
         ENVIRONMENT: !Ref Environment
-        IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         CE_TOPIC: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
         INTEGRATIONS_BUCKET: !If [ IsProd,
@@ -97,7 +96,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-RepairOrderQueue"
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt RepairOrderDLQ.Arn
         maxReceiveCount: 5
@@ -112,7 +111,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-DealsQueue"
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DealsDLQ.Arn
         maxReceiveCount: 5
@@ -127,7 +126,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataQueue"
-      VisibilityTimeout: 3600
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt HistoricalDataDLQ.Arn
         maxReceiveCount: 5
@@ -188,7 +187,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-RepairOrder"
       Description: Tekion Repair Order Data Pull
       CodeUri: app/
-      Handler: repair_orders.lambda_handler
+      Handler: repair_order.repair_orders.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -244,7 +243,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataPull"
       Description: Tekion Historical Data Pull
       CodeUri: app/
-      Handler: historical_data.lambda_handler
+      Handler: historical.historical_data.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -294,7 +293,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-Deals"
       Description: Tekion Deals Data Pull
       CodeUri: app/
-      Handler: vehicle_sale.lambda_handler
+      Handler: vehicle_sales.vehicle_sale.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -480,7 +479,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatROInsert"
       Description: Format Tekion RO data to the unified s3 bucket.
       CodeUri: app/
-      Handler: repair_order_format.lambda_handler
+      Handler: repair_order.repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -589,7 +588,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatFIInsert"
       Description: Format Tekion FI data to the unified s3 bucket.
       CodeUri: app/
-      Handler: vehicle_sale_format.lambda_handler
+      Handler: vehicle_sales.vehicle_sale_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -698,7 +697,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalROInsert"
       Description: Format Tekion Historical RO data to the unified s3 bucket.
       CodeUri: app/
-      Handler: historical_repair_order_format.lambda_handler
+      Handler: historical.historical_repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:
@@ -807,7 +806,7 @@ Resources:
       FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIInsert"
       Description: Format Tekion Historical FI data to the unified s3 bucket.
       CodeUri: app/
-      Handler: historical_vehicle_sale_format.lambda_handler
+      Handler: historical.historical_vehicle_sale_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
       Policies:

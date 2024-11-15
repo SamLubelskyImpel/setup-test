@@ -32,11 +32,11 @@ class TekionWrapper:
         """Retrieve Tekion access key and secret key."""
         secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'stage'}/dms-integrations-partner"
         try:
-            secret = loads(
+            secret = loads(loads(
                 boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)[
                     "SecretString"
                 ]
-            )["TEKION_V3"]
+            )["TEKION_V3"])
 
             return secret["app_id"], secret["secret_key"], secret["url"]
         except ClientError as e:
@@ -67,10 +67,10 @@ class TekionWrapper:
         resp = requests.post(token_url, headers=headers, data=data)
         resp.raise_for_status()
         try:
-            resp_data = resp.json()
+            resp_data = resp.json()["data"]
             token = resp_data["access_token"]
             # Refreshes token if request within 10 seconds of expirey time for server leeway.
-            expire_seconds = int(resp_data["expires_in"]) - 10
+            expire_seconds = int(resp_data["expire_in"]) - 10
             expire_datetime = datetime.utcnow() + timedelta(
                 seconds=expire_seconds
             )
