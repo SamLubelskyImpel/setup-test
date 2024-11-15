@@ -50,7 +50,16 @@ def create_consumer(consumer_data, product_dealer_id, crm_api_key) -> dict:
         )
         response.raise_for_status()
         logger.info(f"CRM API /consumers responded with: {response.status_code}")
-        return response.json()
+
+        unified_crm_consumer_id = response.json().get("consumer_id")
+        if not unified_crm_consumer_id:
+            error_msg = (
+                "Error creating consumer: consumer_id not found in response"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        return unified_crm_consumer_id
     except Exception as e:
         logger.error(f"Error creating consumer from CRM API: {e}")
         raise
@@ -123,15 +132,14 @@ def parse_consumer(entity_data) -> dict:
             "crm_consumer_id": (entity_data.get('ShowCustomerInformation', {})
                                 .get('ShowCustomerInformationDataArea', {})
                                 .get('CustomerInformation', {})
-                                .get('CustomerInformationHeader', {})
-                                .get('SecondaryDealerNumberID', '')),
+                                .get('CustomerInformationDetail', {})
+                                .get('CustomerParty', {})
+                                .get('PartyID', '')),
             "first_name": customer_info.get('GivenName', ''),
             "last_name": customer_info.get('FamilyName', ''),
             "middle_name": customer_info.get('MiddleName', ''),
             "email": customer_info.get('URICommunication', {}).get('URIID', ''),
             "phone": next((phone.get('CompleteNumber', '') for phone in customer_info.get('TelephoneCommunication', []) if phone.get('UseCode') == 'Mobile'), ''),
-            "email_optin_flag": True,  # Default value as per the schema
-            "sms_optin_flag": True,    # Default value as per the schema
             "city": customer_info.get('PostalAddress', {}).get('CityName', ''),
             "country": "AU",  # Default value as per the CRM Integration Mapping
             "address": ' '.join(filter(None, [
@@ -148,13 +156,11 @@ def parse_consumer(entity_data) -> dict:
         raise
 
 
-def parse_lead(event_data, carsales_data, consumer_id) -> dict:
+def parse_lead(event, carsales_data, consumer_id) -> dict:
     """
     Parse event data to create a lead based on the provided schema and mapping.
     """
     try:
-        event = event_data.get('events', [])[0]  # Assuming there's at least one event
-
         lead_status_mapping = {
             220: "0 - Unqualified",
             221: "1 - Up/Contacted",
@@ -167,8 +173,11 @@ def parse_lead(event_data, carsales_data, consumer_id) -> dict:
         }
 
         lead = {
-            "lead_ts": event.get("insertDate"),  # Not present in the lead schema in the CRM API OAS
-            "lead_status": lead_status_mapping.get(event.get('status'), 'Unknown'),
+            "consumer_id": consumer_id,
+            "crm_lead_id": event.get("eventId"),
+            "lead_ts": event.get("insertDate"),
+            # If status does not match the mapping, use the status as is
+            "lead_status": lead_status_mapping.get(event.get('status'), event.get('status')),
             "lead_comment": carsales_data.get("Comments", ''),
             "lead_origin": "INTERNET",  # Hardcoded as per the mapping
             "lead_source": "CarSales",  # Hardcoded as per the mapping
@@ -179,7 +188,15 @@ def parse_lead(event_data, carsales_data, consumer_id) -> dict:
                 "make": event.get('make', ''),
                 "model": event.get('model', ''),
                 "year": event.get('year', ''),
-            }]
+            }],
+            "salespersons": [
+                {
+                    "crm_salesperson_id": event.get('primaryAssigned', ''),
+                    "first_name": carsales_data.get('Assignment', {}).get('Name', '').split()[0],
+                    "last_name": carsales_data.get('Assignment', {}).get('Name', '').split()[1] if len(carsales_data.get('Name', '').split()) > 1 else '',
+                    "email": carsales_data.get('Assignment', {}).get('Email', '')
+                }
+            ],
         }
 
         return lead
@@ -221,8 +238,8 @@ def record_handler(record: SQSRecord):
         consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
 
         # Create leads
-        for event in events:
-            lead_data = parse_lead(event, body, consumer_id)
+        for event in events.get("events"):
+            lead_data = parse_lead(event, carsales_data, consumer_id)
 
             # Check if the event matches the carsales stockNumber or make, model, and year
             if match_carsales_filter(lead_data, carsales_data):

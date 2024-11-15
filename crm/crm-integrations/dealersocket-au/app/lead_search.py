@@ -20,6 +20,7 @@ from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from dealer_socket_client import DealerSocketClient
 
 LEAD_TRANSFORMATION_QUEUE_URL = environ.get("LEAD_TRANSFORMATION_QUEUE_URL")
+DEALERSOCKET_VENDOR = environ.get("DEALERSOCKET_VENDOR")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -66,22 +67,25 @@ def record_handler(record: SQSRecord):
         logger.info(f"Raw data: {carsales_json_data}")
 
         # Extract prospect data
-        prospect = carsales_json_data["Prospect"]
+        prospect = carsales_json_data.get("Prospect")
+
+        if not prospect:
+            logger.error("Missing Prospect data in raw carsales data")
+            raise ValueError("Missing Prospect data in raw carsales data")
+
+        # Query event based on dealer_id, entity_id, and event
+        dealer_id = carsales_json_data.get("crm_dealer_id")
+
+        if not dealer_id:
+            logger.error("Missing crm_dealer_id in raw carsales data")
+            raise ValueError("Missing crm_dealer_id in raw carsales data")
 
         # Initialize DealerSocket client
         dealersocket_client = DealerSocketClient()
 
         # Query customer based on prospect data
-        entity_xml_response = dealersocket_client.query_entity(prospect)
+        entity_xml_response = dealersocket_client.query_entity(DEALERSOCKET_VENDOR, dealer_id, prospect)
         entity_response = xmltodict.parse(entity_xml_response)
-
-        # Query event based on dealer_id, entity_id, and event
-        vendor = "your_vendor"
-        dealer_id = carsales_json_data.get("SellerIdentifier")
-
-        if not dealer_id:
-            logger.error("Missing SellerIdentifier in raw carsales data")
-            raise ValueError("Missing SellerIdentifier in raw carsales data")
 
         entity_id = entity_response.get("ShowCustomerInformation", {}) \
             .get("ShowCustomerInformationDataArea", {}) \
@@ -95,7 +99,7 @@ def record_handler(record: SQSRecord):
             raise ValueError("Missing entity_id in entity response")
 
         event_response = dealersocket_client.query_event(
-            vendor,
+            DEALERSOCKET_VENDOR,
             dealer_id,
             entity_id
         )

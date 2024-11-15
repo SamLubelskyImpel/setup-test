@@ -36,6 +36,7 @@ Globals:
         INGEST_LEAD_QUEUE_URL: !Ref LeadTransformationQueue
         DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
         DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
+        DEALERSOCKET_VENDOR: "random_value"
 
 Resources:
   LambdaRole:

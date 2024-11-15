@@ -1,26 +1,45 @@
 import os
-import json
 import logging
 import requests
 import hashlib
 import hmac
 import base64
 from os import environ
+from json import dumps, loads
+from datetime import datetime
+
+import boto3
 
 DEALERSOCKET_ENTITY_URL = os.environ.get("DEALERSOCKET_URL")
 DEALERSOCKET_EVENT_URL = os.environ.get("DEALERSOCKET_EVENT_URL")
 
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+sm_client = boto3.client("secretsmanager")
+
 
 class DealerSocketClient:
+    """The DealerSocket client class has functions to query the dealersocket APIs."""
     def __init__(self):
         self.public_key, self.private_key = self.get_secret_keys()
 
+    def get_secret(self, secret_name, secret_key):
+        """Get secret from Secrets Manager."""
+        secret = sm_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+        )
+        secret = loads(secret["SecretString"])[str(secret_key)]
+        secret_data = loads(secret)
+        return secret_data
+
     def get_secret_keys(self):
-        """Get secret keys from environment variables"""
-        return ["", ""]
+        """Get secret keys"""
+        public_key = self.get_secret("dealersocket", "public_key")
+        private_key = self.get_secret("dealersocket", "private_key")
+        return public_key, private_key
 
     def create_signature(self, body):
         """Create authentication signature based on body"""
@@ -28,19 +47,47 @@ class DealerSocketClient:
         hash_string = base64.b64encode(hmac_sha256.digest()).decode()
         return f"{self.public_key}:{hash_string}"
 
-    def create_xml_body(self, prospect: dict) -> str:
+    def create_xml_body(self, vendor, dealer_id, prospect: dict) -> str:
         """Create XML body based on prospect data"""
+        email_section = ""
+        if prospect.get('Email'):
+            email_section = f"""
+                <URICommunication>
+                    <URIID>{prospect['Email']}</URIID>
+                    <ChannelCode>Email Address</ChannelCode>
+                </URICommunication>"""
+
+        phone_sections = ""
+        phone_keys = ['HomePhone', 'MobilePhone', 'WorkPhone']
+
+        for phone_key in phone_keys:
+            if prospect.get(phone_key):
+                phone_sections += f"""
+                    <TelephoneCommunication>
+                        <CompleteNumber>{prospect[phone_key]}</CompleteNumber>
+                    </TelephoneCommunication>"""
+
+        family_name_section = ""
+        if prospect.get('LastName'):
+            family_name_section = f"""
+                <FamilyName>{prospect['LastName']}</FamilyName>"""
+
+        given_name_section = ""
+        if prospect.get('FirstName'):
+            given_name_section = f"""
+                <GivenName>{prospect['FirstName']}</GivenName>"""
+
         xml_body = f"""
         <GetCustomerInformation xmlns:xsd="http://www.w3.org/2001/XMLSchema"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xmlns="http://www.starstandard.org/STAR/5">
             <ApplicationArea>
                 <Sender>
-                    <CreatorNameCode>VendorName</CreatorNameCode>
-                    <SenderNameCode>VendorName</SenderNameCode>
-                    <DealerNumberID>938_21</DealerNumberID>
+                    <CreatorNameCode>{vendor}</CreatorNameCode>
+                    <SenderNameCode>{vendor}</SenderNameCode>
+                    <DealerNumberID>{dealer_id}</DealerNumberID>
                 </Sender>
-                <CreationDateTime>2023-10-01T00:00:00</CreationDateTime>
+                <CreationDateTime>{datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}</CreationDateTime>
                 <Destination>
                     <DestinationNameCode>DS</DestinationNameCode>
                 </Destination>
@@ -50,24 +97,10 @@ class DealerSocketClient:
                     <CustomerInformationDetail>
                         <CustomerParty>
                             <SpecifiedPerson>
-                                <FamilyName>{prospect['LastName']}</FamilyName>
-                                <GivenName>{prospect['FirstName']}</GivenName>
-                                <URICommunication>
-                                    <URIID>{prospect['Email']}</URIID>
-                                    <ChannelCode>Email Address</ChannelCode>
-                                </URICommunication>
-                                <TelephoneCommunication>
-                                    <CompleteNumber>{prospect['HomePhone']}</CompleteNumber>
-                                    <UseCode>Home</UseCode>
-                                </TelephoneCommunication>
-                                <TelephoneCommunication>
-                                    <CompleteNumber>{prospect['MobilePhone']}</CompleteNumber>
-                                    <UseCode>Mobile</UseCode>
-                                </TelephoneCommunication>
-                                <TelephoneCommunication>
-                                    <CompleteNumber>{prospect['WorkPhone']}</CompleteNumber>
-                                    <UseCode>Work</UseCode>
-                                </TelephoneCommunication>
+                                {family_name_section}
+                                {given_name_section}
+                                {email_section}
+                                {phone_sections}
                             </SpecifiedPerson>
                         </CustomerParty>
                     </CustomerInformationDetail>
@@ -77,10 +110,10 @@ class DealerSocketClient:
         """
         return xml_body
 
-    def query_entity(self, prospect: dict) -> str:
+    def query_entity(self, vendor, dealer_id, prospect: dict) -> str:
         """Query entity based on prospect data"""
         try:
-            xml_body = self.create_xml_body(prospect)
+            xml_body = self.create_xml_body(vendor, dealer_id, prospect)
             auth_signature = self.create_signature(xml_body)
             headers = {
                 "Content-Type": "application/xml",
@@ -105,7 +138,7 @@ class DealerSocketClient:
                 "dealerId": dealer_id,
                 "entityId": entity_id
             }
-            json_body = json.dumps(payload)
+            json_body = dumps(payload)
             auth_signature = self.create_signature(json_body)
             headers = {
                 "Content-Type": "application/json",
