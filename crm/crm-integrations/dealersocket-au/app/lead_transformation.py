@@ -84,13 +84,13 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
         raise
 
 
-def get_lead(consumer_id, crm_api_key) -> dict:
+def get_leads(lead_id, crm_api_key) -> dict:
     """Get lead from db."""
     try:
         response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/leads",
             headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
-            params={"consumer_id": consumer_id},
+            params={"lead_id": lead_id},
         )
         response.raise_for_status()
         logger.info(f"CRM API /leads responded with: {response.status_code}")
@@ -156,7 +156,7 @@ def parse_consumer(entity_data) -> dict:
         raise
 
 
-def parse_lead(event, carsales_data, consumer_id) -> dict:
+def parse_lead(event, carsales_data) -> dict:
     """
     Parse event data to create a lead based on the provided schema and mapping.
     """
@@ -173,7 +173,6 @@ def parse_lead(event, carsales_data, consumer_id) -> dict:
         }
 
         lead = {
-            "consumer_id": consumer_id,
             "crm_lead_id": event.get("eventId"),
             "lead_ts": event.get("insertDate"),
             # If status does not match the mapping, use the status as is
@@ -209,11 +208,13 @@ def match_carsales_filter(lead_data, carsales_data) -> bool:
     """
     Check if the lead data matches the carsales
     stockNumber or make, model, and year.
+
+    Since there is only one vehicle in the carsales data, I will be checking the first vehicle in the lead data.
     """
-    return (lead_data.get("stock_number") == carsales_data.get("Item").get("StockNumber") or
-            (lead_data.get("vehicles_of_interest").get("make") == carsales_data.get("Item").get("Make") and
+    return (lead_data.get("vehicles_of_interest")[0].get("stock_number") == carsales_data.get("Item").get("StockNumber") or
+            (lead_data.get("vehicles_of_interest")[0].get("make") == carsales_data.get("Item").get("Make") and
              lead_data.get("vehicles_of_interest")[0].get("model") == carsales_data.get("Item").get("Model") and
-             lead_data.get("vehicles_of_interest").get("year") == carsales_data.get("Item").get("Year")))
+             lead_data.get("vehicles_of_interest")[0].get("year") == carsales_data.get("Item").get("Year")))
 
 
 def record_handler(record: SQSRecord):
@@ -233,33 +234,35 @@ def record_handler(record: SQSRecord):
         # Get CRM API Key
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        # Create consumer
-        consumer_data = parse_consumer(entity_response)
-        consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
-
         # Create leads
         for event in events.get("events"):
-            lead_data = parse_lead(event, carsales_data, consumer_id)
+            lead_data = parse_lead(event, carsales_data)
 
             # Check if the event matches the carsales stockNumber or make, model, and year
             if match_carsales_filter(lead_data, carsales_data):
-                # Get existing leads
-                existing_leads = get_lead(consumer_id, crm_api_key)
+                # Get existing lead using lead_id
+                existing_lead = get_leads(lead_data.get("crm_lead_id"), crm_api_key)
 
-                for existing_lead in existing_leads:
-                    # Check if the existing lead matches the carsales data
-                    if match_carsales_filter(existing_lead, carsales_data):
-                        # Check if the existing lead is older than the new lead
-                        existing_lead_date = datetime.strptime(existing_lead.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
-                        new_lead_date = datetime.strptime(lead_data.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
+                if existing_lead:
+                    existing_lead_datetime = datetime.strptime(existing_lead.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
+                    new_lead_datetime = datetime.strptime(lead_data.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
 
-                        if new_lead_date > existing_lead_date:
-                            # Update the lead
-                            update_lead(existing_lead.get("lead_id"), lead_data, crm_api_key)
-                        else:
-                            logger.info(f"Existing lead is newer or same as the new lead. Skipping update.")
-                if not existing_leads:
+                    # Update the lead, if the new lead has a newer timestamp
+                    if new_lead_datetime > existing_lead_datetime:
+                        update_lead(lead_data.get("crm_lead_id"), lead_data, crm_api_key)
+                    else:
+                        logger.info(f"Existing lead is newer. Skipping update.")
+                else:
+                    # Create consumer
+                    consumer_data = parse_consumer(entity_response)
+                    consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
+
+                    # Add consumer_id to lead_data
+                    lead_data["consumer_id"] = consumer_id
+
+                    # Create a lead
                     create_lead(lead_data, consumer_id, crm_api_key)
+
             else:
                 logger.info(f"Event does not match carsales filter: {event}")
     except Exception as e:

@@ -33,7 +33,7 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
-        INGEST_LEAD_QUEUE_URL: !Ref LeadTransformationQueue
+        LEAD_TRANSFORMATION_QUEUE_URL: !Ref LeadTransformationQueue
         DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
         DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
         DEALERSOCKET_VENDOR: "random_value"
@@ -248,7 +248,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "dealersocket-au-${Environment}-LeadTransformationDLQ"
-      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket Ingest New Lead DLQ
+      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket Lead Transformation DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -269,8 +269,8 @@ Resources:
     Properties:
       FunctionName: !Sub dealersocket-au-${Environment}-LeadTransformation
       CodeUri: app/
-      Handler: ingest_lead.lambda_handler
-      Timeout: 60
+      Handler: lead_transformation.lambda_handler
+      Timeout: 180
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 

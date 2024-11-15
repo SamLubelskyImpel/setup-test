@@ -66,50 +66,57 @@ def record_handler(record: SQSRecord):
         carsales_json_data = loads(content)
         logger.info(f"Raw data: {carsales_json_data}")
 
-        # Extract prospect data
-        prospect = carsales_json_data.get("Prospect")
+        # # Extract prospect data
+        # prospect = carsales_json_data.get("Prospect")
 
-        if not prospect:
-            logger.error("Missing Prospect data in raw carsales data")
-            raise ValueError("Missing Prospect data in raw carsales data")
+        # if not prospect:
+        #     logger.error("Missing Prospect data in raw carsales data")
+        #     raise ValueError("Missing Prospect data in raw carsales data")
 
-        # Query event based on dealer_id, entity_id, and event
-        dealer_id = carsales_json_data.get("crm_dealer_id")
+        # # Query event based on dealer_id, entity_id, and event
+        # dealer_id = carsales_json_data.get("crm_dealer_id")
 
-        if not dealer_id:
-            logger.error("Missing crm_dealer_id in raw carsales data")
-            raise ValueError("Missing crm_dealer_id in raw carsales data")
+        # if not dealer_id:
+        #     logger.error("Missing crm_dealer_id in raw carsales data")
+        #     raise ValueError("Missing crm_dealer_id in raw carsales data")
 
-        # Initialize DealerSocket client
-        dealersocket_client = DealerSocketClient()
+        # # Initialize DealerSocket client
+        # dealersocket_client = DealerSocketClient()
 
-        # Query customer based on prospect data
-        entity_xml_response = dealersocket_client.query_entity(DEALERSOCKET_VENDOR, dealer_id, prospect)
-        entity_response = xmltodict.parse(entity_xml_response)
+        # # Query customer based on prospect data
+        # entity_xml_response = dealersocket_client.query_entity(DEALERSOCKET_VENDOR, dealer_id, prospect)
+        # entity_response = xmltodict.parse(entity_xml_response)
 
-        entity_id = entity_response.get("ShowCustomerInformation", {}) \
-            .get("ShowCustomerInformationDataArea", {}) \
-            .get("CustomerInformation", {}) \
-            .get("CustomerInformationDetail", {}) \
-            .get("CustomerParty", {}) \
-            .get("PartyID")
+        # entity_id = entity_response.get("ShowCustomerInformation", {}) \
+        #     .get("ShowCustomerInformationDataArea", {}) \
+        #     .get("CustomerInformation", {}) \
+        #     .get("CustomerInformationDetail", {}) \
+        #     .get("CustomerParty", {}) \
+        #     .get("PartyID")
 
-        if not entity_id:
-            logger.error("Missing entity_id in entity response")
-            raise ValueError("Missing entity_id in entity response")
+        # if not entity_id:
+        #     logger.error("Missing entity_id in entity response")
+        #     raise ValueError("Missing entity_id in entity response")
 
-        event_response = dealersocket_client.query_event(
-            DEALERSOCKET_VENDOR,
-            dealer_id,
-            entity_id
-        )
+        # event_response = dealersocket_client.query_event(
+        #     DEALERSOCKET_VENDOR,
+        #     dealer_id,
+        #     entity_id
+        # )
 
         # Merge response with Carsales data
+        # merged_data = {
+        #     "carsales_data": carsales_json_data,
+        #     "entity_response": entity_response,
+        #     "event_response": event_response,
+        #     "product_dealer_id": product_dealer_id
+        # }
+
         merged_data = {
-            "carsales_data": carsales_json_data,
-            "entity_response": entity_response,
-            "event_response": event_response,
-            "product_dealer_id": product_dealer_id
+            "carsales_data": {"carsales": "hello"},
+            "entity_response": {"entity": "hello"},
+            "event_response": {"event": "hello"},
+            "product_dealer_id": "123_dealer"
         }
 
         # Send message to IngestLeadQueue
