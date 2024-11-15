@@ -136,7 +136,8 @@ class DealerSocketClient:
             payload = {
                 "vendor": vendor,
                 "dealerId": dealer_id,
-                "entityId": entity_id
+                "entityId": entity_id,
+                "eventCategory": "Sales"
             }
             json_body = dumps(payload)
             auth_signature = self.create_signature(json_body)
