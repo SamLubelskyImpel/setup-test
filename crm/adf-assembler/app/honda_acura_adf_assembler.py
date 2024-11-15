@@ -27,7 +27,7 @@ def record_handler(record: SQSRecord) -> None:
     """Process each record."""
     logger.info(f"Record: {record}")
     try:
-        body = loads(record["body"])
+        body = record.json_body
         logger.info(f"Processing record body: {body}")
 
         oem_partner = body.get("oem_partner", {})
