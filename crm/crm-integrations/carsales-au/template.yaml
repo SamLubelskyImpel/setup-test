@@ -35,6 +35,104 @@ Globals:
           ]
 
 Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                Resource:
+                # - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
+                - !Sub "arn:aws:s3:::crm-integrations-test/raw*"
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                # - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                - !Sub "arn:aws:s3:::crm-integrations-test*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt TransformCarSalesDataQueue.Arn
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                Resource: "arn:aws:sqs:*:*:*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+                - !If [
+                    IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
+                  ]
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+
   TransformCarSalesData:
     Type: AWS::Serverless::Function
     Properties:
@@ -109,9 +207,9 @@ Resources:
             Resource: !GetAtt TransformCarSalesDataQueue.Arn
             Condition:
               ArnEquals:
-                aws:SourceArn: !GetAtt EventBridgeRule.Arn
+                aws:SourceArn: !GetAtt TransformLeadEventBridgeRule.Arn
 
-  EventBridgeRule:
+  TransformLeadEventBridgeRule:
     Type: AWS::Events::Rule
     Properties:
       EventPattern:
@@ -122,10 +220,11 @@ Resources:
         detail:
           bucket:
             name:
-              - !Sub "crm-integrations-${Environment}"
+              # - !Sub "crm-integrations-${Environment}"
+              - !Sub "crm-integrations-test"
           object:
             key:
-              - { "prefix": "raw/carsales-dealersocket-au/" }
+              - { "prefix": "raw/carsales-au/" }
       Targets:
         - Id: "TransformCarSalesDataTarget"
           Arn: !GetAtt TransformCarSalesDataQueue.Arn

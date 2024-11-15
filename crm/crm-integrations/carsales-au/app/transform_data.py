@@ -93,74 +93,74 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format carsales json data to unified format."""
     entries = []
     try:
-        for item in json_data:
-            db_lead = {}
-            db_vehicles = []
-            db_consumer = {}
-            db_salesperson = {}
+        db_lead = {}
+        db_vehicles = []
+        db_consumer = {}
+        db_salesperson = {}
 
-            crm_lead_id = item.get('Identifier', '')
-            db_lead["crm_lead_id"] = crm_lead_id
-            db_lead["lead_ts"] = item.get('Created')
-            db_lead["lead_status"] = item.get('Status', '')
-            db_lead["lead_substatus"] = ''
-            db_lead["lead_comment"] = item.get('Comments', '')
-            db_lead["lead_origin"] = 'Internet'
-            db_lead["lead_source"] = 'CarSales'
+        crm_lead_id = json_data.get('Identifier', '')
+        db_lead["crm_lead_id"] = crm_lead_id
+        db_lead["lead_ts"] = json_data.get('Created')
+        db_lead["lead_status"] = json_data.get('Status', '')
+        db_lead["lead_substatus"] = ''
+        db_lead["lead_comment"] = json_data.get('Comments', '')
+        db_lead["lead_origin"] = 'Internet'
+        db_lead["lead_source"] = 'CarSales'
 
 
-            vehicle = item.get('Item', {})
+        vehicle = json_data.get('Item', {})
 
-            db_vehicle = {
-                "stock_num": vehicle.get('StockNumber', None),
-                "year": int(vehicle.get('Year')) if vehicle.get('Year') else None,
-                "make": vehicle.get('Make', None),
-                "model": vehicle.get('Model', None),
-                "body_style": vehicle.get('BodyType', None),
-                "exterior_color": vehicle.get('Colour', None),
-                "price": vehicle.get('Price', None),
-                "odometer_units": vehicle.get('Odometer', None),
-                "condition": vehicle.get('LeadType')
-            }
-            db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
+        db_vehicle = {
+            "stock_num": vehicle.get('StockNumber', None),
+            "year": int(vehicle.get('Year')) if vehicle.get('Year') else None,
+            "make": vehicle.get('Make', None),
+            "model": vehicle.get('Model', None),
+            "body_style": vehicle.get('BodyType', None),
+            "exterior_color": vehicle.get('Colour', None),
+            "price": vehicle.get('Price', None),
+            "odometer_units": vehicle.get('Odometer', None),
+            "condition": vehicle.get('LeadType')
+        }
+        db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
-            db_vehicles.append(db_vehicle)
+        db_vehicles.append(db_vehicle)
 
-            db_lead["vehicles_of_interest"] = db_vehicles
+        db_lead["vehicles_of_interest"] = db_vehicles
 
-            consumer = item.get('Prospect')
-            db_consumer = {
-                "first_name": consumer.get('FirstName', None),
-                "last_name": consumer.get('LastName', None),
-                "email": consumer.get('Email', None),
-                "phone": consumer.get('HomePhone', None),
-                "address": consumer.get('Address', None),
-                "country": "AU",
-                "city": consumer.get('Suburb', None),
-                "postal_code": consumer.get('PostalCode', None)
-            }
+        consumer = json_data.get('Prospect')
+        db_consumer = {
+            "first_name": consumer.get('FirstName', None),
+            "last_name": consumer.get('LastName', None),
+            "email": consumer.get('Email', None),
+            "phone": consumer.get('HomePhone', None),
+            "address": consumer.get('Address', None),
+            "country": "AU",
+            "city": consumer.get('Suburb', None),
+            "postal_code": consumer.get('PostalCode', None)
+        }
+        db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
-            if not db_consumer["email"] and not db_consumer["phone"]:
-                logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
-                continue
+        if not db_consumer["email"] and not db_consumer["phone"]:
+            logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
+            return entries
 
-            salesperson = item.get('Assignment')
-            salesperson_name = salesperson.get('Name', '').split()
-            db_salesperson = {
-                "first_name": salesperson_name[0],
-                "last_name": salesperson_name[1],
-                "email": salesperson.get('Email', None)
-            }
+        salesperson = json_data.get('Assignment')
+        salesperson_name = salesperson.get('Name', '').split()
+        db_salesperson = {
+            "first_name": salesperson_name[0],
+            "last_name": salesperson_name[1],
+            "email": salesperson.get('Email', None)
+        }
 
-            db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
+        db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
 
-            entry = {
-                "product_dealer_id": product_dealer_id,
-                "lead": db_lead,
-                "consumer": db_consumer
-            }
+        entry = {
+            "product_dealer_id": product_dealer_id,
+            "lead": db_lead,
+            "consumer": db_consumer
+        }
 
-            entries.append(entry)
+        entries.append(entry)
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
