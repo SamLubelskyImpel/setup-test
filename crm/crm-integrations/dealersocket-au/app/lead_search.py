@@ -85,6 +85,8 @@ def record_handler(record: SQSRecord):
 
         # Query customer based on prospect data
         entity_xml_response = dealersocket_client.query_entity(DEALERSOCKET_VENDOR, dealer_id, prospect)
+        logger.info(f"Entity response: {entity_xml_response}")
+
         entity_response = xmltodict.parse(entity_xml_response)
 
         entity_id = entity_response.get("ShowCustomerInformation", {}) \
