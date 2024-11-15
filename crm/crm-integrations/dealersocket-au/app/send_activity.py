@@ -59,11 +59,12 @@ def record_handler(record: SQSRecord):
     """Create activity on Dealersocket AU."""
     logger.info(f"Record: {record}")
     try:
-        activity = loads(record['body'])
+        activity = record.json_body
         salesperson = crm_api.get_salesperson(activity["lead_id"])
-        if not salesperson and activity.get("activity_type", "") == "appointment":
-            logger.warning(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
-            return
+        #TODO Delete or uncomment below code
+        # if not salesperson and activity.get("activity_type", "") == "appointment":
+        #     logger.warning(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
+        #     return
 
         logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
 
@@ -91,13 +92,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
-        result = process_partial_response(
+        return process_partial_response(
             event=event,
             record_handler=record_handler,
             processor=processor,
             context=context,
         )
-        return result
 
     except Exception as e:
         logger.error(f"Error processing batch: {e}")

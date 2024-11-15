@@ -7,13 +7,15 @@ A decision was made to isolate source code for each lambda in order to limit the
 import requests
 from os import environ
 from json import loads
+from hashlib import sha256
+from hmac import new
 from boto3 import client
 from uuid import uuid4
+from base64 import b64encode
 from datetime import datetime
 from typing import Tuple
 import logging
 import pytz
-import re
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -85,31 +87,11 @@ class DealersocketAUApiWrapper:
     """Dealersocket AU API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__login_url, self.__master_key = self.get_secrets()
+        self.__private_key, self.__public_key, self.__api_url  = self.get_secrets()
+
         self.__activity = kwargs.get("activity")
-        self.__api_token, self.__api_url = self.get_token()
         self.__salesperson = kwargs.get("salesperson")
         self.__dealer_timezone = self.__activity.get("dealer_timezone")
-
-    def get_token(self):
-        response = requests.get(
-            url="{}/{}".format(self.__login_url, self.__activity["crm_dealer_id"]),
-            headers={
-                "Content-Type": "application/json",
-                "MOM-ApplicationType": "V",
-                "MOM-Api-Key": self.__master_key,
-            },
-        )
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM - Get Token: {response_json}")
-
-        api_token = response_json["apiToken"]
-        api_url = response_json["endPoint"]
-        if ENVIRONMENT != "prod":
-            api_url += "/v1"
-
-        return api_token, api_url
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -119,15 +101,22 @@ class DealersocketAUApiWrapper:
         secret_data = loads(secret)
 
         return (
-            secret_data["API_URL"],
-            secret_data["API_MASTER_KEY"]
+            secret_data["API_PRIVATE_KEY"],
+            secret_data["API_PUBLIC_KEY"],
+            secret_data["API_URL"]
         )
 
-    def __call_api(self, url, payload=None, method="POST"):
+    def __create_signature(self, body: str) -> str:
+        hmac_sha256 = new(self.__private_key.encode('utf-8'), body.encode('utf-8'), sha256)
+        hash_bytes = hmac_sha256.digest()
+        hash_string = b64encode(hash_bytes).decode('utf-8')
+        
+        return f"{self.__public_key}:{hash_string}"
+
+    def __call_api(self, url, payload, method="POST"):
         headers = {
-            "Content-Type": "application/json",
-            "MOM-ApplicationType": "V",
-            "MOM-Api-Token": self.__api_token,
+            'Content-Type': 'application/xml',
+            'Authentication': self.__create_signature(payload)
         }
         response = requests.request(
             method=method,
@@ -206,55 +195,31 @@ class DealersocketAUApiWrapper:
 
         return str(response_json.get("appointmentApiID", ""))
 
-    def __extract_action_links(self):
-        extraction_map = [
-            {
-                "title": "View Conversation",
-                "pattern": r'(?i)view conversation\s+(https?://\S+)'
-            },
-            {
-                "title": "Stop Communication",
-                "pattern": r'(?i)link to stop communication:\s+(https?://\S+)'
-            },
-            {
-                "title": "Reply as Assistant",
-                "pattern": r'(?i)link to reply as assistant:\s+(https?://\S+)'
-            }
-        ]
-
-        extracted = []
-
-        for m in extraction_map:
-            regex_match = re.search(m["pattern"], self.__activity["notes"])
-            if regex_match:
-                extracted.append({
-                    "title": m["title"],
-                    "link": regex_match.group(1),
-                    "description": self.__activity["notes"]
-                })
-
-        return extracted
-
     def __insert_note(self):
         """Insert note on CRM."""
-        action_links = self.__extract_action_links()
 
-        url = "{}/lead/{}/contact/remark".format(self.__api_url, self.__activity["crm_lead_id"])
+        url = "{}/WorkNote".format(self.__api_url)
 
-        if len(action_links):
-            payload = {
-                "remark": "Communication Sent/Received",
-                "actionLinks": action_links
-            }
-        else:
-            payload = {
-                "remark": self.__activity["notes"]
-            }
-
-        logger.info(f"Request URL to CRM: {url}")
+        payload = """
+        <WorkNoteInsert xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <Vendor>Sample Return</Vendor>
+            <DealerId>1234</DealerId>
+            <EntityId>4678</EntityId>
+            <EventId>9012</EventId>
+            <BatchId>0</BatchId>
+            <ExternalId type="CallId">AB1234</ExternalId>
+            <Note>
+            <![CDATA[<span style='color:Red'>Sample Work Note, Time: 2014-01-
+            14 18:44:57Z</span>]]>
+            </Note>
+        </WorkNoteInsert>
+        """
         logger.info(f"Payload to CRM: {payload}")
+
         response = self.__call_api(url, payload)
         response.raise_for_status()
+
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
@@ -288,12 +253,3 @@ class DealersocketAUApiWrapper:
                 f"Dealersocket AU CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None
-
-    def get_salespersons(self):
-        url = f"{self.__api_url}/employee"
-        response = self.__call_api(url=url, method="GET")
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
-
-        return response_json
