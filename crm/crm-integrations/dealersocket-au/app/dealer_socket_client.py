@@ -37,9 +37,8 @@ class DealerSocketClient:
 
     def get_secret_keys(self):
         """Get secret keys"""
-        public_key = self.get_secret("dealersocket", "public_key")
-        private_key = self.get_secret("dealersocket", "private_key")
-        return public_key, private_key
+        dealersocket_secrets = self.get_secret("crm-integrations-partner", "DEALERSOCKET_AU")
+        return dealersocket_secrets.get("public_key"), dealersocket_secrets.get("private_key")
 
     def create_signature(self, body):
         """Create authentication signature based on body"""
