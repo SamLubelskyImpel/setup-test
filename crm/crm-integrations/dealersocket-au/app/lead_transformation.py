@@ -100,22 +100,6 @@ def get_leads(lead_id, crm_api_key) -> dict:
         raise
 
 
-def update_lead(lead_id, parsed_lead, crm_api_key) -> dict:
-    """Update lead in db."""
-    try:
-        response = requests.put(
-            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
-            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
-            json=parsed_lead,
-        )
-        response.raise_for_status()
-        logger.info(f"CRM API /leads responded with: {response.status_code}")
-        return response.json()
-    except Exception as e:
-        logger.error(f"Error updating lead from CRM API: {e}")
-        raise
-
-
 def parse_consumer(entity_data) -> dict:
     """Parse entity data to create crm consumer based on the CRM Integration Mapping"""
     try:
@@ -244,14 +228,7 @@ def record_handler(record: SQSRecord):
                 existing_lead = get_leads(lead_data.get("crm_lead_id"), crm_api_key)
 
                 if existing_lead:
-                    existing_lead_datetime = datetime.strptime(existing_lead.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
-                    new_lead_datetime = datetime.strptime(lead_data.get("lead_ts"), "%Y-%m-%dT%H:%M:%SZ")
-
-                    # Update the lead, if the new lead has a newer timestamp
-                    if new_lead_datetime > existing_lead_datetime:
-                        update_lead(lead_data.get("crm_lead_id"), lead_data, crm_api_key)
-                    else:
-                        logger.info(f"Existing lead is newer. Skipping update.")
+                    logger.error(f"Lead already exists in the CRM Shared Layer: {existing_lead.get('crm_lead_id')}")
                 else:
                     # Create consumer
                     consumer_data = parse_consumer(entity_response)
