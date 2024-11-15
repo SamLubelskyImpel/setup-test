@@ -57,7 +57,7 @@ class DealerSocketClient:
                 </URICommunication>"""
 
         phone_sections = ""
-        phone_keys = ['HomePhone', 'MobilePhone', 'WorkPhone']
+        phone_keys = ['MobilePhone', 'HomePhone', 'WorkPhone']
 
         for phone_key in phone_keys:
             if prospect.get(phone_key):
@@ -65,6 +65,7 @@ class DealerSocketClient:
                     <TelephoneCommunication>
                         <CompleteNumber>{prospect[phone_key]}</CompleteNumber>
                     </TelephoneCommunication>"""
+                break
 
         family_name_section = ""
         if prospect.get('LastName'):
