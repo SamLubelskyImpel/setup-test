@@ -55,6 +55,8 @@ def parse(csv_object):
 
 def write_to_rds(entries):
     """Write consumer identities to RDS"""
+    skipped_entries = []
+
     with DBSession() as session:
         try:
             # Identify integration partner
@@ -68,8 +70,6 @@ def write_to_rds(entries):
                 raise Exception("Integration partner FORD_DIRECT not found")
 
             for entry in entries:
-                # logger.info(f"Processing consumer profile: {entry}")
-
                 # Select consumer profile by consumer_id
                 db_consumer_profile = session.query(
                     ConsumerProfile
@@ -79,7 +79,7 @@ def write_to_rds(entries):
                 ).first()
 
                 if not db_consumer_profile:
-                    logger.error(f"Consumer profile not found for consumer_id: {entry['consumer_id']}. Skipping.")
+                    skipped_entries.append(entry['consumer_id'])
                     continue
 
                 is_updated = False
@@ -109,9 +109,6 @@ def write_to_rds(entries):
                 # Only add the profile to the session if changes are made
                 if is_updated:
                     session.add(db_consumer_profile)
-                    # logger.info(f"Consumer profile updated for consumer_id: {entry['consumer_id']}")
-                # else:
-                #     logger.info(f"Consumer profile unchanged for consumer_id: {entry['consumer_id']}")
 
             session.commit()
 
@@ -121,7 +118,12 @@ def write_to_rds(entries):
             logger.error(f"Error occurred during database operations: {e}")
             raise e
 
-    logger.info(f"Consumers added to the database: {len(entries)}")
+    if skipped_entries == entries:
+        logger.error("No valid consumer profiles found in the database")
+        raise Exception("No valid consumer profiles found in the database")
+
+    logger.info(f"Consumers added to the database: {len(entries)-len(skipped_entries)}")
+    logger.info(f"Consumers skipped: {len(skipped_entries)}")
 
 
 def record_handler(record: SQSRecord):
