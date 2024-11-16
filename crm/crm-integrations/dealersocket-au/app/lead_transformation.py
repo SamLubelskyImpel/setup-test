@@ -146,21 +146,25 @@ def parse_lead(event, carsales_data) -> dict:
     """
     try:
         lead_status_mapping = {
-            220: "0 - Unqualified",
-            221: "1 - Up/Contacted",
-            227: "2 - Store Visit",
-            222: "3 - Demo Vehicle",
-            223: "4 - Write Up",
-            224: "5 - Pending F&I",
-            225: "6 - Sold",
-            226: "7 - Lost"
+            220: "Unqualified",
+            221: "Up/Contacted",
+            227: "Store Visit",
+            222: "Demo Vehicle",
+            223: "Write Up",
+            224: "Pending F&I",
+            225: "Sold",
+            226: "Lost"
         }
+
+        # If status does not match the mapping, then error is raised
+        status = event.get('status')
+        if status not in lead_status_mapping:
+            raise ValueError(f"Lead status '{status}' is not recognized.")
 
         lead = {
             "crm_lead_id": event.get("eventId"),
             "lead_ts": event.get("insertDate"),
-            # If status does not match the mapping, use the status as is
-            "lead_status": lead_status_mapping.get(event.get('status'), event.get('status')),
+            "lead_status": lead_status_mapping.get(status),
             "lead_comment": carsales_data.get("Comments", ''),
             "lead_origin": "INTERNET",  # Hardcoded as per the mapping
             "lead_source": "CarSales",  # Hardcoded as per the mapping

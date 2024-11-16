@@ -106,6 +106,13 @@ def record_handler(record: SQSRecord):
             entity_id
         )
 
+        # Check if any event matches the carsales data
+        if not event_response:
+            logger.info("No event found in DealerSocket AU")
+            return
+
+
+
         # Merge response with Carsales data
         merged_data = {
             "carsales_data": carsales_json_data,
@@ -113,14 +120,6 @@ def record_handler(record: SQSRecord):
             "event_response": event_response,
             "product_dealer_id": product_dealer_id
         }
-
-        # # For testing
-        # merged_data = {
-        #     "carsales_data": {"carsales": "hello"},
-        #     "entity_response": {"entity": "hello"},
-        #     "event_response": {"event": "hello"},
-        #     "product_dealer_id": "123_dealer"
-        # }
 
         # Send message to IngestLeadQueue
         send_message_to_queue(LEAD_TRANSFORMATION_QUEUE_URL, merged_data)
