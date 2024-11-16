@@ -45,10 +45,37 @@ def send_message_to_queue(queue_url: str, message: dict):
         raise
 
 
+def match_carsales_filter(event, carsales_data) -> bool:
+    """
+    Check if the event data matches the carsales stockNumber or make, model, and year.
+    """
+    return (event.get("stockNumber") == carsales_data.get("Item").get("StockNumber") or
+            (event.get("make") == carsales_data.get("Item").get("Make") and
+             event.get("model") == carsales_data.get("Item").get("Model") and
+             event.get("year") == carsales_data.get("Item").get("Year")))
+
+
+def process_event_response(event_response: dict, carsales_json_data: dict):
+    """
+    Check if any event matches the carsales data
+    """
+    try:
+        events = event_response.get("events")
+        if events:
+            for event in events:
+                if match_carsales_filter(event, carsales_json_data):
+                    return event
+        else:
+            logger.info("No events received from Dealersocket Events API")
+    except Exception as e:
+        logger.error("Error processing event")
+        raise
+
+
 def record_handler(record: SQSRecord):
     """
     Search for leads in DealerSocket AU. If found, merge with Carsales data
-    and send to IngestLeadQueue.
+    and send to LeadTransformationQueue.
     """
     logger.info(f"Record: {record}")
     try:
@@ -85,7 +112,7 @@ def record_handler(record: SQSRecord):
 
         # Query customer based on prospect data
         entity_xml_response = dealersocket_client.query_entity(DEALERSOCKET_VENDOR, dealer_id, prospect)
-        logger.info(f"Entity response: {entity_xml_response}")
+        logger.info(f"Dealersocket Entity API response: {entity_xml_response}")
 
         entity_response = xmltodict.parse(entity_xml_response)
 
@@ -108,16 +135,21 @@ def record_handler(record: SQSRecord):
 
         # Check if any event matches the carsales data
         if not event_response:
-            logger.info("No event found in DealerSocket AU")
+            logger.info("No event returned by DealerSocket AU")
             return
+        logger.info(f"Dealersocket Event API Response: {event_response}")
 
+        processed_event = process_event_response(event_response, carsales_json_data)
 
+        if not processed_event:
+            logger.info("No event in the Dealersocket Event API response matched the Carsales Data")
+            return
 
         # Merge response with Carsales data
         merged_data = {
             "carsales_data": carsales_json_data,
             "entity_response": entity_response,
-            "event_response": event_response,
+            "event_response": processed_event,
             "product_dealer_id": product_dealer_id
         }
 

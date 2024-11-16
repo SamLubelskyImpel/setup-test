@@ -29,6 +29,11 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sm_client = boto3.client("secretsmanager")
 
 
+class DuplicateLeadError(Exception):
+    """The exception is raised when a lead already exists in the CRM Shared Layer."""
+    pass
+
+
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
@@ -65,7 +70,7 @@ def create_consumer(consumer_data, product_dealer_id, crm_api_key) -> dict:
         raise
 
 
-def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
+def create_lead(parsed_lead, crm_api_key) -> dict:
     """Create lead in db."""
     try:
         response = requests.post(
@@ -73,30 +78,26 @@ def create_lead(parsed_lead, consumer_id, crm_api_key) -> dict:
             headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
             json=parsed_lead,
         )
-        if response.status_code == 409:
-            logger.warning(f"Lead already exists in the CRM Shared Layer: {response.text}")
-            return {"status": "conflict", "message": response.text}
-        response.raise_for_status()
+
         logger.info(f"CRM API /leads responded with: {response.status_code}")
-        return response.json()
+
+        crm_lead_id = parsed_lead.get("crm_lead_id", None)
+
+        if response.status_code == 409:
+            logger.error(f"Could not create lead, Lead with crm_lead_id {crm_lead_id} already exists.")
+            raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+
+        response.raise_for_status()
+
+        unified_crm_lead_id = response.json().get("lead_id")
+
+        if not unified_crm_lead_id:
+            logger.error(f"Error creating lead: {parse_lead}")
+            raise Exception(f"Error creating lead: {parse_lead}")
+
+        return unified_crm_lead_id
     except Exception as e:
         logger.error(f"Error creating lead from CRM API: {e}")
-        raise
-
-
-def get_leads(lead_id, crm_api_key) -> dict:
-    """Get lead from db."""
-    try:
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/leads",
-            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
-            params={"lead_id": lead_id},
-        )
-        response.raise_for_status()
-        logger.info(f"CRM API /leads responded with: {response.status_code}")
-        return response.json()
-    except Exception as e:
-        logger.error(f"Error getting lead from CRM API: {e}")
         raise
 
 
@@ -192,19 +193,6 @@ def parse_lead(event, carsales_data) -> dict:
         raise
 
 
-def match_carsales_filter(lead_data, carsales_data) -> bool:
-    """
-    Check if the lead data matches the carsales
-    stockNumber or make, model, and year.
-
-    Since there is only one vehicle in the carsales data, I will be checking the first vehicle in the lead data.
-    """
-    return (lead_data.get("vehicles_of_interest")[0].get("stock_number") == carsales_data.get("Item").get("StockNumber") or
-            (lead_data.get("vehicles_of_interest")[0].get("make") == carsales_data.get("Item").get("Make") and
-             lead_data.get("vehicles_of_interest")[0].get("model") == carsales_data.get("Item").get("Model") and
-             lead_data.get("vehicles_of_interest")[0].get("year") == carsales_data.get("Item").get("Year")))
-
-
 def record_handler(record: SQSRecord):
     """
     Transform the lead, and upload to CRM Shared Layer
@@ -215,37 +203,26 @@ def record_handler(record: SQSRecord):
         body = loads(record.body)
 
         entity_response = body.get("entity_response")
-        events = body.get("event_response")
+        event = body.get("event_response")
         product_dealer_id = body.get("product_dealer_id")
         carsales_data = body.get("carsales_data")
 
         # Get CRM API Key
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
+        # Create consumer
+        consumer_data = parse_consumer(entity_response)
+        unified_consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
+        logger.info(f"Consumer created: {unified_consumer_id}")
+
         # Create leads
-        for event in events.get("events"):
-            lead_data = parse_lead(event, carsales_data)
+        lead_data = parse_lead(event, carsales_data)
+        # Add consumer_id to lead_data
+        lead_data["consumer_id"] = unified_consumer_id
 
-            # Check if the event matches the carsales stockNumber or make, model, and year
-            if match_carsales_filter(lead_data, carsales_data):
-                # Get existing lead using lead_id
-                existing_lead = get_leads(lead_data.get("crm_lead_id"), crm_api_key)
-
-                if existing_lead:
-                    logger.error(f"Lead already exists in the CRM Shared Layer: {existing_lead.get('crm_lead_id')}")
-                else:
-                    # Create consumer
-                    consumer_data = parse_consumer(entity_response)
-                    consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
-
-                    # Add consumer_id to lead_data
-                    lead_data["consumer_id"] = consumer_id
-
-                    # Create a lead
-                    create_lead(lead_data, consumer_id, crm_api_key)
-
-            else:
-                logger.info(f"Event does not match carsales filter: {event}")
+        # Create the lead
+        unified_lead_id = create_lead(lead_data, crm_api_key)
+        logger.info(f"Lead created: {unified_lead_id}")
     except Exception as e:
         logger.error("Error processing record")
         raise
