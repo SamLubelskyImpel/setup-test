@@ -212,7 +212,11 @@ def record_handler(record: SQSRecord):
 
         # Create consumer
         consumer_data = parse_consumer(entity_response)
-        unified_consumer_id = create_consumer(consumer_data, product_dealer_id, crm_api_key)
+        unified_consumer_id = create_consumer(
+            consumer_data,
+            product_dealer_id,
+            crm_api_key
+        )
         logger.info(f"Consumer created: {unified_consumer_id}")
 
         # Create leads
