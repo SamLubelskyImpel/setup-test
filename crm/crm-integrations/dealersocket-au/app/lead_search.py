@@ -61,14 +61,18 @@ def process_event_response(event_response: dict, carsales_json_data: dict):
     """
     try:
         events = event_response.get("events")
-        if events:
-            for event in events:
-                if match_carsales_filter(event, carsales_json_data):
-                    return event
-        else:
+        if not events:
             logger.info("No events received from Dealersocket Events API")
+            return None
+
+        for event in events:
+            if match_carsales_filter(event, carsales_json_data):
+                return event
+
+        logger.info("No matching events found in Dealersocket Events API response")
+        return None
     except Exception as e:
-        logger.error("Error processing event")
+        logger.error(f"Error processing event: {e}")
         raise
 
 
@@ -100,7 +104,7 @@ def record_handler(record: SQSRecord):
             logger.error("Missing Prospect data in raw carsales data")
             raise ValueError("Missing Prospect data in raw carsales data")
 
-        # Query event based on dealer_id, entity_id, and event
+        # Extract dealer_id
         dealer_id = carsales_json_data.get("crm_dealer_id")
 
         if not dealer_id:
@@ -133,16 +137,17 @@ def record_handler(record: SQSRecord):
             entity_id
         )
 
-        # Check if any event matches the carsales data
+        # Check if response from Event API is not None
         if not event_response:
             logger.info("No event returned by DealerSocket AU")
             return
         logger.info(f"Dealersocket Event API Response: {event_response}")
 
+        # Check if the Event API response contains events which matches the carsales data
         processed_event = process_event_response(event_response, carsales_json_data)
 
         if not processed_event:
-            logger.info("No event in the Dealersocket Event API response matched the Carsales Data")
+            logger.info("No event in the Dealersocket Event API response matches the Carsales Data")
             return
 
         # Merge response with Carsales data
