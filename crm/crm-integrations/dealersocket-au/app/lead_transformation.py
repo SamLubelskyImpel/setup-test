@@ -221,6 +221,7 @@ def record_handler(record: SQSRecord):
 
         # Create leads
         lead_data = parse_lead(event, carsales_data)
+
         # Add consumer_id to lead_data
         lead_data["consumer_id"] = unified_consumer_id
 

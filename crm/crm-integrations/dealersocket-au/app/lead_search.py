@@ -51,8 +51,7 @@ def match_carsales_filter(event, carsales_data) -> bool:
     """
     return (event.get("stockNumber") == carsales_data.get("Item").get("StockNumber") or
             (event.get("make") == carsales_data.get("Item").get("Make") and
-             event.get("model") == carsales_data.get("Item").get("Model") and
-             event.get("year") == carsales_data.get("Item").get("Year")))
+             event.get("model") == carsales_data.get("Item").get("Model")))
 
 
 def process_event_response(event_response: dict, carsales_json_data: dict):
