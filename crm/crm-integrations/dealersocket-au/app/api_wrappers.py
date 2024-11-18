@@ -16,6 +16,8 @@ from datetime import datetime
 from typing import Tuple
 import logging
 import pytz
+import xml.etree.ElementTree
+
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -121,11 +123,26 @@ class DealersocketAUApiWrapper:
         response = requests.request(
             method=method,
             url=url,
-            json=payload,
+            data=payload.encode(encoding="UTF-8"),
             headers=headers,
         )
         logger.info(f"Response from CRM: {response.status_code}")
         return response
+
+    def __remove_xml_namespace_from_tag(self, tag: str) -> str:
+        try:
+            tag = tag[tag.index("}") + 1 :]
+            return tag
+        except ValueError as exc:
+            return tag
+        
+    def __parse_dealersocket_xml_response(self, xml_str: str) -> dict:
+        return_dict = {}
+        root = xml.etree.ElementTree.fromstring(xml_str)
+        for iterator in root:
+            get_normalized_tag = self.__remove_xml_namespace_from_tag(iterator.tag)
+            return_dict[get_normalized_tag] = iterator.text
+        return return_dict
 
     def convert_utc_to_timezone(self, input_ts: str) -> Tuple[str, str]:
         """Convert UTC timestamp to dealer's local time."""
@@ -134,66 +151,80 @@ class DealersocketAUApiWrapper:
 
         if not self.__dealer_timezone:
             logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
-            new_ts = utc_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            new_ts = utc_datetime.isoformat()
         else:
             # Get the dealer timezone object, convert UTC datetime to dealer timezone
             dealer_tz = pytz.timezone(self.__dealer_timezone)
             dealer_datetime = utc_datetime.astimezone(dealer_tz)
-            new_ts = dealer_datetime.strftime('%Y-%m-%d %H:%M:%S')
+            new_ts = dealer_datetime.isoformat()
 
-        timestamp_str = new_ts.split(" ")
-        return timestamp_str[0], timestamp_str[1]
-
-    def __reschedule_appointment(self, url, appt_date, appt_time, payload):
-        """Reschedule appointment on CRM."""
-        crm_api = CrmApiWrapper()
-        existing_appointments = crm_api.get_appointments(self.__activity["lead_id"])
-        logger.info(f"Existing appointments: {existing_appointments}")
-
-        appointment = next((appt for appt in existing_appointments if appt["crm_activity_id"]), None)
-        if not appointment:
-            logger.error(f"No scheduled appointments found for lead_id: {self.__activity['lead_id']}.")
-            raise Exception(f"Conflict creating appointment for lead_id: {self.__activity['lead_id']}. No existing scheduled appointments found.")
-
-        cancel_url = "{}/lead/{}/appointment/sales/{}".format(
-            self.__api_url, self.__activity["crm_lead_id"], appointment["crm_activity_id"]
-        )
-        logger.info(f"Cancelling appointment. URL: {cancel_url}")
-        response = self.__call_api(cancel_url, method="DELETE")
-        response.raise_for_status()
-
-        logger.info("Retry creating appointment.")
-        response = self.__call_api(url, payload)
-        response.raise_for_status()
-        return response.json()
+        return new_ts
 
     def __create_appointment(self):
         """Create appointment on CRM."""
-        url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
-        appt_date, appt_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
-        request_id = str(uuid4())
+        url = "{}/Activity".format(self.__api_url)
+        appt_date_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
 
-        payload = {
-            "apptDate": appt_date,
-            "apptTime": appt_time,
-            "salesmanApiID": self.__salesperson["crm_salesperson_id"],
-            "note": self.__activity["notes"],
-            "externalCreatedByName": "ImpelCRM",
-            "externalID": request_id,
-        }
+        appt_template = """
+            <ActivityInsert xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                <Vendor>Pulsar</Vendor>
+                <DealerId>{dealer_id}</DealerId>
+                <ActivityType>Appointment</ActivityType>
+                <EntityId>{customer_id}</EntityId>
+                <EventId>{lead_id}</EventId>
+                <Status>Open</Status>
+                <DueDateTime>{appt_date_time}</DueDateTime>
+                <AssignedToUser>{salesperson}</AssignedToUser>
+                <Note>
+                    <![CDATA[{note}]]>
+                </Note>
+                {activity_id}
+            </ActivityInsert>
+        """
+
+        payload = appt_template.format(
+            dealer_id=self.__activity['crm_dealer_id'],
+            customer_id=self.__activity['crm_consumer_id'],
+            lead_id=self.__activity['crm_lead_id'],
+            appt_date_time=appt_date_time,
+            salesperson=self.__salesperson["crm_salesperson_id"],
+            note=self.__activity['notes'],
+            activity_id=""
+        )
 
         logger.info(f"Payload to CRM: {payload}")
         response = self.__call_api(url, payload)
-        if response.status_code == 409:
-            logger.warning(f"Appointment already exists for lead_id: {self.__activity['crm_lead_id']}. Rescheduling...")
-            response_json = self.__reschedule_appointment(url, appt_date, appt_time, payload)
-        else:
-            response.raise_for_status()
-            response_json = response.json()
+        logger.info("[dealersocket_appointment] response text", response.text)
+        dealersocket_response_dict = self.__parse_dealersocket_xml_response(response.text)
+        error_code = dealersocket_response_dict.get("ErrorCode", "")
+        # check if activity already exists
+        if error_code == "ACTIVITY_EXISTS":
+            print("INFO [dealersocket_insert_appointment] update appointment")
+            activity_id = dealersocket_response_dict.get("ErrorMessage").split(
+                "ActivityId:"
+            )[-1]
+            payload = appt_template.format(
+                dealer_id=self.__activity['crm_dealer_id'],
+                customer_id=self.__activity['crm_consumer_id'],
+                lead_id=self.__activity['crm_lead_id'],
+                appt_date_time=appt_date_time,
+                salesperson=self.__salesperson["crm_salesperson_id"],
+                note=self.__activity['notes'],
+                activity_id=activity_id
+            )
+            
+            logger.info(f"Payload to CRM: {payload}")
+            response = self.__call_api(url, payload, "PUT")
+            
+            logger.info("[dealersocket_appointment] response text", response.text)
+            dealersocket_response_dict = self.__parse_dealersocket_xml_response(response.text)
+            logger.info(
+                "INFO [dealersocket_insert_appointment] update appointment response text",
+                response.text,
+            )
+        response.raise_for_status()
 
-        logger.info(f"Response from CRM: {response_json}")
-
-        return str(response_json.get("appointmentApiID", ""))
+        return dealersocket_response_dict
 
     def __insert_note(self):
         """Insert note on CRM."""
@@ -201,44 +232,65 @@ class DealersocketAUApiWrapper:
         url = "{}/WorkNote".format(self.__api_url)
 
         payload = """
-        <WorkNoteInsert xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-            <Vendor>Sample Return</Vendor>
-            <DealerId>1234</DealerId>
-            <EntityId>4678</EntityId>
-            <EventId>9012</EventId>
-            <BatchId>0</BatchId>
-            <ExternalId type="CallId">AB1234</ExternalId>
-            <Note>
-            <![CDATA[<span style='color:Red'>Sample Work Note, Time: 2014-01-
-            14 18:44:57Z</span>]]>
-            </Note>
-        </WorkNoteInsert>
-        """
+            <WorkNoteInsert xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                <Vendor>Impel</Vendor>
+                <DealerId>{dealer_id}</DealerId>
+                <EntityId>{customer_id}</EntityId>
+                <EventId>{lead_id}</EventId>
+                <BatchId>0</BatchId>
+                <Note>
+                    <![CDATA[{note}]]>
+                </Note>
+            </WorkNoteInsert>
+        """.format(
+            dealer_id=self.__activity['crm_dealer_id'],
+            customer_id=self.__activity['crm_consumer_id'],
+            lead_id=self.__activity['crm_lead_id'],
+            note=self.__activity['notes']
+        )
         logger.info(f"Payload to CRM: {payload}")
 
         response = self.__call_api(url, payload)
         response.raise_for_status()
-
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
-
-        return str(response_json.get("leadRemarkID", "") or response_json.get("actionLinkKey", ""))
+        logger.info("INFO [dealersocket_worknote] response text", response.text)
+        return self.__parse_dealersocket_xml_response(response.text)
 
     def __create_outbound_call(self):
         """Create outbound call on CRM."""
-        url = "{}/lead/{}/contact/remark/clockstop".format(self.__api_url, self.__activity["crm_lead_id"])
+        url = "{}/Activity".format(self.__api_url)
 
-        payload = {
-            "remark": self.__activity["notes"] if self.__activity["notes"] else OUTBOUND_CALL_DEFAULT_MESSAGE
-        }
+        outbound_call_time = self.convert_utc_to_timezone(datetime.now().isoformat())
+
+        payload = """
+            <ActivityInsert xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                <Vendor>Pulsar</Vendor>
+                <DealerId>{dealer_id}</DealerId>
+                <ActivityType>Outbound_Call</ActivityType>
+                <EntityId>{customer_id}</EntityId>
+                <EventId>{lead_id}</EventId>
+                <Status>Completed</Status>
+                <DueDateTime>{due_datetime}</DueDateTime>
+                <AssignedToUser>{salesperson}</AssignedToUser>
+                <Note>
+                    <![CDATA[{note}]]>
+                </Note>
+            </ActivityInsert>
+        """.format(
+            dealer_id=self.__activity['crm_dealer_id'],
+            customer_id=self.__activity['crm_consumer_id'],
+            lead_id=self.__activity['crm_lead_id'],
+            due_datetime=outbound_call_time,
+            salesperson=self.__salesperson["crm_salesperson_id"],
+            note=self.__activity['notes']
+        )
         logger.info(f"Payload to CRM: {payload}")
+
         response = self.__call_api(url, payload)
         response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("leadRemarkID", ""))
+        logger.info("INFO [dealersocket_outbound_call] response text", response.text)
+        return self.__parse_dealersocket_xml_response(response.text)
 
     def create_activity(self):
         """Create activity on CRM."""
