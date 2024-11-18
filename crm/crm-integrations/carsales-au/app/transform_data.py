@@ -119,7 +119,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "exterior_color": vehicle.get('Colour', None),
             "price": vehicle.get('Price', None),
             "odometer_units": vehicle.get('Odometer', None),
-            "condition": vehicle.get('LeadType')
+            "condition": json_data.get('LeadType')
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
@@ -127,7 +127,12 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
         db_lead["vehicles_of_interest"] = db_vehicles
 
-        consumer = json_data.get('Prospect')
+        consumer = json_data.get('Prospect', None)
+
+        if not consumer:
+            logger.warning(f"No Consumer Provided. Skipping lead {crm_lead_id}")
+            return []
+
         db_consumer = {
             "first_name": consumer.get('FirstName', None),
             "last_name": consumer.get('LastName', None),
@@ -136,13 +141,14 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "address": consumer.get('Address', None),
             "country": "AU",
             "city": consumer.get('Suburb', None),
-            "postal_code": consumer.get('PostalCode', None)
+            "postal_code": consumer.get('Postcode', None)
         }
-        db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
         if not db_consumer["email"] and not db_consumer["phone"]:
             logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
-            return entries
+            return []
+
+        db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
         salesperson = json_data.get('Assignment')
         salesperson_name = salesperson.get('Name', '').split()
@@ -203,6 +209,7 @@ def record_handler(record: SQSRecord) -> None:
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
+        entries = []
         entries = parse_json_to_entries(product_dealer_id, json_data)
         logger.info(f"Transformed entries: {entries}")
 
