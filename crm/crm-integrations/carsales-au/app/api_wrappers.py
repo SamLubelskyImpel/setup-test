@@ -15,7 +15,6 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-OUTBOUND_CALL_DEFAULT_MESSAGE = "Sales AI email/text sent. Clock stopped."
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -110,7 +109,7 @@ class CarsalesApiWrapper:
             logger.info(f"Response from CRM: {response_json}")
         except Exception as e:
             logger.error(f"Failed to create outbound call for lead {crm_lead_id}: {e}")
-            return  # Explicitly indicate end of function if preferred
+            return
 
     def create_activity(self):
         """Create activity on CRM."""
