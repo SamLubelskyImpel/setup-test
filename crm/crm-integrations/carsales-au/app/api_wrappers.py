@@ -9,6 +9,7 @@ from os import environ
 from json import loads
 from boto3 import client
 import logging
+import base64
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -59,7 +60,7 @@ class CarsalesApiWrapper:
     """Carsales API Wrapper."""
 
     def __init__(self, **kwargs):
-        self.__api_url, self.__api_password = self.get_secrets()
+        self.__api_url, self.__api_username, self.__api_password = self.get_secrets()
         self.__activity = kwargs.get("activity")
 
     def get_secrets(self):
@@ -68,25 +69,34 @@ class CarsalesApiWrapper:
         )
         secret = loads(secret["SecretString"])[str(SECRET_KEY)]
         secret_data = loads(secret)
-        logger.info(f"secret_data:{secret_data}")
+        logger.info(f"secret_data: {secret_data}")
         return (
             secret_data["API_URL"],
+            secret_data["API_USERNAME"],
             secret_data["API_PASSWORD"]
         )
 
     def __call_api(self, url, payload=None, method="POST"):
+        auth_string = f"{self.__api_username}:{self.__api_password}"
+        encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
+
         headers = {
             "Content-Type": "application/json",
+            "Authorization": f"Basic {encoded_auth}",
         }
-        # TODO: CREATE AUTH, WAITING ON CLIENT 
-        response = requests.request(
-            method=method,
-            url=url,
-            json=payload,
-            headers=headers,
-        )
-        logger.info(f"Response from CRM: {response.status_code}")
-        return response
+
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                json=payload,
+                headers=headers,
+            )
+            logger.info(f"Response from CRM: {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"Error calling API: {e}")
+            raise
 
     def __create_outbound_call(self):
         """Create outbound call on CRM."""
