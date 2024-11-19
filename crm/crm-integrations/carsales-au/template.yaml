@@ -87,14 +87,12 @@ Resources:
                   - "s3:PutObject"
                   - "s3:DeleteObject"
                 Resource:
-                # - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
-                - !Sub "arn:aws:s3:::crm-integrations-test/raw*"
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
               - Effect: "Allow"
                 Action:
                   - "s3:GetObject"
                 Resource:
-                # - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-                - !Sub "arn:aws:s3:::crm-integrations-test*"
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -220,8 +218,7 @@ Resources:
         detail:
           bucket:
             name:
-              # - !Sub "crm-integrations-${Environment}"
-              - !Sub "crm-integrations-test"
+              - !Sub "crm-integrations-${Environment}"
           object:
             key:
               - { "prefix": "raw/carsales-au/" }
