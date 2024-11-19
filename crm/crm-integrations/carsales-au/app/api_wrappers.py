@@ -100,7 +100,7 @@ class CarsalesApiWrapper:
     def __create_outbound_call(self):
         """Create outbound call on CRM."""
         crm_lead_id = self.__activity.get('crm_lead_id')
-        url = "{}/v2/lead/{}/status/CONTACT,".format(self.__api_url, crm_lead_id)
+        url = "{}/v2/lead/{}/status/CONTACT".format(self.__api_url, crm_lead_id)
 
         try:
             response = self.__call_api(url)
