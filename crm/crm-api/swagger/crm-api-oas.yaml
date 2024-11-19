@@ -805,7 +805,13 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/integrationPartnerName"
+        - name: integration_partner_name
+          in: query
+          description: The name of the integration partner assigned by Impel. Can query for multiple partner names when concatenated by the | operator
+          required: true
+          schema:
+            type: string
+            example: "TESTCRM"
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.

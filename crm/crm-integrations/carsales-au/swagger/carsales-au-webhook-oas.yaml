@@ -1,0 +1,148 @@
+openapi: "3.0.0"
+info:
+  version: '1'
+  title: Carsales AU Webhook
+  description: API to handle requests from the Carsales Lead Service
+#{{CARSALES_AU_WEBHOOK_AWS_VALIDATION}}
+paths:
+  /leads:
+    post:
+      operationId: new-lead
+      summary: Submit a new lead
+      description: Endpoint to submit a request for a new lead
+      #{{NEW_LEAD_LAMBDA_INFO}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Lead'
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Lead:
+      type: object
+      required:
+        - SellerIdentifier
+      properties:
+        Identifier:
+          type: string
+          format: uuid
+        SellerIdentifier:
+          type: string
+          format: uuid
+        Created:
+          type: string
+          format: date-time
+        Modified:
+          type: string
+          format: date-time
+        Service:
+          type: string
+        LeadType:
+          type: string
+        ItemType:
+          type: string
+        RequestType:
+          type: string
+        Status:
+          type: string
+        Prospect:
+          $ref: '#/components/schemas/Prospect'
+        Item:
+          $ref: '#/components/schemas/Item'
+        Assignment:
+          $ref: '#/components/schemas/Assignment'
+        Tags:
+          type: array
+          items:
+            type: string
+        Comments:
+          type: string
+        History:
+          type: array
+          items:
+            $ref: '#/components/schemas/History'
+
+    Prospect:
+      type: object
+      properties:
+        Title:
+          type: string
+        FirstName:
+          type: string
+        LastName:
+          type: string
+        CompanyName:
+          type: string
+        Address:
+          type: string
+        Suburb:
+          type: string
+        State:
+          type: string
+        Postcode:
+          type: string
+        Email:
+          type: string
+          format: email
+        HomePhone:
+          type: string
+        MobilePhone:
+          type: string
+        WorkPhone:
+          type: string
+        FaxNumber:
+          type: string
+
+    History:
+      type: object
+      properties:
+        Id:
+          type: integer
+        Type:
+          type: string
+        Created:
+          type: string
+          format: date-time
+        UserName:
+          type: string
+        Note:
+          type: string
+        Status:
+          type: string
+
+    Item:
+      type: object
+      properties:
+        StockNumber:
+          type: string
+        Make:
+          type: string
+        Model:
+          type: string
+        RedbookCode:
+          type: string
+
+    Assignment:
+      type: object
+      properties:
+        Email:
+          type: string
+          format: email
+        Name:
+          type: string
+        Assigned:
+          type: string
+          format: date-time
