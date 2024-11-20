@@ -72,33 +72,27 @@ def create_consumer(consumer_data, product_dealer_id, crm_api_key) -> dict:
 
 def create_lead(parsed_lead, crm_api_key) -> dict:
     """Create lead in db."""
-    try:
-        response = requests.post(
-            url=f"https://{CRM_API_DOMAIN}/leads",
-            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
-            json=parsed_lead,
-        )
+    response = requests.post(
+        url=f"https://{CRM_API_DOMAIN}/leads",
+        headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+        json=parsed_lead,
+    )
 
-        logger.info(f"CRM API /leads responded with: {response.status_code}")
+    logger.info(f"CRM API /leads responded with: {response.status_code}")
 
-        crm_lead_id = parsed_lead.get("crm_lead_id", None)
+    crm_lead_id = parsed_lead.get("crm_lead_id")
 
-        if response.status_code == 409:
-            logger.error(f"Could not create lead, Lead with crm_lead_id {crm_lead_id} already exists.")
-            raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+    if response.status_code == 409:
+        raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
-        response.raise_for_status()
+    response.raise_for_status()
 
-        unified_crm_lead_id = response.json().get("lead_id")
+    unified_crm_lead_id = response.json().get("lead_id")
 
-        if not unified_crm_lead_id:
-            logger.error(f"Error creating lead: {parse_lead}")
-            raise Exception(f"Error creating lead: {parse_lead}")
+    if not unified_crm_lead_id:
+        raise Exception(f"Error creating lead: {parse_lead}")
 
-        return unified_crm_lead_id
-    except Exception as e:
-        logger.error(f"Error creating lead from CRM API: {e}")
-        raise
+    return unified_crm_lead_id
 
 
 def parse_consumer(entity_data) -> dict:
@@ -228,8 +222,12 @@ def record_handler(record: SQSRecord):
         # Create the lead
         unified_lead_id = create_lead(lead_data, crm_api_key)
         logger.info(f"Lead created: {unified_lead_id}")
+
+    except DuplicateLeadError as e:
+        logger.warning(f"Error creating lead: {e}")
+        return
     except Exception as e:
-        logger.error("Error processing record")
+        logger.error(f"Error processing record: {e}")
         raise
 
 

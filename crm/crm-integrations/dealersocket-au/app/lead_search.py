@@ -41,8 +41,7 @@ def send_message_to_queue(queue_url: str, message: dict):
         logger.info(f"Message sent: {response}")
         return response
     except Exception as e:
-        logger.error(f"Error sending message to queue: {queue_url}")
-        raise
+        raise Exception(f"Error sending message to queue: {queue_url}: {e}")
 
 
 def match_carsales_filter(event, carsales_data) -> bool:
@@ -58,21 +57,19 @@ def process_event_response(event_response: dict, carsales_json_data: dict):
     """
     Check if any event matches the carsales data
     """
-    try:
-        events = event_response.get("events")
-        if not events:
-            logger.info("No events received from Dealersocket Events API")
-            return None
+    events = event_response.get("events")
+    if not events:
+        raise Exception("No events received from Dealersocket Events API")
 
-        for event in events:
-            if match_carsales_filter(event, carsales_json_data):
-                return event
+    for event in events:
+        if match_carsales_filter(event, carsales_json_data):
+            matched_event = event
+            break
+    else:
+        raise Exception("No matching events found in Dealersocket Events API response")
 
-        logger.info("No matching events found in Dealersocket Events API response")
-        return None
-    except Exception as e:
-        logger.error(f"Error processing event: {e}")
-        raise
+    logger.info(f"Matched Event: {matched_event}")
+    return matched_event
 
 
 def record_handler(record: SQSRecord):
@@ -100,14 +97,12 @@ def record_handler(record: SQSRecord):
         prospect = carsales_json_data.get("Prospect")
 
         if not prospect:
-            logger.error("Missing Prospect data in raw carsales data")
             raise ValueError("Missing Prospect data in raw carsales data")
 
         # Extract dealer_id
         dealer_id = carsales_json_data.get("crm_dealer_id")
 
         if not dealer_id:
-            logger.error("Missing crm_dealer_id in raw carsales data")
             raise ValueError("Missing crm_dealer_id in raw carsales data")
 
         # Initialize DealerSocket client
@@ -127,7 +122,6 @@ def record_handler(record: SQSRecord):
             .get("PartyID")
 
         if not entity_id:
-            logger.error("Missing entity_id in entity response")
             raise ValueError("Missing entity_id in entity response")
 
         event_response = dealersocket_client.query_event(
@@ -138,16 +132,12 @@ def record_handler(record: SQSRecord):
 
         # Check if response from Event API is not None
         if not event_response:
-            logger.info("No event returned by DealerSocket AU")
-            return
+            raise Exception("No event returned by DealerSocket AU")
+
         logger.info(f"Dealersocket Event API Response: {event_response}")
 
         # Check if the Event API response contains events which matches the carsales data
         processed_event = process_event_response(event_response, carsales_json_data)
-
-        if not processed_event:
-            logger.info("No event in the Dealersocket Event API response matches the Carsales Data")
-            return
 
         # Merge response with Carsales data
         merged_data = {
