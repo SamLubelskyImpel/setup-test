@@ -204,6 +204,7 @@ def parse_json_to_entries(json_data, s3_uri):
         customers = default_get(entry, "customers", [])
         if customers:
             for customer in customers:
+                db_consumer["dealer_customer_no"] = default_get(customer, "id")
                 db_consumer["first_name"] = default_get(customer, "firstName")
                 db_consumer["last_name"] = default_get(customer, "lastName")
                 db_consumer["email"] = default_get(customer, "email")

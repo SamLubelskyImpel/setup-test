@@ -25,7 +25,7 @@ def convert_unix_to_timestamp(unix_time):
     """Convert unix time to datetime object"""
     if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
         return None
-    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.utcfromtimestamp(unix_time / 1000)
 
 
 def parse_json_to_entries(json_data, s3_uri):
@@ -33,9 +33,9 @@ def parse_json_to_entries(json_data, s3_uri):
     entries = []
 
     dms_id = None
-    for repair_order in json_data:
+    for appointment in json_data:
         db_dealer_integration_partner = {}
-        db_service_repair_order = {}
+        db_service_appointment = {}
         db_vehicle = {}
         db_consumer = {}
         db_op_codes = []
@@ -48,77 +48,50 @@ def parse_json_to_entries(json_data, s3_uri):
             "s3_url": s3_uri,
         }
 
-        dms_id = default_get(repair_order, "dms_id")  # Added to payload from parent lambda
+        dms_id = default_get(appointment, "dms_id")  # Added to payload from parent lambda
         db_dealer_integration_partner["dms_id"] = dms_id
 
-        db_service_repair_order["repair_order_no"] = default_get(
-            repair_order, "repairOrderNumber"
+        db_service_appointment["appointment_no"] = default_get(
+            appointment, "appointmentNumber"
         )
-        created_time = default_get(repair_order, "createdTime")
-        db_service_repair_order["ro_open_date"] = convert_unix_to_timestamp(
-            created_time
-        )
-        db_service_repair_order["ro_close_date"] = default_get(
-            repair_order, "closedTime"
-        )
-        closed_time = default_get(repair_order, "closedTime")
-        db_service_repair_order["ro_close_date"] = convert_unix_to_timestamp(
-            closed_time
-        )
+        appointment_time = default_get(appointment, "appointmentDateTime")
+        converted_appt_time = convert_unix_to_timestamp(appointment_time)
+        if converted_appt_time:
+            db_service_appointment["appointment_time"] = converted_appt_time.strftime("%H:%M:%S")
+            db_service_appointment["appointment_date"] = converted_appt_time.strftime("%Y-%m-%d")
 
-        primary_advisor = default_get(repair_order, "primaryAdvisor", [])
-        for advisor in primary_advisor:
-            first_name = default_get(advisor, "firstName")
-            last_name = default_get(advisor, "lastName")
-            if first_name or last_name:
-                db_service_repair_order["advisor_name"] = f"{first_name} {last_name}"
+        vehicle = default_get(appointment, "vehicle", {})
+        db_service_appointment["last_ro_date"] = default_get(vehicle, "lastServiceDate")
 
-        invoice = default_get(repair_order, "invoice", {})
-        db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
-        customer_pay = default_get(invoice, "customerPay", {})
-        db_service_repair_order["consumer_total_amount"] = default_get(
-            customer_pay, "amount"
-        )
-        warranty_pay = default_get(invoice, "warrantyPay", {})
-        db_service_repair_order["warranty_total_amount"] = default_get(
-            warranty_pay, "amount"
-        )
-
-        txn_pay_type_arr = set()
-        comment = set()
-        jobs = default_get(repair_order, "jobs", [])
-        for job in jobs:
-            pay_type = default_get(job, "payType")
-            if pay_type:
-                txn_pay_type_arr.add(pay_type)
-            concern = default_get(job, "concern")
-            if concern:
-                comment.add(concern)
-            operations = default_get(job, "operations", [])
-            for operation in operations:
-                db_op_code = {}
-                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
-                db_op_code["op_code|op_code_desc"] = (default_get(operation, "opcodeDescription") or "")[:305]
-                db_op_codes.append(db_op_code)
-
-        db_service_repair_order["txn_pay_type"] = ",".join(list(txn_pay_type_arr))
-        db_service_repair_order["comment"] = ",".join(list(txn_pay_type_arr))
-
-        vehicle = default_get(repair_order, "vehicle", {})
         db_vehicle["vin"] = default_get(vehicle, "vin")
         db_vehicle["oem_name"] = default_get(vehicle, "make")
         db_vehicle["make"] = default_get(vehicle, "make")
         db_vehicle["model"] = default_get(vehicle, "model")
-        db_vehicle["year"] = default_get(vehicle, "year")
-        mileage_in = default_get(vehicle, "mileageIn")
-        if default_get(mileage_in, "unit", "").upper() == "MI":
-            db_vehicle["mileage"] = default_get(mileage_in, "value")
+        year_field = default_get(vehicle, "year")
+        year = int(year_field) if year_field and year_field.isdigit() else None
+        db_vehicle["year"] = year
+        db_vehicle["type"] = default_get(vehicle, "trim")
+        db_vehicle["vehicle_class"] = default_get(vehicle, "trim")
+        mileage_field = default_get(vehicle, "mileage")
+        mileage = float(mileage_field) if mileage_field and mileage_field.replace(".", "", 1).isdigit() else None
+        db_vehicle["mileage"] = mileage
+        db_vehicle["stock_num"] = default_get(vehicle, "stockNumber")
 
-        customer = default_get(repair_order, "customer", {})
+        if mileage and year:
+            current_year = datetime.now().year
+            if mileage < 3000 and year >= current_year-1:
+                db_vehicle["new_or_used"] = "N"
+            else:
+                db_vehicle["new_or_used"] = "U"
+        else:
+            db_vehicle["new_or_used"] = None
+
+        customer = default_get(appointment, "customer", {})
         db_consumer["dealer_customer_no"] = default_get(customer, "id")
         db_consumer["first_name"] = default_get(customer, "firstName")
         db_consumer["last_name"] = default_get(customer, "lastName")
         db_consumer["email"] = default_get(customer, "email")
+
         phones = default_get(customer, "phones", [])
         for phone in phones:
             phone_type = default_get(phone, "phoneType", "")
@@ -127,25 +100,30 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_consumer["cell_phone"] = phone_number
             elif phone_type.upper() == "HOME":
                 db_consumer["home_phone"] = phone_number
+
         address = default_get(customer, "address", {})
+        db_consumer["address"] = default_get(address, "line1")
         db_consumer["city"] = default_get(address, "city")
         db_consumer["state"] = default_get(address, "state")
-        db_consumer["postal_code"] = default_get(address, "zip")
-        address_line1 = default_get(address, "line1")
-        address_line2 = default_get(address, "line2")
-        if address_line1 and address_line2:
-            db_consumer["address"] = f"{address_line1} {address_line2}"
-        elif address_line1:
-            db_consumer["address"] = address_line1
+        db_consumer["postal_code"] = default_get(address, "zipCode")
+
+        jobs = default_get(appointment, "jobs", [])
+        for job in jobs:
+            operations = default_get(job, "operations", [])
+            for operation in operations:
+                db_op_code = {}
+                db_op_code["op_code|op_code"] = default_get(operation, "opcode")
+                db_op_code["op_code|op_code_desc"] = (default_get(operation, "opcodeDescription") or "")[:305]
+                db_op_codes.append(db_op_code)
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = metadata
-        db_service_repair_order["metadata"] = metadata
+        db_service_appointment["metadata"] = metadata
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
-            "service_repair_order": db_service_repair_order,
+            "appointment": db_service_appointment,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
             "op_codes.op_codes": db_op_codes
@@ -155,7 +133,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
 
 def lambda_handler(event, context):
-    """Transform tekion repair order files."""
+    """Transform tekion appointment files."""
     try:
         logger.info(event)
         for record in event["Records"]:
@@ -170,7 +148,7 @@ def lambda_handler(event, context):
                 entries, dms_id = parse_json_to_entries(json_data, decoded_key)
                 if not dms_id:
                     raise RuntimeError("No dms_id found")
-                upload_unified_json(entries, "repair_order", decoded_key, dms_id)
+                upload_unified_json(entries, "appointment", decoded_key, dms_id)
     except Exception:
-        logger.exception(f"Error transforming tekion repair order file {event}")
+        logger.exception(f"Error transforming tekion appointment file {event}")
         raise

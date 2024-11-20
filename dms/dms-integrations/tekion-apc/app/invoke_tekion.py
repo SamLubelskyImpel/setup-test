@@ -15,7 +15,8 @@ APIS = {
     "daily": [
         environ["REPAIR_ORDER_QUEUE"],
         environ["DEALS_QUEUE"],
-        environ["HISTORICAL_DATA_QUEUE"]
+        environ["HISTORICAL_DATA_QUEUE"],
+        environ["APPOINTMENTS_QUEUE"],
     ]
 }
 

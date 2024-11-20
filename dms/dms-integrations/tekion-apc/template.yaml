@@ -157,6 +157,7 @@ Resources:
                 - !GetAtt RepairOrderQueue.Arn
                 - !GetAtt DealsQueue.Arn
                 - !GetAtt HistoricalDataQueue.Arn
+                - !GetAtt AppointmentsQueue.Arn
             - Sid: AllowSecrets
               Effect: Allow
               Action:
@@ -172,6 +173,7 @@ Resources:
           REPAIR_ORDER_QUEUE: !Ref RepairOrderQueue
           DEALS_QUEUE: !Ref DealsQueue
           HISTORICAL_DATA_QUEUE: !Ref HistoricalDataQueue
+          APPOINTMENTS_QUEUE: !Ref AppointmentsQueue
       Events:
         DailyInvoke:
           Type: Schedule
@@ -847,6 +849,316 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt TekionFormatHistoricalFIDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+  
+  AppointmentsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-AppointmentsQueue"
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AppointmentsDLQ.Arn
+        maxReceiveCount: 5
+  
+  AppointmentsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-AppointmentsDLQ"
+      MessageRetentionPeriod: 1209600
+
+  AppointmentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-Appointments"
+      Description: Tekion Service Appointments Data Pull
+      CodeUri: app/
+      Handler: appointment.appointment.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowSecrets
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
+                  ]
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            - Sid: AllowInvokeFunction
+              Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt RefreshTokenLambda.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt AppointmentsQueue.Arn
+
+  AppointmentsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-AppointmentsDLQAlarm"
+      AlarmDescription: There are messages in the Tekion service appointments DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt AppointmentsDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  TekionFormatSADLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatSADLQ"
+      MessageRetentionPeriod: 1209600
+
+  TekionFormatSAQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: TekionFormatSADLQ
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatSAQueue"
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionFormatSADLQ.Arn
+        maxReceiveCount: 5
+
+  TekionFormatSAQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt TekionFormatSAQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/service_appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  TekionFormatSAQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionFormatSAQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: TekionFormatSAQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt TekionFormatSAQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  TekionFormatSAInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatSAInsert"
+      Description: Format Tekion SA data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: appointment.appointment_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TekionFormatSAQueue.Arn
+
+  TekionFormatSADLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatSADLQAlarm"
+      AlarmDescription: Messages are in the Tekion format SA lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TekionFormatSADLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  TekionFormatHistoricalSADLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalSADLQ"
+      MessageRetentionPeriod: 1209600
+
+  TekionFormatHistoricalSAQueue:
+    Type: AWS::SQS::Queue
+    DependsOn: TekionFormatHistoricalSADLQ
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalSAQueue"
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TekionFormatHistoricalSADLQ.Arn
+        maxReceiveCount: 5
+
+  TekionFormatHistoricalSAQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !If [ IsProd,
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                    !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                  ]
+      Protocol: sqs
+      RawMessageDelivery: true
+      Endpoint: !GetAtt TekionFormatHistoricalSAQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/historical/service_appointment"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  TekionFormatHistoricalSAQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref TekionFormatHistoricalSAQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: TekionFormatHistoricalSAQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt TekionFormatHistoricalSAQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [ IsProd,
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
+                            !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
+                          ]
+
+  TekionFormatHistoricalSAInsertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalSAInsert"
+      Description: Format Tekion Historical SA data to the unified s3 bucket.
+      CodeUri: app/
+      Handler: historical.historical_appointment_format.lambda_handler
+      Timeout: 900
+      MemorySize: 1024
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetDBInfo
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        ]
+            - Sid: S3
+              Effect: Allow
+              Action:
+                - s3:*
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TekionFormatHistoricalSAQueue.Arn
+
+  TekionFormatHistoricalSADLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalSADLQAlarm"
+      AlarmDescription: Messages are in the Tekion format Historical SA lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TekionFormatHistoricalSADLQ.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS

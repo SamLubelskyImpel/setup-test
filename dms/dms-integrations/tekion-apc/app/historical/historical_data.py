@@ -69,6 +69,8 @@ def process_file(file, ftp, dealer_id, s3_date_path):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
             elif any(keyword in file for keyword in ["VehicleSales", "VSH", "SALES"]):
                 s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
+            elif any(keyword in file for keyword in ["Appointment", "SA", "appointment"]):
+                s3_key = f"tekion-apc/historical/service_appointment/{dealer_id}/{s3_date_path}/{file}"
             else:
                 raise ValueError(f"Unknown file type for file {file}")
 

@@ -133,6 +133,10 @@ class TekionWrapper:
         """Retrieve Deals by dealer id"""
         return self._call_tekion("openapi/v3.1.0/deals", next_fetch_key=next_fetch_key)
 
+    def get_appointments(self, next_fetch_key=""):
+        """Retrieve Appointments by dealer id"""
+        return self._call_tekion("openapi/v3.1.0/appointments", next_fetch_key=next_fetch_key)
+
     def upload_data(self, api_data, key):
         """Upload API data to S3."""
         if api_data:
