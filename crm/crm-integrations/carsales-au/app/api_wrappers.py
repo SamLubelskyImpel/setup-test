@@ -13,47 +13,10 @@ import base64
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
-
-
-class CrmApiWrapper:
-    """CRM API Wrapper."""
-
-    def __init__(self) -> None:
-        self.partner_id = CRM_API_SECRET_KEY
-        self.api_key = self.get_secrets()
-
-    def get_secrets(self):
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
-        )
-        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
-        secret_data = loads(secret)
-        logger.info(f"secret_data is: {secret_data}")
-        return secret_data["api_key"]
-
-    def __run_get(self, endpoint: str):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            },
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def get_salesperson(self, lead_id: int):
-        salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
-        if not salespersons:
-            return None
-
-        return salespersons[0]
 
 class CarsalesApiWrapper:
     """Carsales API Wrapper."""
@@ -68,7 +31,7 @@ class CarsalesApiWrapper:
         )
         secret = loads(secret["SecretString"])[str(SECRET_KEY)]
         secret_data = loads(secret)
-        logger.info(f"secret_data: {secret_data}")
+
         return (
             secret_data["API_URL"],
             secret_data["API_USERNAME"],
@@ -120,12 +83,3 @@ class CarsalesApiWrapper:
                 f"Carsales CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None
-
-    def get_salespersons(self):
-        url = f"{self.__api_url}/employee"
-        response = self.__call_api(url=url, method="GET")
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
-
-        return response_json

@@ -10,7 +10,7 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-from api_wrappers import CrmApiWrapper, CarsalesApiWrapper
+from api_wrappers import CarsalesApiWrapper
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -21,21 +21,15 @@ logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
-crm_api = CrmApiWrapper()
-
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
     logger.info(f"Record: {record}")
     try:
         activity = loads(record['body'])
-        salesperson = crm_api.get_salesperson(activity["lead_id"])
-        if not salesperson and activity.get("activity_type", "") == "appointment":
-            logger.warning(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
-            return
 
-        logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
+        logger.info(f"Activity: {activity}")
 
-        carsales_crm_api = CarsalesApiWrapper(activity=activity, salesperson=salesperson)
+        carsales_crm_api = CarsalesApiWrapper(activity=activity)
         carsales_crm_api.create_activity()
 
     except Exception as e:
