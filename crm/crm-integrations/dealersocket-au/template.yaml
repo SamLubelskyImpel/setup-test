@@ -24,7 +24,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        INTEGRATIONS_BUCKET: !If [ IsProd, "crm-integrations-prod", "crm-integrations-test" ]
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -33,7 +33,7 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
-        LEAD_TRANSFORMATION_QUEUE_URL: !Ref LeadTransformationQueue
+        # LEAD_TRANSFORMATION_QUEUE_URL: !Ref LeadTransformationQueue
         DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
         DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
         DEALERSOCKET_VENDOR: "random_value"
@@ -93,6 +93,11 @@ Resources:
                   - "s3:ListBucket"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:s3:::crm-integrations-prod*",
+                    !Sub "arn:aws:s3:::crm-integrations-test*"
+                  ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -287,3 +292,38 @@ Resources:
       EventSourceArn: !GetAtt LeadTransformationQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt LeadTransformation.Arn
+
+  LeadUpdatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealersocket-au-${Environment}-LeadUpdates
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  LeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadUpdates"
+
+  LeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub dealersocket-au-${Environment}-LeadUpdates
+      AlarmDescription: DealerSocket AU Lead Updates failed once within 15 minutes
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LeadUpdatesFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
