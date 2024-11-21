@@ -54,12 +54,9 @@ def parse_json_to_entries(json_data, s3_uri):
         db_service_repair_order["repair_order_no"] = default_get(
             repair_order, "repairOrderNumber"
         )
-        created_time = default_get(repair_order, "createdTime")
+        created_time = default_get(repair_order, "checkinTime")
         db_service_repair_order["ro_open_date"] = convert_unix_to_timestamp(
             created_time
-        )
-        db_service_repair_order["ro_close_date"] = default_get(
-            repair_order, "closedTime"
         )
         closed_time = default_get(repair_order, "closedTime")
         db_service_repair_order["ro_close_date"] = convert_unix_to_timestamp(
@@ -75,14 +72,20 @@ def parse_json_to_entries(json_data, s3_uri):
 
         invoice = default_get(repair_order, "invoice", {})
         db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
-        customer_pay = default_get(invoice, "customerPay", {})
-        db_service_repair_order["consumer_total_amount"] = default_get(
-            customer_pay, "amount"
-        )
-        warranty_pay = default_get(invoice, "warrantyPay", {})
-        db_service_repair_order["warranty_total_amount"] = default_get(
-            warranty_pay, "amount"
-        )
+
+        customer_pay = default_get(default_get(invoice, "customerPay", {}), "amount")
+        db_service_repair_order["consumer_total_amount"] = customer_pay
+
+        warranty_pay = default_get(default_get(invoice, "warrantyPay", {}), "amount")
+        db_service_repair_order["warranty_total_amount"] = warranty_pay
+
+        internal_pay = default_get(default_get(invoice, "internalPay", {}), "amount")
+        db_service_repair_order["internal_total_amount"] = internal_pay
+
+        insurance_pay = default_get(default_get(invoice, "insurancePay", {}), "amount")
+
+        pay_fields = [customer_pay, warranty_pay, internal_pay, insurance_pay]
+        db_service_repair_order["service_order_cost"] = str(sum(float(i) if i is not None else 0 for i in pay_fields))
 
         txn_pay_type_arr = set()
         comment = set()
@@ -110,12 +113,12 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle["make"] = default_get(vehicle, "make")
         db_vehicle["model"] = default_get(vehicle, "model")
         db_vehicle["year"] = default_get(vehicle, "year")
-        mileage_in = default_get(vehicle, "mileageIn")
+        mileage_in = default_get(vehicle, "mileageOut")
         if default_get(mileage_in, "unit", "").upper() == "MI":
             db_vehicle["mileage"] = default_get(mileage_in, "value")
 
         customer = default_get(repair_order, "customer", {})
-        db_consumer["dealer_customer_no"] = default_get(customer, "id")
+        db_consumer["dealer_customer_no"] = default_get(customer, "arcId")
         db_consumer["first_name"] = default_get(customer, "firstName")
         db_consumer["last_name"] = default_get(customer, "lastName")
         db_consumer["email"] = default_get(customer, "email")

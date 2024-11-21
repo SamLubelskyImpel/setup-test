@@ -61,7 +61,9 @@ def parse_json_to_entries(json_data, s3_uri):
             db_service_appointment["appointment_date"] = converted_appt_time.strftime("%Y-%m-%d")
 
         vehicle = default_get(appointment, "vehicle", {})
-        db_service_appointment["last_ro_date"] = default_get(vehicle, "lastServiceDate")
+        converted_ro_date = convert_unix_to_timestamp(default_get(vehicle, "lastServiceDate"))
+        if converted_ro_date:
+            db_service_appointment["last_ro_date"] = converted_ro_date.strftime("%Y-%m-%d")
 
         db_vehicle["vin"] = default_get(vehicle, "vin")
         db_vehicle["oem_name"] = default_get(vehicle, "make")
@@ -87,7 +89,7 @@ def parse_json_to_entries(json_data, s3_uri):
             db_vehicle["new_or_used"] = None
 
         customer = default_get(appointment, "customer", {})
-        db_consumer["dealer_customer_no"] = default_get(customer, "id")
+        db_consumer["dealer_customer_no"] = default_get(customer, "arcId")
         db_consumer["first_name"] = default_get(customer, "firstName")
         db_consumer["last_name"] = default_get(customer, "lastName")
         db_consumer["email"] = default_get(customer, "email")
