@@ -98,7 +98,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         db_consumer = {}
         db_salesperson = {}
 
-        crm_lead_id = json_data.get('Identifier', '')
+        crm_lead_id = json_data["Identifier"]
         db_lead["crm_lead_id"] = crm_lead_id
         db_lead["lead_ts"] = json_data.get('Created')
         db_lead["lead_status"] = json_data.get('Status', '')
@@ -117,7 +117,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "model": vehicle.get('Model', None),
             "body_style": vehicle.get('BodyType', None),
             "exterior_color": vehicle.get('Colour', None),
-            "price": vehicle.get('Price', None),
+            "price": float(vehicle.get('Price', None)),
             "odometer_units": vehicle.get('Odometer', None),
             "condition": json_data.get('LeadType')
         }
@@ -130,8 +130,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         consumer = json_data.get('Prospect', None)
 
         if not consumer:
-            logger.warning(f"No Consumer Provided. Skipping lead {crm_lead_id}")
-            return []
+            logger.warning(f"No Consumer provided for lead {crm_lead_id}")
+            raise
 
         db_consumer = {
             "first_name": consumer.get('FirstName', None),
@@ -204,14 +204,16 @@ def record_handler(record: SQSRecord) -> None:
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split('/')[2]
 
+
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        entries = []
-        entries = parse_json_to_entries(product_dealer_id, json_data)
-        logger.info(f"Transformed entries: {entries}")
+        dealer_id = json_data["SellerIdentifier"]
+
+        entry = parse_json_to_entries(product_dealer_id, json_data)
+        logger.info(f"Transformed entry: {entry}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
@@ -221,7 +223,7 @@ def record_handler(record: SQSRecord) -> None:
             futures = [
                 executor.submit(post_entry,
                                 entry, crm_api_key, idx)
-                for idx, entry in enumerate(entries)
+                for idx, entry in enumerate(entry)
             ]
             for future in as_completed(futures):
                 results.append(future.result())
@@ -232,8 +234,8 @@ def record_handler(record: SQSRecord) -> None:
 
     except Exception as e:
         logger.error(f"Error transforming carsales au record - {record}: {e}")
-        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nLeadId: {}\nTraceback: {}".format(
-            product_dealer_id, product_dealer_id, entries[0]['lead']['crm_lead_id'], e)
+        logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
+            product_dealer_id, dealer_id, e)
             )
         raise
 
