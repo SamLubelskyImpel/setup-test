@@ -75,7 +75,7 @@ def filter_rows(bucket, key):
         row = line.split('|^|')
 
         if first_line:
-            original_headers = row
+            original_headers = [i.lower() for i in row]
             first_line = False
             continue
 

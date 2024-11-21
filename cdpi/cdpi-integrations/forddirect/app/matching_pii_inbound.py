@@ -21,6 +21,7 @@ s3 = boto3.client('s3')
 
 FORD_DIRECT_SUCCESS_STATUS = '1'
 
+
 def fetch_s3_file(bucket_name: str, file_key: str) -> List[str]:
     """Download the S3 file and return its contents as lines."""
     decoded_key = urllib.parse.unquote(file_key)
@@ -37,13 +38,14 @@ def parse_pii_file(file_lines: List[str]) -> List[Dict[str, Any]]:
     """Parse the PII file into a list of dictionaries (for each consumer row)."""
     header, *data_lines = file_lines
     fields = header.strip().split("|^|")
+    fields = [i.lower() for i in fields]
 
     parsed_rows = []
     for line in data_lines:
         line_data = line.strip().split("|^|")
         row = dict(zip(fields, line_data))
 
-        if row.get('MATCH_RESULT') == FORD_DIRECT_SUCCESS_STATUS:
+        if row.get('match_result') == FORD_DIRECT_SUCCESS_STATUS:
             parsed_rows.append(row)
 
     return parsed_rows
@@ -53,23 +55,23 @@ def merge_consumer_rows(pii_rows):
     """Merge multiple PII rows into a single consumer dictionary per ext_consumer_id."""
     merged_data = {}
     for row in pii_rows:
-        ext_consumer_id = row['EXT_CONSUMER_ID']
+        ext_consumer_id = row['ext_consumer_id']
         if ext_consumer_id not in merged_data:
             merged_data[ext_consumer_id] = {
-                'EXT_CONSUMER_ID': ext_consumer_id,
-                'DEALER_IDENTIFIER': row['DEALER_IDENTIFIER'],
-                'FDGUID': row['FDGUID'],
-                'FDDGUID': row['FDDGUID'],
-                'STATUS': row['STATUS'],
+                'ext_consumer_id': ext_consumer_id,
+                'dealer_identifier': row['dealer_identifier'],
+                'fdguid': row['fdguid'],
+                'fddguid': row['fddguid'],
+                'status': row['status'],
                 'pacode': row['pacode'],
-                'MATCH_RESULT': row['MATCH_RESULT'],
+                'match_result': row['match_result'],
             }
         else:
             # Check for FDGUID consistency and log if there's a mismatch
-            if row['FDGUID'] != merged_data[ext_consumer_id]['FDGUID']:
+            if row['fdguid'] != merged_data[ext_consumer_id]['fdguid']:
                 logger.warning(
                     f"Multiple FDGUIDs detected for {ext_consumer_id}. "
-                    f"Using {merged_data[ext_consumer_id]['FDGUID']}, ignoring {row['FDGUID']}"
+                    f"Using {merged_data[ext_consumer_id]['fdguid']}, ignoring {row['fdguid']}"
                 )
 
     return merged_data
@@ -98,16 +100,16 @@ def upsert_consumer_profile(merged_data: Dict[str, Any], session: Session):
             insert_stmt = insert(ConsumerProfile).values(
                 consumer_id=consumer_id,
                 integration_partner_id=integration_partner_id,
-                cdp_master_consumer_id=consumer_data.get('FDGUID'),
-                cdp_dealer_consumer_id=consumer_data.get('FDDGUID')
+                cdp_master_consumer_id=consumer_data.get('fdguid'),
+                cdp_dealer_consumer_id=consumer_data.get('fddguid')
             )
 
             # Define the update operation in case of conflict
             update_stmt = insert_stmt.on_conflict_do_update(
                 index_elements=['consumer_id', 'integration_partner_id'],
                 set_={
-                    'cdp_master_consumer_id': consumer_data.get('FDGUID'),
-                    'cdp_dealer_consumer_id': consumer_data.get('FDDGUID')
+                    'cdp_master_consumer_id': consumer_data.get('fdguid'),
+                    'cdp_dealer_consumer_id': consumer_data.get('fddguid')
                 }
             )
 
@@ -136,9 +138,11 @@ def record_handler(record: Dict[str, Any]):
         # Fetch and parse S3 file
         file_lines = fetch_s3_file(bucket_name, file_key)
         pii_rows = parse_pii_file(file_lines)
+        logger.info(f'Total successfully matched rows: {len(pii_rows)}')
 
         # Merge rows by consumer ID
         merged_data = merge_consumer_rows(pii_rows)
+        logger.info(f'Total unique consumers: {len(merged_data)}')
 
         # Upsert into the database
         with DBSession() as session:
