@@ -11,6 +11,10 @@ import csv
 import io
 import boto3
 
+import os
+
+os.environ["AWS_PROFILE"] = 'unified-test'
+
 
 PRODUCT_COLUMNS = [
     "dealer_id",
@@ -37,7 +41,7 @@ PRODUCT_COLUMNS = [
 ]
 
 
-def generate_rows(dealer_id: str, salesforce_id: str, row_count=5):
+def generate_rows(dealer_id: str, salesforce_id: str, row_count=50):
     """Generate a CSV file with random data."""
     rows = []
 
@@ -88,7 +92,7 @@ def upload_product_file(dealer_id: str, salesforce_id: str, product: str):
 
 if __name__ == '__main__':
     upload_product_file(
-        dealer_id='my-test-dealer',
-        salesforce_id = '000011110000',
+        dealer_id='impel-test-dealer',
+        salesforce_id='11110000',
         product='service-ai'
     )
