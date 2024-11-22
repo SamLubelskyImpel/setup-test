@@ -91,7 +91,6 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format carsales json data to unified format."""
-    entries = []
     try:
         db_lead = {}
         db_vehicles = []
@@ -117,7 +116,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "model": vehicle.get('Model', None),
             "body_style": vehicle.get('BodyType', None),
             "exterior_color": vehicle.get('Colour', None),
-            "price": float(vehicle.get('Price', None)),
+            "price": float(vehicle.get('Price')) if vehicle.get('Price', None) else None,
             "odometer_units": vehicle.get('Odometer', None),
             "condition": json_data.get('LeadType')
         }
@@ -145,20 +144,23 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
-            logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
-            return []
+            logger.warning(f"Email or phone number is required. Cannot save lead {crm_lead_id}")
+            raise
 
         db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
-        salesperson = json_data.get('Assignment')
-        salesperson_name = salesperson.get('Name', '').split()
-        db_salesperson = {
-            "first_name": salesperson_name[0],
-            "last_name": salesperson_name[1],
-            "email": salesperson.get('Email', None)
-        }
+        salesperson = json_data.get('Assignment', None)
+        if salesperson: 
+            salesperson_name = salesperson.get('Name').split() if salesperson.get('Name', None) else None
+            db_salesperson = {
+                "first_name": salesperson_name[0] if salesperson_name else None,
+                "last_name": salesperson_name[1] if salesperson_name else None,
+                "email": salesperson.get('Email', None)
+            }
 
-        db_lead["salespersons"] = [db_salesperson] if db_salesperson else []
+        db_salesperson = {key: value for key, value in db_salesperson.items() if value is not None}
+
+        db_lead["salespersons"] = [db_salesperson]
 
         entry = {
             "product_dealer_id": product_dealer_id,
@@ -166,8 +168,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "consumer": db_consumer
         }
 
-        entries.append(entry)
-        return entries
+        return entry
     except Exception as e:
         logger.error(f"Error processing record: {e}")
         raise
@@ -217,20 +218,9 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        results = []
-        # Process each entry in parallel, each entry takes about 8 seconds to process.
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(post_entry,
-                                entry, crm_api_key, idx)
-                for idx, entry in enumerate(entry)
-            ]
-            for future in as_completed(futures):
-                results.append(future.result())
-
-        for result in results:
-            if not result:
-                raise Exception("Error detected posting and forwarding an entry")
+        result = post_entry(entry, crm_api_key, 0)
+        if not result:
+            raise Exception ("Error occurred uploading lead to DB")
 
     except Exception as e:
         logger.error(f"Error transforming carsales au record - {record}: {e}")
