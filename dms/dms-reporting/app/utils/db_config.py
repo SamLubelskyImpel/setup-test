@@ -17,8 +17,8 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def __get_db_secrets():
     """Get DB secrets from SecretsManager."""
-    secretId = f"{'prod' if env == 'prod' else 'test'}/DMSDB"
-    
+    secretId = f"{'prod' if env == 'prod' else 'test'}/RDS/DMS"
+
     SecretString = loads(SM_CLIENT.get_secret_value(SecretId=secretId)["SecretString"])
     DB = {
         'DB_USER': SecretString["user"],

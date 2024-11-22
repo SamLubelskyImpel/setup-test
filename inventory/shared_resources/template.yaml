@@ -197,8 +197,8 @@ Resources:
                     ]
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*"
                     ]
                   - !If [
                       IsProd,
@@ -339,10 +339,10 @@ Resources:
     Properties:
       QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 900
+      VisibilityTimeout: 600
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
-          maxReceiveCount: 5
+          maxReceiveCount: 2
 
   UnifiedLoadDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -411,7 +411,7 @@ Resources:
       Handler: unified_load.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 900
+      Timeout: 600
       MemorySize: 1024
 
   UnifiedLoadEventMapping:
@@ -441,3 +441,22 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
+
+  SharedDBAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "SharedDBAlarm-${Environment}"
+      AlarmDescription: Alarm for the Shared Layer Shared DB when CPU usage exceeds 60%
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 60  # 1 minute
+      EvaluationPeriods: 1
+      Threshold: 75
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !If [ IsProd, unified-data-shared-prod, unified-data-shared-test ]

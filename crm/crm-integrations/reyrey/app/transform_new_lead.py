@@ -41,6 +41,9 @@ class NoCustomerInitiatedLeadException(Exception):
 class CustomerContactInfoError(Exception):
     pass
 
+class DuplicateLeadError(Exception):
+    pass
+
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
@@ -342,7 +345,7 @@ def create_consumer_in_unified_layer(consumer: dict, lead: dict, root: ET.Elemen
         lead = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if lead:
             logger.error(f"Lead with crm_lead_id {crm_lead_id} already exists.")
-            raise Exception(f"Lead with crm_lead_id {crm_lead_id} already exists.")
+            raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
     logger.info(f"Consumer data to send: {consumer}")
     response = requests.post(
@@ -377,6 +380,12 @@ def create_lead_in_unified_layer(lead: dict[Any, Any], crm_api_key: str, product
     logger.info(
         f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
     )
+
+    crm_lead_id = lead.get("crm_lead_id", None)
+
+    if response.status_code == 409:
+        logger.error(f"Could not create lead, Lead with crm_lead_id {crm_lead_id} already exists.")
+        raise DuplicateLeadError(f"Lead with crm_lead_id {crm_lead_id} already exists.")
 
     unified_crm_lead_id = response.json().get("lead_id")
 
@@ -421,6 +430,8 @@ def record_handler(record: SQSRecord) -> None:
         logger.info("Lead type is not Internet")
     except NoCustomerInitiatedLeadException:
         logger.info("Lead is not customer initiated")
+    except DuplicateLeadError:
+        logger.exception("Duplicate lead already exists. Skipping lead.")
     except Exception as e:
         logger.error(f"Error transforming ReyRey record - {record}: {e}")
         logger.error("[SUPPORT ALERT] Failed to Get Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(

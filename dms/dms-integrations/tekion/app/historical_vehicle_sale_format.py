@@ -39,63 +39,68 @@ def parse_csv_to_entries(csv_data, s3_uri):
         "s3_url": s3_uri,
     }
 
-    for row in reader:
-        db_dealer_integration_partner = {}
-        db_vehicle_sale = {}
-        db_vehicle = {}
-        db_consumer = {}
+    try:
+        for row in reader:
+            db_dealer_integration_partner = {}
+            db_vehicle_sale = {}
+            db_vehicle = {}
+            db_consumer = {}
 
-        db_dealer_integration_partner = {
-            'dms_id': dms_id
-        }
+            db_dealer_integration_partner = {
+                'dms_id': dms_id
+            }
 
-        db_vehicle_sale["sale_date"] = row.get("dealCreatedTime")
-        db_vehicle_sale["listed_price"] = convert_to_float(row.get("retailprice"))
-        db_vehicle_sale["mileage_on_vehicle"] = convert_to_int(row.get("mileage"))
-        db_vehicle_sale["deal_type"] = row.get("paymenttype")
-        db_vehicle_sale["cost_of_vehicle"] = convert_to_float(row.get("finalcost"))
-        db_vehicle_sale["oem_msrp"] = convert_to_float(row.get("msrp"))
-        db_vehicle_sale["payoff_on_trade"] = convert_to_float(row.get("tradein1_payoff"))
-        db_vehicle_sale["miles_per_year"] = convert_to_int(row.get("yrlymiles_basevalue"))
-        db_vehicle_sale["profit_on_sale"] = convert_to_float(row.get("profit"))
-        db_vehicle_sale["vehicle_gross"] = convert_to_float(row.get("retailprice"))
-        db_vehicle_sale["vin"] = row.get("vin")
-        db_vehicle_sale["finance_rate"] = row.get("apr")
+            db_vehicle_sale["sale_date"] = row.get("dealCreatedTime")
+            db_vehicle_sale["listed_price"] = convert_to_float(row.get("retailprice"))
+            db_vehicle_sale["mileage_on_vehicle"] = convert_to_int(row.get("mileage"))
+            db_vehicle_sale["deal_type"] = row.get("paymenttype")
+            db_vehicle_sale["cost_of_vehicle"] = convert_to_float(row.get("finalcost"))
+            db_vehicle_sale["oem_msrp"] = convert_to_float(row.get("msrp"))
+            db_vehicle_sale["payoff_on_trade"] = convert_to_float(row.get("tradein1_payoff"))
+            db_vehicle_sale["miles_per_year"] = convert_to_int(row.get("yrlymiles_basevalue"))
+            db_vehicle_sale["profit_on_sale"] = convert_to_float(row.get("profit"))
+            db_vehicle_sale["vehicle_gross"] = convert_to_float(row.get("retailprice"))
+            db_vehicle_sale["vin"] = row.get("vin")
+            db_vehicle_sale["finance_rate"] = row.get("apr")
 
-        db_vehicle["vin"] = row["vin"]
-        db_vehicle["year"] = convert_to_int(row.get("year"))
-        db_vehicle["make"] = row["make"]
-        db_vehicle["model"] = row["model"]
-        db_vehicle["oem_name"] = row["make"]
-        db_vehicle["type"] = row["bodytype"]
-        db_vehicle["vehicle_class"] = row["bodyclass"]
-        db_vehicle["mileage"] = convert_to_int(row.get("mileage"))
-        db_vehicle["new_or_used"] = "N" if row["vehicletype"] == "NEW" else "U" if row["vehicletype"] == "USED" else None
+            db_vehicle["vin"] = row["vin"]
+            db_vehicle["year"] = convert_to_int(row.get("year"))
+            db_vehicle["make"] = row["make"]
+            db_vehicle["model"] = row["model"]
+            db_vehicle["oem_name"] = row["make"]
+            db_vehicle["type"] = row["bodytype"]
+            db_vehicle["vehicle_class"] = row["bodyclass"]
+            db_vehicle["mileage"] = convert_to_int(row.get("mileage"))
+            db_vehicle["new_or_used"] = "N" if row["vehicletype"] == "NEW" else "U" if row["vehicletype"] == "USED" else None
 
-        db_consumer["first_name"] = row["buyer_firstName"]
-        db_consumer["last_name"] = row["buyer_lastName"]
-        db_consumer["email"] = row["buyer_email"]
-        db_consumer["cell_phone"] = row["buyer_mobilePhone"]
-        db_consumer["home_phone"] = row["buyer_homePhone"]
-        db_consumer["state"] = row["buyer_state"]
-        db_consumer["city"] = row["buyer_city"]
-        db_consumer["postal_code"] = row["buyer_postalCode"]
-        db_consumer["address"] = row["buyer_streetAddress1"] + row["buyer_streetAddress2"]
-        db_consumer["email_optin_flag"] = True if row["buyer_email"] else False
-        db_consumer["sms_optin_flag"] = False
+            db_consumer["first_name"] = row["buyer_firstName"]
+            db_consumer["last_name"] = row["buyer_lastName"]
+            db_consumer["email"] = row["buyer_email"]
+            db_consumer["cell_phone"] = row["buyer_mobilePhone"]
+            db_consumer["home_phone"] = row["buyer_homePhone"]
+            db_consumer["state"] = row["buyer_state"]
+            db_consumer["city"] = row["buyer_city"]
+            db_consumer["postal_code"] = row["buyer_postalCode"]
+            db_consumer["address"] = row["buyer_streetAddress1"] + row["buyer_streetAddress2"]
+            db_consumer["email_optin_flag"] = True if row["buyer_email"] else False
+            db_consumer["sms_optin_flag"] = False
 
-        metadata = dumps(db_metadata)
-        db_vehicle["metadata"] = metadata
-        db_consumer["metadata"] = metadata
-        db_vehicle_sale["metadata"] = metadata
+            metadata = dumps(db_metadata)
+            db_vehicle["metadata"] = metadata
+            db_consumer["metadata"] = metadata
+            db_vehicle_sale["metadata"] = metadata
 
-        entry = {
-            "dealer_integration_partner": db_dealer_integration_partner,
-            "vehicle_sale": db_vehicle_sale,
-            "vehicle": db_vehicle,
-            "consumer": db_consumer
-        }
-        entries.append(entry)
+            entry = {
+                "dealer_integration_partner": db_dealer_integration_partner,
+                "vehicle_sale": db_vehicle_sale,
+                "vehicle": db_vehicle,
+                "consumer": db_consumer
+            }
+            entries.append(entry)
+
+    except Exception as e:
+        logger.exception(f"Error parsing row {row} : {e}")
+        raise e
 
     return entries, dms_id
 

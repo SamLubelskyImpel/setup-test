@@ -13,7 +13,7 @@ sm_client = boto3.client("secretsmanager")
 s3_client = boto3.client("s3")
 secret_string = loads(
     sm_client.get_secret_value(
-        SecretId="prod/DMSDB" if AWS_PROFILE == "unified-prod" else "test/DMSDB"
+        SecretId="prod/RDS/DMS" if AWS_PROFILE == "unified-prod" else "test/RDS/DMS"
     )["SecretString"]
 )
 rds_connection = psycopg2.connect(
@@ -47,12 +47,12 @@ def list_files_in_bucket(bucket_name, prefix, files=[], continuation_token=None)
 
 db_schema = "prod" if AWS_PROFILE == "unified-prod" else "stage"
 
-query_str = f"""select vs.vin from {db_schema}.vehicle_sale vs 
-join {db_schema}.dealer_integration_partner dip on dip.id = vs.dealer_integration_partner_id 
-join {db_schema}.dealer d on d.id = dip.dealer_id 
-join {db_schema}.integration_partner ip on ip.id = dip.integration_partner_id 
-join {db_schema}.vehicle v on v.id = vs.vehicle_id 
-join {db_schema}.consumer c on c.id = vs.consumer_id 
+query_str = f"""select vs.vin from {db_schema}.vehicle_sale vs
+join {db_schema}.dealer_integration_partner dip on dip.id = vs.dealer_integration_partner_id
+join {db_schema}.dealer d on d.id = dip.dealer_id
+join {db_schema}.integration_partner ip on ip.id = dip.integration_partner_id
+join {db_schema}.vehicle v on v.id = vs.vehicle_id
+join {db_schema}.consumer c on c.id = vs.consumer_id
 where ip.impel_integration_partner_id = 'reyrey'
 order by vs.db_creation_date desc;"""
 
