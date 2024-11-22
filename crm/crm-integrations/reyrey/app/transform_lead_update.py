@@ -367,10 +367,13 @@ def record_handler(record: SQSRecord) -> None:
         perform_updates(xml_record, ns, crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key, event_id, event_name)
 
     except LeadNotFoundError as e:
-        retry_count = int(record.get('attributes', {}).get('approximate_receive_count', '1'))
+        try:
+            retry_count = int(record['attributes']['ApproximateReceiveCount'])
+        except KeyError:
+            retry_count = int(record['attributes']['approximate_receive_count'])
         if retry_count == 3:
-            logger.error(f"Lead not found after 3 attempts, dropping message: {e}")
-            return 
+            logger.error(f"Lead not found after {retry_count} attempts, dropping message: {e}")
+            return
         logger.error(f"Lead not found: {e}")
         raise
 
