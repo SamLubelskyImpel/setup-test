@@ -54,8 +54,8 @@ Resources:
             FunctionArn: !GetAtt Authorizer.Arn
             Identity:
               Headers:
-                - partner_id
-                - x_api_key
+                - client_id
+                - api_key
               Context:
                 - resourcePath
               ReauthorizeEvery: 0

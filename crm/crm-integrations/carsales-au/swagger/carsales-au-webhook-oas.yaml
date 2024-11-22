@@ -11,6 +11,9 @@ paths:
       summary: Submit a new lead
       description: Endpoint to submit a request for a new lead
       #{{NEW_LEAD_LAMBDA_INFO}}
+      parameters:
+        - "$ref": "#/components/parameters/clientId"
+        - "$ref": "#/components/parameters/apiKey"
       requestBody:
         required: true
         content:
@@ -146,3 +149,19 @@ components:
         Assigned:
           type: string
           format: date-time
+          
+  parameters:
+    clientId:
+      name: client_id
+      in: header
+      description: This parameter uniquely identifies an Impel client and will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    apiKey:
+      name: api_key
+      in: header
+      description: An API Key provided by Impel that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
