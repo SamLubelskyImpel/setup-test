@@ -45,7 +45,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             secret = json.loads(secret["SecretString"])[str(client_id)]
             secret_data = json.loads(secret)
         except KeyError:
-            logger.exception("Invalid client_id")
+            logger.exception("Invalid client-id")
             raise Exception("Unauthorized")
 
         authorized = api_key == secret_data["api_key"]
@@ -56,10 +56,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         policy["Statement"][0]["Effect"] = "Allow"
         return {
             "policyDocument": policy,
-            "principalId": client_id,
-            "context": {
-                "integration_partner": secret_data.get("integration_partner", None)
-            }
+            "principalId": client_id
         }
     except Exception:
         logger.exception(event)
