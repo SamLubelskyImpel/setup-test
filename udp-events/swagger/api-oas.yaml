@@ -1,0 +1,78 @@
+openapi: 3.0.0
+servers: []
+info:
+  version: "1.0.0"
+  title: Impel Event Publishing API
+  description: Event publishing API for UDP
+
+#{{CRM_API_AWS_VALIDATION}}
+paths:
+  /events:
+    post:
+      #{{POST_EVENTS_LAMBDA_INFO}}
+      tags:
+        - Events
+      description: Send events for publishing
+      operationId: postEvents
+      parameters:
+        - "$ref": "#/components/parameters/clientId"
+        - "$ref": "#/components/parameters/apiKey"
+      responses:
+        '200':
+          description: All the devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventResponse"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Event"
+
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        event_json:
+          type: array
+          description: Events
+          items:
+            description: Event payload
+            type: object
+        # event_id:
+        #   type: string
+        #   description: A unique identifier (e.g., UUID) for each message.
+        source:
+          type: string
+          description: The source from which the event originated.
+    EventResponse:
+      type: array
+      description: System generated unique identifier (e.g., UUID) for each event.
+      items:
+        type: object
+        properties:
+          event_json:
+            type: object
+            description: Event payload
+          event_id:
+            type: string
+            description: A unique identifier (e.g., UUID) for an event.
+            example: "009a352b-d6b5-405b-8c3f-36ccd16aa431"
+
+  parameters:
+    clientId:
+      name: client-id
+      in: header
+      description: This parameter uniquely identifies an Impel client and will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    apiKey:
+      name: api-key
+      in: header
+      description: An API Key provided by Impel that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
