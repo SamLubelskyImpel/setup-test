@@ -177,7 +177,7 @@ Resources:
         - Name: QueueName
           Value: !GetAtt InvokeQueueDLQ.QueueName
       Statistic: Sum
-      Period: 900 
+      Period: 900
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
@@ -238,7 +238,7 @@ Resources:
               Enabled: True
               Queue: !GetAtt InvokeQueue.Arn
 
-# MERGE VEHICLE SALES 
+# MERGE VEHICLE SALES
 
   QuiterMergeVehicleSalesQueue:
     Type: AWS::SQS::Queue
@@ -267,9 +267,9 @@ Resources:
         - Name: QueueName
           Value: !GetAtt QuiterMergeVehicleSalesDLQ.QueueName
       Statistic: Sum
-      Period: 900 
+      Period: 900
       EvaluationPeriods: 1
-      Threshold: 1  
+      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -302,7 +302,7 @@ Resources:
                 - sqs:ReceiveMessage
                 - sqs:DeleteMessage
                 - sqs:ChangeMessageVisibility
-              Resource: 
+              Resource:
                 - !If [ IsProd,
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                     !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
@@ -320,11 +320,11 @@ Resources:
                 - s3:ListBucket
                 - s3:*Object
               Resource:
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
@@ -345,7 +345,7 @@ Resources:
             Enabled: True
             Queue: !GetAtt QuiterMergeVehicleSalesQueue.Arn
 
-# FORMAT VEHICLE SALES 
+# FORMAT VEHICLE SALES
 
   QuiterFormatVehicleSalesQueue:
     Type: AWS::SQS::Queue
@@ -381,7 +381,7 @@ Resources:
       Statistic: Sum
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 1
-  
+
   QuiterFormatVehicleSalesQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -436,19 +436,19 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                         ]
             - Sid: S3
               Effect: Allow
               Action:
                 - s3:*
               Resource:
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
@@ -457,8 +457,8 @@ Resources:
           Type: SQS
           Properties:
             Queue: !GetAtt QuiterFormatVehicleSalesQueue.Arn
-  
-  # MERGE APPOINTMENTS 
+
+  # MERGE APPOINTMENTS
 
   QuiterMergeAppointmentQueue:
     Type: AWS::SQS::Queue
@@ -606,8 +606,8 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                         ]
       Events:
         SQSEvent:
@@ -707,9 +707,9 @@ Resources:
         - Name: QueueName
           Value: !GetAtt QuiterMergeRepairOrderDLQ.QueueName
       Statistic: Sum
-      Period: 900 
+      Period: 900
       EvaluationPeriods: 1
-      Threshold: 1  
+      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -760,11 +760,11 @@ Resources:
                 - s3:ListBucket
                 - s3:*Object
               Resource:
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"
@@ -774,7 +774,7 @@ Resources:
                 - sqs:SendMessage
               Resource:
                 - !GetAtt QuiterMergeRepairOrderQueue.Arn
-                         
+
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
@@ -802,7 +802,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub quiter-${Environment}-QuiterFormatRepairOrderDLQ
-  
+
   QuiterFormatRepairOrderDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -876,19 +876,19 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                         ]
             - Sid: S3
               Effect: Allow
               Action:
                 - s3:*
               Resource:
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                - !If 
+                - !If
                   - IsProd
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod"
                   - !Sub "arn:aws:s3:::integrations-${AWS::Region}-test"

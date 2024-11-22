@@ -50,7 +50,7 @@ Globals:
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]        
+      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
   LambdaRole:
@@ -79,7 +79,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:ListBucket
@@ -98,7 +98,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*" 
+                Resource: "arn:aws:logs:*:*:*"
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -107,8 +107,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !If [ IsProd,
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/CRM*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/CRM*"
                       ]
         - PolicyName: SNSPolicy
           PolicyDocument:
@@ -132,7 +132,7 @@ Resources:
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref CRMReportingSnsTopic
-  
+
   CRMDailyErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -199,7 +199,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "crm alerting rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]
@@ -234,7 +234,7 @@ Resources:
       Protocol: email
       TopicArn: !Ref CRMReportingSnsTopic
       # FilterPolicy: '{"alert_type": ["client_engineering"]}'
-  
+
   L3SnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
