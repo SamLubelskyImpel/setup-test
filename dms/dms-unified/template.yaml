@@ -72,7 +72,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "dms-unified rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]
@@ -86,7 +86,7 @@ Resources:
     Properties:
       QueueName: UnifiedRODLQ
       MessageRetentionPeriod: 1209600  # 14 days
-  
+
   UnifiedROQueue:
     Type: AWS::SQS::Queue
     DependsOn: UnifiedRODLQ
@@ -100,12 +100,12 @@ Resources:
   UnifiedROQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt UnifiedROQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -129,7 +129,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -150,7 +150,7 @@ Resources:
               Effect: Allow
               Action:
                 - s3:*
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                 ]
@@ -163,9 +163,9 @@ Resources:
               Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd, 
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                 ]
       Events:
         SqsEvent:
@@ -199,7 +199,7 @@ Resources:
     Properties:
       QueueName: UnifiedFIDLQ
       MessageRetentionPeriod: 1209600  # 14 days
-  
+
   UnifiedFIQueue:
     Type: AWS::SQS::Queue
     DependsOn: UnifiedFIDLQ
@@ -213,12 +213,12 @@ Resources:
   UnifiedFIQueueSubscription:
     Type: AWS::SNS::Subscription
     Properties:
-      TopicArn: !If [ IsProd, 
+      TopicArn: !If [ IsProd,
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                     !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                   ]
       Protocol: sqs
-      RawMessageDelivery: true 
+      RawMessageDelivery: true
       Endpoint: !GetAtt UnifiedFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
@@ -242,7 +242,7 @@ Resources:
                   Service: sns.amazonaws.com
               Condition:
                   ArnEquals:
-                      aws:SourceArn: !If [ IsProd, 
+                      aws:SourceArn: !If [ IsProd,
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-prod',
                             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:integrations-sns-s3-topic-${AWS::Region}-test'
                           ]
@@ -263,7 +263,7 @@ Resources:
               Effect: Allow
               Action:
                 - s3:*
-              Resource: !If [ IsProd, 
+              Resource: !If [ IsProd,
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
                   !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
                 ]
@@ -271,9 +271,9 @@ Resources:
               Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd, 
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+              Resource: !If [ IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                 ]
             - Sid: EventBridgePolicy
               Effect: Allow
@@ -385,8 +385,8 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !If [ IsProd,
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                 ]
             - Sid: EventBridgePolicy
               Effect: Allow
@@ -423,7 +423,7 @@ Resources:
   UnifiedDMSNotifications:
     Type: AWS::Events::EventBus
     Properties:
-      Name: !If [ IsProd, 
+      Name: !If [ IsProd,
             'unified-dms-bus-prod',
             'unified-dms-bus-test'
           ]

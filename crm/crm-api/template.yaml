@@ -112,8 +112,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/CRM*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/CRM*",
                     ]
                   - !If [
                       IsProd,
@@ -817,11 +817,11 @@ Resources:
       LicenseInfo: MIT
       RetentionPolicy: Retain
 
-  SharedLayerDBAlarm:
+  CRMDBAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "SharedLayerDBAlarm-${Environment}"
-      AlarmDescription: Alarm for the Shared Layer DB when CPU usage exceeds 60%
+      AlarmName: !Sub "CRMDBAlarm-${Environment}"
+      AlarmDescription: Alarm for the Shared Layer CRM DB when CPU usage exceeds 60%
       MetricName: CPUUtilization
       Namespace: AWS/RDS
       Statistic: Average
@@ -829,6 +829,7 @@ Resources:
       EvaluationPeriods: 1
       Threshold: 75
       ComparisonOperator: GreaterThanOrEqualToThreshold
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
