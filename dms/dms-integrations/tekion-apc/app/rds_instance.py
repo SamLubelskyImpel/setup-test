@@ -19,7 +19,7 @@ class RDSInstance:
         sm_client = boto3.client("secretsmanager")
         secret_string = loads(
             sm_client.get_secret_value(
-                SecretId="prod/DMSDB" if ENVIRONMENT == 'prod' else "test/DMSDB"
+                SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/RDS/DMS"
             )["SecretString"]
         )
         return psycopg2.connect(

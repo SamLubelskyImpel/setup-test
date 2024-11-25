@@ -65,6 +65,103 @@ Globals:
       SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
+  DataPullLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
+                    ]
+        - PolicyName: AccessS3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:*Object
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
+        - PolicyName: AllowSNS
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - PolicyName: AllowInvokeFunction
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt RefreshTokenLambda.Arn
+
+  InsertLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
+                    ]
+        - PolicyName: AccessS3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                    ]
+
   TekionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Delete
@@ -192,43 +289,7 @@ Resources:
       Handler: repair_order.repair_orders.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowSecrets
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
-                  ]
-            - Sid: AllowS3
-              Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:ListBucket
-                - s3:*Object
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                  ]
-            - Sid: AllowSNSPolicy
-              Effect: Allow
-              Action:
-                - sns:Publish
-              Resource:
-                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            - Sid: AllowInvokeFunction
-              Effect: Allow
-              Action:
-                - lambda:InvokeFunction
-              Resource:
-                - !GetAtt RefreshTokenLambda.Arn
+      Role: !GetAtt DataPullLambdaRole.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -298,43 +359,7 @@ Resources:
       Handler: vehicle_sales.vehicle_sale.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowSecrets
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
-                  ]
-            - Sid: AllowS3
-              Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:ListBucket
-                - s3:*Object
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                  ]
-            - Sid: AllowSNSPolicy
-              Effect: Allow
-              Action:
-                - sns:Publish
-              Resource:
-                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            - Sid: AllowInvokeFunction
-              Effect: Allow
-              Action:
-                - lambda:InvokeFunction
-              Resource:
-                - !GetAtt RefreshTokenLambda.Arn
+      Role: !GetAtt DataPullLambdaRole.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -484,26 +509,7 @@ Resources:
       Handler: repair_order.repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
@@ -593,26 +599,7 @@ Resources:
       Handler: vehicle_sales.vehicle_sale_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
@@ -702,26 +689,7 @@ Resources:
       Handler: historical.historical_repair_order_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
@@ -811,26 +779,7 @@ Resources:
       Handler: historical.historical_vehicle_sale_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
@@ -882,43 +831,7 @@ Resources:
       Handler: appointment.appointment.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowSecrets
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
-                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
-                  ]
-            - Sid: AllowS3
-              Effect: Allow
-              Action:
-                - s3:GetObject
-                - s3:PutObject
-                - s3:ListBucket
-                - s3:*Object
-              Resource:
-                - !If [ IsProd,
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                  ]
-            - Sid: AllowSNSPolicy
-              Effect: Allow
-              Action:
-                - sns:Publish
-              Resource:
-                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            - Sid: AllowInvokeFunction
-              Effect: Allow
-              Action:
-                - lambda:InvokeFunction
-              Resource:
-                - !GetAtt RefreshTokenLambda.Arn
+      Role: !GetAtt DataPullLambdaRole.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -1012,26 +925,7 @@ Resources:
       Handler: appointment.appointment_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
@@ -1121,26 +1015,7 @@ Resources:
       Handler: historical.historical_appointment_format.lambda_handler
       Timeout: 900
       MemorySize: 1024
-      Policies:
-        - Id: FunctionPermissions
-          Version: "2012-10-17"
-          Statement:
-            - Sid: AllowGetDBInfo
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !If [ IsProd,
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
-                        ]
-            - Sid: S3
-              Effect: Allow
-              Action:
-                - s3:*
-              Resource: !If [ IsProd,
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
-                  !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
-                ]
+      Role: !GetAtt InsertLambdaRole.Arn
       Events:
         SqsEvent:
           Type: SQS
