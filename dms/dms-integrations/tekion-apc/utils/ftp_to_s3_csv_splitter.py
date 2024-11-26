@@ -3,11 +3,11 @@ This script takes a filename as a command line argument, downloads the file from
 splits the file into smaller chunks (30 MB), then uploads each chunk to S3 for processing.
 
 Notes to consider:
-    - This script is only handles RO and F&I historical files.
+    - This script is only handles RO, F&I, and SA historical files.
     - Historical files vary in naming convention. Make sure to update this script is setup to identify the file type.
       (Pending standardization from Tekion DMS)
 
-AWS_PROFILE=unified-admin python ./ftp_to_s3_csv_splitter.py 2201580_ServiceHistory.csv
+AWS_PROFILE=unified-admin python ./ftp_to_s3_csv_splitter.py 2201580_RO.csv
 """
 
 import boto3
@@ -120,10 +120,12 @@ def main():
 
     filetype = ''
 
-    if "RepairOrders" in filename or "RO" in filename or "ServiceHistory" in filename:
+    if "RO" in filename:
         filetype = 'repair_order'
-    elif "Deals" in filename:
+    elif "VS" in filename:
         filetype = 'fi_closed_deal'
+    elif "SA" in filename:
+        filetype = 'service_appointment'
     else:
         print('Please, include a file type in the filename: RepairOrders or Deals')
 
