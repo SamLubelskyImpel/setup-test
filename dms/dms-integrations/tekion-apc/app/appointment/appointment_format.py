@@ -75,7 +75,7 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle["type"] = default_get(vehicle, "trim")
         db_vehicle["vehicle_class"] = default_get(vehicle, "trim")
         mileage_field = default_get(vehicle, "mileage")
-        mileage = float(mileage_field) if mileage_field and mileage_field.replace(".", "", 1).isdigit() else None
+        mileage = int(mileage_field) if mileage_field else None
         db_vehicle["mileage"] = mileage
         db_vehicle["stock_num"] = default_get(vehicle, "stockNumber")
 
@@ -150,7 +150,7 @@ def lambda_handler(event, context):
                 entries, dms_id = parse_json_to_entries(json_data, decoded_key)
                 if not dms_id:
                     raise RuntimeError("No dms_id found")
-                upload_unified_json(entries, "appointment", decoded_key, dms_id)
+                upload_unified_json(entries, "service_appointment", decoded_key, dms_id)
     except Exception:
         logger.exception(f"Error transforming tekion appointment file {event}")
         raise
