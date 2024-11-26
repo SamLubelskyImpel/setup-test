@@ -150,8 +150,10 @@ def refresh_token():
 def save_token(token):
     """Saves the new token in AWS Secrets Manager."""
     token_secret_id = f"{'prod' if ENV == 'prod' else 'test'}/redbook-token"
+    token_dict = json.dumps({"token": token})
+    
     try:
-        secrets_client.put_secret_value(SecretId=token_secret_id, SecretString=token)
+        secrets_client.put_secret_value(SecretId=token_secret_id, SecretString=token_dict)
         logger.info("New token saved successfully in Secrets Manager.")
 
     except Exception as e:
@@ -167,8 +169,9 @@ def retrieve_token():
         response = json.loads(
             secrets_client.get_secret_value(SecretId=token_secret_id)["SecretString"]
         )
+        token = response["token"]
         logger.info(f"secret value: {response}")
-        return response
+        return token
 
     except ClientError as e:
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
