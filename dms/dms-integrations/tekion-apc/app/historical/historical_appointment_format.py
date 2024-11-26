@@ -66,7 +66,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_service_appointment["appointment_source"] = normalized_row.get("source")
         db_service_appointment["last_ro_num"] = normalized_row.get("rono")
 
-        db_consumer["dealer_customer_no"] = normalized_row.get("custinfo_id")
+        db_consumer["dealer_customer_no"] = normalized_row.get("custinfo_displayid")
         db_consumer["first_name"] = normalized_row.get("custinfo_firstname")
         db_consumer["last_name"] = normalized_row.get("custinfo_lastname")
         db_consumer["email"] = normalized_row.get("custinfo_email")

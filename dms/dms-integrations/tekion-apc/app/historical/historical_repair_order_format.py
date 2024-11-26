@@ -75,6 +75,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             db_vehicle["new_or_used"] = "N" if normalized_row.get("vehicletype") == "NEW" else "U" if normalized_row.get("vehicletype") == "USED" else None
 
             # add new consumer
+            db_consumer["dealer_customer_no"] = normalized_row.get("displayid")
             db_consumer["first_name"] = normalized_row.get("firstname")
             db_consumer["last_name"] = normalized_row.get("lastname")
             db_consumer["email"] = normalized_row.get("email")

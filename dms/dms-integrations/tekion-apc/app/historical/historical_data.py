@@ -65,11 +65,11 @@ def process_file(file, ftp, dealer_id, s3_date_path):
             local_file = f"/tmp/{file}"
             ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
 
-            if any(keyword in file for keyword in ["RepairOrder", "RO", "SERVICE"]):
+            if any(keyword in file for keyword in ["RO"]):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["VehicleSales", "VSH", "SALES"]):
+            elif any(keyword in file for keyword in ["VS"]):
                 s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["Appointment", "SA", "appointment"]):
+            elif any(keyword in file for keyword in ["SA"]):
                 s3_key = f"tekion-apc/historical/service_appointment/{dealer_id}/{s3_date_path}/{file}"
             else:
                 raise ValueError(f"Unknown file type for file {file}")
