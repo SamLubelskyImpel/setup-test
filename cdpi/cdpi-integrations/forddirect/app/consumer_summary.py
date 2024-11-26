@@ -118,7 +118,7 @@ def write_to_rds(entries):
             logger.error(f"Error occurred during database operations: {e}")
             raise e
 
-    if skipped_entries == entries:
+    if len(skipped_entries) == len(entries):
         logger.error("No valid consumer profiles found in the database")
         raise Exception("No valid consumer profiles found in the database")
 

@@ -62,8 +62,6 @@ def merge_consumer_rows(pii_rows):
                 'dealer_identifier': row['dealer_identifier'],
                 'fdguid': row['fdguid'],
                 'fddguid': row['fddguid'],
-                'status': row['status'],
-                'pacode': row['pacode'],
                 'match_result': row['match_result'],
             }
         else:

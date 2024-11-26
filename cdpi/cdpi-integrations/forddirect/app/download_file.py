@@ -65,6 +65,8 @@ def extract_dealer_id(file_path):
         return file_path.split('consumer_profile_summary/')[1].split('/')[0]
     if 'consumer_signal_detail' in file_path:
         return file_path.split('consumer_signal_detail/')[1].split('/')[0]
+    if 'pii_match_test' in file_path:
+        return None
     if 'pii-match' in file_path or 'pii_match' in file_path:
         return file_path.split('match/')[1].split('/')[0]
     if 'inventory' in file_path:
