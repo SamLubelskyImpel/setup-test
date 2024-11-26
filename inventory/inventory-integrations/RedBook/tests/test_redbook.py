@@ -41,33 +41,26 @@ class TestRetrieveOptions(unittest.TestCase):
     @patch('retrieve_options.save_data_to_db')
     @patch('retrieve_options.logger')
     def test_lambda_handler_db_success(self, mock_logger, mock_save_to_db, mock_process, mock_fetch_data, mock_check_db, mock_get_connection):
-        # Mock event and context
         event = {"redbookCode": "578555"}
         context = {}
 
-        # Mock database connection and cursor
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
         mock_conn.cursor.return_value = mock_cursor
         
-        # Mock check_db to return some data
         mock_check_db.return_value = [{"equipmentname": "Test Equipment"}]
         
-        # Mock fetch_redbook_data to simulate API call (not used if DB data exists)
         mock_fetch_data.return_value = {}
 
-        # Expected return value when data is fetched from DB
         expected_result = json.dumps({"success": True, "results": [{"equipmentname": "Test Equipment"}]})
 
-        # Call lambda_handler
         result = lambda_handler(event, context)
 
-        # Assertions
         self.assertEqual(result, expected_result)
         mock_check_db.assert_called_once_with(mock_cursor, "578555")
-        mock_fetch_data.assert_not_called()  # Shouldn't be called because check_db returned results
-        mock_save_to_db.assert_not_called()  # Shouldn't be called because the data was fetched from the DB
+        mock_fetch_data.assert_not_called()  
+        mock_save_to_db.assert_not_called()  
         mock_logger.info.assert_called_with("Returning data from DB: {'success': True, 'results': [{'equipmentname': 'Test Equipment'}]}")
 
 
@@ -78,35 +71,26 @@ class TestRetrieveOptions(unittest.TestCase):
     @patch('retrieve_options.save_data_to_db')
     @patch('retrieve_options.logger')
     def test_lambda_handler_redbook_api_success(self, mock_logger, mock_save_to_db, mock_process, mock_fetch_data, mock_check_db, mock_get_connection):
-        # Mock event and context
         event = {"redbookCode": "578555"}
         context = {}
 
-        # Mock database connection and cursor
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
         mock_conn.cursor.return_value = mock_cursor
         
-        # Mock check_db to return None (simulate DB miss)
         mock_check_db.return_value = None
         
-        # Mock fetch_redbook_data to return valid data from the API
         mock_fetch_data.return_value = {"totalCount": 1, "results": [{"equipmentname": "Test Equipment"}]}
         
-        # Mock process to return processed data
         mock_process.return_value = [{"equipmentname": "Processed Equipment"}]
         
-        # Mock save_data_to_db to do nothing
         mock_save_to_db.return_value = None
 
-        # Expected return value when data is fetched from RedBook API and processed
         expected_result = json.dumps({"success": True, "results": [{"equipmentname": "Processed Equipment"}]})
 
-        # Call lambda_handler
         result = lambda_handler(event, context)
 
-        # Assertions
         self.assertEqual(result, expected_result)
         mock_check_db.assert_called_once_with(mock_cursor, "578555")
         mock_fetch_data.assert_called_once_with(rbc="578555")
@@ -122,29 +106,22 @@ class TestRetrieveOptions(unittest.TestCase):
     @patch('retrieve_options.save_data_to_db')
     @patch('retrieve_options.logger')
     def test_lambda_handler_redbook_api_failure(self, mock_logger, mock_save_to_db, mock_process, mock_fetch_data, mock_check_db, mock_get_connection):
-        # Mock event and context
         event = {"redbookCode": "578555"}
         context = {}
 
-        # Mock database connection and cursor
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
         mock_conn.cursor.return_value = mock_cursor
         
-        # Mock check_db to return None (simulate DB miss)
         mock_check_db.return_value = None
         
-        # Mock fetch_redbook_data to return invalid data (e.g., no totalCount)
         mock_fetch_data.return_value = {"totalCount": 0}
         
-        # Expected result when no valid data is returned from RedBook API
         expected_result = json.dumps({"success": False, "message": "No valid data was retrieved from RedBook's API"})
 
-        # Call lambda_handler
         result = lambda_handler(event, context)
 
-        # Assertions
         self.assertEqual(result, expected_result)
         mock_check_db.assert_called_once_with(mock_cursor, "578555")
         mock_fetch_data.assert_called_once_with(rbc="578555")
@@ -159,29 +136,22 @@ class TestRetrieveOptions(unittest.TestCase):
     @patch('retrieve_options.save_data_to_db')
     @patch('retrieve_options.logger')
     def test_lambda_handler_exception(self, mock_logger, mock_save_to_db, mock_process, mock_fetch_data, mock_check_db, mock_get_connection):
-        # Mock event and context
         event = {"redbookCode": "578555"}
         context = {}
 
-        # Mock database connection and cursor
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_get_connection.return_value = mock_conn
         mock_conn.cursor.return_value = mock_cursor
         
-        # Mock check_db to return None (simulate DB miss)
         mock_check_db.return_value = None
         
-        # Mock fetch_redbook_data to raise an exception
         mock_fetch_data.side_effect = Exception("API failure")
 
-        # Expected result when an exception is raised during RedBook API fetch
         expected_result = json.dumps({"success": False, "message": "API failure"})
 
-        # Call lambda_handler
         result = lambda_handler(event, context)
 
-        # Assertions
         self.assertEqual(result, expected_result)
         mock_check_db.assert_called_once_with(mock_cursor, "578555")
         mock_fetch_data.assert_called_once_with(rbc="578555")
