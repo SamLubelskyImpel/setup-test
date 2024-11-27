@@ -82,7 +82,7 @@ def check_db(cursor=None, rbc=None):
     """
     cursor.execute(query, (rbc,))
     rows = cursor.fetchall()
-    return [row[0] for row in rows] if rows else None
+    return list(rows[0][0]) if rows[0] else None
 
 
 def fetch_redbook_data(retries=3, rbc=None):
