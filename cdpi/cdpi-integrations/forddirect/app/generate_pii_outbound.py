@@ -113,6 +113,10 @@ def record_handler(record: SQSRecord):
             new_consumers = future_new_consumers.result()
             updated_consumers = future_updated_consumers.result()
 
+        if not new_consumers and not updated_consumers:
+            logger.info(f'No new or updated consumers found for dealer ID {dealer_id} with 24 hours of {last_executed}')
+            return
+
         filename = f'eid_pii_match{ "" if IS_PROD else "_test" }_impel_{dealer_id}_{now.strftime("%Y%m%d%H%M%S")}.txt'
         filepath = f'/tmp/{filename}'
         with open(filepath, mode='w', newline='') as file:

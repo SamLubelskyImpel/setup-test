@@ -163,7 +163,7 @@ Resources:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: cron(0 12 * * ? *)
+            Schedule: cron(0 13 * * ? *)
       Layers:
         - !If [
             IsProd,
