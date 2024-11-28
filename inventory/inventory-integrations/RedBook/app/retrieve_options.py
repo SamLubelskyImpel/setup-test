@@ -6,7 +6,6 @@ import json
 import requests
 from utils.db_config import get_connection
 
-ssm_client = boto3.client("ssm")
 secrets_client = boto3.client("secretsmanager")
 
 ENV = environ.get("ENVIRONMENT", "stage")
