@@ -335,7 +335,7 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          BATCH_SIZE: 10
+          BATCH_SIZE: 1000
 
   ConsumerIngestionBatcherLogGroup:
     Type: AWS::Logs::LogGroup
