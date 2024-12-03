@@ -47,7 +47,19 @@ def make_pii_rows(consumer_dict: dict, dealer_id: int) -> list:
     if not record_date:
         record_date = datetime.now(timezone.utc)
     elif isinstance(record_date, str):  # record_date becomes a str on the audit_log e.g. 2024-10-21 13:50:49+00
-        record_date = datetime.strptime(record_date + '00', '%Y-%m-%d %H:%M:%S%z')
+        # List of possible formats
+        formats = [
+            '%Y-%m-%d %H:%M:%S.%f%z',  # With milliseconds
+            '%Y-%m-%d %H:%M:%S%z'      # Without milliseconds
+        ]
+        for fmt in formats:
+            try:
+                record_date = datetime.strptime(record_date + '00', fmt)
+                break
+            except ValueError:
+                continue
+        else:
+            raise ValueError(f"record_date '{record_date}' does not match any known formats.")
     record_date = record_date.strftime('%Y-%m-%dT%H:%M:%S')
 
     if 'first_name' in consumer_dict:
