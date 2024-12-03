@@ -143,7 +143,6 @@ class OemAdfCreation(BaseClass):
     def create_adf_data(self, lead_id):
         try:
             vehicle = self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
-
             vehicle_of_interest = vehicle["vehicles_of_interest"][0] if vehicle.get("vehicles_of_interest", []) else {}
 
             is_vehicle_of_interest = any(vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model'])
@@ -153,7 +152,17 @@ class OemAdfCreation(BaseClass):
                 logger.info(f"No valid vehicle of interest found for lead {lead_id}. Skipping VOI-specific ADF data.")
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
+
+            impel_metadata = vehicle.get("metadata", {}).get("impel_chat_ai_lead_ingestion", {})
+
             self.customer = self._generate_customer_adf(consumer, comment_value=vehicle.get("lead_comment"))
+
+            metadata_tags = ""
+            if impel_metadata:
+                metadata_tags = "\n".join(
+                    [f"<{key}>{value}</{key}>" for key, value in impel_metadata.items()]
+                )
+                self.metadata = f"<impel_chat_ai_lead_ingestion>\n{metadata_tags}\n</impel_chat_ai_lead_ingestion>"
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
@@ -163,22 +172,22 @@ class OemAdfCreation(BaseClass):
             self.vendor = f"<vendor>\n{vendor_data}\n</vendor>"
 
             service = "lead" if is_vehicle_of_interest else "contact"
-
             formatted_adf = self.adf_file.format(
                 request_date=datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
-                vehicle_of_interest = self.vehicle,
-                customer = self.customer,
-                vendor = self.vendor,
-                service_value = self.default_mapper[self.oem_name][service],
-                lead_id = lead_id
+                vehicle_of_interest=self.vehicle,
+                customer=self.customer,
+                vendor=self.vendor,
+                impel_metadata=self.metadata or "",
+                service_value=self.default_mapper[self.oem_name][service],
+                lead_id=lead_id,
             )
             logger.info(f"Generated ADF for lead {lead_id}: \n{formatted_adf}")
 
             response = self._jdpa_api_call(formatted_adf, service)
             logger.info(f"Response from JDPA: {response}")
-            
+
             return is_vehicle_of_interest
-        
+
         except CRMApiError as e:
             logger.error(f"CRMApiError: {e}")
             raise e
