@@ -32,7 +32,7 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !If [ IsProd, "crm-integrations-prod", "crm-integrations-test" ]
         UPLOAD_SECRET_KEY: "impel"
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "cjn2bvvdzb.execute-api.us-east-1.amazonaws.com/Stage"]
         SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         REPORTING_TOPIC_ARN: !If [
             IsProd,
