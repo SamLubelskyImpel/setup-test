@@ -34,6 +34,46 @@ TARGET_COLUMNS = [
 ]
 
 
+class FordFileParser:
+    def __init__(self):
+        self.row_count_skipped = 0
+        self.row_count_processed = 0
+
+    def extract_columns(self, headers, row):
+        """Extract only the target columns from the row."""
+        row_dict = dict(zip(headers, row))
+        if not row_dict.get('ext_consumer_id', '').replace('"', '').strip():
+            return None
+
+        # Extract only the target columns
+        extracted_row = [row_dict.get(col) for col in TARGET_COLUMNS]
+        return extracted_row
+
+    def filter_rows(self, txt_file):
+        """Filter only the rows with the target columns."""
+        original_headers = []
+
+        first_line = True
+        for line in txt_file:
+            line = line.strip()
+
+            row = line.split('|^|')
+
+            if first_line:
+                original_headers = [i.lower() for i in row]
+                first_line = False
+                continue
+
+            # Extract columns from the row
+            extracted_row = self.extract_columns(original_headers, row)
+            if not extracted_row:
+                self.row_count_skipped += 1
+                continue
+
+            self.row_count_processed += 1
+            yield extracted_row
+
+
 def is_active_dealer(cdp_dealer_id):
     """Check if the dealer is active."""
     with DBSession() as session:
@@ -48,44 +88,6 @@ def is_active_dealer(cdp_dealer_id):
         ).first()
 
         return bool(db_dip)
-
-
-def extract_columns(headers, row):
-    """Extract only the target columns from the row."""
-    row_dict = dict(zip(headers, row))
-    if not row_dict.get('ext_consumer_id', '').replace('"', '').strip():
-        return None
-
-    # Extract only the target columns
-    extracted_row = [row_dict.get(col) for col in TARGET_COLUMNS]
-    return extracted_row
-
-
-def filter_rows(bucket, key):
-    """Filter only the rows with the target columns."""
-    response = s3_client.get_object(Bucket=bucket, Key=key)
-
-    txt_file = io.TextIOWrapper(response['Body'], encoding='utf-8')
-    original_headers = []
-
-    first_line = True
-    for line in txt_file:
-        line = line.strip()
-
-        row = line.split('|^|')
-
-        if first_line:
-            original_headers = [i.lower() for i in row]
-            first_line = False
-            continue
-
-        # Extract columns from the row
-        extracted_row = extract_columns(original_headers, row)
-        if not extracted_row:
-            logger.info(f"Skipping row without Impel ID: {row}")
-            continue
-
-        yield extracted_row
 
 
 def upload_batch(batch, bucket, filename, dealer_id, batch_count):
@@ -121,7 +123,12 @@ def record_handler(record: SQSRecord):
         batch = [TARGET_COLUMNS]
         batch_count = 0
 
-        for row in filter_rows(bucket_name, decoded_key):
+        s3_response = s3_client.get_object(Bucket=bucket_name, Key=decoded_key)
+        txt_file = io.TextIOWrapper(s3_response['Body'], encoding='utf-8')
+        logger.info(f"Processing file: {decoded_key}")
+
+        parser = FordFileParser()
+        for row in parser.filter_rows(txt_file):
             batch.append(row)
 
             if len(batch)-1 == BATCH_SIZE:
@@ -132,6 +139,9 @@ def record_handler(record: SQSRecord):
         # Process any remaining rows
         if len(batch) > 1:
             upload_batch(batch, bucket_name, filename, dealer_id, batch_count)
+
+        logger.info("Finished processing")
+        logger.info(f"Total rows processed: {parser.row_count_processed}.\nTotal rows skipped (missing ext_consumer_id): {parser.row_count_skipped}")
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
