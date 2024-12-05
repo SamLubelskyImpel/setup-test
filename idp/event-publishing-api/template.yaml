@@ -195,6 +195,9 @@ Resources:
       Handler: post_events.lambda_handler
       Timeout: 30
       MemorySize: 512
+      Environment:
+        Variables:
+          EVENT_BUS_NAME: !If [ IsProd, "idp-shared-services-prod-EventBus", "idp-shared-services-test-EventBus" ]
       Events:
         Post:
           Type: Api
@@ -202,3 +205,17 @@ Resources:
             RestApiId: !Ref EventPublishingAPIGateway
             Path: /v1/events
             Method: POST
+      Policies:
+        - Id: PostEventsPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowPostEvents
+              Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource:
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/idp-shared-services-prod-EventBus",
+                    !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/idp-shared-services-test-EventBus"
+                  ]

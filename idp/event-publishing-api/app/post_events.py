@@ -3,12 +3,17 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
-from uuid import uuid4
+from datetime import datetime, timezone
+import boto3
+from botocore.exceptions import ClientError
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
+EVENT_BUS_NAME = environ.get("EVENT_BUS_NAME")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+events_client = boto3.client('events')
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
@@ -41,15 +46,37 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": dumps({"error": f"Invalid data type: {e}"}),
             }
 
-        event_response = []
-        for event_content in event_json:
-            event_id = str(uuid4())
-            event_response.append(
-                {
-                    "event_json": event_content,
-                    "event_id": event_id,
-                }
-            )
+        if not event_json:
+            return {
+                "statusCode": 400,
+                "body": dumps({"error": "No events to publish."}),
+            }
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        entries = [{
+                'Time': timestamp,
+                'Source': source,
+                'DetailType': 'JSON',
+                'Detail': dumps(event),
+                'EventBusName': EVENT_BUS_NAME
+            } for event in event_json]
+
+        logger.info(f"Entries: {entries}")
+
+        event_response = events_client.put_events(
+            Entries=entries
+        )
+        logger.info(f"Event response: {event_response}")
+
+        response_entries = event_response.get('Entries', [])
+        api_response = []
+
+        for entry in response_entries:
+            api_response.append({
+                "event_id": entry.get("EventId", None),
+                "error_code": entry.get("ErrorCode", None),
+                "error_message": entry.get("ErrorMessage", None)
+            })
 
         """
         Example SNS event:
@@ -62,6 +89,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
         }
         """
+
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'InternalException':
+            error_message = f"Error sending events to EventBridge Bus: {e}."
+            logger.exception(error_message)
+            return {
+                "statusCode": 500,
+                "body": dumps({"error": {error_message}}),
+            }
 
     except Exception as e:
         logger.exception(f"Error sending events: {e}.")
