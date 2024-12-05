@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the udp event api.
+    Deploy the event publishing api.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -64,7 +64,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "udp-event-api-$env" \
+    --stack-name "event-publishing-api-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

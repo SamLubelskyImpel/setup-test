@@ -22,7 +22,7 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "udp-event-api-test"
+stack_name = "event-publishing-api-test"
 parameter_overrides = "Environment=\"test\""
 
 [stage.deploy.parameters]
@@ -30,7 +30,7 @@ profile = "unified-test"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
-stack_name = "udp-event-api-stage"
+stack_name = "event-publishing-api-stage"
 parameter_overrides = "Environment=\"stage\""
 
 [prod.deploy.parameters]
@@ -38,7 +38,7 @@ profile = "unified-prod"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
-stack_name = "udp-event-api-prod"
+stack_name = "event-publishing-api-prod"
 parameter_overrides = """\
     Environment=\"prod\"\
 """

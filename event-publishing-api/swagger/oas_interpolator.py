@@ -33,6 +33,6 @@ def interpolate_yaml_file(file_path: str, interpolation_dict: dict):
 
 
 interpolate_yaml_file(
-    "swagger/api-oas.yaml",
+    "swagger/event-publishing-api-oas.yaml",
     API_INTERPOLATION_DATA,
 )

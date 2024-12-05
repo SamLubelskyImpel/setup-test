@@ -1,29 +1,34 @@
 openapi: 3.0.0
-servers: []
 info:
   version: "1.0.0"
   title: Impel Event Publishing API
-  description: Event publishing API for UDP
+  description: Event publishing API
 
-#{{CRM_API_AWS_VALIDATION}}
+#{{API_AWS_VALIDATION}}
 paths:
-  /events:
+  /v1/events:
     post:
-      #{{POST_EVENTS_LAMBDA_INFO}}
       tags:
         - Events
       description: Send events for publishing
       operationId: postEvents
+      #{{POST_EVENTS_LAMBDA_INFO}}
       parameters:
         - "$ref": "#/components/parameters/clientId"
         - "$ref": "#/components/parameters/apiKey"
       responses:
         '200':
-          description: All the devices
+          description: Events successfully published.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventResponse"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '500':
+          "$ref": "#/components/responses/500"
       requestBody:
         content:
           application/json:
@@ -31,6 +36,16 @@ paths:
               $ref: "#/components/schemas/Event"
 
 components:
+  responses:
+    '400':
+      description: This indicates Bad Request. For example this error can occur if
+        a required property in the request JSON is missing.
+    '401':
+      description: This request is unauthorized. The authorization credentials are
+        missing or are wrong.
+    '500':
+      description: Internal Server Error. Please contact Impel support.
+
   schemas:
     Event:
       type: object
