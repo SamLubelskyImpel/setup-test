@@ -40,10 +40,10 @@ def save_raw_event(partner_name: str, dealer: dict, body: dict):
     logger.info(f'Raw event saved to {s3_key}')
 
 
-def log_event(event: dict):
-    del event['headers']
-    del event['multiValueHeaders']
-    logger.info(f'Event: {event}')
+# def log_event(event: dict):
+#     del event['headers']
+#     del event['multiValueHeaders']
+#     logger.info(f'Event: {event}')
 
 
 def send_alert(message: str):
@@ -94,44 +94,45 @@ def get_dealers(integration_partner_name: str):
 
 
 def lambda_handler(event: dict, context: Any):
-    log_event(event)
+    # log_event(event)
+    logger.info(f'Event: {event}')
 
     body = event['body']
-    dict_body: dict = loads(body)
-    crm_dealer_id = dict_body['SellerIdentifier']
+    # dict_body: dict = loads(body)
+    # crm_dealer_id = dict_body['SellerIdentifier']
 
-    try:
-        dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
+    # try:
+    #     dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
 
-        partner_name = 'CARSALES_AU'
-        dealer = next(iter([d for d in dealers if d['crm_dealer_id'] == crm_dealer_id]), None)
+    #     partner_name = 'CARSALES_AU'
+    #     dealer = next(iter([d for d in dealers if d['crm_dealer_id'] == crm_dealer_id]), None)
 
-        if not dealer:
-            partner_name = 'DEALERSOCKET_AU'
-            dealer = next(iter([
-                d for d in dealers
-                if d.get('metadata', {}).get('lead_vendor') == 'carsales'
-                and d.get('metadata', {}).get('carsales_dealer_id') == crm_dealer_id
-            ]), None)
+    #     if not dealer:
+    #         partner_name = 'DEALERSOCKET_AU'
+    #         dealer = next(iter([
+    #             d for d in dealers
+    #             if d.get('metadata', {}).get('lead_vendor') == 'carsales'
+    #             and d.get('metadata', {}).get('carsales_dealer_id') == crm_dealer_id
+    #         ]), None)
 
-        if not dealer:
-            raise DealershipNotActive()
+    #     if not dealer:
+    #         raise DealershipNotActive()
 
-        logger.info(f'Found active dealership {dealer}')
-        save_raw_event(partner_name, dealer, dict_body)
+    #     logger.info(f'Found active dealership {dealer}')
+    #     save_raw_event(partner_name, dealer, dict_body)
 
-        return {
-            'statusCode': 200
-        }
-    except DealershipNotActive:
-        message = f'Dealership not active for crm_dealer_id = {crm_dealer_id}'
-        logger.warning(message)
-        send_alert(message)
+    return {
+        'statusCode': 200
+    }
+    # except DealershipNotActive:
+    #     message = f'Dealership not active for crm_dealer_id = {crm_dealer_id}'
+    #     logger.warning(message)
+    #     send_alert(message)
 
-        return {
-            'statusCode': 400,
-            'body': dumps({ 'error': 'Dealership not active' })
-        }
-    except:
-        logger.exception('Error processing new lead')
-        raise
+    #     return {
+    #         'statusCode': 400,
+    #         'body': dumps({ 'error': 'Dealership not active' })
+    #     }
+    # except:
+    #     logger.exception('Error processing new lead')
+    #     raise

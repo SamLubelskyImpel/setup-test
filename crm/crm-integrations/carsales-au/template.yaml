@@ -63,11 +63,11 @@ Resources:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-
           {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-      DefinitionBody:
-        Fn::Transform:
-          Name: AWS::Include
-          Parameters:
-            Location: "./swagger/carsales-au-webhook-oas-interpolated.yaml"
+      # DefinitionBody:
+      #   Fn::Transform:
+      #     Name: AWS::Include
+      #     Parameters:
+      #       Location: "./swagger/carsales-au-webhook-oas-interpolated.yaml"
       GatewayResponses:
         BAD_REQUEST_PARAMETERS:
           ResponseTemplates:
