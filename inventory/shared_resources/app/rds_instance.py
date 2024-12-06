@@ -431,8 +431,8 @@ class RDSInstance:
                 inv.factory_certified AS "inv_inventory|factory_certified",
                 inv.options AS "inv_inventory|options",
                 inv.priority_options AS "inv_inventory|priority_options",
-                array_agg(DISTINCT eq.equipment_description) AS "inv_equipment|equipment_description",
-                array_agg(DISTINCT eq.is_optional) AS "inv_equipment|is_optional"
+                array_agg(eq.equipment_description) AS "inv_equipment|equipment_description",
+                array_agg(eq.is_optional) AS "inv_equipment|is_optional"
             FROM {self.schema}.inv_inventory AS inv
             JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
             JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id

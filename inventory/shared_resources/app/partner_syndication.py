@@ -30,7 +30,7 @@ def record_handler(record: SQSRecord) -> None:
         key = body["Records"][0]["s3"]["object"]["key"]
         provider_dealer_id = key.split('/')[-1].split('.')[0]
 
-        logger.info(f"Uploaded for Provider dealer id: {provider_dealer_id}")
+        logger.info(f"Uploading for Provider dealer id: {provider_dealer_id}")
 
         # Download the icc file
         response = s3_client.get_object(Bucket=bucket, Key=key)
