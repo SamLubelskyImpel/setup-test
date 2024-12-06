@@ -1,12 +1,9 @@
 import logging
 import boto3
-from os import environ
 from ftplib import FTP, error_perm, error_temp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-FTP_FOLDER = environ.get("FTP_FOLDER", "test_tekion_dms")
 
 
 class FtpToS3:

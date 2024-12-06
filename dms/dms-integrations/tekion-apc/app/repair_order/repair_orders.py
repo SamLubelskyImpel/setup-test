@@ -33,8 +33,8 @@ def parse_data(data):
 def lambda_handler(event, context):
     """Query Tekion repair order API."""
     try:
-        for event in [e for e in event["Records"]]:
-            parse_data(loads(event["body"]))
+        for record in event["Records"]:
+            parse_data(loads(record["body"]))
     except Exception:
         logger.exception("Error running repair order lambda")
         raise
