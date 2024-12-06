@@ -1,26 +1,17 @@
-import requests
-import boto3
+import logging
+import tempfile
+from datetime import datetime
+from io import BytesIO
 from json import loads
 from os import environ
 from typing import Any
-import logging
+
+import boto3
 import pandas as pd
-from datetime import datetime
-import tempfile
-from io import BytesIO
-from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from aws_lambda_powertools.utilities.batch import (
-    BatchProcessor,
-    EventType,
-    process_partial_response,
-)
 
 from rds_instance import RDSInstance
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
 INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
-INVENTORY_API_URL = environ.get("INVENTORY_API_URL")
-INVENTORY_API_KEY = environ.get("INVENTORY_API_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -120,12 +111,11 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
     return icc_formatted_inventory
 
 
-def record_handler(record: SQSRecord) -> None:
+def lambda_handler(event: Any, context: Any) -> Any:
     """Convert to ICC format and upload to inventory/icc bucket."""
-    logger.info(f"Record: {record}")
+    logger.info(f"Record: {event}")
     try:
-        # Retreive the integration partner
-        integration_partner = 'carsales'
+        integration_partner = event.get("integration_partner")
 
         # Initialize RDS instance
         rds_instance = RDSInstance()
@@ -156,23 +146,4 @@ def record_handler(record: SQSRecord) -> None:
                     upload_to_s3(csv_bytes, f"{provider_dealer_id}.csv", integration_partner)
     except Exception:
         logger.exception("Error processing record")
-        raise
-
-
-def lambda_handler(event: Any, context: Any) -> Any:
-    """Convert to ICC format and upload to inventory/icc bucket."""
-    logger.info(f"Event: {event}")
-
-    try:
-        processor = BatchProcessor(event_type=EventType.SQS)
-        result = process_partial_response(
-            event=event,
-            record_handler=record_handler,
-            processor=processor,
-            context=context
-        )
-        return result
-
-    except Exception as e:
-        logger.error(f"Error processing batch: {e}")
         raise

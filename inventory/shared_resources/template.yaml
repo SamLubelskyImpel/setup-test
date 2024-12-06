@@ -182,6 +182,7 @@ Resources:
                 Resource:
                 - !GetAtt DirectUploadQueue.Arn
                 - !GetAtt UnifiedLoadQueue.Arn
+                - !GetAtt PartnerSyndicationQueue.Arn
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -441,6 +442,129 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
+
+  GenerateICC:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "shared-inv-${Environment}-GenerateICC"
+      Description: Generate ICC file for unified data.
+      Handler: generate_icc.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 600
+      MemorySize: 1024
+      Environment:
+        Variables:
+          INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
+
+  CarsalesGenerateICCSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "shared-inv-${Environment}-GenerateICCSchedule"
+      ScheduleExpression: rate(1 hour)  # Adjust the schedule as needed
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCTarget"
+          Input: '{"integration_partner": "carsales"}'
+
+  PermissionForEventsToInvokeGenerateICC:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GenerateICC
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt CarsalesGenerateICCSchedule.Arn
+
+  PartnerSyndicationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-PartnerSyndicationQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 600
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt PartnerSyndicationDLQ.Arn
+          maxReceiveCount: 2
+
+  PartnerSyndicationDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'shared-inv-${Environment}-PartnerSyndicationDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+
+  PartnerSyndicationDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub shared-inv-${Environment}-PartnerSyndicationDLQ
+      AlarmDescription: There are messages in the Partner Syndication DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PartnerSyndicationDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  PartnerSyndicationTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref InventoryS3ToSNSTopic
+      Endpoint: !GetAtt PartnerSyndicationQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"icc/carsales"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  PartnerSyndicationQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref PartnerSyndicationQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: PartnerSyndicationQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt PartnerSyndicationQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
+
+  PartnerSyndication:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "shared-inv-${Environment}-PartnerSyndication"
+      Description: Syndicate unified data to partners.
+      Handler: partner_syndication.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 600
+      MemorySize: 1024
+      Environment:
+        Variables:
+          INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
+
+  PartnerSyndicationEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt PartnerSyndicationQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt PartnerSyndication.Arn
 
   SharedDBAlarm:
     Type: AWS::CloudWatch::Alarm
