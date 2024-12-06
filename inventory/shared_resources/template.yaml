@@ -457,6 +457,26 @@ Resources:
         Variables:
           INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
 
+  GenerateICCAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub shared-inv-${Environment}-GenerateICC
+      AlarmDescription: Generate ICC failed to execute
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GenerateICC
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   CarsalesGenerateICCSchedule:
     Type: AWS::Events::Rule
     Properties:
@@ -498,7 +518,7 @@ Resources:
     Properties:
       AlarmName: !Sub shared-inv-${Environment}-PartnerSyndicationDLQ
       AlarmDescription: There are messages in the Partner Syndication DLQ
-      ActionsEnabled: true
+      ActionsEnabled: !If [IsProd, true, false]
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
