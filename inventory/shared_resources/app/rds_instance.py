@@ -304,8 +304,8 @@ class RDSInstance:
         inventory_ids = set()
 
         insert_query = f"""
-        INSERT INTO {self.schema}.inv_inventory (vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color, 
-        interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin, interior_material, trim, 
+        INSERT INTO {self.schema}.inv_inventory (vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color,
+        interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin, interior_material, trim,
         factory_certified, region, on_lot, metadata, received_datetime, photo_url, vdp, comments, options, priority_options)
         VALUES %s
         ON CONFLICT (vehicle_id, dealer_integration_partner_id) DO UPDATE SET
@@ -368,3 +368,81 @@ class RDSInstance:
             raise ValueError("Mismatch between existing and new inventory records.")
 
         return inventory_ids
+
+    def get_active_dealer_integration_partners(self, integration_partner):
+        """
+        Retrieve the active dealer integration partner IDs and provider dealer IDs
+        for the specified integration partner.
+        """
+        query = f"""
+            SELECT dip.id, dip.provider_dealer_id
+            FROM {self.schema}.inv_dealer_integration_partner AS dip
+            JOIN {self.schema}.inv_integration_partner AS ip
+            ON ip.id = dip.integration_partner_id
+            WHERE ip.impel_integration_partner_id = '{integration_partner}'
+            AND dip.is_active = 'TRUE';
+        """
+        results = self.execute_rds(query)
+        dip_result = results.fetchall()
+        return dip_result
+
+    def get_on_lot_inventory(self, dip_id):
+        """
+        Retrieve the on_lot inventory data for the specified
+        dealer integration partner IDs
+        """
+        query = f"""
+            SELECT
+                dip.provider_dealer_id AS "inv_dealer_integration_partner|provider_dealer_id",
+                veh.vin AS "inv_vehicle|vin",
+                veh.type AS "inv_vehicle|type",
+                veh.mileage AS "inv_vehicle|mileage",
+                veh.make AS "inv_vehicle|make",
+                veh.model AS "inv_vehicle|model",
+                veh.year AS "inv_vehicle|year",
+                veh.new_or_used AS "inv_vehicle|new_or_used",
+                veh.stock_num AS "inv_vehicle|stock_num",
+                inv.cost_price AS "inv_inventory|cost_price",
+                inv.fuel_type AS "inv_inventory|fuel_type",
+                inv.exterior_color AS "inv_inventory|exterior_color",
+                inv.interior_color AS "inv_inventory|interior_color",
+                inv.doors AS "inv_inventory|doors",
+                inv.transmission AS "inv_inventory|transmission",
+                inv.photo_url AS "inv_inventory|photo_url",
+                inv.comments AS "inv_inventory|comments",
+                inv.drive_train AS "inv_inventory|drive_train",
+                inv.cylinders AS "inv_inventory|cylinders",
+                inv.body_style AS "inv_inventory|body_style",
+                inv.interior_material AS "inv_inventory|interior_material",
+                inv.source_data_drive_train AS "inv_inventory|source_data_drive_train",
+                inv.source_data_interior_material_description AS "inv_inventory|source_data_interior_material_description",
+                inv.list_price AS "inv_inventory|list_price",
+                inv.special_price AS "inv_inventory|special_price",
+                inv.source_data_transmission AS "inv_inventory|source_data_transmission",
+                inv.source_data_transmission_speed AS "inv_inventory|source_data_transmission_speed",
+                inv.transmission_speed AS "inv_inventory|transmission_speed",
+                inv.build_data AS "inv_inventory|build_data",
+                inv.highway_mpg AS "inv_inventory|highway_mpg",
+                inv.city_mpg AS "inv_inventory|city_mpg",
+                inv.vdp AS "inv_inventory|vdp",
+                inv.trim AS "inv_inventory|trim",
+                inv.engine AS "inv_inventory|engine",
+                inv.engine_displacement AS "inv_inventory|engine_displacement",
+                inv.factory_certified AS "inv_inventory|factory_certified",
+                inv.options AS "inv_inventory|options",
+                inv.priority_options AS "inv_inventory|priority_options",
+                array_agg(DISTINCT eq.equipment_description) AS "inv_equipment|equipment_description",
+                array_agg(DISTINCT eq.is_optional) AS "inv_equipment|is_optional"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            LEFT JOIN {self.schema}.inv_equipment_inventory AS ei ON inv.id = ei.inv_inventory_id
+            LEFT JOIN {self.schema}.inv_equipment AS eq ON ei.inv_equipment_id = eq.id
+            WHERE inv.dealer_integration_partner_id = {dip_id}
+            AND inv.on_lot = 'TRUE'
+            GROUP BY inv.id, veh.id, dip.id;
+            """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
