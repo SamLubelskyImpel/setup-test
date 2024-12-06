@@ -117,7 +117,7 @@ def record_handler(record: SQSRecord) -> None:
         integration = key.split('/')[1]
 
         if integration == "carsales":
-            logger.info("Carsales integration is not by direct upload")
+            logger.info("Carsales integration is not supported by direct upload")
             return
 
         logger.info(f"Provider dealer id: {provider_dealer_id}")
