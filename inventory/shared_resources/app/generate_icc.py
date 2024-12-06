@@ -5,6 +5,7 @@ from io import BytesIO
 from json import loads
 from os import environ
 from typing import Any
+import uuid
 
 import boto3
 import pandas as pd
@@ -18,12 +19,15 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
-def upload_to_s3(csv_content, filename, integration):
+def upload_to_s3(csv_content, integration, provided_dealer_id):
     """Upload files to S3."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.utcnow().strftime(format_string)
+    iso_timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%S')
+    unique_id = uuid.uuid4()
+    filename = f"{iso_timestamp}_{unique_id}"
 
-    s3_key = f"icc/{integration}/{date_key}/{filename}"
+    s3_key = f"icc/{integration}/{provided_dealer_id}/{date_key}/{filename}.csv"
     s3_client.put_object(
         Bucket=INVENTORY_BUCKET,
         Key=s3_key,
@@ -143,7 +147,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     with open(temp_file.name, 'rb') as file:
                         csv_bytes = BytesIO(file.read())
 
-                    upload_to_s3(csv_bytes, f"{provider_dealer_id}.csv", integration_partner)
+                    upload_to_s3(csv_bytes, integration_partner, provider_dealer_id)
     except Exception:
         logger.exception("Error processing record")
         raise

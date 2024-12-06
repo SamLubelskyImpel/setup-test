@@ -28,7 +28,7 @@ def record_handler(record: SQSRecord) -> None:
         body = loads(record['body'])
         bucket = body["Records"][0]["s3"]["bucket"]["name"]
         key = body["Records"][0]["s3"]["object"]["key"]
-        provider_dealer_id = key.split('/')[-1].split('.')[0]
+        provider_dealer_id = key.split('/')[2]
 
         logger.info(f"Uploading for Provider dealer id: {provider_dealer_id}")
 
