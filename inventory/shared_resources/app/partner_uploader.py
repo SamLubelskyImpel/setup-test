@@ -86,27 +86,13 @@ class SalesAIUploader(MerchSalesAIBaseUploader):
     """Uploader for Sales AI."""
     def proccess_and_upload_to_sftp(self, product_dealer_id, secret_key) -> None:
         """Upload to sftp server."""
-        # Set DealerId to match product expected DealerId
-        self.icc_formatted_inventory["DealerId"] = product_dealer_id
-
         # Transpose VIN and Stock values if VIN is blank and Stock is not
         for index, row in self.icc_formatted_inventory.iterrows():
             if pd.isna(row['VIN']) and not pd.isna(row['Stock']):
                 self.icc_formatted_inventory.at[index, 'VIN'] = row['Stock']
                 self.icc_formatted_inventory.at[index, 'Stock'] = None
 
-        csv_content = self.icc_formatted_inventory.to_csv(index=False)
-
-        # Upload to SFTP
-        hostname, port, username, password = self.get_sftp_secrets("inventory-integrations-sftp", secret_key)
-        prefix = '' if ENVIRONMENT == 'prod' else 'deleteme_'
-        filename = f"{prefix}{product_dealer_id}.csv"
-
-        with self.connect_sftp_server(hostname, port, username, password) as sftp:
-            csv_file_like = BytesIO(csv_content.encode())
-            sftp.putfo(csv_file_like, filename)
-
-        self.log_info(f"File {filename} uploaded to SFTP")
+        super().proccess_and_upload_to_sftp(product_dealer_id, secret_key)
 
 
 class SeezUploader(BaseUploader):
@@ -151,7 +137,8 @@ SUPPORTED_UPLOADERS = {
 def get_partner_uploaders(provider_dealer_id, icc_formatted_inventory) -> List[BaseUploader]:
     rds_instance = RDSInstance()
     dip_metadata = rds_instance.select_db_dip_metadata(provider_dealer_id)
-    if not dip_metadata: raise Exception(f'No metadata found for {provider_dealer_id}')
+    if not dip_metadata:
+        raise Exception(f'No metadata found for {provider_dealer_id}')
 
     config = dip_metadata.get('syndications', {})
     logger.info(f'Syndications config: {config}')

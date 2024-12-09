@@ -127,6 +127,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 # Save ICC formatted inventory to S3
                 csv_content = icc_formatted_inventory.to_csv(index=False)
                 upload_to_s3(csv_content, integration_partner, provider_dealer_id)
+            else:
+                logger.info(f"No inventory data found for {provider_dealer_id}")
     except Exception:
         logger.exception("Error processing record")
         raise
