@@ -430,14 +430,10 @@ class RDSInstance:
                 inv.engine_displacement AS "inv_inventory|engine_displacement",
                 inv.factory_certified AS "inv_inventory|factory_certified",
                 inv.options AS "inv_inventory|options",
-                inv.priority_options AS "inv_inventory|priority_options",
-                array_agg(eq.equipment_description) AS "inv_equipment|equipment_description",
-                array_agg(eq.is_optional) AS "inv_equipment|is_optional"
+                inv.priority_options AS "inv_inventory|priority_options"
             FROM {self.schema}.inv_inventory AS inv
             JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
             JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
-            LEFT JOIN {self.schema}.inv_equipment_inventory AS ei ON inv.id = ei.inv_inventory_id
-            LEFT JOIN {self.schema}.inv_equipment AS eq ON ei.inv_equipment_id = eq.id
             WHERE inv.dealer_integration_partner_id = {dip_id}
             AND inv.on_lot = 'TRUE'
             GROUP BY inv.id, veh.id, dip.id;
