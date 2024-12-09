@@ -83,28 +83,12 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             for icc_field, unified_field in field_mappings.items():
                 row[icc_field] = entry.get(unified_field)
 
+            # Get options and priority options
             options = entry.get("inv_inventory|options", [])
             row["OptionDescription"] = "|".join(options) if options else None
 
             priority_options = entry.get("inv_inventory|priority_options", [])
             row["PriorityOptions"] = "|".join(priority_options) if priority_options else None
-
-            equipment_descriptions = entry.get("inv_equipment|equipment_description", [])
-            is_optional_flags = entry.get("inv_equipment|is_optional", [])
-
-            # Combine equipment descriptions and is_optional flags
-            optional_equipment = []
-            standard_equipment = []
-
-            for description, is_optional in zip(equipment_descriptions, is_optional_flags):
-                if description is not None:
-                    if is_optional:
-                        optional_equipment.append(description)
-                    else:
-                        standard_equipment.append(description)
-
-            row["OptionalEquipment"] = "|".join(optional_equipment) if optional_equipment else None
-            row["StandardEquipment"] = "|".join(standard_equipment) if standard_equipment else None
 
             # Set FactoryCertified to C if True, else null
             row["FactoryCertified"] = "C" if row["FactoryCertified"] else None
