@@ -23,7 +23,7 @@ def upload_to_s3(csv_content, integration, provided_dealer_id):
     """Upload files to S3."""
     timestamp = datetime.now(tz=timezone.utc)
     date_key = timestamp.strftime('%Y/%m/%d')
-    iso_timestamp = datetime.isoformat('%Y%m%dT%H%M%S')
+    iso_timestamp = timestamp.isoformat().replace(':', '-').replace('+', '_')
     unique_id = uuid.uuid4()
     filename = f"{iso_timestamp}_{unique_id}"
 

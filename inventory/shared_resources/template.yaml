@@ -572,8 +572,8 @@ Resources:
       Handler: partner_syndication.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 600
-      MemorySize: 1024
+      Timeout: 300
+      MemorySize: 512
       Environment:
         Variables:
           INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
