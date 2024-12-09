@@ -86,6 +86,9 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             options = entry.get("inv_inventory|options", [])
             row["OptionDescription"] = "|".join(options) if options else None
 
+            priority_options = entry.get("inv_inventory|priority_options", [])
+            row["PriorityOptions"] = "|".join(priority_options) if priority_options else None
+
             equipment_descriptions = entry.get("inv_equipment|equipment_description", [])
             is_optional_flags = entry.get("inv_equipment|is_optional", [])
 
