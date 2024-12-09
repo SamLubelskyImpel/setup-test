@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  Vehicle Enrichment Layer: This layer gets the vehicle data from Carsales
+  Ingestion Layer and enriches equipment/options data from Redbook Integration.
+
+Parameters:
+  Environment:
+    Type: String
+    Description: The name of the runtime environment
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - "196800776222"
+
+Resources:
+  VehicleEnrichmentQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'carsales-inv-enrichmentlayer-${Environment}-VehicleEnrichmentQueue'
+      DelaySeconds: 0
+      MessageRetentionPeriod: 1209600
+      ReceiveMessageWaitTimeSeconds: 0
+      RedrivePolicy:
+        deadLetterTargetArn:
+          !GetAtt VehicleEnrichmentDLQ.Arn
+        maxReceiveCount: 5
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 30
+  
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:          
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: LambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource:
+                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*" 
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                - !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt VehicleEnrichmentQueue.Arn
+        - PolicyName: CloudFormationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "cloudformation:DescribeStackResources"
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/redbook-${Environment}/*"
+
+
+  VehicleEnrichmentQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref VehicleEnrichmentQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "SQS:SendMessage"
+            Resource: !GetAtt VehicleEnrichmentQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}'
+
+
+  VehicleEnrichmentQueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      Endpoint: !GetAtt VehicleEnrichmentQueue.Arn
+      RawMessageDelivery: true
+      TopicArn: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}'
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        Records:
+          s3:
+            object:
+              key:
+                - prefix: "landing-zone/carsales"
+          eventName:
+            - prefix: "ObjectCreated:"
+
+  VehicleEnrichmentDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'carsales-inv-enrichmentlayer-${Environment}-VehicleEnrichmentDLQ'
+      MessageRetentionPeriod: 1209600
+
+  VehicleEnrichmentDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub carsales-inv-enrichmentlayer-${Environment}-VehicleEnrichmentDLQAlarm
+      AlarmDescription: "There are messages in the VehicleEnrichmentDLQ Alarm"
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+      - Name: QueueName
+        Value: !GetAtt VehicleEnrichmentDLQ.QueueName
+      MetricName: "ApproximateNumberOfMessagesVisible"
+      Namespace: "AWS/SQS"
+      Statistic: "Sum"
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: "GreaterThanThreshold"
+      TreatMissingData: notBreaching
+
+  VehicleEnrichment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "carsales-inv-enrichmentlayer-${Environment}-VehicleEnrichment"
+      CodeUri: app/
+      Handler: vehicle_enrichment.lambda_handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Description: "Vehicle enrichment function"
+      Events:
+        VehicleEnrichmentQueueEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt VehicleEnrichmentQueue.Arn
