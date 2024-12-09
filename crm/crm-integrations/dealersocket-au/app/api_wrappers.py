@@ -116,9 +116,18 @@ class DealersocketAUApiWrapper:
         }
         url = f"{self.api_url}/{endpoint}"
         logger.info(f"Sending {method} request to {url}")
-        response = requests.request(method=method, url=url, data=payload, headers=headers)
-        response.raise_for_status()
-        return response.text
+        logger.info(f"Payload \n{payload}\n\n headers {headers}")
+        # response = requests.request(method=method, url=url, data=payload, headers=headers)
+        # response.raise_for_status()
+        # return response.text
+        return """
+            <Response xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns="http://www.dealersocket.com">
+                <Success>true</Success>
+            </Response>
+        """
+
 
     def _build_xml(self, root_tag: str, elements: dict) -> str:
         """Build XML payload dynamically."""

@@ -24,7 +24,7 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
+        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
         SECRET_KEY: "DEALERSOCKET_AU"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
@@ -101,8 +101,6 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt SendActivityQueue.Arn
-                  - !GetAtt TransformNewLeadQueue.Arn
-                  - !GetAtt TransformLeadUpdateQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -160,16 +158,6 @@ Resources:
       FunctionName: !Sub dealersocket-au-${Environment}-SendActivity
       CodeUri: app/
       Handler: send_activity.lambda_handler
-      Timeout: 30
-      MemorySize: 256
-      Role: !GetAtt LambdaRole.Arn
-
-  RetrieveSalespersons:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub dealersocket-au-${Environment}-RetrieveSalespersons
-      CodeUri: app/
-      Handler: send_activity.get_salespersons_handler
       Timeout: 30
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
