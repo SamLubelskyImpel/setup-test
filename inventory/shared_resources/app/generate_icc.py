@@ -31,7 +31,7 @@ def upload_to_s3(csv_content, integration, provided_dealer_id):
     s3_client.put_object(
         Bucket=INVENTORY_BUCKET,
         Key=s3_key,
-        Body=csv_content
+        Body=csv_content.encode("utf-8")
     )
     logger.info(f"File {s3_key} uploaded to S3")
 
@@ -139,15 +139,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 # Save ICC formatted inventory to S3
                 csv_content = icc_formatted_inventory.to_csv(index=False)
-                with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
-                    temp_file.write(csv_content)
-                    temp_file.seek(0)
-
-                    # Read CSV content from the temporary file and convert it to bytes
-                    with open(temp_file.name, 'rb') as file:
-                        csv_bytes = BytesIO(file.read())
-
-                    upload_to_s3(csv_bytes, integration_partner, provider_dealer_id)
+                upload_to_s3(csv_content, integration_partner, provider_dealer_id)
     except Exception:
         logger.exception("Error processing record")
         raise
