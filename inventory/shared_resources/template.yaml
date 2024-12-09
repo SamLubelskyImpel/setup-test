@@ -474,7 +474,7 @@ Resources:
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
-      Threshold: 1
+      Threshold: 0
       TreatMissingData: notBreaching
 
   CarsalesGenerateICCSchedule:
