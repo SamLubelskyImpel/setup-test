@@ -73,19 +73,32 @@ def parse_json_to_entries(json_data, s3_uri):
         invoice = default_get(repair_order, "invoice", {})
         db_service_repair_order["total_amount"] = default_get(invoice, "invoiceAmount")
 
-        customer_pay = default_get(default_get(invoice, "customerPay", {}), "amount")
-        db_service_repair_order["consumer_total_amount"] = customer_pay
+        customer_pay = default_get(invoice, "customerPay", {})
+        db_service_repair_order["consumer_total_amount"] = default_get(customer_pay, "amount")
 
-        warranty_pay = default_get(default_get(invoice, "warrantyPay", {}), "amount")
-        db_service_repair_order["warranty_total_amount"] = warranty_pay
+        warranty_pay = default_get(invoice, "warrantyPay", {})
+        db_service_repair_order["warranty_total_amount"] = default_get(warranty_pay, "amount")
 
-        internal_pay = default_get(default_get(invoice, "internalPay", {}), "amount")
-        db_service_repair_order["internal_total_amount"] = internal_pay
+        internal_pay = default_get(invoice, "internalPay", {})
+        db_service_repair_order["internal_total_amount"] = default_get(internal_pay, "amount")
 
-        insurance_pay = default_get(default_get(invoice, "insurancePay", {}), "amount")
+        insurance_pay = default_get(invoice, "insurancePay", {})
 
-        pay_fields = [customer_pay, warranty_pay, internal_pay, insurance_pay]
-        db_service_repair_order["service_order_cost"] = str(sum(float(i) if i is not None else 0 for i in pay_fields))
+        # Service Cost
+        service_cost_fields = []
+        service_cost_fields.append(default_get(customer_pay, "laborCostAmount"))
+        service_cost_fields.append(default_get(customer_pay, "partCostAmount"))
+
+        service_cost_fields.append(default_get(warranty_pay, "laborCostAmount"))
+        service_cost_fields.append(default_get(warranty_pay, "partCostAmount"))
+
+        service_cost_fields.append(default_get(internal_pay, "laborCostAmount"))
+        service_cost_fields.append(default_get(internal_pay, "partCostAmount"))
+
+        service_cost_fields.append(default_get(insurance_pay, "laborCostAmount"))
+        service_cost_fields.append(default_get(insurance_pay, "partCostAmount"))
+
+        db_service_repair_order["service_order_cost"] = str(sum(float(i) if i is not None else 0 for i in service_cost_fields))
 
         txn_pay_type_arr = set()
         comment = set()
