@@ -90,7 +90,6 @@ class SalesAIUploader(MerchSalesAIBaseUploader):
         for index, row in self.icc_formatted_inventory.iterrows():
             if (pd.isna(row['VIN']) or row['VIN'] == '') and not pd.isna(row['Stock']):
                 self.icc_formatted_inventory.at[index, 'VIN'] = row['Stock']
-                self.icc_formatted_inventory.at[index, 'Stock'] = None
 
         super().proccess_and_upload_to_sftp(product_dealer_id, secret_key)
 
