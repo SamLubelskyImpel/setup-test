@@ -258,7 +258,7 @@ Resources:
       FunctionName: !Sub tekion-crm-${Environment}-Invoke
       CodeUri: app/
       Handler: invoke_data_pull.lambda_handler
-      Timeout: 30
+      Timeout: 120
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
 
@@ -299,7 +299,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub "tekion-crm-${Environment}-InvokeQueue"
-      VisibilityTimeout: 60
+      VisibilityTimeout: 120
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt InvokeDataPullDeadLetterQueue.Arn
         maxReceiveCount: 3
