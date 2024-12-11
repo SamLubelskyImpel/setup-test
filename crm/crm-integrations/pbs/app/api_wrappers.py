@@ -401,3 +401,20 @@ class PbsApiWrapper:
                 f"PBS CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None
+
+    def get_dealer_lead_statuses(self, crm_dealer_id):
+        endpoint = f"{self.base_url}/json/reply/DealStatusSetupsGet"
+        params = {
+            "SerialNumber": crm_dealer_id
+        }
+        try:
+            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response.raise_for_status()
+            logger.info(f"Successfully fetched Deal Status Setups")
+            return response.json()
+        except requests.exceptions.HTTPError as err:
+            logger.error(f"HTTP error occurred: {err}")
+            raise
+        except Exception as err:
+            logger.error(f"Other error occurred: {err}")
+            raise
