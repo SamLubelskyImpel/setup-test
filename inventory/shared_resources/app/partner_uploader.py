@@ -88,7 +88,7 @@ class SalesAIUploader(MerchSalesAIBaseUploader):
         """Upload to sftp server."""
         # Transpose VIN and Stock values if VIN is blank and Stock is not
         for index, row in self.icc_formatted_inventory.iterrows():
-            if pd.isna(row['VIN']) and not pd.isna(row['Stock']):
+            if (pd.isna(row['VIN']) or row['VIN'] == '') and not pd.isna(row['Stock']):
                 self.icc_formatted_inventory.at[index, 'VIN'] = row['Stock']
                 self.icc_formatted_inventory.at[index, 'Stock'] = None
 
