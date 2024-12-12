@@ -42,6 +42,12 @@ if not logger.handlers:
     logger.addHandler(console_handler)
 
 
+def save_ids_to_file(vehicle_ids, invetory_ids, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, "w") as f:
+        json.dump({"vehicle_ids": vehicle_ids, "inventory_ids": invetory_ids}, f)
+
+
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
     #  There was an entry whose year was an empty string, so we need to handle this case
@@ -175,7 +181,7 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             inventory_data_list.append(inventory_data)
 
         # Perform batch upsert for vehicles
-        vehicle_id_map = rds_instance.batch_upsert_vehicles(vehicle_data_list, dealer_integration_partner_id)
+        vehicle_id_map, new_vehicle_ids = rds_instance.batch_upsert_vehicles(vehicle_data_list, dealer_integration_partner_id)
 
         logger.info(f"Processed vehicles {len(vehicle_id_map)}")
 
@@ -196,6 +202,9 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
 
         # Perform batch insert or update for inventory items
         processed_inventory_ids = rds_instance.batch_insert_inventory(inventory_data_list, dealer_integration_partner_id)
+
+        # Save the vehicle and inventory IDs to a file
+        save_ids_to_file(new_vehicle_ids, list(processed_inventory_ids), f"{folder_path}/{decoded_key}")
 
         logger.info("Data processing completed. Total records processed: %d",
                     len(json_data_list))
@@ -237,7 +246,7 @@ def list_s3_keys(prefix, bucket_name=BUCKET_NAME):
 # This script loads and inserts inventory data into the database for a given date and partner
 if __name__ == "__main__":
     try:
-        KEY_PREFIX_DATE = "unified/coxau/2024/10/24"
+        KEY_PREFIX_DATE = "unified/coxau/2024/10/25"
         logger.info("Starting script execution")
 
         reversed_keys = list_s3_keys(KEY_PREFIX_DATE)[::-1]
@@ -245,6 +254,5 @@ if __name__ == "__main__":
         for key in reversed_keys:
             logger.info(f"Processing key: {key}")
             process_and_upload_data(BUCKET_NAME, key, RDSInstance())
-
     except Exception:
         logger.exception("Error in script execution")
