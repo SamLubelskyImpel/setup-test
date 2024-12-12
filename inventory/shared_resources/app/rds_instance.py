@@ -160,6 +160,7 @@ class RDSInstance:
         in the current_feed_inventory_ids list, but only if on_lot is currently true.
         """
         try:
+            logger.info(f'Batch updating on_lot for dealer_integration_partner_id {dealer_integration_partner_id}')
             with self.rds_connection.cursor() as cursor:
                 select_query = f"""
                 SELECT id FROM {self.schema}.inv_inventory
@@ -249,14 +250,15 @@ class RDSInstance:
                 new_or_used = data.new_or_used,
                 oem_name = data.oem_name,
                 make = data.make,
-                year = data.year
-            FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year)
+                year = data.year,
+                metadata = data.metadata
+            FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year, metadata)
             WHERE v.id = data.id;
             """
             update_values = [
                 (
                     v['id'], v.get('type'), v.get('new_or_used'),
-                    v.get('oem_name'), v.get('make'), v.get('year')
+                    v.get('oem_name'), v.get('make'), v.get('year'), v.get('metadata')
                 )
                 for v in update_data
             ]
@@ -269,7 +271,7 @@ class RDSInstance:
             logger.info(f"Inserting {len(insert_data)} new vehicles.")
 
             insert_query = f"""
-            INSERT INTO {self.schema}.inv_vehicle (vin, dealer_integration_partner_id, model, stock_num, mileage, type, new_or_used, oem_name, make, year)
+            INSERT INTO {self.schema}.inv_vehicle (vin, dealer_integration_partner_id, model, stock_num, mileage, type, new_or_used, oem_name, make, year, metadata)
             VALUES %s
             RETURNING id, vin, dealer_integration_partner_id, model, stock_num, mileage;
             """
@@ -278,7 +280,7 @@ class RDSInstance:
                 batch = insert_data[i:i+100]
                 insert_values = [
                     (v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage'],
-                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'])
+                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'], v['metadata'])
                     for v in batch
                 ]
 
