@@ -79,6 +79,7 @@ Resources:
   RedBookDataFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: !Sub "redbook-${Environment}-RedBookDataFunction"
       CodeUri: app/
       Handler: retrieve_options.lambda_handler
       Policies:
