@@ -152,17 +152,16 @@ class OemAdfCreation(BaseClass):
                 logger.info(f"No valid vehicle of interest found for lead {lead_id}. Skipping VOI-specific ADF data.")
 
             consumer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{vehicle.get('consumer_id')}")
-
-            impel_metadata = vehicle.get("metadata", {}).get("impel_chat_ai_lead_ingestion", {})
-
             self.customer = self._generate_customer_adf(consumer, comment_value=vehicle.get("lead_comment"))
 
-            metadata_tags = ""
-            if impel_metadata:
-                metadata_tags = "\n".join(
-                    [f"<{key}>{value}</{key}>" for key, value in impel_metadata.items()]
-                )
-                self.metadata = f"<impel_chat_ai_lead_ingestion>\n{metadata_tags}\n</impel_chat_ai_lead_ingestion>"
+            # Replace the metadata generation logic
+            metadata = vehicle.get("metadata", {}).get("impel_chat_ai_lead_ingestion", {})
+            metadata_tags = "\n".join(
+                [
+                    f"<id source='{key}'>{value}</id>"
+                    for key, value in metadata.items()
+                ]
+            )
 
             dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
             vendor_data = (
@@ -177,7 +176,7 @@ class OemAdfCreation(BaseClass):
                 vehicle_of_interest=self.vehicle,
                 customer=self.customer,
                 vendor=self.vendor,
-                impel_metadata=self.metadata or "",
+                metadata_tags=metadata_tags,
                 service_value=self.default_mapper[self.oem_name][service],
                 lead_id=lead_id,
             )

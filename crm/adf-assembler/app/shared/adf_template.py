@@ -105,7 +105,7 @@ OEM_ADF_TEMPLATE = """
         {vehicle_of_interest}
         {customer}
         {vendor}
-        {impel_metadata}
+        {metadata_tags}
         <provider>
             <name>Impel-Chat</name>
             <service>{service_value}</service>

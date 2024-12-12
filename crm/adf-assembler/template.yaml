@@ -148,7 +148,7 @@ Resources:
                         - !GetAtt AdfAssemblerDeadLetterQueue.Arn
                         - !GetAtt HondaAcuraAdfAssemblerQueue.Arn
                         - !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
-  
+
   # Standard ADF Assembler Resources
     AdfAssembler:
         Type: AWS::Serverless::Function
@@ -204,7 +204,7 @@ Resources:
             TreatMissingData: notBreaching            
 
 
-  # Honda/Acura ADF Assembler Resources
+#   Honda/Acura ADF Assembler Resources
 
     HondaAcuraAdfAssembler:
         Type: AWS::Serverless::Function
