@@ -246,13 +246,21 @@ def list_s3_keys(prefix, bucket_name=BUCKET_NAME):
 # This script loads and inserts inventory data into the database for a given date and partner
 if __name__ == "__main__":
     try:
-        KEY_PREFIX_DATE = "unified/coxau/2024/10/25"
-        logger.info("Starting script execution")
+        # Define date
+        DATE = "2024/10/25"
 
-        reversed_keys = list_s3_keys(KEY_PREFIX_DATE)[::-1]
+        integration_partners = [
+            'dealerstudio',
+            'icc',
+            'coxau'
+        ]
 
-        for key in reversed_keys:
-            logger.info(f"Processing key: {key}")
-            process_and_upload_data(BUCKET_NAME, key, RDSInstance())
+        for integration_partner in integration_partners:
+            KEY_PREFIX_DATE = f"unified/{integration_partner}/{DATE}"
+            reversed_keys = list_s3_keys(KEY_PREFIX_DATE)[::-1]
+
+            for key in reversed_keys:
+                logger.info(f"Processing key: {key}")
+                process_and_upload_data(BUCKET_NAME, key, RDSInstance())
     except Exception:
         logger.exception("Error in script execution")
