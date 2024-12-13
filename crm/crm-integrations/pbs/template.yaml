@@ -548,7 +548,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref SendActivity
+          Value: !Ref GetDealerLeadStatuses
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
