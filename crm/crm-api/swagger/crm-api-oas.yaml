@@ -1049,7 +1049,7 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
-    /dealers/{dealer_id}/lead_statuses:
+  /dealers/{dealer_id}/lead_statuses:
     get:
       summary: Get lead statuses from CRM API.
       #{{DEALER_LEAD_STATUSES_LAMBDA_INFO}}
