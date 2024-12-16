@@ -57,7 +57,7 @@ FIELD_MAPPINGS = {
         'cylinders': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Cylinders'),
         'body_style': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'BodyStyle'),
         'series': 'Specification.Series',
-        'on_lot': lambda e: get_nested_value(e, 'SaleStatus') in ['For Sale', 'Withdrawn'],
+        'on_lot': lambda e: get_nested_value(e, 'SaleStatus') in ['For Sale'],
         'vin': lambda e: get_from_list(e, 'Identification', 'Value', 'Type', 'VIN'),
         'region': lambda _: 'AU',
         'trim': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Badge'),
