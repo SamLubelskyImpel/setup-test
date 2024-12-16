@@ -1351,11 +1351,11 @@ components:
             description: System status of the lead
             example: Lead
           Default:
-            type: string
+            type: boolean
             description: Default lead status
             example: true
           Inactive:
-            type: string
+            type: boolean
             description: Inactive lead status
             example: false
     VehiclesOfInterest:
