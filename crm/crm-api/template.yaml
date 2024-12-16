@@ -846,10 +846,10 @@ Resources:
       LicenseInfo: MIT
       RetentionPolicy: Retain
 
-  GetDealerLeadStatusesByDealerId:
+  GetDealerLeadStatuses:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "crm-api-${Environment}-GetDealerLeadStatusesByDealerId"
+      FunctionName: !Sub "crm-api-${Environment}-GetDealerLeadStatuses"
       CodeUri: app/dealer/
       Handler: get_dealer_lead_statuses_by_dealer_id.lambda_handler
       Timeout: 30
@@ -865,10 +865,10 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
-  GetDealerLeadStatusesErrorMetricFilter:
+  GetDealerLeadStatusesError:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub pbs-${Environment}-GetDealerLeadStatusesErrorMetricFilter
+      AlarmName: !Sub pbs-${Environment}-GetDealerLeadStatusesError
       AlarmDescription: The Lambda function has failed 3 times within a 15 minute period while attempting to get dealer lead statuses
       ActionsEnabled: true
       AlarmActions:
@@ -876,7 +876,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref GetDealerLeadStatusesByDealerId
+          Value: !Ref GetDealerLeadStatuses
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda

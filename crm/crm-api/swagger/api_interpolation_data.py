@@ -196,7 +196,7 @@ x-amazon-apigateway-integration:
 DEALER_LEAD_STATUSES_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetDealerLeadStatusesByDealerId.Arn}/invocations
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetDealerLeadStatuses.Arn}/invocations
   passthroughBehavior: never
   httpMethod: POST
   type: aws_proxy
