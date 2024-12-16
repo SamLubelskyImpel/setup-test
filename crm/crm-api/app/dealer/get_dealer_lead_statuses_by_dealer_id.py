@@ -1,4 +1,4 @@
-"""Retrieve salespersons by dealer_id."""
+"""Retrieve lead statuses by dealer_id."""
 
 import boto3
 import logging
