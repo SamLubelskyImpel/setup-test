@@ -1049,6 +1049,42 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
+    /dealers/{dealer_id}/lead_statuses:
+    get:
+      summary: Get lead statuses from CRM API.
+      #{{DEALER_LEAD_STATUSES_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: dealer_id
+          in: path
+          description: The ID assigned to the dealership by Impel during onboarding.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            example: "test_dealer_id"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/DealerLeadStatus'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No lead status found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
+
   /dealers/{dealer_id}/salespersons:
     get:
       summary: Get saleslpersons from CRM API.
@@ -1299,6 +1335,29 @@ components:
           type: string
           description: The name of the dealer.
           example: "Test Dealership"
+    DealerLeadStatus:
+      description: A lead status from the CRM API.
+      type: array
+      items:
+        description: Object containing lead status
+        type: object
+        properties:
+          Name:
+            type: string
+            description: Name of the lead status
+            example: "New Lead"
+          SystemStatus:
+            type: string
+            description: System status of the lead
+            example: Lead
+          Default:
+            type: string
+            description: Default lead status
+            example: true
+          Inactive:
+            type: string
+            description: Inactive lead status
+            example: false
     VehiclesOfInterest:
       description: An array of vehicles the lead was interested in
       type: array
