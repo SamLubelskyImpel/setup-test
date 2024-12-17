@@ -12,15 +12,15 @@ def parse_status_data(api_response):
     """
     parsed_data = []
 
-    response_field = api_response.get('Response', [])
+    response_field = api_response.get('Response', {})
     status_list = response_field.get('SetupList', [])
 
     for status in status_list:
         parsed_status = {
             "Name": status.get("Name", ""),
             "SystemStatus": status.get("SystemStatus", ""),
-            "Default": status.get("Lead", ""),
-            "Inactive": status.get("Inactive", "")
+            "Default": status.get("Lead", None),
+            "Inactive": status.get("Inactive", None)
         }
         parsed_data.append(parsed_status)
 
@@ -28,7 +28,7 @@ def parse_status_data(api_response):
 
 
 def lambda_handler(event, context):
-    """Get dealer's salespersons list from PBS."""
+    """Get dealer's lead statuses list from PBS."""
     logger.info("Lambda function invoked with event: %s", event)
 
     api = PbsApiWrapper()

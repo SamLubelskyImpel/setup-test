@@ -65,7 +65,7 @@ def invoke_lambda_get_dealer_lead_statuses(dealer_id: str, lambda_arn: str):
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
-    """Retrieve dealer by id."""
+    """Retrieve lead statuses by dealer id."""
     logger.info(f"Event: {event}")
 
     try:
