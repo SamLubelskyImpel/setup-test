@@ -116,6 +116,7 @@ def lambda_handler(event, context):
             # Get dealer info
             dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
             if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
                 return {
                     "statusCode": 404,
                     "body": dumps({

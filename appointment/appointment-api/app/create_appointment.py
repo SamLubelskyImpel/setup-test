@@ -67,6 +67,7 @@ def lambda_handler(event, context):
         with DBSession() as session:
             dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
             if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
@@ -83,6 +84,7 @@ def lambda_handler(event, context):
             # Get vendor op code
             op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
             if not op_code_result:
+                logger.error(f"No integration op code mapping found for product op code: {op_code}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
