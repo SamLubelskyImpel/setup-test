@@ -7,7 +7,6 @@ from os import environ
 from json import loads, dumps
 from typing import Any, Dict
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -44,7 +43,7 @@ def get_secret(secret_name, secret_key) -> Any:
     return secret_data
 
 
-def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str, index: int) -> Any:
+def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_key: str) -> Any:
     """Upload consumer to the database through CRM API."""
     logger.info(f"Consumer data to send: {consumer}")
     response = requests.post(
@@ -56,7 +55,7 @@ def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_
         },
     )
     logger.info(
-        f"[THREAD {index}] Response from Unified Layer Create Customer {response.status_code} {response.text}",
+        f"Response from Unified Layer Create Customer {response.status_code} {response.text}",
     )
     response.raise_for_status()
     unified_crm_consumer_id = response.json().get("consumer_id")
@@ -68,7 +67,7 @@ def upload_consumer_to_db(consumer: Dict[str, Any], product_dealer_id: str, api_
     return unified_crm_consumer_id
 
 
-def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
+def upload_lead_to_db(lead: Dict[str, Any], api_key: str) -> Any:
     """Upload lead to the database through CRM API."""
     logger.info(f"Lead data to send: {lead}")
     response = requests.post(
@@ -77,7 +76,7 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
         headers={"x_api_key": api_key, "partner_id": UPLOAD_SECRET_KEY},
     )
     logger.info(
-        f"[THREAD {index}] Response from Unified Layer Create Lead {response.status_code} {response.text}"
+        f"Response from Unified Layer Create Lead {response.status_code} {response.text}"
     )
     response.raise_for_status()
     unified_crm_lead_id = response.json().get("lead_id")
@@ -89,7 +88,7 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
     return unified_crm_lead_id
 
 def extract_value(value_type, items, key):
-    keyname, valuename = ''
+    keyname, valuename = '',''
     if value_type == "Attributes":
         keyname, valuename = 'Name', 'Value'
     elif value_type == "Colours":
@@ -162,11 +161,15 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             logger.warning(f"No Consumer provided for lead {crm_lead_id}")
             raise
 
+        phone_number = extract_value("PhoneNumbers", consumer.get("PhoneNumbers", []), "Home")
+        if not phone_number:
+            phone_number = extract_value("PhoneNumbers", consumer.get("PhoneNumbers", []), "Mobile")
+
         db_consumer = {
             "first_name": consumer.get('FirstName', None),
             "last_name": consumer.get('LastName', None),
             "email": consumer.get('Email', None),
-            "phone": consumer.get('HomePhone', None),
+            "phone": phone_number
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
@@ -180,7 +183,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             salesperson_name = salesperson.get('Name').split() if salesperson.get('Name', None) else None
             db_salesperson = {
                 "first_name": salesperson_name[0] if salesperson_name else None,
-                "last_name": salesperson_name[1] if salesperson_name else None,
+                "last_name": salesperson_name[1] if salesperson_name and len(salesperson_name) > 1 else None,
                 "email": salesperson.get('Email', None)
             }
 
@@ -200,23 +203,23 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         raise
 
 
-def post_entry(entry: dict, crm_api_key: str, index: int) -> bool:
+def post_entry(entry: dict, crm_api_key: str) -> bool:
     """Process a single entry."""
-    logger.info(f"[THREAD {index}] Processing entry {entry}")
+    logger.info(f"Processing entry {entry}")
     try:
         product_dealer_id = entry["product_dealer_id"]
         consumer = entry["consumer"]
         lead = entry["lead"]
-        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key, index)
+        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key)
         lead["consumer_id"] = unified_crm_consumer_id
-        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key, index)
-        logger.info(f"[THREAD {index}] Lead successfully created: {unified_crm_lead_id}")
+        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key)
+        logger.info(f"Lead successfully created: {unified_crm_lead_id}")
     except Exception as e:
         if '409' in str(e):
             # Log the 409 error and continue with the next entry
-            logger.warning(f"[THREAD {index}] {e}")
+            logger.warning(f"{e}")
         else:
-            logger.error(f"[THREAD {index}] Error uploading entry to DB: {e}")
+            logger.error(f"Error uploading entry to DB: {e}")
             return False
 
     return True
@@ -237,14 +240,14 @@ def record_handler(record: SQSRecord) -> None:
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        dealer_id = json_data["SellerIdentifier"]
+        dealer_id = json_data["Seller"]["Identifier"]
 
         entry = parse_json_to_entries(product_dealer_id, json_data)
         logger.info(f"Transformed entry: {entry}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        result = post_entry(entry, crm_api_key, 0)
+        result = post_entry(entry, crm_api_key)
         if not result:
             raise Exception ("Error occurred uploading lead to DB")
 
