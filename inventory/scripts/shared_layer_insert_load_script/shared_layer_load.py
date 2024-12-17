@@ -122,7 +122,7 @@ def extract_inventory_data(json_data):
         'trim': extract_field('inv_inventory|trim'),
         'factory_certified': json_data.get('inv_inventory|factory_certified', False),
         'region': extract_field('inv_inventory|region'),
-        'on_lot': json_data.get('inv_inventory|on_lot', True),
+        'on_lot': json_data.get('inv_inventory|on_lot', False),
         'metadata': extract_field('inv_inventory|metadata'),
         'received_datetime': extract_field('inv_inventory|received_datetime'),
         'vdp': extract_field('inv_inventory|vdp'),
