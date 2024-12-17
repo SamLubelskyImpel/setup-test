@@ -88,6 +88,21 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
     return unified_crm_lead_id
 
+def extract_value(value_type, items, key):
+    keyname, valuename = ''
+    if value_type == "Attributes":
+        keyname, valuename = 'Name', 'Value'
+    elif value_type == "Colours":
+        keyname, valuename = 'Location', 'Name'
+    elif value_type == "Identification":
+        keyname, valuename = 'Type', 'Value'
+    elif value_type == "PhoneNumbers":
+        keyname, valuename = "Type", 'Number'
+    for item in items:
+        if item.get(keyname) == key:
+            return item.get(valuename)
+    return None
+
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format carsales json data to unified format."""
@@ -99,7 +114,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
         crm_lead_id = json_data["Identifier"]
         db_lead["crm_lead_id"] = crm_lead_id
-        db_lead["lead_ts"] = json_data.get('Created')
+        db_lead["lead_ts"] = json_data.get('CreatedUtc')
         db_lead["lead_status"] = json_data.get('Status', '')
         db_lead["lead_substatus"] = ''
         db_lead["lead_comment"] = json_data.get('Comments', '')
@@ -108,18 +123,33 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
 
         vehicle = json_data.get('Item', {})
+        identification = vehicle.get('Identification', [])
+        colors = vehicle.get('Colours', [])
+        specification = vehicle.get('Specification', {})
+        attributes = specification.get('Attributes', [])
+
 
         db_vehicle = {
-            "stock_num": vehicle.get('StockNumber', None),
-            "year": int(vehicle.get('Year')) if vehicle.get('Year') else None,
-            "make": vehicle.get('Make', None),
-            "model": vehicle.get('Model', None),
-            "body_style": vehicle.get('BodyType', None),
-            "exterior_color": vehicle.get('Colour', None),
-            "price": float(vehicle.get('Price')) if vehicle.get('Price', None) else None,
-            "odometer_units": vehicle.get('Odometer', None),
-            "condition": json_data.get('LeadType')
+            "stock_num": extract_value("Identification", identification, "StockNumber"),
+            "year": int(specification.get('ReleaseDate').get("Year")) if specification.get('ReleaseDate', {}).get("Year", None) else None,
+            "make": specification.get('Make', None),
+            "model": specification.get('Model', None),
+            "body_style": extract_value("Attributes", attributes, "BodyStyle"),
+            "exterior_color": extract_value("Colours", colors, "Exterior"),
+            "interior_color": extract_value("Colours", colors, "Interior"),
+            "condition": vehicle.get('ListingType', None),
+            "transmission": extract_value("Attributes", attributes, "Transmission"),
+            "status": vehicle.get('SaleStatus', None)
         }
+        price_list = vehicle.get("PriceList", [])
+        if price_list:
+            db_vehicle["price"] = float(price_list[-1].get("Amount")) if price_list[-1].get("Amount", None) else None
+        
+        odometer = vehicle.get("OdometerReadings", [])
+        if odometer:
+            db_vehicle["odometer_units"] = odometer[0].get("UnitsOfMeasure", None)
+            db_vehicle["mileage"] = int(odometer[-1].get("Value")) if odometer[-1].get("Value") else 0
+
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
 
         db_vehicles.append(db_vehicle)
@@ -137,10 +167,6 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             "last_name": consumer.get('LastName', None),
             "email": consumer.get('Email', None),
             "phone": consumer.get('HomePhone', None),
-            "address": consumer.get('Address', None),
-            "country": "AU",
-            "city": consumer.get('Suburb', None),
-            "postal_code": consumer.get('Postcode', None)
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
