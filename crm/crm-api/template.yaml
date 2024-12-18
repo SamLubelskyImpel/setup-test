@@ -853,7 +853,7 @@ Resources:
       CodeUri: app/dealer/
       Handler: get_dealer_lead_statuses_by_dealer_id.lambda_handler
       Timeout: 30
-      MemorySize: 1536
+      MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
       Events:
         Get:
@@ -882,5 +882,5 @@ Resources:
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
-      Threshold: 3
+      Threshold: 1
       TreatMissingData: notBreaching

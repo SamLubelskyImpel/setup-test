@@ -554,5 +554,5 @@ Resources:
       Namespace: AWS/Lambda
       Period: 900
       Statistic: Sum
-      Threshold: 3
+      Threshold: 1
       TreatMissingData: notBreaching
