@@ -32,8 +32,10 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !If [ IsProd, "crm-integrations-prod", "crm-integrations-test" ]
         UPLOAD_SECRET_KEY: "impel"
+        SECRET_KEY: "CARSALES_AU"
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "cjn2bvvdzb.execute-api.us-east-1.amazonaws.com/Stage"]
-        SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         REPORTING_TOPIC_ARN: !If [
             IsProd,
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod",
@@ -41,7 +43,6 @@ Globals:
           ]
 
 Resources:
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -92,11 +93,8 @@ Resources:
                 Action:
                   - "s3:PutObject"
                   - "s3:DeleteObject"
-                Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/raw*"
-              - Effect: "Allow"
-                Action:
                   - "s3:GetObject"
+                  - "s3:ListBucket"
                 Resource:
                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
         - PolicyName: SQSPolicy
@@ -109,6 +107,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
+                  - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformCarSalesDataQueue.Arn
               - Effect: "Allow"
                 Action:
@@ -136,6 +135,75 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+
+  MonitoringCarsales:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub carsales-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "carsales-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "carsales-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 2
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub carsales-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-SendActivity"
+
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub carsales-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the Carsales SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
                 
   CarsalesAuWebhookGateway:
     Type: AWS::Serverless::Api
@@ -331,6 +399,31 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringCarsales
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringCarsales.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-SendActivity"
+
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringCarsales.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+
   TransformCarSalesDataQueuePolicy:
     Type: "AWS::SQS::QueuePolicy"
     Properties:
@@ -366,3 +459,4 @@ Resources:
       Targets:
         - Id: "TransformCarSalesDataTarget"
           Arn: !GetAtt TransformCarSalesDataQueue.Arn
+
