@@ -90,7 +90,7 @@ OEM_MAPPING = {
         }
     },
     "vendor": {
-        "id": '<id source="{oem_recipient} Dealer Code">{dealer_code}</id>',
+        "id": '<id source="{oem_partner} Dealer Code">{dealer_code}</id>',
         "vendorname": "<vendorname>{vendorname_value}</vendorname>",
     }
 }
@@ -98,13 +98,14 @@ OEM_MAPPING = {
 OEM_ADF_TEMPLATE = """
 <adf>
     <prospect status="new">
-        <id source="ActivEngage" sequence="1">{lead_id}</id>
+        <id source="Impel" sequence="1">{lead_id}</id>
         <id source="LeadSubProgram">New Chat Sales Lead</id>
         <id source="MediaType">WEB</id>
         <requestdate>{request_date}</requestdate>
         {vehicle_of_interest}
         {customer}
         {vendor}
+        {metadata_tags}
         <provider>
             <name>Impel-Chat</name>
             <service>{service_value}</service>

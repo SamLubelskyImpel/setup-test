@@ -9,7 +9,6 @@ Parameters:
         AllowedPattern: "^[a-zA-Z0-9-]+$"
         ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
 
-
 Conditions:
     IsProd:
         Fn::Equals:
@@ -134,126 +133,128 @@ Resources:
                                 - "sns:Publish"
                             Resource:
                                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-
-    AdfAssemblerApiGateway:
-        Type: AWS::Serverless::Api
-        Properties:
-            Name: !Sub "adf-assembler-${Environment}"
-            StageName: !Ref Environment
-            Auth:
-                DefaultAuthorizer: DefaultAuth
-                Authorizers:
-                    DefaultAuth:
-                        FunctionPayloadType: REQUEST
-                        FunctionArn: !GetAtt Authorizer.Arn
-                        Identity:
-                            Headers:
-                                - action_id
-                                - x_api_key
-                        Context:
-                            - resourcePath
-                        ReauthorizeEvery: 0
-            AccessLogSetting:
-                DestinationArn: !GetAtt APILogGroup.Arn
-                Format: >-
-                    {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
-            GatewayResponses:
-                BAD_REQUEST_PARAMETERS:
-                    ResponseTemplates:
-                        application/json: '{"message": "$context.error.validationErrorString"}'
-                BAD_REQUEST_BODY:
-                    ResponseTemplates:
-                        application/json: '{"message": "$context.error.validationErrorString"}'
-                UNAUTHORIZED:
-                    ResponseTemplates:
-                        application/json: '{"message": "This request is unauthorized."}'
-                    StatusCode: "401"
-                ACCESS_DENIED:
-                    ResponseTemplates:
-                        application/json: '{"message": "$context.authorizer.key"}'
-                    StatusCode: "403"
-                DEFAULT_5xx:
-                    ResponseTemplates:
-                        application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
-
-    APILogGroup:
-        Type: AWS::Logs::LogGroup
-
-    APICloudWatchRole:
-        Type: "AWS::IAM::Role"
-        Properties:
-            AssumeRolePolicyDocument:
-                Version: 2012-10-17
-                Statement:
-                    - Effect: Allow
-                      Principal:
-                          Service:
-                              - apigateway.amazonaws.com
-                      Action: "sts:AssumeRole"
-            Path: /
-            ManagedPolicyArns:
-                - >-
-                    arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-
-    APIGatewayAccount:
-        Type: "AWS::ApiGateway::Account"
-        Properties:
-            CloudWatchRoleArn: !GetAtt APICloudWatchRole.Arn
-
-    Authorizer:
-        Type: AWS::Serverless::Function
-        Properties:
-            FunctionName: !Sub "adf-assembler-${Environment}-Authorizer"
-            CodeUri: app/
-            Handler: authorizer.lambda_handler
-            Timeout: 120
-            Policies:
-                - Id: AuthorizerPermissions
-                  Version: "2012-10-17"
-                  Statement:
-                      - Sid: AllowGetAPIKeys
-                        Effect: Allow
+                - PolicyName: SQSPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                      - Effect: "Allow"
                         Action:
-                            - secretsmanager:GetSecretValue
+                        - "sqs:SendMessage"
+                        - "sqs:ReceiveMessage"
+                        - "sqs:DeleteMessage"
+                        - "sqs:GetQueueAttributes"
                         Resource:
-                            !If [
-                                IsProd,
-                                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/adf-assembler*",
-                                !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/adf-assembler*",
-                            ]
+                        - !GetAtt AdfAssemblerQueue.Arn
+                        - !GetAtt AdfAssemblerDeadLetterQueue.Arn
+                        - !GetAtt HondaAcuraAdfAssemblerQueue.Arn
+                        - !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
 
+  # Standard ADF Assembler Resources
     AdfAssembler:
         Type: AWS::Serverless::Function
         Properties:
-            FunctionName: !Sub "adf-assemble-${Environment}"
-            CodeUri: app/create-adf
-            Handler: adf_assemble.lambda_handler
+            FunctionName: !Sub "adf-assembler-${Environment}"
+            CodeUri: app/
+            Handler: standard_adf_assembler.lambda_handler
             Timeout: 30
             Role: !GetAtt LambdaRole.Arn
-            Events:
-                Post:
-                    Type: Api
-                    Properties:
-                        RestApiId: !Ref AdfAssemblerApiGateway
-                        Path: /create_adf
-                        Method: POST
 
-    AdfAssemblerErrorAlarm:
+    AdfAssemblerQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "adf-assembler-${Environment}-AdfAssemblerQueue"
+            VisibilityTimeout: 60
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt AdfAssemblerDeadLetterQueue.Arn
+                maxReceiveCount: 3
+
+    AdfAssemblerDeadLetterQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "adf-assembler-${Environment}-AdfAssemblerDLQ"
+            MessageRetentionPeriod: 604800
+            VisibilityTimeout: 10
+
+    AdfAssemblerEventMapping:
+        Type: AWS::Lambda::EventSourceMapping
+        Properties:
+            BatchSize: 1
+            EventSourceArn: !GetAtt AdfAssemblerQueue.Arn
+            MaximumBatchingWindowInSeconds: 0
+            FunctionName: !GetAtt AdfAssembler.Arn
+
+    AdfAssemblerDLQAlarm:
         Type: AWS::CloudWatch::Alarm
         Properties:
-            AlarmName: !Sub adf-assemble-${Environment}-AdfAssemblerAlarm
-            AlarmDescription: ADF assembler failed to process incoming data
+            AlarmName: !Sub "adf-assembler-${Environment}-AdfAssemblerDLQ"
+            AlarmDescription: Triggered when Standard ADF DLQ has more than 1 unprocessed message
             ActionsEnabled: true
             AlarmActions:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-            ComparisonOperator: GreaterThanThreshold
             Dimensions:
-                - Name: FunctionName
-                  Value: !Ref AdfAssembler
+                - Name: QueueName
+                  Value: !GetAtt AdfAssemblerDeadLetterQueue.QueueName
             EvaluationPeriods: 1
-            MetricName: Errors
-            Namespace: AWS/Lambda
-            Period: 900
+            MetricName: ApproximateNumberOfMessagesVisible
+            Namespace: AWS/SQS
+            Period: 300
             Statistic: Sum
+            ComparisonOperator: GreaterThanThreshold
             Threshold: 1
-            TreatMissingData: notBreaching
+            TreatMissingData: notBreaching            
+
+
+#   Honda/Acura ADF Assembler Resources
+
+    HondaAcuraAdfAssembler:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub "honda-acura-adf-assembler-${Environment}"
+            CodeUri: app/
+            Handler: honda_acura_adf_assembler.lambda_handler
+            Timeout: 30
+            Role: !GetAtt LambdaRole.Arn
+
+    HondaAcuraAdfAssemblerQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerQueue"
+            VisibilityTimeout: 60
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
+                maxReceiveCount: 3
+
+    HondaAcuraAdfAssemblerDeadLetterQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerDLQ"
+            MessageRetentionPeriod: 604800
+            VisibilityTimeout: 10
+
+    HondaAcuraAdfAssemblerEventMapping:
+        Type: AWS::Lambda::EventSourceMapping
+        Properties:
+            BatchSize: 1
+            EventSourceArn: !GetAtt HondaAcuraAdfAssemblerQueue.Arn
+            MaximumBatchingWindowInSeconds: 0
+            FunctionName: !GetAtt HondaAcuraAdfAssembler.Arn
+
+    HondaAcuraAdfAssemblerDLQAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerDLQ"
+            AlarmDescription: Triggered when Honda/Acura ADF DLQ has more than 1 unprocessed message
+            ActionsEnabled: true
+            AlarmActions:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            Dimensions:
+                - Name: QueueName
+                  Value: !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.QueueName
+            EvaluationPeriods: 1
+            MetricName: ApproximateNumberOfMessagesVisible
+            Namespace: AWS/SQS
+            Period: 300
+            Statistic: Sum
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 1
+            TreatMissingData: notBreaching  
