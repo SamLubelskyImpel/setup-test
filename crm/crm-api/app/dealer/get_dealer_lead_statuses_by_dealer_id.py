@@ -63,24 +63,6 @@ def invoke_lambda_get_dealer_lead_statuses(dealer_id: str, lambda_arn: str):
         raise
     return loads(response_json["body"])
 
-def parse_status_data(api_response):
-    """
-    Transforms the vendor API response to be formatted.
-    """
-    statuses_dict = {"generic_statuses": [], "custom_statuses": []}
-
-    response_field = api_response.get('Response', {})
-    status_list = response_field.get('SetupList', [])
-
-    for status in status_list:
-        status_name = status.get('Name', '')
-        if 'SystemStatus' in status:
-            statuses_dict["generic_statuses"].append(status_name)
-        elif 'CustomStatus' in status:
-            statuses_dict["custom_statuses"].append(status_name)
-
-    return statuses_dict
-
 def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve lead statuses by dealer id."""
     logger.info(f"Event: {event}")
@@ -138,12 +120,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Found dealer lead statuses.")
 
-        parsed_result = parse_status_data(dealer_statuses)
-        logger.info("Successfully parsed response from API to: %s", parsed_result)
-
         return {
             "statusCode": 200,
-            "body": dumps(parsed_result)
+            "body": dumps(dealer_statuses)
         }
 
     except Exception as e:
