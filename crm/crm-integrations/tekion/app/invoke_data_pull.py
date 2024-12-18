@@ -66,8 +66,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     }
     params = {
         "createdStartTime": convert_to_epoch(start_time),
-        "createdEndTime": convert_to_epoch(end_time),
-        "page": 1
+        "createdEndTime": convert_to_epoch(end_time)
     }
 
     api_url = f"{url}/openapi/v3.1.0/crm-leads"
@@ -82,22 +81,24 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
                 url=api_url,
                 params=params,
                 headers=headers,
-                timeout=5
             )
             response.raise_for_status()
             raw_data = response.json()
+            metadata = raw_data["meta"]
+            logger.info(f"Metadata from Tekion API response: {metadata}")
             leads = raw_data["data"]
             all_leads.extend(leads)
 
             # Check pagination info
             total_pages = raw_data["meta"]["pages"]
             current_page = raw_data["meta"]["currentPage"]
-
+        
             if current_page >= total_pages:
                 break
 
             # Update params for the next page
-            params["page"] += 1
+            next_page_key = raw_data["meta"].get("nextFetchKey", None)
+            params["nextFetchKey"] = next_page_key
 
         except Exception as e:
             logger.error(f"Error occurred calling Tekion API: {e}")
