@@ -36,9 +36,10 @@ else
     exit 2
 fi
 
-user=$(aws iam get-user --output json | jq -r .User.UserName)
+user=$(aws iam get-user --output json | jq -r .User.UserName | sed 's/\./-/g')
 commit_id=$(git log -1 --format=%H)
 
+python3 ./swagger/oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
@@ -58,7 +59,7 @@ elif [[ $config_env == "test" ]]; then
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"test\""
+    --parameter-overrides "Environment=\"test\" DomainSuffix=\"-test\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
@@ -66,5 +67,5 @@ else
     --stack-name "carsales-au-crm-integration-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
-    --parameter-overrides "Environment=\"$env\""
+    --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
 fi

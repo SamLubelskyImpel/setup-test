@@ -12,6 +12,101 @@ servers:
 
 #{{DMS_DATA_SERVICE_AWS_VALIDATION}}
 paths:
+  /create-dealer/v1:
+    post:
+      summary: Create a dealer.
+      operationId: create-dealer
+      description: |-
+        This API creates a dealer.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: string
+          minimum: 1
+        in: body
+        name: dms_id
+        required: false
+        description: The DMS ID assigned to the dealer.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        in: body
+        name: impel_dealer_id
+        required: false
+        description: The unique id of the dealer assigned by Impel.
+      - schema:
+          type: string
+          example: 3371 Fort Meade Rd
+        in: body
+        name: location_name
+        required: false
+        description: The name of dealer's location.
+      - schema:
+          type: string
+          example: Maryland
+        in: body
+        name: state
+        required: false
+        description: The state where the dealer is located.
+      - schema:
+          type: string
+          example: Laurel
+        in: body
+        name: city
+        required: false
+        description: The city where the dealer is located.
+      - schema:
+          type: integer
+          example: 20724
+        in: body
+        name: zipcode
+        required: false
+        description: The zipcode where the dealer being created is located.
+      - schema:
+          type: string
+          example: Ourisman Honda VW of Laurel
+        in: body
+        name: full_name
+        required: false
+        description: The full name of the dealer.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  next_fetch_key:
+                    type: string
+                  repair_orders:
+                    type: array
+                    items:
+                      "$ref": "#/components/schemas/RepairOrderResponse"
+                  received_date_utc:
+                    type: string
+                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
+                    format: date-time
+                    example: '2021-11-19T16:57:31+0000'
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{CREATE_DEALER_LAMBDA_INFO}} 
   /repair-order/v1:
     get:
       summary: Get DMS repair order data.

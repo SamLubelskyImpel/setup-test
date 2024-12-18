@@ -50,9 +50,7 @@ FIELD_MAPPINGS = {
         "trim": "Badge",
         "source_data_interior_material_description": "TrimColour",
         "vdp": "VDP",
-    },
-    "inv_options.inv_options": {
-        "option_description": "RedbookCode",
+        "options": "RedbookCode",
     },
 }
 
@@ -73,32 +71,28 @@ def transform_csv_to_entries(csv_content, received_datetime, s3_uri):
 
     for row in reader:
         entry = {}
-        options = []
 
         for table, table_mapping in FIELD_MAPPINGS.items():
-            if table != "inv_options.inv_options":  # Handle options separately
-                entry[table] = {}
-                for impel_field, cox_au_field in table_mapping.items():
-                    if cox_au_field == "Condition":
-                        entry[table][impel_field] = "Used" if row.get(cox_au_field, "") == "Demo" else row.get(cox_au_field, None)
-                    elif cox_au_field == "PhotoURL":
-                        entry[table][impel_field] = row.get(cox_au_field, ",").split(',')[0]
-                    elif cox_au_field == "AdvertisedPrice":
-                        entry[table][impel_field] = row.get(cox_au_field) if row.get(cox_au_field) else row.get("DriveAwayPrice", None)
-                    else:
-                        entry[table][impel_field] = row.get(cox_au_field, None)
-            else:
-                # Split the RedbookCode string on pipe delimiter and skip the first entry
-                option_descriptions = row.get('RedbookCode', '').split('|')[1:]  # Skip the Redbook code itself
-                options = [{"inv_option|option_description": desc.strip(), "inv_option|is_priority": False}
-                           for desc in option_descriptions if desc.strip()]
+            entry[table] = {}
+            for impel_field, cox_au_field in table_mapping.items():
+                if cox_au_field == "Condition":
+                    entry[table][impel_field] = "Used" if row.get(cox_au_field, "") == "Demo" else row.get(cox_au_field, None)
+                elif cox_au_field == "PhotoURL":
+                    entry[table][impel_field] = row.get(cox_au_field, ",").split(',')[0]
+                elif cox_au_field == "AdvertisedPrice":
+                    entry[table][impel_field] = row.get(cox_au_field) if row.get(cox_au_field) else row.get("DriveAwayPrice", None)
+                elif impel_field == "options":
+                    # Split the RedbookCode string on pipe delimiter and skip the first entry
+                    entry[table][impel_field] = row.get(cox_au_field, '').split('|')[1:]  # Skip the Redbook code itself
+                else:
+                    entry[table][impel_field] = row.get(cox_au_field, None)
 
-        entry = process_entry(entry, received_datetime, s3_uri, options)
+        entry = process_entry(entry, received_datetime, s3_uri)
         entries.append(entry)
     return entries
 
 
-def process_entry(entry, received_datetime, source_s3_uri, options):
+def process_entry(entry, received_datetime, source_s3_uri):
     """
     Process and possibly modify an entry before it's added to the final list
 
@@ -116,7 +110,6 @@ def process_entry(entry, received_datetime, source_s3_uri, options):
         entry['inv_inventory']['on_lot'] = True
         entry['inv_inventory']['received_datetime'] = received_datetime
 
-    entry['inv_options.inv_options'] = options if options else []
     return entry
 
 

@@ -109,8 +109,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
@@ -252,7 +252,7 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/appointment-service*",
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/appointment-service*",
                 ]
-  
+
   AuthorizerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -276,7 +276,7 @@ Resources:
             Method: POST
       Layers:
         - !Ref ApptOrmLayer
-  
+
   CreateAppointmentLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -300,7 +300,7 @@ Resources:
             Method: GET
       Layers:
         - !Ref ApptOrmLayer
-  
+
   CreateAppointmentLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -324,7 +324,7 @@ Resources:
             Method: GET
       Layers:
         - !Ref ApptOrmLayer
-  
+
   RetrieveTimeslotsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -340,7 +340,7 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
-  
+
   CreateAppointmentErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -360,7 +360,7 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
-    
+
   RetrieveAppointmentsErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -400,7 +400,7 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
-  
+
   CheckDealerOpCodes:
     Type: AWS::Serverless::Function
     Properties:
@@ -412,7 +412,7 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Layers:
         - !Ref ApptOrmLayer
-  
+
   CheckOpCodesScheduledEvent:
     Type: AWS::Events::Rule
     Properties:

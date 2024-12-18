@@ -13,7 +13,7 @@ def __get_db_secret(secret_id):
         SecretId=secret_id)['SecretString'])
 
 
-dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/DMSDB')
+dms_secret = __get_db_secret(f'{"prod" if IS_PROD else "test"}/RDS/DMS')
 carlabs_di_secret = __get_db_secret(f'carlabs/data_integrations_{"prod" if ENVIRONMENT == "prod" else "test"}')
 carlabs_analytics_secret = __get_db_secret(f'carlabs/analytics_{"prod" if ENVIRONMENT == "prod" else "test"}')
 

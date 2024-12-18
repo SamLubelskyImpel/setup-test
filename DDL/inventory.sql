@@ -241,9 +241,12 @@ CREATE TABLE prod.inv_inventory (
 	factory_certified bool NULL,
 	metadata jsonb NULL,
 	received_datetime timestamptz NULL,
+	"options" _text NULL,
+	priority_options _text NULL,
 	CONSTRAINT inv_inventory_pkey PRIMARY KEY (id),
 	CONSTRAINT inv_inventory_dealer_integration_partner_id_fkey FOREIGN KEY (dealer_integration_partner_id) REFERENCES prod.inv_dealer_integration_partner(id),
-	CONSTRAINT inv_inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES prod.inv_vehicle(id)
+	CONSTRAINT inv_inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES prod.inv_vehicle(id),
+	CONSTRAINT unique_inventory_vehicle UNIQUE (vehicle_id, dealer_integration_partner_id)
 );
 
 -- Table Triggers
