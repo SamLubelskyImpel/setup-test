@@ -1049,6 +1049,42 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/{dealer_id}/lead_statuses:
+    get:
+      summary: Get lead statuses from CRM API.
+      #{{DEALER_LEAD_STATUSES_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: dealer_id
+          in: path
+          description: The ID assigned to the dealership by Impel during onboarding.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            example: "test_dealer_id"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/DealerLeadStatuses'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No lead status found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
+
   /dealers/{dealer_id}/salespersons:
     get:
       summary: Get saleslpersons from CRM API.
@@ -1299,6 +1335,24 @@ components:
           type: string
           description: The name of the dealer.
           example: "Test Dealership"
+    DealerLeadStatuses:
+      description: Object containing generic and custom lead statuses
+      type: object
+      properties:
+        generic_statuses:
+          description: List of generic lead statuses.
+          type: array
+          items:
+            description: The generic status name.
+            type: string
+            example: "New Lead"
+        custom_statuses:
+          description: List of custom lead statuses.
+          type: array
+          items:
+            description: The custom status name.
+            type: string
+            example: "Follow Up"
     VehiclesOfInterest:
       description: An array of vehicles the lead was interested in
       type: array

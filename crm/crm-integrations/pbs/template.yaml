@@ -523,3 +523,36 @@ Resources:
       LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringPBS.Arn
       FilterPattern: "SUPPORT ALERT"
+
+  GetDealerLeadStatuses:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub pbs-${Environment}-GetDealerLeadStatuses
+      CodeUri: app/
+      Handler: get_dealer_lead_statuses.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+
+  GetDealerLeadStatusesErrorMetricFilter:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-GetDealerLeadStatusesErrorMetricFilter
+      AlarmDescription: The Lambda function has failed 3 times within a 15 minute period while attempting to get dealer lead statuses
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetDealerLeadStatuses
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
