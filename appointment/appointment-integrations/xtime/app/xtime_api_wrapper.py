@@ -9,6 +9,11 @@ from models import GetAppointments, CreateAppointment, AppointmentSlots
 from dateutil import parser
 import pytz
 import logging
+import json
+from xtime_token_management.secrets import get_token, update_token
+from xtime_token_management.token_status import is_token_expired
+import requests
+from datetime import datetime
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 
@@ -38,23 +43,34 @@ class XTimeApiWrapper:
         )
 
     def __get_token(self):
-        """Generate the authorization token for XTime."""
+        """Generate or retrieve the authorization token for XTime."""
+        token_from_secrets = get_token()
+        secret_string = json.loads(token_from_secrets['SecretString'])
+
+        if not is_token_expired(token_from_secrets):
+            logger.info("Reusing existing token")
+            return f"{secret_string['token_type']} {secret_string['access_token']}"
+
+        logger.info("Token expired. Generating new token")
         url, username, password = self.__authorization_data.values()
         session = requests.Session()
         session.auth = (username, password)
 
         payload = 'grant_type=client_credentials&scope=cai.scheduling.appointments.read%20cai.scheduling.appointments.write'
 
-        response = session.post(
-            url=url,
-            data=payload,
-        )
-
+        response = session.post(url=url, data=payload)
         response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Status code from XTime Auth: {response.status_code}")
+        new_token_data = response.json()
 
-        return f"{response_json['token_type']} {response_json['access_token']}"
+        new_secret_string = json.dumps({
+            'access_token': new_token_data['access_token'],
+            'token_type': new_token_data['token_type'],
+            'expires_in': new_token_data['expires_in']
+        })
+        update_token(new_secret_string)
+
+        logger.info(f"New token generated and stored. Status code: {response.status_code}")
+        return f"{new_token_data['token_type']} {new_token_data['access_token']}"
 
     def __call_api(self, url, payload=None, method="POST", params=None):
         """Call the XTime API."""
@@ -110,9 +126,13 @@ class XTimeApiWrapper:
 
         if create_appt_data.source_product == "SERVICE_AI":
             label_content = "Impel Service AI"
+        elif create_appt_data.source_product == "CHAT_AI":
+            label_content = "Impel Chat AI"
+        elif create_appt_data.source_product == "VOICE_AI":
+            label_content = "Impel Voice AI"
         else:
-            logger.error(f"Invalid source product: {create_appt_data.source_product}")
-            raise ValueError("Invalid source product")
+            logger.error(f"Unknown source product: {create_appt_data.source_product}")
+            label_content = "Impel Service Scheduling"
 
         payload = {
             "appointmentDateTimeLocal": self.__localize_time(create_appt_data.timeslot, create_appt_data.dealer_timezone),

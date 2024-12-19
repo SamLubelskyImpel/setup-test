@@ -24,7 +24,7 @@ s3_client = boto3.client("s3")
 # Retrieve database credentials
 secret_string = loads(
     sm_client.get_secret_value(
-        SecretId="prod/DMSDB" if AWS_PROFILE == "unified-prod" else "test/DMSDB"
+        SecretId="prod/RDS/DMS" if AWS_PROFILE == "unified-prod" else "test/RDS/DMS"
     )["SecretString"]
 )
 
@@ -69,12 +69,12 @@ def get_all_db_ro_numbers(date_to_process):
     """
     year, month, day = date_to_process.split('-')
     query_str = f"""SELECT sro.repair_order_no, sro.metadata
-                    FROM {DB_SCHEMA}.service_repair_order sro 
-                    JOIN {DB_SCHEMA}.dealer_integration_partner dip ON dip.id = sro.dealer_integration_partner_id 
-                    JOIN {DB_SCHEMA}.dealer d ON d.id = dip.dealer_id 
-                    JOIN {DB_SCHEMA}.integration_partner ip ON ip.id = dip.integration_partner_id 
-                    JOIN {DB_SCHEMA}.vehicle v ON v.id = sro.vehicle_id 
-                    JOIN {DB_SCHEMA}.consumer c ON c.id = sro.consumer_id 
+                    FROM {DB_SCHEMA}.service_repair_order sro
+                    JOIN {DB_SCHEMA}.dealer_integration_partner dip ON dip.id = sro.dealer_integration_partner_id
+                    JOIN {DB_SCHEMA}.dealer d ON d.id = dip.dealer_id
+                    JOIN {DB_SCHEMA}.integration_partner ip ON ip.id = dip.integration_partner_id
+                    JOIN {DB_SCHEMA}.vehicle v ON v.id = sro.vehicle_id
+                    JOIN {DB_SCHEMA}.consumer c ON c.id = sro.consumer_id
                     WHERE ip.impel_integration_partner_id = 'sidekick'
                     AND sro.metadata->>'PartitionYear' = '{year}'
                     AND sro.metadata->>'PartitionMonth' = '{month}'

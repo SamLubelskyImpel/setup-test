@@ -392,5 +392,4 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
     # TODO add exception for events
-
     return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}

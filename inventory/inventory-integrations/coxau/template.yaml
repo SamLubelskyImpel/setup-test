@@ -135,7 +135,7 @@ Resources:
                   - "sqs:ReceiveMessage"
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
-                Resource: 
+                Resource:
                   - !GetAtt FormatINVInsertQueue.Arn
                   - !GetAtt FormatINVInsertDeadLetterQueue.Arn
                   - !GetAtt DownloadSFTPFilesQueue.Arn
@@ -148,11 +148,11 @@ Resources:
                 Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: 
+                Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*"
                     ]
                   - !If [
                       IsProd,
@@ -197,7 +197,7 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-InvokeSFTPFiles'
       RetentionInDays: 60
-  
+
   InvokeSFTPFilesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -236,7 +236,7 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-DownloadSFTPFiles'
       RetentionInDays: 60
-  
+
   DownloadSFTPFilesErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -256,14 +256,14 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
-  
+
   DownloadSFTPFilesDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'coxau-inv-${Environment}-DownloadSFTPFilesDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
-  
+
   DownloadSFTPFilesQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -293,7 +293,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
-  
+
   DownloadSFTPFilesEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -311,7 +311,7 @@ Resources:
       Targets:
         - Arn: !GetAtt InvokeSFTPFiles.Arn
           Id: "invoke_sftp_coxau_scheduled"
-  
+
   InvokeSFTPFilesScheduleLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -319,7 +319,7 @@ Resources:
       FunctionName: !GetAtt InvokeSFTPFiles.Arn
       Principal: events.amazonaws.com
       SourceArn: !GetAtt InvokeSFTPFilesScheduleRule.Arn
-  
+
   FormatINVInsertQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -336,7 +336,7 @@ Resources:
       QueueName: !Sub 'coxau-inv-${Environment}-FormatINVInsertDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
- 
+
   FormatINVInsertDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -368,7 +368,7 @@ Resources:
       FilterPolicyScope: MessageBody
       FilterPolicy:
         '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
- 
+
   FormatINVInsertQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -388,7 +388,7 @@ Resources:
               Condition:
                   ArnEquals:
                       aws:SourceArn: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-${Environment}"
-  
+
   FormatINVInsert:
     Type: AWS::Serverless::Function
     Properties:
@@ -423,14 +423,14 @@ Resources:
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt MergeINVFileDeadLetterQueue.Arn
           maxReceiveCount: 5
-  
+
   MergeINVFileDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'coxau-inv-${Environment}-MergeINVFileDLQ'
       VisibilityTimeout: 10
       MessageRetentionPeriod: 1209600
-  
+
   MergeINVFileFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -447,7 +447,7 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/coxau-inv-${Environment}-MergeINVFile'
       RetentionInDays: 60
-  
+
   MergeINVFileEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
@@ -455,7 +455,7 @@ Resources:
       EventSourceArn: !GetAtt MergeINVFileQueue.Arn
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt MergeINVFileFunction.Arn
-  
+
   MergeINVFileDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd

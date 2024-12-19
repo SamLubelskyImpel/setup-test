@@ -3,9 +3,7 @@ import json
 import logging
 import urllib.parse
 import boto3
-# import pandas as pd
 from rds_instance import RDSInstance
-# from psycopg2.extras import execute_values
 from json import loads
 from io import BytesIO
 
@@ -14,6 +12,7 @@ ENVIRONMENT = os.environ['ENVIRONMENT']
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 s3_client = boto3.client('s3')
+
 
 def extract_vehicle_data(json_data):
     # Attempt to get the year and convert it to an integer if possible
@@ -54,12 +53,18 @@ def extract_inventory_data(json_data):
         if not value:
             return None
 
+        # Remove spaces from the value for inv_inventory|cylinders
+        if field == 'inv_inventory|cylinders':
+            value = value.strip().replace(' ', '')
+
         if ftype == 'int':
             return int(value.strip())
         elif ftype == 'float':
             return float(value.strip())
         elif ftype == 'str':
             return value.strip()
+        elif ftype == 'list':
+            return value
         else:
             logger.error(f"Invalid field: {ftype}")
             raise ValueError(f"Invalid field type: {ftype}")
@@ -88,16 +93,16 @@ def extract_inventory_data(json_data):
         'received_datetime': extract_field('inv_inventory|received_datetime'),
         'vdp': extract_field('inv_inventory|vdp'),
         'comments': extract_field('inv_inventory|comments'),
+        'options': extract_field('inv_inventory|options', ftype='list'),
+        'priority_options': extract_field('inv_inventory|priority_options', ftype='list'),
+        "vehicle_data": {  # Fields used to match vehicle data
+            'vin': json_data.get('inv_vehicle|vin', ''),
+            'model': json_data.get('inv_vehicle|model', ''),
+            'stock_num': json_data.get('inv_vehicle|stock_num', ''),
+            'mileage': json_data.get('inv_vehicle|mileage', '')
+        }
     }
     return inventory_data
-
-
-def extract_option_data(option_json):
-    option_data = {
-        'option_description': option_json.get('inv_option|option_description', ''),
-        'is_priority': option_json.get('inv_option|is_priority', False)
-    }
-    return option_data
 
 
 def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
@@ -105,11 +110,12 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
         decoded_key = urllib.parse.unquote_plus(key)
         s3_obj = s3_client.get_object(Bucket=bucket, Key=decoded_key)
         json_data_list = json.load(BytesIO(s3_obj["Body"].read()))
-        #  Check if incoming data is older than existing data
+        # Check if incoming data is older than existing data
         sample_data = json_data_list[0] if json_data_list else None
         if sample_data:
             incoming_received_datetime = sample_data.get('inv_inventory|received_datetime')
             provider_dealer_id = sample_data.get("inv_dealer_integration_partner|provider_dealer_id")
+
             if incoming_received_datetime and not rds_instance.is_new_data(incoming_received_datetime, provider_dealer_id):
                 logger.warning("Incoming data is older than existing data. Processing stopped.")
                 return
@@ -125,35 +131,48 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
             logger.warning(f"No dealer integration partner ID found for provider dealer ID: {provider_dealer_id}, skipping.")
             return
 
-        processed_inventory_ids = []
+        # Accumulate records for batch processing
+        vehicle_data_list = []
+        inventory_data_list = []
+
+        logger.info("Starting data processing.")
         for json_data in json_data_list:
-            # Insert vehicle data
+            # Extract vehicle data
             vehicle_data = extract_vehicle_data(json_data)
-            vehicle_data['dealer_integration_partner_id'] = dealer_integration_partner_id
-            vehicle_id = rds_instance.insert_vehicle(vehicle_data)
+            vehicle_data_list.append(vehicle_data)
 
-            # Insert inventory data
+            # Extract inventory data
             inventory_data = extract_inventory_data(json_data)
-            inventory_data['vehicle_id'] = vehicle_id
-            inventory_data['dealer_integration_partner_id'] = dealer_integration_partner_id
-            inventory_id = rds_instance.insert_inventory_item(inventory_data)
-            processed_inventory_ids.append(inventory_id)
+            inventory_data_list.append(inventory_data)
 
-            # Insert options data
-            if json_data.get('inv_options|inv_options'):
-                option_ids = []
-                for option_json in json_data['inv_options|inv_options']:
-                    option_data = extract_option_data(option_json)
-                    option_id = rds_instance.insert_option(option_data)
-                    option_ids.append(option_id)
-                rds_instance.link_option_to_inventory(inventory_id, option_ids)
-            else:
-                identifier = json_data.get(json_data.get('inv_vehicle|stock_num', 'Unknown Identifier'))
-                logger.warning(f"Skipping options for record with identifier {identifier} as they do not exist.")
+        # Perform batch upsert for vehicles
+        vehicle_id_map = rds_instance.batch_upsert_vehicles(vehicle_data_list, dealer_integration_partner_id)
 
-        #  Use dealer_integration_partner_id to update the value of on_lot for vehicles
-        dealer_id = dealer_integration_partner_id
-        rds_instance.update_dealers_other_vehicles(dealer_id, processed_inventory_ids)
+        logger.info(f"Processed vehicles {len(vehicle_id_map)}")
+
+        # Use `vehicle_id_map` to set `vehicle_id` in inventory records before batch processing inventory
+        for inventory_data in inventory_data_list:
+            # Assuming VIN or other key is used to look up the vehicle ID from vehicle_id_map
+            vehicle_key = (
+                    inventory_data['vehicle_data'].get('vin'),
+                    dealer_integration_partner_id,
+                    inventory_data['vehicle_data'].get('model'),
+                    inventory_data['vehicle_data'].get('stock_num'),
+                    inventory_data['vehicle_data'].get('mileage')
+                )
+            inventory_data['vehicle_id'] = vehicle_id_map.get(vehicle_key)
+            if not inventory_data['vehicle_id']:
+                logger.warning(f"Vehicle ID not found for inventory record with key {vehicle_key}")
+                raise
+
+        # Perform batch insert or update for inventory items
+        processed_inventory_ids = rds_instance.batch_insert_inventory(inventory_data_list, dealer_integration_partner_id)
+
+        logger.info("Data processing completed. Total records processed: %d",
+                    len(json_data_list))
+
+        # Use dealer_integration_partner_id to update the value of on_lot for vehicles
+        rds_instance.update_dealers_other_vehicles(dealer_integration_partner_id, processed_inventory_ids)
         logger.info(f"Data processing and upload completed for {decoded_key}")
 
     except Exception:
@@ -167,9 +186,7 @@ def lambda_handler(event, _):
     """
     try:
         rds_instance = RDSInstance()
-        count = 0
         for record in event['Records']:
-            logger.info(f"Processing record {count}")
             message = loads(record["body"])
             logger.info(f"Received message: {message}")
 
@@ -177,7 +194,6 @@ def lambda_handler(event, _):
                 bucket = s3_record["s3"]["bucket"]["name"]
                 key = s3_record["s3"]["object"]["key"]
                 process_and_upload_data(bucket, key, rds_instance)
-            count += 1
     except Exception:
         logger.exception("Error in Lambda handler")
         raise

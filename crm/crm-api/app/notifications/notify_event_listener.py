@@ -30,7 +30,7 @@ def send_to_event_listener(lead_id: int) -> None:
 
         data = {
             "message": "New Lead available from CRM API",
-            "lead_id": lead_id,
+            "lead_id": lead_id
         }
         response = requests.post(
             url=listener_secrets["API_URL"],

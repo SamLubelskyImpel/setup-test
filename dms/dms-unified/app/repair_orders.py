@@ -52,6 +52,21 @@ def insert_repair_order_parquet(key, df):
             subset=service_repair_order_unique_constraint, keep="first"
         ).reset_index(drop=True)
 
+        # Target only the numeric columns in service_repair_order that use float(double precision)
+        service_repair_order_numeric_columns = [
+            "service_repair_order|total_amount",
+            "service_repair_order|consumer_total_amount",
+            "service_repair_order|warranty_total_amount",
+            "service_repair_order|internal_total_amount"
+        ]
+
+        # Replace any empty strings in these columns with a default value (e.g., 0)
+        for column in service_repair_order_numeric_columns:
+            if column in df.columns:
+                # Replace empty strings with 0 to ensure compatibility with double precision type
+                # This was created to avoid the InvalidTextRepresentation error 
+                df[column] = df[column].replace("", 0)
+
         inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
         df["service_repair_order|consumer_id"] = inserted_consumer_ids
 
@@ -65,6 +80,7 @@ def insert_repair_order_parquet(key, df):
         ]
         additional_service_repair_order_query = f"""ON CONFLICT ON CONSTRAINT unique_ros_dms DO UPDATE
                 SET {', '.join([f'{x} = COALESCE(EXCLUDED.{x}, service_repair_order.{x})' for x in service_repair_order_columns])}"""
+
         service_repair_order_ids = rds.insert_table_from_df(
             df,
             "service_repair_order",

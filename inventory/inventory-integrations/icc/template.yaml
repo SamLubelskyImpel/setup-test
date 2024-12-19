@@ -150,8 +150,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB-*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB-*"
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*"
                     ]
                   - !If [
                       IsProd,
@@ -321,7 +321,7 @@ Resources:
     Properties:
       QueueName: !Sub 'icc-inv-${Environment}-FormatINVInsertQueue'
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 60
+      VisibilityTimeout: 900
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt FormatINVInsertDeadLetterQueue.Arn
           maxReceiveCount: 5
@@ -393,8 +393,8 @@ Resources:
       Handler: format.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-      Timeout: 60
-      MemorySize: 1024
+      Timeout: 900
+      MemorySize: 5120
 
   FormatINVInsertLogGroup:
     Type: AWS::Logs::LogGroup
