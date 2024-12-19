@@ -1,4 +1,4 @@
-"""Authorize requests to the udp-event-api gateway."""
+"""Authorize requests to the event-publishing-api gateway."""
 import json
 import logging
 import os
