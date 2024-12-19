@@ -71,12 +71,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
         response_entries = event_response.get('Entries', [])
         api_response = []
 
-        for entry in response_entries:
-            api_response.append({
-                "event_id": entry.get("EventId", None),
-                "error_code": entry.get("ErrorCode", None),
-                "error_message": entry.get("ErrorMessage", None)
-            })
+        # AWS EventBridge guarantees order of responses to match order of events, this is a fail safe catch.
+        if len(response_entries) != len(event_json):
+            logger.error("Number of responses does not match number of events. Cannot guarantee order.")
+            raise Exception("Number of responses does not match number of events. Cannot guarantee order.")
+        else:
+            for original_event, response_entry in zip(event_json, response_entries):
+                api_response.append({
+                    "event_json": original_event,
+                    "event_id": response_entry.get("EventId", None),
+                    "error_code": response_entry.get("ErrorCode", None),
+                    "error_message": response_entry.get("ErrorMessage", None)
+                })
 
         """
         Example SNS event:
@@ -108,5 +114,5 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     return {
         "statusCode": 200,
-        "body": dumps(event_response)
+        "body": dumps(api_response)
     }
