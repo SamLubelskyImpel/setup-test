@@ -65,7 +65,7 @@ components:
           description: The source from which the event originated.
     EventResponse:
       type: array
-      description: Event payloads matched
+      description: Event payloads matched with response from event bridge.
       items:
         type: object
         properties:
@@ -79,11 +79,9 @@ components:
           error_code:
             type: string
             description: Error code from event bridge related to the event.
-            example: null
           error_message:
             type: string
             description: Error message from event bridge related to the event.
-            example: null
 
   parameters:
     clientId:
