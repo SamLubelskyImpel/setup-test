@@ -116,6 +116,7 @@ def process_entry(entry, received_datetime, source_s3_uri):
         entry['inv_inventory']['metadata'] = metadata
         entry['inv_inventory']['on_lot'] = True
         entry['inv_inventory']['received_datetime'] = received_datetime
+        entry['inv_inventory']['region'] = 'NZ'
 
     return entry
 
