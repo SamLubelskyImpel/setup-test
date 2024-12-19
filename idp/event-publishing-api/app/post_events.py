@@ -1,4 +1,14 @@
-"""Publish events to SNS."""
+"""Publish events to SNS.
+
+Example SNS event:
+{
+    "event_bus_id": event_id,
+    "timestamp": "2024-11-04T14:23:15.123Z",
+    "source": "my-service-name",
+    "payload": event_json
+}
+"""
+
 import logging
 from os import environ
 from json import dumps, loads
@@ -32,7 +42,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if not all(isinstance(event, dict) for event in event_json):
                 raise TypeError("event_json must contain only objects.")
             if not isinstance(event_source, str):
-                raise TypeError("source must be a string.")
+                raise TypeError("event_source must be a string.")
         except KeyError as e:
             logger.exception(f"Missing required fields: {e}")
             return {
@@ -75,26 +85,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if len(response_entries) != len(event_json):
             logger.error("Number of responses does not match number of events. Cannot guarantee order.")
             raise Exception("Number of responses does not match number of events. Cannot guarantee order.")
-        else:
-            for original_event, response_entry in zip(event_json, response_entries):
-                api_response.append({
-                    "event_json": original_event,
-                    "event_bus_id": response_entry.get("EventId", None),
-                    "error_code": response_entry.get("ErrorCode", None),
-                    "error_message": response_entry.get("ErrorMessage", None)
-                })
 
-        """
-        Example SNS event:
-        {
-            "envelope": {
-                "event_bus_id": event_id,
-                "timestamp": "2024-11-04T14:23:15.123Z",
-                "source": "my-service-name",
-                "payload": event_json
-                }
-        }
-        """
+        for original_event, response_entry in zip(event_json, response_entries):
+            api_response.append({
+                "event_json": original_event,
+                "event_bus_id": response_entry.get("EventId", None),
+                "error_code": response_entry.get("ErrorCode", None),
+                "error_message": response_entry.get("ErrorMessage", None)
+            })
 
     except ClientError as e:
         if e.response['Error']['Code'] == 'InternalException':
