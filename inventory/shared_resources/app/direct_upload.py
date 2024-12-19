@@ -88,32 +88,10 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             for icc_field, unified_field in field_mappings.items():
                 row[icc_field] = entry.get(unified_field)
 
-            # Process equipment and options
-            equipment_list = entry.get("inv_equipments|inv_equipments", [])
-            standard_equipment = []
-            optional_equipment = []
-            if equipment_list:
-                for equipment in equipment_list:
-                    if equipment.get("inv_equipment|is_optional"):
-                        optional_equipment.append(equipment.get("inv_equipment|equipment_description"))
-                    else:
-                        standard_equipment.append(equipment.get("inv_equipment|equipment_description"))
-
-                row["StandardEquipment"] = "|".join(standard_equipment)
-                row["OptionalEquipment"] = "|".join(optional_equipment)
-
-            options_list = entry.get("inv_options|inv_options", [])
-            option_description = []
-            priority_options = []
-            if options_list:
-                for option in options_list:
-                    if option.get("inv_option|is_priority"):
-                        priority_options.append(option.get("inv_option|option_description"))
-                    else:
-                        option_description.append(option.get("inv_option|option_description"))
-
-                row["OptionDescription"] = "|".join(option_description)
-                row["PriorityOptions"] = "|".join(priority_options)
+            options = entry.get("inv_inventory|options", [])
+            priority_options = entry.get("inv_inventory|priority_options", [])
+            row["OptionDescription"] = "|".join(options) if options else None
+            row["PriorityOptions"] = "|".join(priority_options) if priority_options else None
 
             rows.append(row)
         except Exception:

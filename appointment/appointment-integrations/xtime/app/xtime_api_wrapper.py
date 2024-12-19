@@ -126,9 +126,13 @@ class XTimeApiWrapper:
 
         if create_appt_data.source_product == "SERVICE_AI":
             label_content = "Impel Service AI"
+        elif create_appt_data.source_product == "CHAT_AI":
+            label_content = "Impel Chat AI"
+        elif create_appt_data.source_product == "VOICE_AI":
+            label_content = "Impel Voice AI"
         else:
-            logger.error(f"Invalid source product: {create_appt_data.source_product}")
-            raise ValueError("Invalid source product")
+            logger.error(f"Unknown source product: {create_appt_data.source_product}")
+            label_content = "Impel Service Scheduling"
 
         payload = {
             "appointmentDateTimeLocal": self.__localize_time(create_appt_data.timeslot, create_appt_data.dealer_timezone),

@@ -28,7 +28,7 @@ class RDSInstance:
         sm_client = boto3.client("secretsmanager", region_name=AWS_REGION)
         secret_string = loads(
             sm_client.get_secret_value(
-                SecretId="prod/DMSDB" if self.is_prod else "test/DMSDB"
+                SecretId="prod/RDS/SHARED" if self.is_prod else "test/RDS/SHARED"
             )["SecretString"]
         )
         return psycopg2.connect(

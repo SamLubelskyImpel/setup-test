@@ -18,7 +18,7 @@ paths:
       tags:
         - Appointments
       description: Create new appointment in shared layer. Must provide either VIN or YMM combination. Must provide either Email or Phone number.
-      operationId: createAppointment
+      operationId: postAppointment
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
@@ -177,7 +177,7 @@ paths:
       tags:
         - Timeslots
       description: Returns available timeslots for appointments. Must provide either VIN or YMM combination.
-      operationId: get
+      operationId: getTimeslots
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"

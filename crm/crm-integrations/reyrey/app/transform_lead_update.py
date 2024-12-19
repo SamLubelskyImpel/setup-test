@@ -246,7 +246,7 @@ def perform_updates(
 
     salespersons = {}
     # update salesperson data if new salesperson is assigned to the lead
-    if event_id == "30":
+    if event_id in ("29", "30"):
         new_salesperson = record.find(".//ns:RCIDispositionPrimarySalesperson", namespaces=ns)  # type: ignore
         if new_salesperson is not None:
             new_salesperson = new_salesperson.text  # type: ignore
@@ -367,6 +367,13 @@ def record_handler(record: SQSRecord) -> None:
         perform_updates(xml_record, ns, crm_lead_id, crm_dealer_id, crm_consumer_id, crm_api_key, event_id, event_name)
 
     except LeadNotFoundError as e:
+        try:
+            retry_count = int(record['attributes']['ApproximateReceiveCount'])
+        except KeyError:
+            retry_count = int(record['attributes']['approximate_receive_count'])
+        if retry_count == 3:
+            logger.error(f"Lead not found after {retry_count} attempts, dropping message: {e}")
+            return
         logger.error(f"Lead not found: {e}")
         raise
 
