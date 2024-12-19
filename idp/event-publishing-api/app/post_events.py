@@ -25,13 +25,13 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         try:
             event_json = body["event_json"]
-            source = body["source"]
+            event_source = body["event_source"]
 
             if not isinstance(event_json, list):
                 raise TypeError("event_json must be an array.")
             if not all(isinstance(event, dict) for event in event_json):
                 raise TypeError("event_json must contain only objects.")
-            if not isinstance(source, str):
+            if not isinstance(event_source, str):
                 raise TypeError("source must be a string.")
         except KeyError as e:
             logger.exception(f"Missing required fields: {e}")
@@ -55,7 +55,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         timestamp = datetime.now(timezone.utc).isoformat()
         entries = [{
                 'Time': timestamp,
-                'Source': source,
+                'Source': event_source,
                 'DetailType': 'JSON',
                 'Detail': dumps(event),
                 'EventBusName': EVENT_BUS_NAME
@@ -79,7 +79,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             for original_event, response_entry in zip(event_json, response_entries):
                 api_response.append({
                     "event_json": original_event,
-                    "event_id": response_entry.get("EventId", None),
+                    "event_bus_id": response_entry.get("EventId", None),
                     "error_code": response_entry.get("ErrorCode", None),
                     "error_message": response_entry.get("ErrorMessage", None)
                 })
@@ -88,7 +88,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         Example SNS event:
         {
             "envelope": {
-                "event_id": event_id,
+                "event_bus_id": event_id,
                 "timestamp": "2024-11-04T14:23:15.123Z",
                 "source": "my-service-name",
                 "payload": event_json

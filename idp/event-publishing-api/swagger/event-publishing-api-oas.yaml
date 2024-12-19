@@ -3,6 +3,10 @@ info:
   version: "1.0.0"
   title: Impel Event Publishing API
   description: Event publishing API
+  
+servers:
+  - description: Impel test environment
+    url: https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test
 
 #{{API_AWS_VALIDATION}}
 paths:
@@ -56,10 +60,7 @@ components:
           items:
             description: Event payload
             type: object
-        # event_id:
-        #   type: string
-        #   description: A unique identifier (e.g., UUID) for each message.
-        source:
+        event_source:
           type: string
           description: The source from which the event originated.
     EventResponse:
@@ -71,7 +72,7 @@ components:
           event_json:
             type: object
             description: Event payload
-          event_id:
+          event_bus_id:
             type: string
             description: A unique identifier (e.g., UUID) for an event.
             example: "009a352b-d6b5-405b-8c3f-36ccd16aa431"
