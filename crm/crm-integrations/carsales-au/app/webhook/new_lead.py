@@ -2,12 +2,10 @@ import logging
 from os import environ
 from typing import Any
 from json import loads, dumps
-from sqlalchemy import or_, and_
 from datetime import datetime, timezone
 from uuid import uuid4
 import boto3
 import requests
-
 
 logger = logging.getLogger()
 logger.setLevel(environ.get('LOGLEVEL', 'INFO').upper())
@@ -26,10 +24,18 @@ class DealershipNotActive(Exception):
     pass
 
 
+class ValidationError(Exception):
+    pass
+
+
 def save_raw_event(partner_name: str, dealer: dict, body: dict):
+    """Save raw event to S3."""
     s3_product_prefix = 'carsales-au' if partner_name == 'CARSALES_AU' else 'carsales-dealersocket-au'
-    now = datetime.now(tz=timezone.utc)
-    s3_key = f'raw/{s3_product_prefix}/{dealer["product_dealer_id"]}/{now.year}/{now.month}/{now.day}/{now.hour}/{now.minute}_{str(uuid4())}.json'
+    format_string = '%Y/%m/%d/%H/%M'
+    date_key = datetime.now(tz=timezone.utc).strftime(format_string)
+
+    s3_key = f'raw/{s3_product_prefix}/{dealer["product_dealer_id"]}/{date_key}_{uuid4()}.json'
+
     # set our crm_dealer_id on the lead object
     body['crm_dealer_id'] = dealer['crm_dealer_id']
     S3_CLIENT.put_object(
@@ -38,20 +44,6 @@ def save_raw_event(partner_name: str, dealer: dict, body: dict):
         Body=dumps(body)
     )
     logger.info(f'Raw event saved to {s3_key}')
-
-
-# def log_event(event: dict):
-#     del event['headers']
-#     del event['multiValueHeaders']
-#     logger.info(f'Event: {event}')
-
-
-def send_alert(message: str):
-    SNS_CLIENT.publish(
-        TopicArn=REPORTING_TOPIC_ARN,
-        Message=message,
-        Subject='CarSales AU CRM: Lead Rejected - Dealer not found'
-    )
 
 
 def get_secrets():
@@ -65,6 +57,7 @@ def get_secrets():
 
 
 def get_dealers(integration_partner_name: str):
+    """Get active Sales AI dealers."""
     partner_id, api_key = get_secrets()
 
     url = f'https://{CRM_API_DOMAIN}/dealers'
@@ -94,45 +87,66 @@ def get_dealers(integration_partner_name: str):
 
 
 def lambda_handler(event: dict, context: Any):
-    # log_event(event)
+    """Accept new lead from CarSales."""
     logger.info(f'Event: {event}')
+    crm_lead_id = None
+    crm_dealer_id = None
 
-    body = event['body']
-    # dict_body: dict = loads(body)
-    # crm_dealer_id = dict_body['SellerIdentifier']
+    try:
+        body = event['body']
+        dict_body: dict = loads(body)
 
-    # try:
-    #     dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
+        crm_lead_id = dict_body.get('Identifier', '')
+        seller_object = dict_body.get('Seller', {})
+        crm_dealer_id = seller_object.get('Identifier', '')
 
-    #     partner_name = 'CARSALES_AU'
-    #     dealer = next(iter([d for d in dealers if d['crm_dealer_id'] == crm_dealer_id]), None)
+        if not crm_lead_id or not crm_dealer_id:
+            raise ValidationError('Invalid request body. Identifier and Seller.Identifier are required.')
 
-    #     if not dealer:
-    #         partner_name = 'DEALERSOCKET_AU'
-    #         dealer = next(iter([
-    #             d for d in dealers
-    #             if d.get('metadata', {}).get('lead_vendor') == 'carsales'
-    #             and d.get('metadata', {}).get('carsales_dealer_id') == crm_dealer_id
-    #         ]), None)
+        dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
 
-    #     if not dealer:
-    #         raise DealershipNotActive()
+        partner_name = 'CARSALES_AU'
+        dealer = next(iter([d for d in dealers if d['crm_dealer_id'] == crm_dealer_id]), None)
 
-    #     logger.info(f'Found active dealership {dealer}')
-    #     save_raw_event(partner_name, dealer, dict_body)
+        if not dealer:
+            partner_name = 'DEALERSOCKET_AU'
+            dealer = next(iter([
+                d for d in dealers
+                if d.get('metadata', {}).get('lead_vendor') == 'carsales'
+                and d.get('metadata', {}).get('carsales_dealer_id') == crm_dealer_id
+            ]), None)
+
+        if not dealer:
+            raise DealershipNotActive()
+
+        logger.info(f'Found active dealership {dealer}')
+        save_raw_event(partner_name, dealer, dict_body)
+
+    except DealershipNotActive:
+        logger.error("[SUPPORT ALERT] Lead Rejected [CONTENT] Dealership is not active for crm_dealer_id {}".format(
+            crm_dealer_id)
+        )
+        return {
+            'statusCode': 401,
+            'body': dumps({'error': 'This request is unauthorized. Dealership not active in Impel\'s system.'})
+        }
+    except ValidationError as e:
+        logger.error(f'Error validating request: {e}')
+        return {
+            'statusCode': 400,
+            'body': dumps({'error': str(e)})
+        }
+    except Exception as e:
+        logger.exception(f'Error processing new lead: {e}')
+        logger.error("[SUPPORT ALERT] Failed to accept lead [CONTENT] CRMLeadId: {}\nCRMDealerId: {}\nTraceback: {}".format(
+            crm_lead_id, crm_dealer_id, e)
+        )
+        return {
+            'statusCode': 500,
+            'body': dumps({'error': 'Internal Server Error. Please contact Impel support.'})
+        }
 
     return {
-        'statusCode': 200
+        'statusCode': 200,
+        'body': dumps({'message': 'Lead accepted.'})
     }
-    # except DealershipNotActive:
-    #     message = f'Dealership not active for crm_dealer_id = {crm_dealer_id}'
-    #     logger.warning(message)
-    #     send_alert(message)
-
-    #     return {
-    #         'statusCode': 400,
-    #         'body': dumps({ 'error': 'Dealership not active' })
-    #     }
-    # except:
-    #     logger.exception('Error processing new lead')
-    #     raise

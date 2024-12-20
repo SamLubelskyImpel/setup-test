@@ -30,12 +30,11 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !If [ IsProd, "crm-integrations-prod", "crm-integrations-test" ]
+        INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         UPLOAD_SECRET_KEY: "impel"
         SECRET_KEY: "CARSALES_AU"
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "cjn2bvvdzb.execute-api.us-east-1.amazonaws.com/Stage"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "9a78m8x8sh.execute-api.us-east-1.amazonaws.com/Stage"]
         REPORTING_TOPIC_ARN: !If [
             IsProd,
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod",
@@ -135,16 +134,6 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
-
-  MonitoringCarsales:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub carsales-${Environment}-Monitoring
-      CodeUri: app/
-      Handler: monitoring.lambda_handler
-      Timeout: 30
-      MemorySize: 256
-      Role: !GetAtt LambdaRole.Arn
 
   SendActivityQueue:
     Type: AWS::SQS::Queue
@@ -399,18 +388,6 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-
-  MonitoringSendActivitySubscription:
-    Type: AWS::Logs::SubscriptionFilter
-    DependsOn:
-      - LogGroupInvokeLambdaPermission
-      - MonitoringCarsales
-      - SendActivityLogGroup
-    Properties:
-      LogGroupName: !Ref SendActivityLogGroup
-      DestinationArn: !GetAtt MonitoringCarsales.Arn
-      FilterPattern: "SUPPORT ALERT"
-
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -460,3 +437,45 @@ Resources:
         - Id: "TransformCarSalesDataTarget"
           Arn: !GetAtt TransformCarSalesDataQueue.Arn
 
+  MonitoringCarsales:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub carsales-${Environment}-Monitoring
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringCarsales
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringCarsales.Arn
+      FilterPattern: "SUPPORT ALERT"
+  
+  MonitoringTransformCarSalesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringCarsales
+      - TransformCarSalesDataLogGroup
+    Properties:
+      LogGroupName: !Ref TransformCarSalesDataLogGroup
+      DestinationArn: !GetAtt MonitoringCarsales.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringNewLeadHandlerSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringCarsales
+      - NewLeadHandlerLogGroup
+    Properties:
+      LogGroupName: !Ref NewLeadHandlerLogGroup
+      DestinationArn: !GetAtt MonitoringCarsales.Arn
+      FilterPattern: "SUPPORT ALERT"

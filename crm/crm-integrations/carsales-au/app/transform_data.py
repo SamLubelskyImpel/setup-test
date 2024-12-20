@@ -4,16 +4,14 @@ import boto3
 import logging
 import requests
 from os import environ
-from json import loads, dumps
+from json import loads
 from typing import Any, Dict
-from datetime import datetime
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
     process_partial_response,
 )
-
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -87,13 +85,27 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str) -> Any:
 
     return unified_crm_lead_id
 
+
+def create_lead(lead_body: dict, crm_api_key: str):
+    """Create lead in the CRM API."""
+    logger.info(f"Processing lead: {lead_body}")
+    try:
+        product_dealer_id = lead_body["product_dealer_id"]
+        consumer = lead_body["consumer"]
+        lead = lead_body["lead"]
+        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key)
+        lead["consumer_id"] = unified_crm_consumer_id
+        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key)
+        logger.info(f"Lead successfully created: {unified_crm_lead_id}")
+
+    except Exception as e:
+        logger.error(f"Error uploading lead to DB: {e}")
+        raise e
+
+
 def extract_value(value_type, items, key):
-    keyname, valuename = '',''
-    if value_type == "Attributes":
-        keyname, valuename = 'Name', 'Value'
-    elif value_type == "Colours":
-        keyname, valuename = 'Location', 'Name'
-    elif value_type == "Identification":
+    keyname, valuename = '', ''
+    if value_type == "Identification":
         keyname, valuename = 'Type', 'Value'
     elif value_type == "PhoneNumbers":
         keyname, valuename = "Type", 'Number'
@@ -105,12 +117,22 @@ def extract_value(value_type, items, key):
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format carsales json data to unified format."""
+    def name_split(name):
+        try:
+            first_name, last_name = name.split()
+        except ValueError:
+            logger.warning(f"Name is not in the expected format: {name}")
+            first_name = name
+            last_name = ""
+        return first_name, last_name
+
     try:
         db_lead = {}
         db_vehicles = []
         db_consumer = {}
         db_salesperson = {}
 
+        # Parse Lead
         crm_lead_id = json_data["Identifier"]
         db_lead["crm_lead_id"] = crm_lead_id
         db_lead["lead_ts"] = json_data.get('CreatedUtc')
@@ -120,143 +142,119 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
         db_lead["lead_origin"] = 'Internet'
         db_lead["lead_source"] = 'CarSales'
 
-
+        # Parse Vehicle
         vehicle = json_data.get('Item', {})
         identification = vehicle.get('Identification', [])
-        colors = vehicle.get('Colours', [])
         specification = vehicle.get('Specification', {})
-        attributes = specification.get('Attributes', [])
-
+        listing_type = vehicle.get('ListingType', '')
+        if listing_type in ('New', 'Showroom'):
+            condition = 'New'
+        elif listing_type == 'Used':
+            condition = 'Used'
+        else:
+            condition = None
 
         db_vehicle = {
             "stock_num": extract_value("Identification", identification, "StockNumber"),
             "year": int(specification.get('ReleaseDate').get("Year")) if specification.get('ReleaseDate', {}).get("Year", None) else None,
             "make": specification.get('Make', None),
             "model": specification.get('Model', None),
-            "body_style": extract_value("Attributes", attributes, "BodyStyle"),
-            "exterior_color": extract_value("Colours", colors, "Exterior"),
-            "interior_color": extract_value("Colours", colors, "Interior"),
-            "condition": vehicle.get('ListingType', None),
-            "transmission": extract_value("Attributes", attributes, "Transmission"),
-            "status": vehicle.get('SaleStatus', None)
+            "condition": condition
         }
         price_list = vehicle.get("PriceList", [])
         if price_list:
             db_vehicle["price"] = float(price_list[-1].get("Amount")) if price_list[-1].get("Amount", None) else None
-        
-        odometer = vehicle.get("OdometerReadings", [])
-        if odometer:
-            db_vehicle["odometer_units"] = odometer[0].get("UnitsOfMeasure", None)
-            db_vehicle["mileage"] = int(odometer[-1].get("Value")) if odometer[-1].get("Value") else 0
 
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
-
         db_vehicles.append(db_vehicle)
 
         db_lead["vehicles_of_interest"] = db_vehicles
 
+        # Parse Consumer
         consumer = json_data.get('Prospect', None)
-
         if not consumer:
             logger.warning(f"No Consumer provided for lead {crm_lead_id}")
-            raise
+            raise Exception(f"No Consumer provided for lead {crm_lead_id}")
 
         phone_number = extract_value("PhoneNumbers", consumer.get("PhoneNumbers", []), "Home")
         if not phone_number:
             phone_number = extract_value("PhoneNumbers", consumer.get("PhoneNumbers", []), "Mobile")
 
+        customer_name = consumer.get('Name', '')
+        first_name, last_name = name_split(customer_name)
+
         db_consumer = {
-            "first_name": consumer.get('FirstName', None),
-            "last_name": consumer.get('LastName', None),
+            "first_name": first_name,
+            "last_name": last_name,
             "email": consumer.get('Email', None),
             "phone": phone_number
         }
 
         if not db_consumer["email"] and not db_consumer["phone"]:
             logger.warning(f"Email or phone number is required. Cannot save lead {crm_lead_id}")
-            raise
+            raise Exception(f"Email or phone number is required. Cannot save lead {crm_lead_id}")
 
         db_consumer = {key: value for key, value in db_consumer.items() if value is not None}
 
+        # Parse Salesperson
         salesperson = json_data.get('Assignment', None)
-        if salesperson: 
-            salesperson_name = salesperson.get('Name').split() if salesperson.get('Name', None) else None
+        if salesperson:
+            salesperson_name = salesperson.get('Name', '')
+            sales_first_name, sales_last_name = name_split(salesperson_name)
             db_salesperson = {
-                "first_name": salesperson_name[0] if salesperson_name else None,
-                "last_name": salesperson_name[1] if salesperson_name and len(salesperson_name) > 1 else None,
+                "first_name": sales_first_name,
+                "last_name": sales_last_name,
                 "email": salesperson.get('Email', None)
             }
+            db_salesperson = {key: value for key, value in db_salesperson.items() if value is not None}
+            db_lead["salespersons"] = [db_salesperson]
+        else:
+            db_lead["salespersons"] = []
 
-        db_salesperson = {key: value for key, value in db_salesperson.items() if value is not None}
-
-        db_lead["salespersons"] = [db_salesperson]
-
-        entry = {
+        lead_body = {
             "product_dealer_id": product_dealer_id,
             "lead": db_lead,
             "consumer": db_consumer
         }
 
-        return entry
+        return lead_body
     except Exception as e:
         logger.error(f"Error processing record: {e}")
         raise
 
 
-def post_entry(entry: dict, crm_api_key: str) -> bool:
-    """Process a single entry."""
-    logger.info(f"Processing entry {entry}")
-    try:
-        product_dealer_id = entry["product_dealer_id"]
-        consumer = entry["consumer"]
-        lead = entry["lead"]
-        unified_crm_consumer_id = upload_consumer_to_db(consumer, product_dealer_id, crm_api_key)
-        lead["consumer_id"] = unified_crm_consumer_id
-        unified_crm_lead_id = upload_lead_to_db(lead, crm_api_key)
-        logger.info(f"Lead successfully created: {unified_crm_lead_id}")
-    except Exception as e:
-        if '409' in str(e):
-            # Log the 409 error and continue with the next entry
-            logger.warning(f"{e}")
-        else:
-            logger.error(f"Error uploading entry to DB: {e}")
-            return False
-
-    return True
-
-
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
+
+    product_dealer_id = None
+    crm_dealer_id = None
     try:
         message = loads(record["body"])
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split('/')[2]
 
-
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
-        dealer_id = json_data["Seller"]["Identifier"]
+        crm_dealer_id = json_data["Seller"]["Identifier"]
 
-        entry = parse_json_to_entries(product_dealer_id, json_data)
-        logger.info(f"Transformed entry: {entry}")
+        lead_body = parse_json_to_entries(product_dealer_id, json_data)
+        logger.info(f"Transformed lead: {lead_body}")
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
 
-        result = post_entry(entry, crm_api_key)
-        if not result:
-            raise Exception ("Error occurred uploading lead to DB")
+        create_lead(lead_body, crm_api_key)
 
     except Exception as e:
         logger.error(f"Error transforming carsales au record - {record}: {e}")
         logger.error("[SUPPORT ALERT] Failed to Transform New Lead [CONTENT] ProductDealerId: {}\nDealerId: {}\nTraceback: {}".format(
-            product_dealer_id, dealer_id, e)
+            product_dealer_id, crm_dealer_id, e)
             )
-        raise
+        raise e
 
 
 def lambda_handler(event: Any, context: Any) -> Any:

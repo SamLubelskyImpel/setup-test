@@ -21,7 +21,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         dealer_records = []
-        integration_partner_name = event["queryStringParameters"]["integration_partner_name"].split('|')
+        partner_names = event["queryStringParameters"]["integration_partner_name"].split('|')
 
         with DBSession() as session:
             db_results = session.query(
@@ -31,20 +31,20 @@ def lambda_handler(event: Any, context: Any) -> Any:
             ).join(
                 IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
             ).filter(
-                IntegrationPartner.impel_integration_partner_name.in_(integration_partner_name),
+                IntegrationPartner.impel_integration_partner_name.in_(partner_names),
                 or_(DealerIntegrationPartner.is_active.is_(True),
                     DealerIntegrationPartner.is_active_salesai.is_(True),
                     DealerIntegrationPartner.is_active_chatai.is_(True))
             ).all()
 
             if not db_results:
-                logger.error(f"No active dealers found for {integration_partner_name}")
+                logger.error(f"No active dealers found for partner(s): {partner_names}")
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"No active dealers found for {integration_partner_name}"})
+                    "body": dumps({"error": f"No active dealers found for partner(s): {partner_names}"})
                 }
 
-            logger.info(f"Found {len(db_results)} active dealers for {integration_partner_name}")
+            logger.info(f"Found {len(db_results)} active dealers for partner(s): {partner_names}")
 
             for dip_db, dealer_db in db_results:
                 dealer_record = {

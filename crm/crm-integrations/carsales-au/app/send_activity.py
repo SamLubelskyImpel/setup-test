@@ -21,11 +21,21 @@ logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
     logger.info(f"Record: {record}")
+
+    dealer_integration_partner_id = None
+    lead_id = None
+    activity_id = None
+    activity_type = None
     try:
         activity = loads(record['body'])
+        dealer_integration_partner_id = activity["dealer_integration_partner_id"]
+        lead_id = activity["lead_id"]
+        activity_id = activity["activity_id"]
+        activity_type = activity["activity_type"]
 
         logger.info(f"Activity: {activity}")
 
@@ -33,12 +43,10 @@ def record_handler(record: SQSRecord):
         carsales_crm_api.create_activity()
 
     except Exception as e:
-        if "No existing scheduled appointments found" in str(e):
-            logger.error(f"Error: {e}")
-            return 
+
         logger.exception(f"Failed to post activity {activity['activity_id']} to Carsales")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            dealer_integration_partner_id, lead_id, activity_id, activity_type, e)
             )
         raise
 

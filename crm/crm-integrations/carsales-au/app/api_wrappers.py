@@ -18,6 +18,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+
 class CarsalesApiWrapper:
     """Carsales API Wrapper."""
 
@@ -39,6 +40,7 @@ class CarsalesApiWrapper:
         )
 
     def __call_api(self, url, payload=None, method="POST"):
+        """Call CarSales API."""
         auth_string = f"{self.__api_username}:{self.__api_password}"
         encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
 
@@ -57,7 +59,7 @@ class CarsalesApiWrapper:
             logger.info(f"Response from CRM: {response.status_code}")
             return response
         except Exception as e:
-            logger.error(f"Error calling API: {e}")
+            logger.error(f"Error calling CarSales API: {e}")
             raise
 
     def __create_outbound_call(self):
@@ -78,8 +80,6 @@ class CarsalesApiWrapper:
         """Create activity on CRM."""
         if self.__activity["activity_type"] == "outbound_call":
             return self.__create_outbound_call()
-        else:
-            logger.error(
-                f"Carsales CRM doesn't support activity type: {self.__activity['activity_type']}"
-            )
-            return None
+
+        logger.warning(f"Carsales CRM doesn't support activity type: {self.__activity['activity_type']}")
+        return None
