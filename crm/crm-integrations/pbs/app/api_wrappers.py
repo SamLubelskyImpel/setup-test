@@ -13,11 +13,10 @@ from os import environ
 import logging
 logger = logging.getLogger(__name__)
 
-
-is_prod = environ.get("Environment", "test") == "prod"
+ENVIRONMENT = environ.get("ENVIRONMENT")
+is_prod = ENVIRONMENT == "prod"
 SECRET_NAME = "prod/crm-integrations-partner" if is_prod else "test/crm-integrations-partner"
 REGION_NAME = "us-east-1"
-ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
