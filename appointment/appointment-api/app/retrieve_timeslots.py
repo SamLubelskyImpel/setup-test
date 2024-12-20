@@ -69,11 +69,13 @@ def lambda_handler(event, context):
         make = params.get("make")
         model = params.get("model")
         if not vin and not (year and make and model):
+            logger.error("VIN or Year, Make, Model must be provided")
             raise ValidationError("VIN or Year, Make, Model must be provided")
 
         start_time_dt = datetime.fromisoformat(start_time)
         end_time_dt = datetime.fromisoformat(end_time)
         if start_time_dt >= end_time_dt:
+            logger.error("Start time must be before end time")
             return {
                 "statusCode": 400,
                 "body": dumps({
@@ -82,6 +84,7 @@ def lambda_handler(event, context):
                 })
             }
         elif (end_time_dt.date() - start_time_dt.date()).days > 6:
+            logger.error("Query date ranges must not exceed 6 days.")
             return {
                 "statusCode": 400,
                 "body": dumps({
@@ -94,6 +97,7 @@ def lambda_handler(event, context):
             # Get dealer info
             dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
             if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
@@ -111,6 +115,7 @@ def lambda_handler(event, context):
             op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
             vendor_op_code = op_code_result.op_code if op_code_result else None
             if not vendor_op_code:
+                logger.error(f"No integration op code mapping found for product op code: {op_code}")
                 return {
                     "statusCode": 404,
                     "body": dumps({

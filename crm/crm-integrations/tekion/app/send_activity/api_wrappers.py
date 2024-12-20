@@ -149,7 +149,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -168,7 +168,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -187,7 +187,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
@@ -208,7 +208,7 @@ class TekionApiWrapper:
         })
         logger.info(f"Payload to CRM: {lead_data}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}",
+            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
             payload=lead_data,
             method="PUT"
         )['data']['notes'][-1]
