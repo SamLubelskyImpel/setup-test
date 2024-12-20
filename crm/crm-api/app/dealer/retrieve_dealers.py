@@ -2,7 +2,7 @@
 
 import logging
 from os import environ
-from json import dumps
+from json import dumps, loads
 from typing import Any
 from sqlalchemy import or_
 
@@ -58,6 +58,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "is_active_chatai": dip_db.is_active_chatai,
                     "metadata": dip_db.metadata_
                 }
+
+                if dealer_db.metadata_:
+                    dealer_record["metadata"] = dealer_db.metadata_
+
                 dealer_records.append(dealer_record)
 
         return {

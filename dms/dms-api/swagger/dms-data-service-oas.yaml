@@ -31,56 +31,41 @@ paths:
         name: x_api_key
         required: true
         description: API Key provided by Impel
-      - schema:
-          type: string
-          minimum: 1
-        in: body
-        name: dms_id
-        required: false
-        description: The DMS ID assigned to the dealer.
-      - schema:
-          type: integer
-          minimum: 1
-          maximum: 10000
-        in: body
-        name: impel_dealer_id
-        required: false
-        description: The unique id of the dealer assigned by Impel.
-      - schema:
-          type: string
-          example: 3371 Fort Meade Rd
-        in: body
-        name: location_name
-        required: false
-        description: The name of dealer's location.
-      - schema:
-          type: string
-          example: Maryland
-        in: body
-        name: state
-        required: false
-        description: The state where the dealer is located.
-      - schema:
-          type: string
-          example: Laurel
-        in: body
-        name: city
-        required: false
-        description: The city where the dealer is located.
-      - schema:
-          type: integer
-          example: 20724
-        in: body
-        name: zipcode
-        required: false
-        description: The zipcode where the dealer being created is located.
-      - schema:
-          type: string
-          example: Ourisman Honda VW of Laurel
-        in: body
-        name: full_name
-        required: false
-        description: The full name of the dealer.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dms_id:
+                  type: string
+                  description: The DMS ID assigned to the dealer.
+                  minimum: 1
+                impel_dealer_id:
+                  type: integer
+                  description: The unique id of the dealer assigned by Impel.
+                  minimum: 1
+                  maximum: 10000
+                location_name:
+                  type: string
+                  description: The name of dealer's location.
+                  example: 3371 Fort Meade Rd
+                state:
+                  type: string
+                  description: The state where the dealer is located.
+                  example: Maryland
+                city:
+                  type: string
+                  description: The city where the dealer is located.
+                  example: Laurel
+                zipcode:
+                  type: integer
+                  description: The zipcode where the dealer being created is located.
+                  example: 20724
+                full_name:
+                  type: string
+                  description: The full name of the dealer.
+                  example: Ourisman Honda VW of Laurel
       responses:
         '200':
           description: Success
@@ -106,7 +91,7 @@ paths:
           description: This request is unauthorized.
         '500':
           description: Internal Server Error. Please contact Impel support.
-      #{{CREATE_DEALER_LAMBDA_INFO}} 
+      #{{CREATE_DEALER_LAMBDA_INFO}}
   /repair-order/v1:
     get:
       summary: Get DMS repair order data.
