@@ -139,7 +139,7 @@ class PbsApiWrapper:
         }
 
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
             logger.info(f"Successfully fetched employee data for DealerId: {crm_dealer_id}")
             return response.json()
@@ -154,11 +154,11 @@ class PbsApiWrapper:
         endpoint = f"{self.base_url}/json/reply/DealGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "ContractSince": end_time,
-            "ContractUntil": start_time
+            "ContractSince": start_time,
+            "ContractUntil": end_time
         }
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
             logger.info(f"Successfully fetched new Deal data created from {start_time} to {end_time}")
             return response.json()
@@ -176,7 +176,7 @@ class PbsApiWrapper:
             "ContactIdList": contact_id
         }
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
             logger.info(f"Successfully fetched Contact with Id {contact_id}")
             return response.json()
@@ -194,7 +194,7 @@ class PbsApiWrapper:
             "VehicleIdList": vehicle_id
         }
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
             logger.info(f"Successfully fetched Vehicle with Id {vehicle_id}")
             return response.json()
@@ -407,9 +407,9 @@ class PbsApiWrapper:
             "SerialNumber": crm_dealer_id
         }
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth, timeout=3)
+            response = requests.get(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
-            logger.info(f"Successfully fetched Deal Status Setups")
+            logger.info("Successfully fetched Deal Status Setups")
             return response.json()
         except requests.exceptions.HTTPError as err:
             logger.error(f"HTTP error occurred: {err}")
