@@ -307,3 +307,45 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
+
+  ProcessOlderFilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Sidekick Process Older Files Function
+      CodeUri: app/
+      Handler: process_older_files.lambda_handler
+      Timeout: 900
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowSecrets
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/SidekickFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/SidekickFTP*",
+                  ]
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                - s3:*Object
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+            - Sid: AllowSNSPolicy
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Environment:
+        Variables:
+          Environment: !Ref Environment
