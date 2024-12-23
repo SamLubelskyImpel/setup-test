@@ -1,26 +1,35 @@
 from repair_orders import parse_data
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
-def main():
-    start_date_str = "2024-12-04T00:00:00"
-    end_date_str = "2024-12-18T00:00:00"
+def lambda_handler(event, context):
+    """
+    Lambda function to process older daily and historical files for a dealer.
+    """
+
+    start_date_str = event.get("start_date")
+    end_date_str = event.get("end_date")
+
     start_date = datetime.strptime(start_date_str, "%Y-%m-%dT%H:%M:%S")
     end_date = datetime.strptime(end_date_str, "%Y-%m-%dT%H:%M:%S")
 
     sqs_message_data_mock = {
-        "dealer_id": "1119" #treptau repair llc - dms_id 611-843, dealer_integration_partner.id 1172
+        "dealer_id": event.get("dealer_id"),
     }
     
-    while start_date <= end_date:
-        sqs_message_data_mock["end_dt_str"] = start_date.strftime("%Y-%m-%d")
+    logger.info(f"Processing files for dealer {sqs_message_data_mock['dealer_id']} from {start_date_str} to {end_date_str}")
 
-        print(start_date.strftime("%Y-%m-%d"))
+    while start_date <= end_date:
+        
+        logger.info(f"Processing files - date {start_date.strftime('%Y-%m-%d')}")
+
+        sqs_message_data_mock["end_dt_str"] = start_date.strftime("%Y-%m-%d")
         parse_data(sqs_message_data_mock)
 
         start_date += timedelta(days=1)
     
-
-
-if __name__ == "__main__":
-    main()
+    logger.info(f"Finished processing files for dealer {sqs_message_data_mock['dealer_id']}")
