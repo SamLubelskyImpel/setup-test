@@ -138,6 +138,8 @@ class ActivixApiWrapper:
     def __insert_note(self):
         """Insert note on CRM."""
         lead_id = int(self.__activity["crm_lead_id"])
+
+        # First API call to the leads endpoint
         url = "{}/leads/{}/notes".format(ACTIVIX_API_DOMAIN, lead_id)
 
         payload = {
@@ -150,22 +152,21 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("data", "").get("id", ""))
+        note_id = str(response_json.get("data", "").get("id", ""))
 
-    def __insert_note_using_communication(self):
-        """Insert note on CRM using communication endpoint."""
-        url = "{}/communications".format(ACTIVIX_API_DOMAIN)
-
-        payload = {
-            "lead_id": int(self.__activity["crm_lead_id"]),
+        # Second API call to communications endpoint
+        url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
+        payload_communications = {
+            "lead_id": lead_id,
             "description": self.__activity["notes"]
         }
+        logger.info(f"Payload to CRM (communications): {payload_communications}")
+        response_communications = self.__call_api(url_communications, payload_communications)
+        response_communications.raise_for_status()
+        response_json_communications = response_communications.json()
+        logger.info(f"Response from CRM (communications): {response_json_communications}")
 
-        logger.info(f"Payload to CRM: {payload}")
-        response = self.__call_api(url, payload)
-        response.raise_for_status()
-        response_json = response.json()
-        logger.info(f"Response from CRM: {response_json}")
+        return note_id
 
     def __create_phone_call_task(self):
         """Create phone call task on CRM."""
@@ -197,7 +198,6 @@ class ActivixApiWrapper:
     def create_activity(self):
         """Create activity on CRM."""
         if self.__activity["activity_type"] == "note":
-            self.__insert_note_using_communication()
             return self.__insert_note()
         elif self.__activity["activity_type"] == "appointment":
             return self.__create_appointment()
