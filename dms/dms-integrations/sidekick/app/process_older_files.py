@@ -25,9 +25,9 @@ def lambda_handler(event, context):
 
     while start_date <= end_date:
         
-        logger.info(f"Processing files - date {start_date.strftime('%Y-%m-%d')}")
+        logger.info(f"Processing files - date {start_date.strftime('%Y-%m-%dT%H:%M:%S')}")
 
-        sqs_message_data_mock["end_dt_str"] = start_date.strftime("%Y-%m-%d")
+        sqs_message_data_mock["end_dt_str"] = start_date.strftime("%Y-%m-%dT%H:%M:%S")
         parse_data(sqs_message_data_mock)
 
         start_date += timedelta(days=1)
