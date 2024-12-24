@@ -152,7 +152,7 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        note_id = str(response_json.get("data", "").get("id", ""))
+        activity_id = str(response_json.get("data", "").get("id", ""))
 
         # Second API call to communications endpoint
         url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
@@ -176,7 +176,7 @@ class ActivixApiWrapper:
         response_json_communications = response_communications.json()
         logger.info(f"Response from CRM (communications): {response_json_communications}")
 
-        return note_id
+        return activity_id
 
     def __create_phone_call_task(self):
         """Create phone call task on CRM."""
