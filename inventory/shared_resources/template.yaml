@@ -65,8 +65,6 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      VersioningConfiguration:
-        Status: !If [ IsProd, Enabled, Suspended ]
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -76,6 +74,20 @@ Resources:
         TopicConfigurations:
           - Event: s3:ObjectCreated:*
             Topic: !Ref InventoryS3ToSNSTopic
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrent
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3  # A very generous limit unlikely to cause problems with virtually any of our use cases.
+            ExpiredObjectDeleteMarker: True  # Must be set to avoid excess AWS Backup costs.
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 3  # A very short limit to avoid excess bucket costs.
+            Status: Enabled
+      VersioningConfiguration:
+        Status: !If [IsProd, Enabled, Suspended]
+      Tags:
+        - Key: org:backup-tier
+          Value: !If [ IsProd, 'medium', 'none' ]
     DependsOn: InventoryS3ToSNSPolicy
 
   InventoryS3ToSNSTopic:

@@ -134,6 +134,9 @@ Resources:
           Id: "get_active_dealers_dealerpeak"
           Input: '{"impel_integration_partner_name": "DEALERPEAK"}'
         - Arn: !GetAtt GetActiveDealers.Arn
+          Id: "get_active_dealers_pbs"
+          Input: '{"impel_integration_partner_name": "PBS"}'
+        - Arn: !GetAtt GetActiveDealers.Arn
           Id: "get_active_dealers_tekion"
           Input: '{"impel_integration_partner_name": "TEKION"}'
 
@@ -152,8 +155,20 @@ Resources:
       NotificationConfiguration:
         EventBridgeConfiguration:
             EventBridgeEnabled: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrent
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3  # A very generous limit unlikely to cause problems with virtually any of our use cases.
+            ExpiredObjectDeleteMarker: True  # Must be set to avoid excess AWS Backup costs.
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 3  # A very short limit to avoid excess bucket costs.
+            Status: Enabled
       VersioningConfiguration:
-        Status: Enabled
+        Status: !If [IsProd, Enabled, Suspended]
+      Tags:
+        - Key: org:backup-tier
+          Value: !If [ IsProd, 'medium', 'none' ]
 
   ProcessLeadUpdates:
     Type: AWS::Serverless::Function
