@@ -11,8 +11,6 @@ s3_client = boto3.client("s3")
 
 INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
 
-# Many to 1 tables and many to many tables are represented by array of struct columns
-MANY_TO_X_TABLES = ["inv_options"]
 # Ignore tables we don't insert into
 IGNORE_POSSIBLE_TABLES = ["inv_dealer_integration_partner"]
 # Ignore columns we don't insert into (id, fk, audit columns)
@@ -37,18 +35,7 @@ def validate_unified_df_columns(df):
     for col in df.columns:
         df_table = str(col).split("|")[0]
         df_table_names.add(df_table)
-        if df_table in MANY_TO_X_TABLES:
-            for array in df[col]:
-                # Check if array is a list before iterating
-                if isinstance(array, list):
-                    for struct in array:
-                        for key in struct:
-                            df_col_names.add(key)
-                else:
-                    # Log a warning or handle the unexpected array value appropriately
-                    logger.warning(f"Expected a list for {col}, but got {type(array).__name__}: {array}")
-        else:
-            df_col_names.add(col)
+        df_col_names.add(col)
 
     # Validate all columns in the DF exist in the database
     for df_col in df_col_names:
@@ -92,7 +79,7 @@ def upload_unified_json(json_list, provider_dealer_id):
     """Upload dataframe to unified s3 path for insertion."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.now(timezone.utc).strftime(format_string)
-    s3_key = f"unified/dealerstudio/{date_key}/{provider_dealer_id}.json"
+    s3_key = f"unified/autostock/{date_key}/{provider_dealer_id}.json"
 
     df = convert_unified_df(json_list)
     if len(df) > 0:
