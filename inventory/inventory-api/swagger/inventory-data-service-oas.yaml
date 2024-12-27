@@ -204,18 +204,6 @@ components:
                 properties:
                   vehicle:
                     $ref: '#/components/schemas/Vehicle'
-              - type: object
-                properties:
-                  op_codes:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Option'
-              - type: object
-                properties:
-                  op_codes:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Equipment'
         has_next_page:
           type: boolean
     DealerResponse:
@@ -398,27 +386,11 @@ components:
             type: string
           factory_certified:
             type: boolean
-    Equipment:
-      type: object
-      properties:
-        id:
-          type: integer
-        db_creation_date:
-          type: string
-          format: date-time
-        equipment_description:
-          type: string
-        is_optional:
-          type: boolean
-    Option:
-      type: object
-      properties:
-        id:
-          type: integer
-        db_creation_date:
-          type: string
-          format: date-time
-        option_description:
-          type: string
-        is_priority:
-          type: boolean
+          options:
+            type: array
+            items:
+              type: string
+          priority_options:
+            type: array
+            items:
+              type: string

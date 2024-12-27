@@ -15,7 +15,7 @@ Conditions:
     - Ref: AWS::AccountId
     - 196800776222
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
-  
+
 Globals:
   Function:
     Runtime: python3.9
@@ -25,7 +25,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        
+
 Resources:
   CrmAdfDomainIdentity:
     Type: AWS::SES::EmailIdentity
@@ -36,12 +36,12 @@ Resources:
     Type: AWS::SES::EmailIdentity
     Properties:
       EmailIdentity: !If [ IsProd, 'crm.adf@impel.ai', '' ]
-      
+
   EmailServiceConfigSet:
     Type: AWS::SES::ConfigurationSet
     Properties:
       Name: !Sub 'email-service-config-${Environment}'
-      
+
   EmailServiceEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
     Properties:
@@ -50,7 +50,7 @@ Resources:
         Enabled: true
         MatchingEventTypes:
           - bounce
-          - reject 
+          - reject
           - send
           - complaint
           - delivery
@@ -61,12 +61,12 @@ Resources:
           - subscription
         SnsDestination:
           TopicARN: !Ref EmailServiceDeliveryTopic
-          
+
   EmailServiceDeliveryTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: !Sub email-service-delivery-${Environment}
-  
+
   EmailServiceDeliveryMonitoringPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -74,7 +74,7 @@ Resources:
       FunctionName: !Ref EmailServiceDeliveryMonitoringLambda
       Principal: sns.amazonaws.com
       SourceArn: !Ref EmailServiceDeliveryTopic
-      
+
   EmailServiceDeliveryMonitoringLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -92,19 +92,19 @@ Resources:
       Environment:
         Variables:
           FAILURE_QUEUE: !Ref EmailServiceDeliveryFailureQueue
-      
+
   EmailServiceDeliveryMonitoringSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: lambda
       TopicArn: !Ref EmailServiceDeliveryTopic
       Endpoint: !GetAtt EmailServiceDeliveryMonitoringLambda.Arn
-      
+
   EmailServiceDeliveryFailureQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub email-service-delivery-failure-${Environment}
-      
+
   EmailServiceDeliveryFailureAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -123,12 +123,26 @@ Resources:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       TreatMissingData: notBreaching
       ActionsEnabled: !If [ IsProd, true, false ]
-        
+
   EmailServiceBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub email-service-store-${Environment}
-      
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireNoncurrent
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 3  # A very generous limit unlikely to cause problems with virtually any of our use cases.
+            ExpiredObjectDeleteMarker: True  # Must be set to avoid excess AWS Backup costs.
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 3  # A very short limit to avoid excess bucket costs.
+            Status: Enabled
+      VersioningConfiguration:
+        Status: !If [IsProd, Enabled, Suspended]
+      Tags:
+        - Key: org:backup-tier
+          Value: !If [ IsProd, 'medium', 'none' ]
+
   EmailServiceLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -136,7 +150,7 @@ Resources:
       FunctionName: !Ref EmailServiceLambda
       Principal: s3.amazonaws.com
       SourceArn: !GetAtt EmailServiceBucket.Arn
-      
+
   EmailServiceExecutionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -152,10 +166,10 @@ Resources:
           - Effect: Allow
             Action:
               - ses:SendEmail
-            Resource: 
+            Resource:
               - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*
               - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/*
-      
+
   EmailServiceLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -178,12 +192,12 @@ Resources:
       Environment:
         Variables:
           CONFIG_SET: !Ref EmailServiceConfigSet
-            
+
   EmailServiceDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub email-service-dlq-${Environment}
-      
+
   EmailServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -202,8 +216,5 @@ Resources:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       TreatMissingData: notBreaching
       ActionsEnabled: !If [ IsProd, true, false ]
-            
-      
-  
-          
+
 

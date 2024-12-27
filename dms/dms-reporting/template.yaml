@@ -56,7 +56,7 @@ Globals:
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]        
+      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
   LambdaExecutionRole:
@@ -77,7 +77,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: 
+                Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:ListBucket
@@ -92,13 +92,13 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*" 
+                Resource: "arn:aws:logs:*:*:*"
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !If [ IsProd,
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
-                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                       ]
               - Effect: Allow
                 Action:
@@ -124,7 +124,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout: 30 
+      Timeout: 30
       CodeUri: app/
       Handler: daily_s3_alert.lambda_handler
 
@@ -200,7 +200,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       Description: "dms alerting rds access"
-      GroupId: !If [ IsProd, 
+      GroupId: !If [ IsProd,
                       'sg-00e12bc4c116eb820',
                       'sg-00b911ee260ce5153'
                     ]

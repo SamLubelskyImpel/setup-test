@@ -7,6 +7,7 @@ from json import dumps
 from xtime_api_wrapper import XTimeApiWrapper
 from models import GetAppointments, CreateAppointment, AppointmentSlots
 from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -151,26 +152,50 @@ def get_appointments(event: Any, context: Any) -> Any:
         return handle_exception(e, "get_appointments")
 
 
+def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
+    """
+    Helper to fetch dealer codes for a single dealer from XTime and handles errors.
+    """
+
+    try:
+        response = api_wrapper.get_dealer_codes(integration_dealer_id)
+        
+        if response["success"]:
+            opcodes = [service.get("opcode") for service in response.get("services", [])]
+            return integration_dealer_id, opcodes
+        else:
+            logger.error(f"XTime error for dealer {integration_dealer_id}: {response}")
+            return integration_dealer_id, None
+    except Exception as e:
+        logger.error(f"Error fetching dealer {integration_dealer_id}: {e}")
+        return integration_dealer_id, None
+
+
 def get_dealer_codes(event, context):
     """Get standard dealer opcodes from XTime."""
     logger.info(f"Event: {event}")
 
     try:
+        api_wrapper = XTimeApiWrapper()
+
         data = parse_event(event)
         integration_dealer_ids = data["integration_dealer_ids"]
 
-        api_wrapper = XTimeApiWrapper()
-
         dealer_codes = {}
-        for integration_dealer_id in integration_dealer_ids:
-            dealer_codes_response = api_wrapper.get_dealer_codes(integration_dealer_id)
+        with ThreadPoolExecutor() as executor:
+            future_to_id = {
+                executor.submit(fetch_codes_from_xtime, api_wrapper, dealer_id): dealer_id
+                for dealer_id in integration_dealer_ids
+            }
 
-            if dealer_codes_response["success"]:
-                opcodes = [service.get("opcode") for service in dealer_codes_response["services"]]
-                dealer_codes[integration_dealer_id] = opcodes
-            else:
-                logger.error(f"XTime responded with an error for dealer {integration_dealer_id}")
-                dealer_codes[integration_dealer_id] = None
+            for future in as_completed(future_to_id):
+                dealer_id = future_to_id[future]
+                try:
+                    integration_dealer_id, opcodes = future.result()
+                    dealer_codes[integration_dealer_id] = opcodes
+                except Exception as e:
+                    logger.error(f"Unhandled exception for dealer {dealer_id}: {e}")
+                    dealer_codes[dealer_id] = None
 
         return {
             "statusCode": 200,
