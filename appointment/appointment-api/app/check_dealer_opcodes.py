@@ -40,9 +40,7 @@ def get_opcode_mappings(partner_name: str):
         ).join(
             IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
         ).join(
-            OpCodeAppointment, DealerIntegrationPartner.id == OpCodeAppointment.dealer_integration_partner_id
-        ).join(
-            OpCode, OpCodeAppointment.op_code_id == OpCode.id
+            OpCode, DealerIntegrationPartner.id == OpCode.dealer_integration_partner_id
         ).filter(
             IntegrationPartner.impel_integration_partner_name == partner_name,
             DealerIntegrationPartner.is_active == True
