@@ -70,6 +70,8 @@ def lambda_handler(event, context):
             db_dealers = get_opcode_mappings(partner)
             if not db_dealers:
                 continue
+            
+            logger.info(f"DB Dealers: {db_dealers}")
 
             integration_dealer_ids = [
                 dealer["integration_dealer_id"] for dealer in db_dealers
@@ -111,9 +113,10 @@ def lambda_handler(event, context):
                 codes = dealer_codes[db_dealer["integration_dealer_id"]]
                 missing_codes = []
                 for db_code in db_dealer["op_codes"]:
-                    for code in codes:
-                        if str(db_code) == str(code):
-                            break
+                    if codes:
+                        for code in codes:
+                            if str(db_code) == str(code):
+                                break
                     else:
                         missing_codes.append(db_code)
 
