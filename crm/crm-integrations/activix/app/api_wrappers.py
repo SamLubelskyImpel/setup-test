@@ -74,15 +74,8 @@ class CrmApiWrapper:
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
 
-    def get_dealer_id(self, lead_id):
+    def get_dealer_id(self, consumer_id):
         try:
-            lead_response = self.__run_get(f"leads/{lead_id}")
-            consumer_id = lead_response["consumer_id"]
-
-            if not consumer_id:
-                logger.error("Consumer ID not found in lead response")
-                return None
-
             consumer_response = self.__run_get(f"consumers/{consumer_id}")
             return consumer_response.get("dealer_id")
         except Exception as e:

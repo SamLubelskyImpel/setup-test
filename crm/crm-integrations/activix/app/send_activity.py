@@ -33,7 +33,7 @@ def record_handler(record: SQSRecord):
         salesperson = crm_api.get_salesperson(activity["lead_id"])
 
         # Get product_dealer_id
-        dealer_id = crm_api.get_dealer_id(activity["lead_id"])
+        dealer_id = crm_api.get_dealer_id(activity["consumer_id"])
         activity["dealer_id"] = dealer_id
 
         activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
