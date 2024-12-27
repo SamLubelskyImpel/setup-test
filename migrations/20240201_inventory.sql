@@ -253,7 +253,9 @@ CREATE TABLE stage.inv_inventory (
     engine_displacement VARCHAR(255) NULL,
     factory_certified BOOLEAN NULL,
     metadata jsonb NULL,
-    received_datetime timestamptz NULL
+    received_datetime timestamptz NULL,
+    options _text NULL,
+    priority_options _text NULL,
 );
 
 -- Create a trigger on inv_inventory table that fires on INSERT
@@ -287,103 +289,3 @@ BEGIN
     EXECUTE FUNCTION update_db_update_date_and_role();
   END IF;
 END $$;
-
--- inv_equipment Table
-CREATE TABLE stage.inv_equipment (
-    id SERIAL PRIMARY KEY NOT NULL,
-    db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	db_update_date timestamptz NULL,
-	db_update_role varchar(255) NULL,
-    equipment_description VARCHAR(255) NULL,
-    is_optional BOOLEAN NULL
-);
-
--- Create a trigger on inv_equipment table that fires on INSERT
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (
-    SELECT 1 
-    FROM information_schema.triggers 
-    WHERE trigger_name = 'tr_create_db_creation_date_and_role_and_update' 
-      AND event_object_table = 'stage.inv_equipment'
-  ) THEN
-    CREATE TRIGGER tr_create_db_creation_date_and_role_and_update
-    BEFORE INSERT ON stage.inv_equipment
-    FOR EACH ROW
-    EXECUTE FUNCTION create_db_creation_date_and_role_and_update();
-  END IF;
-END $$;
-
--- Create a trigger on inv_equipment table that fires on UPDATE
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (
-    SELECT 1 
-    FROM information_schema.triggers 
-    WHERE trigger_name = 'tr_update_db_update_date_and_role' 
-      AND event_object_table = 'stage.inv_equipment'
-  ) THEN
-    CREATE TRIGGER tr_update_db_update_date_and_role
-    BEFORE UPDATE ON stage.inv_equipment 
-    FOR EACH ROW
-    EXECUTE FUNCTION update_db_update_date_and_role();
-  END IF;
-END $$;
-
--- inv_option Table
-CREATE TABLE stage.inv_option (
-    id SERIAL PRIMARY KEY NOT NULL,
-    db_creation_date timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	db_update_date timestamptz NULL,
-	db_update_role varchar(255) NULL,
-    option_description VARCHAR(255) NULL,
-    is_priority BOOLEAN NULL
-);
-
--- Create a trigger on inv_option table that fires on INSERT
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (
-    SELECT 1 
-    FROM information_schema.triggers 
-    WHERE trigger_name = 'tr_create_db_creation_date_and_role_and_update' 
-      AND event_object_table = 'stage.inv_option'
-  ) THEN
-    CREATE TRIGGER tr_create_db_creation_date_and_role_and_update
-    BEFORE INSERT ON stage.inv_option
-    FOR EACH ROW
-    EXECUTE FUNCTION create_db_creation_date_and_role_and_update();
-  END IF;
-END $$;
-
--- Create a trigger on inv_option table that fires on UPDATE
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (
-    SELECT 1 
-    FROM information_schema.triggers 
-    WHERE trigger_name = 'tr_update_db_update_date_and_role' 
-      AND event_object_table = 'stage.inv_option'
-  ) THEN
-    CREATE TRIGGER tr_update_db_update_date_and_role
-    BEFORE UPDATE ON stage.inv_option 
-    FOR EACH ROW
-    EXECUTE FUNCTION update_db_update_date_and_role();
-  END IF;
-END $$;
-
--- inv_option_inventory Table
-CREATE TABLE stage.inv_option_inventory (
-    id SERIAL PRIMARY KEY NOT NULL,
-    inv_option_id INTEGER REFERENCES stage.inv_option(id) NOT NULL,
-    inv_inventory_id INTEGER REFERENCES stage.inv_inventory(id) NOT NULL,
-    CONSTRAINT unique_inv_option_inventory UNIQUE (inv_option_id, inv_inventory_id)
-);
-
--- inv_equipment_inventory Table
-CREATE TABLE stage.inv_equipment_inventory (
-    id SERIAL PRIMARY KEY NOT NULL,
-    inv_equipment_id INTEGER REFERENCES stage.inv_equipment(id) NOT NULL,
-    inv_inventory_id INTEGER REFERENCES stage.inv_inventory(id) NOT NULL,
-    CONSTRAINT unique_inv_equipment_inventory UNIQUE (inv_equipment_id, inv_inventory_id)
-);

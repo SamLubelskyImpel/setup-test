@@ -1,6 +1,6 @@
 from inventory_orm.session_config import BaseForModels
 from sqlalchemy import Column, DateTime, Integer, String, Float, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import relationship
 
 
@@ -49,6 +49,8 @@ class InvInventory(BaseForModels):
     engine_displacement = Column(String(255), nullable=True)
     factory_certified = Column(Boolean, nullable=True)
     metadata_ = Column("metadata", JSONB)
+    options = Column(ARRAY(String(255)), nullable=True)
+    priority_options = Column(ARRAY(String(255)), nullable=True)
 
     # Define relationship
     vehicle = relationship("InvVehicle")
