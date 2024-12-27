@@ -31,8 +31,12 @@ def record_handler(record: SQSRecord):
         activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
         salesperson = crm_api.get_salesperson(activity["lead_id"])
-        activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
 
+        # Get product_dealer_id
+        dealer_id = crm_api.get_dealer_id(activity["lead_id"])
+        activity["dealer_id"] = dealer_id
+
+        activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
         activix_activity_id = activix_crm_api.create_activity()
         logger.info(f"Activix responded with activity ID: {activix_activity_id}")
 
@@ -43,7 +47,7 @@ def record_handler(record: SQSRecord):
         if error_str.startswith('404'):
             logger.error(f"Received 404 error from Activix: {e}")
             return
-            
+
         logger.exception(f"Failed to post activity {activity['activity_id']} to Activix")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
             activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
