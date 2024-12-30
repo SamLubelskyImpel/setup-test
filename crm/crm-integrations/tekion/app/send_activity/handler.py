@@ -8,7 +8,7 @@ from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
 from .envs import LOG_LEVEL
-from .api_wrappers import TekionApiWrapper, CrmApiWrapper, InvalidLeadException, InvalidNoteException
+from .api_wrappers import TekionApiWrapper, CrmApiWrapper, InvalidNoteException
 from .schemas import SendActivityEvent
 
 logger = getLogger()
@@ -29,8 +29,6 @@ def record_handler(record: SQSRecord):
         tekion_activity_id = tekion_wrapper.create_activity()
         logger.info(f"Tekion response with Activity ID: {tekion_activity_id}")
         crm_api.update_activity(activity_event.activity_id, tekion_activity_id)
-    except InvalidLeadException as e:
-        logger.error(f"Invalid lead data: {e.message}")
     except InvalidNoteException as e:
         logger.error(e.message)
     except Exception as e:
