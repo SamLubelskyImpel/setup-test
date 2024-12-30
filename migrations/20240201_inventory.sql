@@ -75,10 +75,6 @@ CREATE TABLE stage.inv_dealer (
     db_update_date timestamptz NULL,
     db_update_role varchar(255) NULL,
     full_name VARCHAR(255) NULL,
-    merch_dealer_id VARCHAR(255) NULL,
-    salesai_dealer_id VARCHAR(255) NULL,
-    merch_is_active BOOLEAN NULL DEFAULT false,
-    salesai_is_active BOOLEAN NULL DEFAULT false,
     CONSTRAINT unique_inv_impel_id UNIQUE (impel_dealer_id)
 );
 

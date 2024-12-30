@@ -50,21 +50,6 @@ class RDSInstance:
         self.rds_connection.commit()
         return cursor
 
-    def select_db_dealer_sftp_details(self, provider_dealer_id):
-        """Get the db dealer id for the given provider dealer id."""
-        db_dealer_sftp_details_query = f"""
-            select iv.merch_dealer_id, iv.salesai_dealer_id, iv.merch_is_active, iv.salesai_is_active
-            from {self.schema}.inv_dealer iv
-            join {self.schema}.inv_dealer_integration_partner idipv on idipv.dealer_id = iv.id
-            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active;
-        """
-        results = self.execute_rds(db_dealer_sftp_details_query)
-        db_dealer_sftp_details = results.fetchall()
-        if not results:
-            return []
-        else:
-            return db_dealer_sftp_details
-
     def select_db_dip_metadata(self, provider_dealer_id) -> dict:
         """Get the db dip metadata for the given provider dealer id."""
         query = f"""
