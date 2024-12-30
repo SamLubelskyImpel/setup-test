@@ -76,12 +76,21 @@ def hit_tekion_api(endpoint, params, dealer_id):
     return response.json()
 
 
-def parse_salesperson(assignee: dict):
+def parse_salesperson(assignees: list):
+    """Parse salesperson."""
+    primary_assignee = None
+    for assignee in assignees:
+        if assignee.get("isPrimary", False) and assignee.get("type", "") == "SALES_PERSON":
+            primary_assignee = assignee
+            break
+    else:
+        primary_assignee = assignees[0] if assignees else {}
+
     return {
-        "crm_salesperson_id": assignee.get("arcId"),
-        "first_name": assignee.get("firstName"),
-        "last_name": assignee.get("lastName"),
-        "position_name": assignee.get("type"),
+        "crm_salesperson_id": primary_assignee.get("arcId"),
+        "first_name": "",
+        "last_name": "",
+        "position_name": primary_assignee.get("type"),
     }
 
 
@@ -117,7 +126,7 @@ def get_lead_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_partner
         body = { "error": f"Lead not found. lead_id={lead_id}, crm_lead_id={crm_lead_id}" }
         return ApiResponse(404, body)
 
-    salesperson = parse_salesperson(lead["assignees"][0])
+    salesperson = parse_salesperson(lead["assignees"])
     status = lead.get("status")
 
     logger.info(
