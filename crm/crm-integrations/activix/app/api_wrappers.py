@@ -21,8 +21,6 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
-whitelisted_dealers = ["markham-mazda"]
-
 
 class CrmApiWrapper:
     """CRM API Wrapper."""
@@ -71,13 +69,6 @@ class CrmApiWrapper:
             response.raise_for_status()
             logger.info(f"CRM API PUT Activities responded with: {response.status_code}")
             return response.json()
-        except Exception as e:
-            logger.error(f"Error occured calling CRM API: {e}")
-
-    def get_dealer_id(self, consumer_id):
-        try:
-            consumer_response = self.__run_get(f"consumers/{consumer_id}")
-            return consumer_response.get("dealer_id")
         except Exception as e:
             logger.error(f"Error occured calling CRM API: {e}")
 
@@ -164,30 +155,26 @@ class ActivixApiWrapper:
         activity_id = str(response_json.get("data", "").get("id", ""))
 
         # Second API call to communications endpoint
-        if self.__activity["dealer_id"] in whitelisted_dealers:
-            logger.info("Dealer %s is whitelisted for communications", self.__activity["dealer_id"])
-            url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
+        url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
 
-            dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-            date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-            communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
+        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
 
-            payload_communications = {
-                "lead_id": lead_id,
-                "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
-                "type": communication_type,
-                "executed_at": date,
-                "executed_by": self.__user_id,
-                "description": self.__activity["notes"]
-            }
+        payload_communications = {
+            "lead_id": lead_id,
+            "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
+            "type": communication_type,
+            "executed_at": date,
+            "executed_by": self.__user_id,
+            "description": self.__activity["notes"]
+        }
 
-            logger.info(f"Payload to CRM (communications): {payload_communications}")
-            response_communications = self.__call_api(url_communications, payload_communications)
-            response_communications.raise_for_status()
-            response_json_communications = response_communications.json()
-            logger.info(f"Response from CRM (communications): {response_json_communications}")
-        else:
-            logger.info("Dealer %s is not whitelisted for communications", self.__activity["dealer_id"])
+        logger.info(f"Payload to CRM (communications): {payload_communications}")
+        response_communications = self.__call_api(url_communications, payload_communications)
+        response_communications.raise_for_status()
+        response_json_communications = response_communications.json()
+        logger.info(f"Response from CRM (communications): {response_json_communications}")
 
         return activity_id
 
