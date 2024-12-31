@@ -30,14 +30,14 @@ def record_handler(record: SQSRecord):
     try:
         activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
-        salesperson = crm_api.get_salesperson(activity["lead_id"])
 
+        salesperson = crm_api.get_salesperson(activity["lead_id"])
         activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
+
         activix_activity_id = activix_crm_api.create_activity()
         logger.info(f"Activix responded with activity ID: {activix_activity_id}")
 
         if activix_activity_id: crm_api.update_activity(activity["activity_id"], activix_activity_id)
-
     except Exception as e:
         error_str = str(e)
         if error_str.startswith('404'):
