@@ -255,5 +255,5 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.exception(f"Error updating lead: {e}")
         return {
             "statusCode": 500,
-            "body": dumps({"error": f"An error occurred while processing the request. {e}"})
+            "body": dumps({"error": "An error occurred while processing the request."})
         }
