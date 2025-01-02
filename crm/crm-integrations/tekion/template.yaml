@@ -426,33 +426,68 @@ Resources:
         - Id: "TransformNewLeadsTarget"
           Arn: !GetAtt TransformNewLeadsQueue.Arn
 
-  GetLeadUpdatesFunction:
+  GetLeadSalespersonUpdateFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub tekion-crm-${Environment}-GetLeadUpdates
+      FunctionName: !Sub tekion-crm-${Environment}-GetLeadSalespersonUpdate
       CodeUri: app/
-      Handler: get_lead_updates.lambda_handler
+      Handler: get_lead_salesperson_update.lambda_handler
       Role: !GetAtt LambdaRole.Arn
       Timeout: 30
       MemorySize: 256
 
-  GetLeadUpdatesLogGroup:
+  GetLeadSalespersonUpdateLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-GetLeadUpdates
+      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-GetLeadSalespersonUpdate
 
-  GetLeadUpdatesErrorAlarm:
+  GetLeadSalespersonUpdateErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub tekion-crm-${Environment}-GetLeadUpdates
-      AlarmDescription: Tekion Lead Updates failed 3 times within 15 minutes
+      AlarmName: !Sub tekion-crm-${Environment}-GetLeadSalespersonUpdate
+      AlarmDescription: Tekion Lead Salesperson Update failed 3 times within 15 minutes
       ActionsEnabled: !If [IsProd, true, false]
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref GetLeadUpdatesFunction
+          Value: !Ref GetLeadSalespersonUpdateFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 3
+      TreatMissingData: notBreaching
+
+  GetLeadStatusUpdateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-crm-${Environment}-GetLeadStatusUpdate
+      CodeUri: app/
+      Handler: get_lead_status_update.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+
+  GetLeadStatusUpdateLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/tekion-crm-${Environment}-GetLeadStatusUpdate
+
+  GetLeadStatusUpdateErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-crm-${Environment}-GetLeadStatusUpdate
+      AlarmDescription: Tekion Lead Status Update failed 3 times within 15 minutes
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetLeadStatusUpdateFunction
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -589,14 +624,25 @@ Resources:
       DestinationArn: !GetAtt MonitoringTekionCRM.Arn
       FilterPattern: "SUPPORT ALERT"
 
-  MonitoringGetLeadUpdatesSubscription:
+  MonitoringGetLeadStatusUpdateSubscription:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
       - LogGroupInvokeLambdaPermission
       - MonitoringTekionCRM
-      - GetLeadUpdatesLogGroup
+      - GetLeadStatusUpdateLogGroup
     Properties:
-      LogGroupName: !Ref GetLeadUpdatesLogGroup
+      LogGroupName: !Ref GetLeadStatusUpdateLogGroup
+      DestinationArn: !GetAtt MonitoringTekionCRM.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringGetLeadSalespersonUpdateSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringTekionCRM
+      - GetLeadSalespersonUpdateLogGroup
+    Properties:
+      LogGroupName: !Ref GetLeadSalespersonUpdateLogGroup
       DestinationArn: !GetAtt MonitoringTekionCRM.Arn
       FilterPattern: "SUPPORT ALERT"
 
