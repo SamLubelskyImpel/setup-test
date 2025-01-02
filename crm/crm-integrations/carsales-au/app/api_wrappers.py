@@ -56,7 +56,7 @@ class CarsalesApiWrapper:
                 json=payload,
                 headers=headers,
             )
-            logger.info(f"Response from CRM: {response.status_code}")
+            logger.info(f"Response code from CRM: {response.status_code}")
             return response
         except Exception as e:
             logger.error(f"Error calling CarSales API: {e}")
@@ -70,11 +70,10 @@ class CarsalesApiWrapper:
         try:
             response = self.__call_api(url)
             response.raise_for_status()
-            response_json = response.json()
-            logger.info(f"Response from CRM: {response_json}")
+            logger.info(f"Response from CRM: {response.text}")
         except Exception as e:
             logger.error(f"Failed to create outbound call for lead {crm_lead_id}: {e}")
-            return
+            raise
 
     def create_activity(self):
         """Create activity on CRM."""
@@ -82,4 +81,4 @@ class CarsalesApiWrapper:
             return self.__create_outbound_call()
 
         logger.warning(f"Carsales CRM doesn't support activity type: {self.__activity['activity_type']}")
-        return None
+        return

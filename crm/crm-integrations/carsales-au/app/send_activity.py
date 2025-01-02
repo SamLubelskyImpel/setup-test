@@ -43,7 +43,6 @@ def record_handler(record: SQSRecord):
         carsales_crm_api.create_activity()
 
     except Exception as e:
-
         logger.exception(f"Failed to post activity {activity['activity_id']} to Carsales")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
             dealer_integration_partner_id, lead_id, activity_id, activity_type, e)

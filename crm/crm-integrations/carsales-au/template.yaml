@@ -34,7 +34,7 @@ Globals:
         UPLOAD_SECRET_KEY: "impel"
         SECRET_KEY: "CARSALES_AU"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "9a78m8x8sh.execute-api.us-east-1.amazonaws.com/Stage"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         REPORTING_TOPIC_ARN: !If [
             IsProd,
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod",
@@ -138,7 +138,7 @@ Resources:
   SendActivityQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "carsales-${Environment}-SendActivityQueue"
+      QueueName: !Sub "carsales-au-crm-${Environment}-SendActivityQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
@@ -147,7 +147,7 @@ Resources:
   SendActivityDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "carsales-${Environment}-SendActivityDLQ"
+      QueueName: !Sub "carsales-au-crm-${Environment}-SendActivityDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
@@ -162,7 +162,7 @@ Resources:
   SendActivity:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub carsales-${Environment}-SendActivity
+      FunctionName: !Sub carsales-au-crm-${Environment}-SendActivity
       CodeUri: app/
       Handler: send_activity.lambda_handler
       Timeout: 30
@@ -172,12 +172,12 @@ Resources:
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-SendActivity"
+      LogGroupName: !Sub "/aws/lambda/carsales-au-crm-${Environment}-SendActivity"
 
   SendActivityDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub carsales-${Environment}-SendActivityDLQ
+      AlarmName: !Sub carsales-au-crm-${Environment}-SendActivityDLQ
       AlarmDescription: There are over 1 unprocessed messages in the Carsales SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -197,7 +197,7 @@ Resources:
   CarsalesAuWebhookGateway:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub "carsales-au-webhook-${Environment}"
+      Name: !Sub "carsales-au-crm-${Environment}-LeadWebhook"
       StageName: !Ref Environment
       Auth:
         DefaultAuthorizer: DefaultAuth
@@ -246,7 +246,7 @@ Resources:
   Authorizer:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "carsales-au-webhook-${Environment}-Authorizer"
+      FunctionName: !Sub "carsales-au-crm-${Environment}-Authorizer"
       CodeUri: app/webhook/
       Handler: authorizer.lambda_handler
       Timeout: 30
@@ -269,7 +269,7 @@ Resources:
   NewLeadHandler:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "carsales-au-webhook-${Environment}-NewLeadHandler"
+      FunctionName: !Sub "carsales-au-crm-${Environment}-NewLeadHandler"
       CodeUri: app/webhook/
       Handler: new_lead.lambda_handler
       Timeout: 30
@@ -313,7 +313,7 @@ Resources:
   NewLeadHandlerErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "carsales-au-${Environment}-NewLeadHandlerErrorAlarm"
+      AlarmName: !Sub "carsales-au-crm-${Environment}-NewLeadHandlerErrorAlarm"
       AlarmDescription: "Alarm if NewLeadHandler function execution fails."
       ActionsEnabled: !If [IsProd, true, false]
       MetricName: Errors
@@ -332,7 +332,7 @@ Resources:
   TransformCarSalesData:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub carsales-${Environment}-TransformData
+      FunctionName: !Sub carsales-au-crm-${Environment}-TransformData
       CodeUri: app/
       Handler: transform_data.lambda_handler
       Timeout: 60
@@ -342,7 +342,7 @@ Resources:
   TransformCarSalesDataLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-TransformData"
+      LogGroupName: !Sub "/aws/lambda/carsales-au-crm-${Environment}-TransformData"
 
   TransformCarSalesDataEventMapping:
     Type: AWS::Lambda::EventSourceMapping
@@ -355,7 +355,7 @@ Resources:
   TransformCarSalesDataQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "carsales-${Environment}-TransformQueue"
+      QueueName: !Sub "carsales-au-crm-${Environment}-TransformQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformCarSalesDataDeadLetterQueue.Arn
@@ -364,14 +364,14 @@ Resources:
   TransformCarSalesDataDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "carsales-${Environment}-TransformDLQ"
+      QueueName: !Sub "carsales-au-crm-${Environment}-TransformDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
   
   TransformCarSalesDataDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "carsales-${Environment}-TransformDLQ"
+      AlarmName: !Sub "carsales-au-crm-${Environment}-TransformDLQ"
       AlarmDescription: There are over 1 unprocessed messages in the CarSales Transform DLQ
       ActionsEnabled: true
       AlarmActions:
@@ -391,7 +391,7 @@ Resources:
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/carsales-${Environment}-SendActivity"
+      LogGroupName: !Sub "/aws/lambda/carsales-au-crm-${Environment}-SendActivity"
 
   LogGroupInvokeLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -440,7 +440,7 @@ Resources:
   MonitoringCarsales:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub carsales-${Environment}-Monitoring
+      FunctionName: !Sub carsales-au-crm-${Environment}-Monitoring
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Timeout: 30
