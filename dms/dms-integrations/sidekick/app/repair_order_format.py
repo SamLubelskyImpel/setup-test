@@ -24,6 +24,7 @@ s3_client = boto3.client("s3")
 
 def parse_csv_to_entries(df, s3_uri):
     """Format sidekick csv data to unified format."""
+    dms_id = None
     entries = []
     entries_lookup = {}
     df.columns = df.columns.str.strip()
@@ -34,6 +35,7 @@ def parse_csv_to_entries(df, s3_uri):
         "PartitionDate": s3_uri.split("/")[4],
         "s3_url": s3_uri,
     }
+    
     try:
         for index, row in df.iterrows():
             repair_order_no = row['RO ID']
@@ -155,9 +157,12 @@ def lambda_handler(event, context):
                 response = s3_client.get_object(Bucket=bucket, Key=decoded_key)
                 csv_content = pd.read_csv(StringIO(response['Body'].read().decode('utf-8')), sep='|')
                 entries, dms_id = parse_csv_to_entries(csv_content, decoded_key)
-                if not dms_id:
-                    raise RuntimeError("No dms_id found")
-                upload_unified_json(entries, "repair_order", decoded_key, dms_id)
+                if entries:
+                    if not dms_id:
+                        raise RuntimeError(f"No dms_id found for {key}")
+                    upload_unified_json(entries, "repair_order", decoded_key, dms_id)
+                else:
+                    logger.warning(f"No entries found for {key}")
     except Exception as e:
         logger.error(f"Error transforming sidekick repair order file {event}: {e}")
         raise

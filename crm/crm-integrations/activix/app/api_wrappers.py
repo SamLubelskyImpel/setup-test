@@ -138,6 +138,8 @@ class ActivixApiWrapper:
     def __insert_note(self):
         """Insert note on CRM."""
         lead_id = int(self.__activity["crm_lead_id"])
+
+        # First API call to the leads endpoint
         url = "{}/leads/{}/notes".format(ACTIVIX_API_DOMAIN, lead_id)
 
         payload = {
@@ -150,7 +152,31 @@ class ActivixApiWrapper:
         response_json = response.json()
         logger.info(f"Response from CRM: {response_json}")
 
-        return str(response_json.get("data", "").get("id", ""))
+        activity_id = str(response_json.get("data", "").get("id", ""))
+
+        # Second API call to communications endpoint
+        url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
+
+        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
+        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
+
+        payload_communications = {
+            "lead_id": lead_id,
+            "method": self.__activity["contact_method"] if self.__activity["contact_method"] else "email",
+            "type": communication_type,
+            "executed_at": date,
+            "executed_by": self.__user_id,
+            "description": self.__activity["notes"]
+        }
+
+        logger.info(f"Payload to CRM (communications): {payload_communications}")
+        response_communications = self.__call_api(url_communications, payload_communications)
+        response_communications.raise_for_status()
+        response_json_communications = response_communications.json()
+        logger.info(f"Response from CRM (communications): {response_json_communications}")
+
+        return activity_id
 
     def __create_phone_call_task(self):
         """Create phone call task on CRM."""

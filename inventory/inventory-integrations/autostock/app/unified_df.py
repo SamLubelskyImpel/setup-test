@@ -79,7 +79,7 @@ def upload_unified_json(json_list, provider_dealer_id):
     """Upload dataframe to unified s3 path for insertion."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.now(timezone.utc).strftime(format_string)
-    s3_key = f"unified/dealerstudio/{date_key}/{provider_dealer_id}.json"
+    s3_key = f"unified/autostock/{date_key}/{provider_dealer_id}.json"
 
     df = convert_unified_df(json_list)
     if len(df) > 0:

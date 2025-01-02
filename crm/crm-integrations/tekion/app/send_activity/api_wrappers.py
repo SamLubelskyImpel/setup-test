@@ -19,13 +19,6 @@ logger.setLevel(LOG_LEVEL.upper())
 secret_client = client("secretsmanager")
 
 
-class InvalidLeadException(Exception):
-    """Exception raised for invalid lead data."""
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
-
-
 class InvalidNoteException(Exception):
     """Exception raised for invalid notes."""
     def __init__(self, message):
@@ -128,92 +121,76 @@ class TekionApiWrapper:
         timestamp_str = new_ts.split(" ")
         return timestamp_str[0], timestamp_str[1]
 
-    def get_lead_information(self) -> dict:
-        url = f"{self.__credentials.url}/openapi/v3.1.0/crm-leads?id={self.__lead_id}"
-        lead_data = self.__call_api(url, method="GET")['data'][0]
-        logger.info(f"Lead data: {lead_data}")
-        if not lead_data.get('id'):
-            logger.warning("Activity can't be created if lead was invalid")
-            raise InvalidLeadException(f"This is lead: \n{dumps(lead_data, indent=2)}")
-        return lead_data
-
     def __create_outbound_call(self):
-        lead_data = self.get_lead_information()
         _, appt_time = self.convert_utc_to_timezone(self.__activity.activity_requested_ts)
-        if 'notes' not in lead_data:
-            lead_data['notes'] = []
-        lead_data['notes'].append({
+        note = {
+            "title": "First Contact",
             "description": f"Sales AI sent customer message at {appt_time}",
-            "name": "Sales AI",
-            "title": "First Contact"
-        })
-        logger.info(f"Payload to CRM: {lead_data}")
+        }
+
+        logger.info(f"Payload to CRM: {note}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
-            payload=lead_data,
-            method="PUT"
-        )['data']['notes'][-1]
+            url=f"{self.__credentials.url}/openapi/v4.0.0/leads/{self.__lead_id}/notes",
+            payload=[note],
+            method="POST"
+        )
         logger.info(f"Outbound call was successfully created !\n{json_response}")
-        return json_response['id']
+        note_id = json_response['data'][-1]['id']
+        return note_id
 
     def __create_phone_call_task(self):
-        lead_data = self.get_lead_information()
         date, time = self.convert_utc_to_timezone(self.__activity.activity_requested_ts)
-        if 'notes' not in lead_data:
-            lead_data['notes'] = []
-        lead_data['notes'].append({
+        note = {
+            "title": "Phone call request",
             "description": f"Customer wants you to call them\nDate: {date}\nTime: {time}",
-            "name": "Sales AI",
-            "title": "Phone call request"
-        })
-        logger.info(f"Payload to CRM: {lead_data}")
+        }
+
+        logger.info(f"Payload to CRM: {note}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
-            payload=lead_data,
-            method="PUT"
-        )['data']['notes'][-1]
-        logger.info(f"Phone call was successfully created !\n{json_response}")
-        return json_response['id']
+            url=f"{self.__credentials.url}/openapi/v4.0.0/leads/{self.__lead_id}/notes",
+            payload=[note],
+            method="POST"
+        )
+        logger.info(f"Phone call task was successfully created !\n{json_response}")
+        note_id = json_response['data'][-1]['id']
+        return note_id
 
     def __create_appointment(self):
-        lead_data = self.get_lead_information()
         appt_date, appt_time = self.convert_utc_to_timezone(self.__activity.activity_due_ts)
-        if 'notes' not in lead_data:
-            lead_data['notes'] = []
-        lead_data['notes'].append({
+        note = {
+            "title": "Appointment",
             "description": f"{self.__activity.notes}\nDate: {appt_date}\nTime: {appt_time}",
-            "name": "Sales AI",
-            "title": "Appointment"
-        })
-        logger.info(f"Payload to CRM: {lead_data}")
+        }
+
+        logger.info(f"Payload to CRM: {note}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
-            payload=lead_data,
-            method="PUT"
-        )['data']['notes'][-1]
+            url=f"{self.__credentials.url}/openapi/v4.0.0/leads/{self.__lead_id}/notes",
+            payload=[note],
+            method="POST"
+        )
         logger.info(f"Appointment was successfully created !\n{json_response}")
-        return json_response['id']
+        note_id = json_response['data'][-1]['id']
+        return note_id
 
     def __insert_note(self):
-        lead_data = self.get_lead_information()
         if not self.__activity.notes:
             logger.warning("Activity type Note can't be created if note is empty")
             raise InvalidNoteException("Note can't be empty or invalid")
-        if 'notes' not in lead_data:
-            lead_data['notes'] = []
-        lead_data['notes'].append({
+
+        note = {
+            "title": "Note",
             "description": self.__activity.notes,
-            "name": "Sales AI",
-            "title": "Note"
-        })
-        logger.info(f"Payload to CRM: {lead_data}")
+        }
+
+        logger.info(f"Payload to CRM: {note}")
         json_response = self.__call_api(
-            url=f"{self.__credentials.url}/openapi/v3.1.0/crm-leads",
-            payload=lead_data,
-            method="PUT"
-        )['data']['notes'][-1]
+            url=f"{self.__credentials.url}/openapi/v4.0.0/leads/{self.__lead_id}/notes",
+            payload=[note],
+            method="POST"
+        )
         logger.info(f"Note was successfully created !\n{json_response}")
-        return json_response['id']
+        note_id = json_response['data'][-1]['id']
+        return note_id
 
     def create_activity(self):
         """Create activity on CRM."""
