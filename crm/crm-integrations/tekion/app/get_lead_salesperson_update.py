@@ -91,10 +91,11 @@ def parse_salesperson(assignees: list):
         primary_assignee = assignees[0] if assignees else {}
 
     return {
-        "crm_salesperson_id": primary_assignee.get("arcId"),
+        "crm_salesperson_id": primary_assignee.get("id"),
         "first_name": "",
         "last_name": "",
-        "position_name": primary_assignee.get("type"),
+        "position_name": primary_assignee.get("role"),
+        "is_primary": bool(primary_assignee.get("isPrimary"))
     }
 
 
@@ -121,7 +122,7 @@ def get_lead_salesperson_update_from_crm(
 ) -> ApiResponse:
     """Get lead from Tekion."""
     tekion_res = call_tekion_api(
-        endpoint=f"v4.0.0/leads/{crm_lead_id}/assignees",
+        endpoint=f"openapi/v4.0.0/leads/{crm_lead_id}/assignees",
         dealer_id=crm_dealer_id
     )
     lead_assignees = tekion_res.get("data", [])
