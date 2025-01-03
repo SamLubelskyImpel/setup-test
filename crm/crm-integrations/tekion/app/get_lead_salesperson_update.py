@@ -48,14 +48,6 @@ def get_tekion_secrets():
     return secret_data["url"], secret_data["app_id"], token["token"]
 
 
-def save_raw_response(response, dealer_id):
-    """Save raw response to S3."""
-    now = datetime.now(timezone.utc)
-    s3_key = f"raw_updates/tekion/{dealer_id}/{now.year}/{now.month}/{now.day}/{now.hour}/{str(uuid4())}.json"
-    s3_client.put_object(Bucket=BUCKET, Key=s3_key, Body=response)
-    logger.info(f"Saved raw response to S3: {s3_key}")
-
-
 def call_tekion_api(endpoint: str, dealer_id: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Call Tekion API."""
     api_url, client_id, access_key = get_tekion_secrets()
@@ -72,7 +64,6 @@ def call_tekion_api(endpoint: str, dealer_id: str, params: Optional[Dict[str, An
     )
 
     logger.info(f"Tekion responded with: {response.status_code}, {response.text}")
-    save_raw_response(response.text, dealer_id)
     response.raise_for_status()
     return response.json()
 
@@ -83,7 +74,7 @@ def parse_salesperson(assignees: list):
     for assignee in assignees:
         if (
             assignee.get("isPrimary", False)
-            and assignee.get("type", "") == "SALES_PERSON"
+            and assignee.get("role", "") == "SALES_PERSON"
         ):
             primary_assignee = assignee
             break
