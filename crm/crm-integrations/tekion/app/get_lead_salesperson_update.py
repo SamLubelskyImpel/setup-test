@@ -95,7 +95,7 @@ def parse_salesperson(assignees: list):
         "first_name": "",
         "last_name": "",
         "position_name": primary_assignee.get("role"),
-        "is_primary": bool(primary_assignee.get("isPrimary"))
+        "is_primary": primary_assignee.get("isPrimary")
     }
 
 
