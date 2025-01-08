@@ -14,6 +14,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 class MissingSellerDataError(Exception):
     pass
@@ -25,10 +26,6 @@ def is_dealer_active(vehicle: dict):
         identifier = seller.get("Identifier", None)
         if identifier:
             rds_instance = RDSInstance()
-           
-            # active_dealers = rds_instance.select_db_active_dealer_partners("carsales")
-            # active_dealers = [dealer[0] for dealer in active_dealers]
-            # logger.info(f"Active dealers: {active_dealers}")
 
             results = rds_instance.get_active_dealer_with_id(identifier)
             logger.info(f"Found Impel Dealer Id: {results}")
@@ -36,23 +33,20 @@ def is_dealer_active(vehicle: dict):
 
             if results:
                 impel_dealer_id = results[0][0]
-            else:
-                logger.warning("Impel Dealer Id not found.")
-                raise Exception(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
+                return True, impel_dealer_id
 
-            if identifier not in active_dealers:
-                return False, impel_dealer_id
+            logger.warning("Impel Dealer Id not found.")
+            raise Exception(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
 
-            return True, impel_dealer_id
         else:
             logger.warning("No Seller Identifier provided.")
             raise MissingSellerDataError("Bad Request: Vehicle missing Seller Identifier")
     else:
         logger.warning("No Seller information provided")
-        raise MissingSellerDataError("Bad Request: Vehicle missing Seller Data")    
+        raise MissingSellerDataError("Bad Request: Vehicle missing Seller Data")
 
 
-def save_raw_vehicle(vehicle: str, dealer_id: str):
+def save_raw_vehicle(vehicle: dict, dealer_id: str):
     """Save raw vehicles to S3."""
     format_string = "%Y/%m/%d/%H/%M"
     date_key = datetime.utcnow().strftime(format_string)
@@ -77,21 +71,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         is_active, dealer_id = is_dealer_active(body)
         if is_active:
-            save_raw_vehicle(dumps(body), dealer_id)
+            save_raw_vehicle(body, dealer_id)
             return {"statusCode": 200}
         else:
             vehicle_id = body.get("Identifier", None)
             notify_client_engineering("[SUPPORT ALERT]: CarSales Vehicle Data Received for Inactive Dealer", f"Dealer for vehicle {vehicle_id} with dealer id f{dealer_id} is not active")
             return {"statusCode": 400}
     except MissingSellerDataError as e:
-        logger.error(f"Error getting CarSales create vehicle: {str(e)}")
+        logger.error(f"Error on CarSales ingest vehicle: {str(e)}")
         notify_client_engineering("[SUPPORT ALERT]: Error Occured During CarSales Inventory Ingestion", e)
         return {
             "statusCode": 400,
             "body": dumps({"error": "Bad Request."}),
-        }            
+        }
     except Exception as e:
-        logger.error(f"Error getting CarSales create vehicle: {str(e)}")
+        logger.error(f"Error on CarSales ingest vehicle: {str(e)}")
         notify_client_engineering("[SUPPORT ALERT]: Error Occured During CarSales Inventory Ingestion", e)
         return {
             "statusCode": 500,
@@ -99,12 +93,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         }
 
 def notify_client_engineering(subject, error_message):
-
     sns_client = boto3.client("sns")
-    topic_arn = environ.get(SNS_TOPIC_ARN)
     sns_client.publish(
-        TopicArn=topic_arn,
+        TopicArn=SNS_TOPIC_ARN,
         Subject=subject,
         Message=str(error_message),
     )
-    return

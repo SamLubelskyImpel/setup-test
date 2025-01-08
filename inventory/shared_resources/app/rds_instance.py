@@ -251,7 +251,7 @@ class RDSInstance:
                 oem_name = data.oem_name,
                 make = data.make,
                 year = data.year,
-                metadata = data.metadata
+                metadata = to_jsonb(data.metadata)
             FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year, metadata)
             WHERE v.id = data.id;
             """
