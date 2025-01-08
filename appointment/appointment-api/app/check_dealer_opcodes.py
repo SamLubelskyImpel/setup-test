@@ -70,7 +70,7 @@ def lambda_handler(event, context):
             db_dealers = get_opcode_mappings(partner)
             if not db_dealers:
                 continue
-            
+
             logger.info(f"DB Dealers: {db_dealers}")
 
             integration_dealer_ids = [

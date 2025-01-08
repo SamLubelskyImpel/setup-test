@@ -1,13 +1,17 @@
 """Lambda handlers for XTime API integration."""
 
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from json import dumps
+from logging import getLogger
 from os import environ
 from typing import Any
-from logging import getLogger
-from json import dumps
-from xtime_api_wrapper import XTimeApiWrapper
+
+from ratelimit import limits, sleep_and_retry
+
 from models import GetAppointments, CreateAppointment, AppointmentSlots
 from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from xtime_api_wrapper import XTimeApiWrapper
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -152,6 +156,8 @@ def get_appointments(event: Any, context: Any) -> Any:
         return handle_exception(e, "get_appointments")
 
 
+@sleep_and_retry
+@limits(calls=10, period=1)
 def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
     """
     Helper to fetch dealer codes for a single dealer from XTime and handles errors.
@@ -159,16 +165,16 @@ def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
 
     try:
         response = api_wrapper.get_dealer_codes(integration_dealer_id)
-        
+
         if response["success"]:
             opcodes = [service.get("opcode") for service in response.get("services", [])]
             return integration_dealer_id, opcodes
         else:
             logger.error(f"XTime error for dealer {integration_dealer_id}: {response}")
-            return integration_dealer_id, None
+            return integration_dealer_id, "ERROR"
     except Exception as e:
         logger.error(f"Error fetching dealer {integration_dealer_id}: {e}")
-        return integration_dealer_id, None
+        return integration_dealer_id, "ERROR"
 
 
 def get_dealer_codes(event, context):
@@ -195,7 +201,7 @@ def get_dealer_codes(event, context):
                     dealer_codes[integration_dealer_id] = opcodes
                 except Exception as e:
                     logger.error(f"Unhandled exception for dealer {dealer_id}: {e}")
-                    dealer_codes[dealer_id] = None
+                    dealer_codes[dealer_id] = "ERROR"
 
         return {
             "statusCode": 200,
