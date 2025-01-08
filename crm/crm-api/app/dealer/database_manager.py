@@ -113,6 +113,11 @@ class DatabaseManager:
                     "statusCode": 404,
                     "body": f"Integration Partner '{dealer_info.integration_partner_name}' not found",
                 }
+            
+            if not isinstance(dealer_info.metadata, dict):
+                dealer_metadata = dealer_info.metadata.to_dict()
+            else:
+                dealer_metadata = dealer_info.metadata
 
             try:
                 dealer = Dealer(
@@ -128,12 +133,12 @@ class DatabaseManager:
                 )
 
                 dealer_integration_partner = DealerIntegrationPartner(
-                    dealer=dealer, 
+                    dealer=dealer,
                     integration_partner_id=integration_partner.id,
                     crm_dealer_id=dealer_info.crm_dealer_id,
                     is_active_salesai=dealer_info.is_active_salesai,
                     is_active_chatai=dealer_info.is_active_chatai,
-                    metadata_=dealer_info.metadata.to_dict(),
+                    metadata_=dealer_metadata,
                     db_creation_date=self.dt_now
                 )
 

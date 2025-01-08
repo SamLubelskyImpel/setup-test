@@ -1,0 +1,192 @@
+openapi: "3.0.0"
+servers:
+  - description: Test environment
+    url: https://llv49tyj44.execute-api.us-east-1.amazonaws.com/test
+info:
+  version: '1'
+  title: Carsales AU Webhook
+  description: API to handle requests from the Carsales Lead Service
+
+paths:
+  /leads:
+    post:
+      operationId: new-lead
+      summary: Submit a new lead
+      description: Endpoint to submit a request for a new lead
+      #{{NEW_LEAD_LAMBDA_INFO}}
+      parameters:
+        - "$ref": "#/components/parameters/clientId"
+        - "$ref": "#/components/parameters/apiKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                Identifier:
+                  type: string
+                  description: CarSales Lead Unique Identifier
+                  example: "52e6d252-6eb7-44a7-8cf3-5b65f3074bcc"
+                Seller:
+                  $ref: '#/components/schemas/Seller'
+                Source:
+                  type: string
+                  example: "CARSALES"
+                Type:
+                  description: "[GENERAL, ITEM]"
+                  type: string
+                  example: "USED"
+                Status:
+                  description: "[New, Contact, Commitment, Sold, Lost, Duplicate, Unworkable]"
+                  type: string
+                  example: "New"
+                Prospect:
+                  $ref: '#/components/schemas/Customer'
+                Comments:
+                  type: string
+                  example: "Test lead"
+                CreatedUtc:
+                  type: string
+                  example: "2022-06-01T03:14:05Z"
+                ModifiedUtc:
+                  type: string
+                  example: "2022-06-01T03:14:13.325Z"
+                Item:
+                  $ref: '#/components/schemas/Vehicle'
+                Assignment:
+                  type: object
+                  properties:
+                    Identifier:
+                      type: string
+                    Email:
+                      type: string
+                    Name:
+                      type: string
+                    AssignedUtc:
+                      type: string
+
+      responses:
+        '200':
+          description: Success
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied
+        '500':
+          description: Internal server error
+
+components:
+  schemas:
+    Vehicle:
+      type: object
+      properties:
+        Specification:
+          $ref: '#/components/schemas/Specification'
+        Type:
+          description: "[Car, Bike, Boat, Truck, Caravan, Construction, Agriculture]"
+          type: string
+          example: "CAR"
+        ListingType:
+          description: "[Showroom, New, Used]"
+          type: string
+        Description:
+          type: string
+          example: "2016 Volvo XC90 D5 R-Design (No Series)"
+        Registration:
+          type: object
+          properties:
+            Number:
+              type: string
+              example: "678DL4"
+        Identification:
+          type: array
+          items:
+            type: object
+            properties:
+              Type:
+                type: string
+                example: "StockNumber"
+              Value:
+                type: string
+                example: "113497"
+        PriceList:
+          type: array
+          items:
+            type: object
+            properties:
+              Amount:
+                type: number
+                example: 67990.0
+    Specification:
+      type: object
+      properties:
+        Make:
+          type: string
+          example: "Volvo"
+        Model:
+          type: string
+          example: "XC90"
+        ReleaseDate:
+          type: object
+          properties:
+            Year:
+              type: integer
+              example: 2016
+    PhoneNumber:
+      type: object
+      properties:
+        Type:
+          description: "[Home, Mobile, Work]"
+          type: string
+          example: "Home"
+        Number:
+          type: string
+          example: "+61390000662"
+    Seller:
+      description: The dealership in the CarSales system
+      type: object
+      properties:
+        Identifier:
+          type: string
+          description: Dealership identifier in CarSales system
+          example: "d44ea21d-9f3f-0734-cb16-3b5fe8168cac"
+    Customer:
+      description: The customer in the CarSales system
+      type: object
+      properties:
+        Name:
+          type: string
+          example: "John Doe"
+        Email:
+          type: string
+          example: "john.doe@email.com"
+        PhoneNumbers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneNumber'
+        Addresses:
+          type: array
+          items:
+            type: object
+            properties:
+              Postcode:
+                type: string
+                example: "3192"
+  parameters:
+    clientId:
+      name: client_id
+      in: header
+      description: This parameter uniquely identifies an Impel client and will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    apiKey:
+      name: api_key
+      in: header
+      description: An API Key provided by Impel that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
