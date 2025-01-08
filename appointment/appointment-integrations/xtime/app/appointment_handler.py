@@ -7,8 +7,6 @@ from logging import getLogger
 from os import environ
 from typing import Any
 
-from ratelimit import limits, sleep_and_retry
-
 from models import GetAppointments, CreateAppointment, AppointmentSlots
 from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
 from xtime_api_wrapper import XTimeApiWrapper
@@ -156,8 +154,6 @@ def get_appointments(event: Any, context: Any) -> Any:
         return handle_exception(e, "get_appointments")
 
 
-@sleep_and_retry
-@limits(calls=10, period=1)
 def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
     """
     Helper to fetch dealer codes for a single dealer from XTime and handles errors.

@@ -1,19 +1,20 @@
 """Wrapper class designed to manage calls to the XTime for appointments."""
 
-import requests
-from os import environ
-from json import loads
-from boto3 import client
-from datetime import datetime
-from models import GetAppointments, CreateAppointment, AppointmentSlots
-from dateutil import parser
-import pytz
-import logging
 import json
+import logging
+from datetime import datetime
+from json import loads
+from os import environ
+
+import pytz
+import requests
+from boto3 import client
+from dateutil import parser
+from ratelimit import limits, sleep_and_retry
+
+from models import GetAppointments, CreateAppointment, AppointmentSlots
 from xtime_token_management.secrets import get_token, update_token
 from xtime_token_management.token_status import is_token_expired
-import requests
-from datetime import datetime
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 
@@ -195,6 +196,9 @@ class XTimeApiWrapper:
         logger.info(f"XTime Timeslots Response: {response_json}")
         return response_json
 
+
+    @sleep_and_retry
+    @limits(calls=10, period=1)
     def get_dealer_codes(self, integration_dealer_id: str):
         """Retrieve standard dealer op codes from XTime."""
         url = f"{self.__api_url}/service/services"

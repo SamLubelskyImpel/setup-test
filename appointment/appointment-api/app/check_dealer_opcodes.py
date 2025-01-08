@@ -28,6 +28,7 @@ def send_opcode_report(report: str) -> None:
             Message=message,
             Subject='Appointment Service: Dealer OpCode Report',
         )
+        logger.info("OpCode report sent successfully")
     except Exception as e:
         logger.error(f"Failed to send opcode report: {e}")
 
