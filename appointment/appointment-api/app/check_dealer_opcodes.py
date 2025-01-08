@@ -20,13 +20,16 @@ lambda_client = boto3.client("lambda")
 
 def send_opcode_report(report: str) -> None:
     """Send opcode report to CE team."""
-    message = f"OpCode Report by Vendor: {report}"
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=message,
-        Subject='Appointment Service: Dealer OpCode Report',
-    )
+    try:
+        message = f"OpCode Report by Vendor: {report}"
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=message,
+            Subject='Appointment Service: Dealer OpCode Report',
+        )
+    except Exception as e:
+        logger.error(f"Failed to send opcode report: {e}")
 
 
 def get_opcode_mappings(partner_name: str):
@@ -111,6 +114,11 @@ def lambda_handler(event, context):
                     continue
 
                 codes = dealer_codes[db_dealer["integration_dealer_id"]]
+
+                if codes == "ERROR":
+                    failed_dealers.append(db_dealer["dealer_name"])
+                    continue
+
                 missing_codes = []
                 for db_code in db_dealer["op_codes"]:
                     if codes:
