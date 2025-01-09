@@ -66,3 +66,50 @@ LEAD_DATA_TO_ADF_MAPPER = {
     "postal_code": "postalcode",
     "comment": "comments",
 }
+
+OEM_MAPPING = {
+    "vehicle": {
+        "status": ' status="{status_value}"',
+        "interest": ' interest="{interest_value}"',
+        "year": "<year>{year_value}</year>",
+        "make": "<make>{make_value}</make>",
+        "model": "<model>{model_value}</model>",
+        "vin": "<vin>{vin_value}</vin>",
+        "stock_number": "<stock>{stock_number_value}</stock>",
+    },
+    "customer": {
+        "first_name": '<name part="first" type="individual">{first_name_value}</name>',
+        "last_name": '<name part="last" type="individual">{last_name_value}</name>',
+        "phone": "<phone><![CDATA[{phone_value}]]></phone>",
+        "email": "<email>{email_value}</email>",
+        "address": {
+            "address": '<street line="1">{address_value}</street>',
+            "city": "<city>{city_value}</city>",
+            "country": "<country>{country_value}</country>",
+            "postal_code": "<postalcode>{postal_code_value}</postalcode>",
+        }
+    },
+    "vendor": {
+        "id": '<id source="{oem_partner} Dealer Code">{dealer_code}</id>',
+        "vendorname": "<vendorname>{vendorname_value}</vendorname>",
+    }
+}
+
+OEM_ADF_TEMPLATE = """
+<adf>
+    <prospect status="new">
+        <id source="Impel" sequence="1">{lead_id}</id>
+        <id source="LeadSubProgram">New Chat Sales Lead</id>
+        <id source="MediaType">WEB</id>
+        <requestdate>{request_date}</requestdate>
+        {vehicle_of_interest}
+        {customer}
+        {vendor}
+        {metadata_tags}
+        <provider>
+            <name>Impel-Chat</name>
+            <service>{service_value}</service>
+        </provider>
+    </prospect>
+</adf>
+"""
