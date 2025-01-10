@@ -76,16 +76,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."})
                 }
-            
-            if authorizer_integration_partner != integration_partner_name:
-                    return {
-                        "statusCode": 401,
-                        "body": dumps(
-                            {
-                                "error": f"For this dealer_id: {product_dealer_id} integration partner didn't matched."
-                            }
-                        ),
-                    }
+            if authorizer_integration_partner:
+                if authorizer_integration_partner != integration_partner_name:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": f"For this dealer_id: {product_dealer_id} integration partner didn't matched."
+                                }
+                            ),
+                        }
 
             # Query for existing consumer
             consumer_db = None

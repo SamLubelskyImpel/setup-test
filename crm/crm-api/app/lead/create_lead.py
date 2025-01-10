@@ -180,15 +180,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
-                if integration_partner_name != authorizer_integration_partner:
-                    return {
-                        "statusCode": 401,
-                        "body": dumps(
-                            {
-                                "error": "Consumer is not assigned to same partner as in database."
-                            }
-                        ),
-                    }
+                if authorizer_integration_partner:
+                    if integration_partner_name != authorizer_integration_partner:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": "Consumer is not assigned to same partner as in database."
+                                }
+                            ),
+                        }
 
 
                 dealer_metadata = dealer_db.metadata_
