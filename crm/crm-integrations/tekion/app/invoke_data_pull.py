@@ -92,7 +92,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
             # Check pagination info
             total_pages = raw_data["meta"]["pages"]
             current_page = raw_data["meta"]["currentPage"]
-        
+
             if current_page >= total_pages:
                 break
 
@@ -107,25 +107,34 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     logger.info(f"Total leads found {len(all_leads)}")
 
     # Filter leads
-    filtered_leads = filter_leads(all_leads, start_time, crm_dealer_id)
+    filtered_leads = filter_leads(all_leads, convert_to_epoch(start_time), crm_dealer_id)
     logger.info(f"Total leads after filtering {len(filtered_leads)}")
     return filtered_leads
 
 
-def filter_leads(leads: list, start_time: str, crm_dealer_id: str):
+def filter_leads(leads: list, start_time_epoch: str, crm_dealer_id: str):
     """Filter leads by data source."""
     filtered_leads = []
+    old_leads = 0
     logger.info(leads)
     for lead in leads:
         try:
             lead_source = lead.get("source", {}).get("sourceType", "").upper()
             if lead_source == "INTERNET" or lead_source == "OEM":
                 lead["impel_crm_dealer_id"] = crm_dealer_id
-                filtered_leads.append(lead)
+
+                lead_created_time = lead.get("createdTime", "")
+                if lead_created_time and isinstance(lead_created_time, int) and start_time_epoch < lead_created_time:
+                    filtered_leads.append(lead)
+                else:
+                    old_leads += 1
+
         except Exception as e:
             logger.error(f"Error parsing lead source for lead {lead.get('id')}. Skipping lead: {e}")
             continue
 
+    if old_leads > 0:
+        logger.info(f"Skipped {old_leads} leads that were created before the start time.")
     return filtered_leads
 
 
