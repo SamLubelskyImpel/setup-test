@@ -1,7 +1,7 @@
 """Format raw tekion data to unified format."""
 import logging
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import dumps, loads
 from os import environ
 import boto3
@@ -27,6 +27,25 @@ def convert_unix_to_timestamp(unix_time):
         return None
     return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
 
+def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
+    """Calculate the First Payment Date"""
+    logger.info(f"deal payment: {deal_payment}, contract_date: {contract_date}, delivery_date: {delivery_date}")
+    if contract_date:
+        date = datetime.utcfromtimestamp(contract_date / 1000)
+    elif delivery_date:
+        date = datetime.utcfromtimestamp(delivery_date / 1000)
+    else:
+        date = datetime.now() # TODO: REMOVE THIS LINE
+        # raise ValueError("Neither contract date nor delivery date are provided")
+
+    days_to_first_payment = default_get(deal_payment, "daysToFirstPayment", 0)
+
+    if not isinstance(days_to_first_payment, int):
+        raise ValueError("daysToFirstPayment must be an integer")
+    
+    first_payment_date = date + timedelta(days=days_to_first_payment)
+
+    return first_payment_date.strftime("%Y-%m-%d %H:%M:%S")
 
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
@@ -144,6 +163,19 @@ def parse_json_to_entries(json_data, s3_uri):
         amount_financed = default_get(deal_payment, "amountFinanced", {})
         db_vehicle_sale["finance_amount"] = default_get(amount_financed, "amount")
 
+        residual = default_get(deal_payment, "residual", {})
+        totalValue = default_get(residual, "totalValue", {})
+        db_vehicle_sale["residual_value"] = default_get(totalValue, "amount")
+
+        monthly_payment = default_get(deal_payment, "monthlyPaymentBeforeTax", {})
+        db_vehicle_sale["monthly_payment_amount"] = default_get(monthly_payment, "amount")
+
+        lease_mileage = default_get(deal_payment, "yearlyMiles", {})
+        db_vehicle_sale["lease_mileage_limit"] = default_get(lease_mileage, "totalValue")
+        
+        first_payment_date = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
+        db_vehicle_sale["first_payment"] = first_payment_date
+
         gross_details = default_get(entry, "grossDetails", {})
         gross_cap_cost = default_get(gross_details, "grossCapCost", {})
         db_vehicle_sale["cost_of_vehicle"] = default_get(gross_cap_cost, "amount")
@@ -174,6 +206,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle["oem_name"] = default_get(trim_details, "oem")
                 db_vehicle["type"] = default_get(trim_details, "bodyType")
                 db_vehicle["vehicle_class"] = default_get(trim_details, "bodyClass")
+                db_vehicle["exterior_color"] = default_get(vehicle, "exteriorColor")
 
                 db_retail_price = None
                 db_selling_price = None

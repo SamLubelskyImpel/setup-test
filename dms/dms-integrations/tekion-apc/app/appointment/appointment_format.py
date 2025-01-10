@@ -72,12 +72,12 @@ def parse_json_to_entries(json_data, s3_uri):
         year_field = default_get(vehicle, "year")
         year = int(year_field) if year_field and year_field.isdigit() else None
         db_vehicle["year"] = year
-        db_vehicle["type"] = default_get(vehicle, "trim")
-        db_vehicle["vehicle_class"] = default_get(vehicle, "trim")
         mileage_field = default_get(vehicle, "mileage")
         mileage = int(mileage_field) if mileage_field else None
         db_vehicle["mileage"] = mileage
         db_vehicle["stock_num"] = default_get(vehicle, "stockNumber")
+        db_vehicle["trim"] = default_get(vehicle, "trim")
+        db_service_appointment["customer_comments"] = default_get(appointment, "customerComments")
 
         if mileage and year:
             current_year = datetime.now().year
