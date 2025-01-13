@@ -80,7 +80,33 @@ def parse_json_to_entries(json_data, s3_uri):
         db_service_repair_order["warranty_total_amount"] = default_get(warranty_pay, "amount")
 
         internal_pay = default_get(invoice, "internalPay", {})
-        db_service_repair_order["internal_total_amount"] = default_get(internal_pay, "amount")
+        db_service_repair_order["internal_total_amount"] = default_get(internal_pay, "amount")  
+
+        consumer_labor_amount = default_get(invoice, "customerPay", {})
+        db_service_repair_order["consumer_labor_amount"] = default_get(consumer_labor_amount, "laborAmount")  
+
+        consumer_parts_amount = default_get(invoice, "customerPay", {})
+        db_service_repair_order["consumer_parts_amount"] = default_get(consumer_parts_amount, "partsAmount")  
+
+        customer_pay_parts_cost = default_get(invoice, "customerPay", {})
+        db_service_repair_order["customer_pay_parts_cost"] = default_get(customer_pay_parts_cost, "partCostAmount")  
+
+        warranty_labor_amount = default_get(invoice, "warrantyPay", {})
+        db_service_repair_order["warranty_labor_amount"] = default_get(warranty_labor_amount, "laborAmount")  
+
+        warranty_parts_cost = default_get(invoice, "warrantyPay", {})
+        db_service_repair_order["warranty_parts_cost"] = default_get(warranty_parts_cost, "partCostAmount")  
+
+        internal_parts_cost = default_get(invoice, "internalPay", {})
+        db_service_repair_order["internal_parts_cost"] = default_get(internal_parts_cost, "partCostAmount")  
+
+        total_internal_labor_amount = default_get(invoice, "internalPay", {})
+        db_service_repair_order["total_internal_labor_amount"] = default_get(total_internal_labor_amount, "laborAmount")  
+
+        total_internal_parts_amount = default_get(invoice, "internalPay", {})
+        db_service_repair_order["total_internal_parts_amount"] = default_get(total_internal_parts_amount, "partsAmount")  
+
+        db_service_repair_order["service_order_status"] = default_get(repair_order, "status")
 
         insurance_pay = default_get(invoice, "insurancePay", {})
 
