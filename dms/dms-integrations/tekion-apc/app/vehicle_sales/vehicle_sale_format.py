@@ -35,8 +35,7 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     elif delivery_date:
         date = datetime.utcfromtimestamp(delivery_date / 1000)
     else:
-        date = datetime.now() # TODO: REMOVE THIS LINE
-        # raise ValueError("Neither contract date nor delivery date are provided")
+        raise ValueError("Neither contract date nor delivery date are provided")
 
     days_to_first_payment = default_get(deal_payment, "daysToFirstPayment", 0)
 
