@@ -111,7 +111,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
         active_dips = rds_instance.get_active_dealer_integration_partners(integration_partner)
 
         if not active_dips:
-            raise ValueError("No active dealer integration partners for integration partner")
+            logger.warning("No active dealer integration partners for integration partner")
+            return
 
         for dip, provider_dealer_id in active_dips:
             inv_data = rds_instance.get_on_lot_inventory(dip)
