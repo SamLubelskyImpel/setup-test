@@ -8,7 +8,6 @@ from dateutil import parser
 from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
-from utils import get_restricted_query
 from sqlalchemy.exc import SQLAlchemyError
 
 from crm_orm.models.lead import Lead
@@ -186,7 +185,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                             "statusCode": 401,
                             "body": dumps(
                                 {
-                                    "error": "Consumer is not assigned to same partner as in database."
+                                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
                                 }
                             ),
                         }

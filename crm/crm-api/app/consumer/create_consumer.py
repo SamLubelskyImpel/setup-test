@@ -82,7 +82,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                             "statusCode": 401,
                             "body": dumps(
                                 {
-                                    "error": f"For this dealer_id: {product_dealer_id} integration partner didn't matched."
+                                    "error": f"This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
                                 }
                             ),
                         }
