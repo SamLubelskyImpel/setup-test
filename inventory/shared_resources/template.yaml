@@ -477,10 +477,10 @@ Resources:
       Threshold: 0
       TreatMissingData: notBreaching
 
-  CarsalesGenerateICCSchedule:
+  GenerateICCSchedule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "shared-inv-${Environment}-GenerateICCSchedule"
+      Name: !Sub "shared-inv-${Environment}-GenerateICCScheduleRule"
       ScheduleExpression: rate(1 hour)  # Adjust the schedule as needed
       State: ENABLED
       Targets:
@@ -494,7 +494,7 @@ Resources:
       FunctionName: !Ref GenerateICC
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn: !GetAtt CarsalesGenerateICCSchedule.Arn
+      SourceArn: !GetAtt GenerateICCSchedule.Arn
 
   PartnerSyndicationQueue:
     Type: AWS::SQS::Queue
