@@ -1,40 +1,33 @@
-import boto3
+import logging
+import tempfile
+from datetime import datetime, timezone
+from io import BytesIO
 from json import loads
 from os import environ
 from typing import Any
-import logging
-import pandas as pd
-from datetime import datetime
-import tempfile
-from io import BytesIO
-from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from aws_lambda_powertools.utilities.batch import (
-    BatchProcessor,
-    EventType,
-    process_partial_response,
-)
-from partner_uploader import get_partner_uploaders
+import uuid
 
-ENVIRONMENT = environ["ENVIRONMENT"]
-INVENTORY_BUCKET = environ["INVENTORY_BUCKET"]
-MERCH_SFTP_KEY = environ["MERCH_SFTP_KEY"]
-SALESAI_SFTP_KEY = environ["SALESAI_SFTP_KEY"]
+import boto3
+import pandas as pd
+
+from rds_instance import RDSInstance
+
+INVENTORY_BUCKET = environ.get("INVENTORY_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
-def upload_to_s3(csv_content, filename, integration):
+def upload_to_s3(csv_content, integration, provided_dealer_id):
     """Upload files to S3."""
     format_string = '%Y/%m/%d/%H'
-    date_key = datetime.utcnow().strftime(format_string)
-
-    s3_key = f"icc/{integration}/{date_key}/{filename}"
+    time_key = datetime.now(tz=timezone.utc).strftime(format_string)
+    s3_key = f"icc/{integration}/{time_key}/{provided_dealer_id}.csv"
     s3_client.put_object(
         Bucket=INVENTORY_BUCKET,
         Key=s3_key,
-        Body=csv_content
+        Body=csv_content.encode("utf-8")
     )
     logger.info(f"File {s3_key} uploaded to S3")
 
@@ -43,7 +36,6 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
     """Convert unified inventory to ICC format."""
     field_mappings = {
         "DealerId": "inv_dealer_integration_partner|provider_dealer_id",
-
         "VIN": "inv_vehicle|vin",
         "BodyType": "inv_vehicle|type",
         "Mileage": "inv_vehicle|mileage",
@@ -52,8 +44,6 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "Year": "inv_vehicle|year",
         "isNew": "inv_vehicle|new_or_used",
         "Stock": "inv_vehicle|stock_num",
-
-        "ListPrice": "inv_inventory|list_price",
         "CostPrice": "inv_inventory|cost_price",
         "FuelType": "inv_inventory|fuel_type",
         "Exteriorcolor": "inv_inventory|exterior_color",
@@ -68,6 +58,8 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "Interiormaterial": "inv_inventory|interior_material",
         "SourceDataDrivetrain": "inv_inventory|source_data_drive_train",
         "SourceDataInteriorMaterialDescription": "inv_inventory|source_data_interior_material_description",
+        "ListPrice": "inv_inventory|list_price",
+        "SpecialPrice": "inv_inventory|special_price",
         "SourceDataTransmission": "inv_inventory|source_data_transmission",
         "SourceDataTransmissionSpeed": "inv_inventory|source_data_transmission_speed",
         "TransmissionSpeed": "inv_inventory|transmission_speed",
@@ -76,7 +68,6 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "CityMPG": "inv_inventory|city_mpg",
         "VDP": "inv_inventory|vdp",
         "Trim": "inv_inventory|trim",
-        "SpecialPrice": "inv_inventory|special_price",
         "Engine": "inv_inventory|engine",
         "EngineDisplacement": "inv_inventory|engine_displacement",
         "FactoryCertified": "inv_inventory|factory_certified",  # C if True, else null
@@ -88,10 +79,15 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             for icc_field, unified_field in field_mappings.items():
                 row[icc_field] = entry.get(unified_field)
 
+            # Get options and priority options
             options = entry.get("inv_inventory|options", [])
-            priority_options = entry.get("inv_inventory|priority_options", [])
             row["OptionDescription"] = "|".join(options) if options else None
+
+            priority_options = entry.get("inv_inventory|priority_options", [])
             row["PriorityOptions"] = "|".join(priority_options) if priority_options else None
+
+            # Set FactoryCertified to C if True, else null
+            row["FactoryCertified"] = "C" if row["FactoryCertified"] else None
 
             rows.append(row)
         except Exception:
@@ -99,69 +95,37 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
             raise Exception("Error converting unified format to ICC")
 
     icc_formatted_inventory = pd.DataFrame(rows)
-
-    # Set FactoryCertified to C if True, else null
-    icc_formatted_inventory["FactoryCertified"] = icc_formatted_inventory["FactoryCertified"].apply(lambda x: "C" if x else None)
-
     return icc_formatted_inventory
 
 
-def record_handler(record: SQSRecord) -> None:
-    """Transform and process each record."""
-    logger.info(f"Record: {record}")
+def lambda_handler(event: Any, context: Any) -> Any:
+    """Convert to ICC format and upload to inventory/icc bucket."""
+    logger.info(f"Record: {event}")
     try:
-        body = loads(record['body'])
-        bucket = body["Records"][0]["s3"]["bucket"]["name"]
-        key = body["Records"][0]["s3"]["object"]["key"]
-        provider_dealer_id = key.split('/')[-1].split('.')[0]
-        integration = key.split('/')[1]
+        integration_partner = event.get("integration_partner")
 
-        if integration == "carsales":
-            logger.info("Carsales integration is not supported by direct upload")
+        # Initialize RDS instance
+        rds_instance = RDSInstance()
+
+        # Retreive active dealer integration partners
+        active_dips = rds_instance.get_active_dealer_integration_partners(integration_partner)
+
+        if not active_dips:
+            logger.warning("No active dealer integration partners for integration partner")
             return
 
-        logger.info(f"Provider dealer id: {provider_dealer_id}")
+        for dip, provider_dealer_id in active_dips:
+            inv_data = rds_instance.get_on_lot_inventory(dip)
 
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        content = loads(response['Body'].read())
-        # logger.info(f"Content: {content}")
+            if inv_data:
+                icc_formatted_inventory = convert_unified_to_icc(inv_data)
+                logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
 
-        icc_formatted_inventory = convert_unified_to_icc(content)
-        logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
-
-        # Save ICC formatted inventory to S3
-        csv_content = icc_formatted_inventory.to_csv(index=False)
-        with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp_file:
-            temp_file.write(csv_content)
-            temp_file.seek(0)
-
-            # Read CSV content from the temporary file and convert it to bytes
-            with open(temp_file.name, 'rb') as file:
-                csv_bytes = BytesIO(file.read())
-
-            upload_to_s3(csv_bytes, f"{provider_dealer_id}.csv", integration)
-
-        for uploader in get_partner_uploaders(provider_dealer_id, icc_formatted_inventory):
-            uploader.upload()
+                # Save ICC formatted inventory to S3
+                csv_content = icc_formatted_inventory.to_csv(index=False)
+                upload_to_s3(csv_content, integration_partner, provider_dealer_id)
+            else:
+                logger.info(f"No inventory data found for {provider_dealer_id}")
     except Exception:
         logger.exception("Error processing record")
-        raise
-
-
-def lambda_handler(event: Any, context: Any) -> Any:
-    """Convert to ICC format and syndication to product SFTPs."""
-    logger.info(f"Event: {event}")
-
-    try:
-        processor = BatchProcessor(event_type=EventType.SQS)
-        result = process_partial_response(
-            event=event,
-            record_handler=record_handler,
-            processor=processor,
-            context=context
-        )
-        return result
-
-    except Exception as e:
-        logger.error(f"Error processing batch: {e}")
         raise
