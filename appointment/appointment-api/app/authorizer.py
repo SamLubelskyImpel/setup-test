@@ -100,7 +100,7 @@ def _lambda_handler(event: Any, context: Any) -> Any:
             "policyDocument": policy,
             "principalId": partner_id,
             "context": {
-                "integration_partner": secret_data.get("integration_partner", None)
+                "request_product": secret_data.get("product", None)
             }
         }
 
