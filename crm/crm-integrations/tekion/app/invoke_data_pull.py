@@ -66,10 +66,15 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     }
     params = {
         "createdStartTime": convert_to_epoch(start_time),
-        "createdEndTime": convert_to_epoch(end_time)
+        "createdEndTime": convert_to_epoch(end_time),
+        # TODO: New params
+        "sortedBy": "CREATED_TIME",
+        "sortOrder": "DESC",
+        "status": "ACTIVE"
     }
-
-    api_url = f"{url}/openapi/v3.1.0/crm-leads"
+    # TODO: change url
+    # api_url = f"{url}/openapi/v3.1.0/crm-leads"
+    api_url = f"{url}/openapi/v4.0.0/leads"
     logger.info(f"Calling Tekion API: {api_url}", extra={"params": params})
 
     all_leads = []
@@ -118,6 +123,7 @@ def filter_leads(leads: list, start_time: str, crm_dealer_id: str):
     logger.info(leads)
     for lead in leads:
         try:
+            # TODO: update filters 
             lead_source = lead.get("source", {}).get("sourceType", "").upper()
             if lead_source == "INTERNET" or lead_source == "OEM":
                 lead["impel_crm_dealer_id"] = crm_dealer_id
@@ -126,6 +132,37 @@ def filter_leads(leads: list, start_time: str, crm_dealer_id: str):
             logger.error(f"Error parsing lead source for lead {lead.get('id')}. Skipping lead: {e}")
             continue
 
+    return filtered_leads
+
+def filter_leads(leads: list, start_time: str, crm_dealer_id: str):
+    """Filter leads by data source, status, and stage."""
+    filtered_leads = []
+    logger.info(leads)
+    for lead in leads:
+        try:
+            # Extract relevant fields for filtering
+            lead_status = lead.get("status", "").upper()
+            lead_stage = lead.get("stage", "").upper()
+            lead_department = lead.get("department", "").upper()
+            lead_source = lead.get("source", {}).get("sourceType", "").upper()
+
+            # Apply filtering conditions
+            if (
+                lead_status in ["ACTIVE", "BOOKED"] and
+                lead_stage not in ["CANCELLED_OR_PURGED", "LOST"] and
+                lead_department == "SALES" and
+                lead_source in ["INTERNET", "OEM"]
+            ):
+                # Add additional data for further processing
+                lead["impel_crm_dealer_id"] = crm_dealer_id
+                lead["filtered_time"] = start_time
+                filtered_leads.append(lead)
+
+        except Exception as e:
+            logger.error(f"Error parsing lead for filtering. Lead ID: {lead.get('id', 'unknown')}, Error: {e}")
+            continue
+
+    logger.info(f"Filtered {len(filtered_leads)} leads out of {len(leads)} total leads.")
     return filtered_leads
 
 
@@ -158,7 +195,8 @@ def record_handler(record: SQSRecord):
         if not leads:
             logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
             return
-
+            logger.info('hi dev')
+        return
         save_raw_leads(leads, product_dealer_id)
 
     except Exception as e:
