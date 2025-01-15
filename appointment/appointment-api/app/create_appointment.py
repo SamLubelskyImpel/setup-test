@@ -39,6 +39,7 @@ def lambda_handler(event, context):
     logger.info(f"Request ID: {request_id}")
 
     try:
+        integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
         body = loads(event["body"])
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
@@ -65,7 +66,11 @@ def lambda_handler(event, context):
             raise ValidationError("Email address or phone number must be provided")
 
         with DBSession() as session:
-            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
+            dealer_partner = get_dealer_info(
+                session,
+                dealer_integration_partner_id,
+                integration_partner
+            )
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
                 return {

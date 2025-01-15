@@ -87,23 +87,43 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
     )
 
 
-def get_dealer_info(session, dealer_integration_partner_id: str) -> dict:
+def get_dealer_info(
+    session, dealer_integration_partner_id: str, integration_partner: str
+) -> dict:
     """Get dealer info from the shared layer."""
-    dealer_partner = session.query(
-        DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
-        DealerIntegrationPartner.integration_dealer_id,
-        Dealer.timezone, IntegrationPartner.metadata_,
-        Product.product_name
-    ).join(
-        Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
-    ).join(
-        IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-    ).join(
-        Product, Product.id == DealerIntegrationPartner.product_id
-    ).filter(
-        DealerIntegrationPartner.id == dealer_integration_partner_id,
-        DealerIntegrationPartner.is_active == True
-    ).first()
+    if integration_partner:
+        dealer_partner = session.query(
+            DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
+            DealerIntegrationPartner.integration_dealer_id,
+            Dealer.timezone, IntegrationPartner.metadata_,
+            Product.product_name
+        ).join(
+            Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+        ).join(
+            IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+        ).join(
+            Product, Product.id == DealerIntegrationPartner.product_id
+        ).filter(
+            DealerIntegrationPartner.id == dealer_integration_partner_id,
+            IntegrationPartner.impel_integration_partner_name == integration_partner,
+            DealerIntegrationPartner.is_active == True
+        ).first()
+    else:
+        dealer_partner = session.query(
+            DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
+            DealerIntegrationPartner.integration_dealer_id,
+            Dealer.timezone, IntegrationPartner.metadata_,
+            Product.product_name
+        ).join(
+            Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
+        ).join(
+            IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
+        ).join(
+            Product, Product.id == DealerIntegrationPartner.product_id
+        ).filter(
+            DealerIntegrationPartner.id == dealer_integration_partner_id,
+            DealerIntegrationPartner.is_active == True
+        ).first()
 
     return dealer_partner
 

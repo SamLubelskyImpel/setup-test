@@ -12,6 +12,49 @@ logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 is_prod = os.environ.get("ENVIRONMENT", "test") == "prod"
 
 
+def match_path(request_path: str, allowed_path: str) -> bool:
+    """Match the request path against the allowed path."""
+    request_segments = request_path.strip('/').split('/')
+    allowed_segments = allowed_path.strip('/').split('/')
+
+    if len(request_segments) != len(allowed_segments):
+        return False
+
+    for request_segment, allowed_segment in zip(request_segments, allowed_segments):
+        # If the allowed segment is a placeholder (e.g., "{lead_id}"), we skip the comparison
+        # Otherwise, we compare the segments directly
+        if allowed_segment.startswith('{') and allowed_segment.endswith('}'):
+            continue
+
+        # If the allowed segment is a version segment (e.g., "v1"), we skip the comparison
+        if allowed_segment.startswith('v') and allowed_segment[1:].isdigit():
+            continue
+
+        if request_segment != allowed_segment:
+            return False
+
+    return True
+
+
+def is_endpoint_allowed(method_arn: str, allowed_endpoints: Any) -> bool:
+    """Check if the requested endpoint and method are in the set of allowed endpoints for the partner."""
+    if allowed_endpoints == ["*"]:
+        return True
+
+    arn_parts = method_arn.split(':')[-1].split('/')
+    http_method = arn_parts[2]
+    request_path = '/' + '/'.join(arn_parts[3:])
+
+    for allowed_endpoint in allowed_endpoints:
+        allowed_method, allowed_path = allowed_endpoint.split('/', 1)
+        if http_method != allowed_method:
+            continue
+
+        if match_path(request_path, allowed_path):
+            return True
+    return False
+
+
 def _lambda_handler(event: Any, context: Any) -> Any:
     """Take in the API_KEY/partner_id pair sent to the API Gateway and verifies against secrets manager."""
     logger.info(event)
@@ -48,16 +91,21 @@ def _lambda_handler(event: Any, context: Any) -> Any:
         raise Exception("Unauthorized")
 
     authorized = api_key == secret_data["api_key"]
+    allowed_endpoints = secret_data.get("endpoints", [])
+    endpoint_allowed = is_endpoint_allowed(method_arn, allowed_endpoints)
 
-    if authorized:
+    if authorized and endpoint_allowed:
         policy["Statement"][0]["Effect"] = "Allow"
         return {
             "policyDocument": policy,
             "principalId": partner_id,
+            "context": {
+                "integration_partner": secret_data.get("integration_partner", None)
+            }
         }
-    else:
-        logger.info(f"Access denied for partner_id {partner_id} to endpoint {method_arn}")
-        raise Exception("Unauthorized")
+
+    logger.info(f"Access denied for partner_id {partner_id} to endpoint {method_arn}")
+    raise Exception("Unauthorized")
 
 
 def lambda_handler(event: Any, context: Any) -> Any:

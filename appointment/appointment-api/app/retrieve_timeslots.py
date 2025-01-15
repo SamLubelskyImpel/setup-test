@@ -58,6 +58,7 @@ def lambda_handler(event, context):
     logger.info(f"Request ID: {request_id}")
 
     try:
+        integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         start_time = params["start_time"]
@@ -95,7 +96,11 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
             # Get dealer info
-            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
+            dealer_partner = get_dealer_info(
+                session,
+                dealer_integration_partner_id,
+                integration_partner
+            )
             if not dealer_partner:
                 logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
                 return {
