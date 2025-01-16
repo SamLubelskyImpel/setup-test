@@ -7,6 +7,7 @@ import boto3
 from io import BytesIO
 from typing import List
 from pandas import DataFrame
+import pandas as pd
 from datetime import datetime, timezone
 from rds_instance import RDSInstance
 
@@ -83,6 +84,14 @@ class MerchUploader(MerchSalesAIBaseUploader):
 
 class SalesAIUploader(MerchSalesAIBaseUploader):
     """Uploader for Sales AI."""
+    def proccess_and_upload_to_sftp(self, product_dealer_id, secret_key) -> None:
+        """Upload to sftp server."""
+        # Transpose VIN and Stock values if VIN is blank and Stock is not
+        for index, row in self.icc_formatted_inventory.iterrows():
+            if (pd.isna(row['VIN']) or row['VIN'] == '') and not pd.isna(row['Stock']):
+                self.icc_formatted_inventory.at[index, 'VIN'] = row['Stock']
+
+        super().proccess_and_upload_to_sftp(product_dealer_id, secret_key)
 
 
 class SeezUploader(BaseUploader):
@@ -127,7 +136,8 @@ SUPPORTED_UPLOADERS = {
 def get_partner_uploaders(provider_dealer_id, icc_formatted_inventory) -> List[BaseUploader]:
     rds_instance = RDSInstance()
     dip_metadata = rds_instance.select_db_dip_metadata(provider_dealer_id)
-    if not dip_metadata: raise Exception(f'No metadata found for {provider_dealer_id}')
+    if not dip_metadata:
+        raise Exception(f'No metadata found for {provider_dealer_id}')
 
     config = dip_metadata.get('syndications', {})
     logger.info(f'Syndications config: {config}')
