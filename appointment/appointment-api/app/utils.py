@@ -93,54 +93,31 @@ def get_dealer_info(
     session, dealer_integration_partner_id: str, request_product=None
 ) -> dict:
     """Get dealer info from the shared layer."""
-    if request_product:
-        dealer_partner = (
-            session.query(
-                DealerIntegrationPartner.id,
-                DealerIntegrationPartner.product_id,
-                DealerIntegrationPartner.integration_dealer_id,
-                Dealer.timezone,
-                IntegrationPartner.metadata_,
-                Product.product_name,
-            )
-            .join(Dealer, Dealer.id == DealerIntegrationPartner.dealer_id)
-            .join(
-                IntegrationPartner,
-                IntegrationPartner.id
-                == DealerIntegrationPartner.integration_partner_id,
-            )
-            .join(Product, Product.id == DealerIntegrationPartner.product_id)
-            .filter(
-                DealerIntegrationPartner.id == dealer_integration_partner_id,
-                DealerIntegrationPartner.is_active == True,
-                Product.product_name == request_product
-            )
-            .first()
+    query = (
+        session.query(
+            DealerIntegrationPartner.id,
+            DealerIntegrationPartner.product_id,
+            DealerIntegrationPartner.integration_dealer_id,
+            Dealer.timezone,
+            IntegrationPartner.metadata_,
+            Product.product_name,
         )
-    else:
-        dealer_partner = (
-            session.query(
-                DealerIntegrationPartner.id,
-                DealerIntegrationPartner.product_id,
-                DealerIntegrationPartner.integration_dealer_id,
-                Dealer.timezone,
-                IntegrationPartner.metadata_,
-                Product.product_name,
-            )
-            .join(Dealer, Dealer.id == DealerIntegrationPartner.dealer_id)
-            .join(
-                IntegrationPartner,
-                IntegrationPartner.id
-                == DealerIntegrationPartner.integration_partner_id,
-            )
-            .join(Product, Product.id == DealerIntegrationPartner.product_id)
-            .filter(
-                DealerIntegrationPartner.id == dealer_integration_partner_id,
-                DealerIntegrationPartner.is_active == True,
-            )
-            .first()
+        .join(Dealer, Dealer.id == DealerIntegrationPartner.dealer_id)
+        .join(
+            IntegrationPartner,
+            IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id,
         )
+        .join(Product, Product.id == DealerIntegrationPartner.product_id)
+        .filter(
+            DealerIntegrationPartner.id == dealer_integration_partner_id,
+            DealerIntegrationPartner.is_active == True,
+        )
+    )
 
+    if request_product:
+        query = query.filter(Product.product_name == request_product)
+
+    dealer_partner = query.first()
     return dealer_partner
 
 
