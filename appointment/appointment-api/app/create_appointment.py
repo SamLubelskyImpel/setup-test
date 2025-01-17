@@ -72,11 +72,11 @@ def lambda_handler(event, context):
                 request_product
             )
             if not dealer_partner:
-                logger.error(f"No active dealer found with id {dealer_integration_partner_id}")
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
-                        "error": f"No active dealer found with id {dealer_integration_partner_id}",
+                        "error": f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}",
                         "request_id": request_id,
                     })
                 }
