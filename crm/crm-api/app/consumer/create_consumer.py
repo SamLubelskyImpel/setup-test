@@ -5,6 +5,7 @@ from os import environ
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy import or_
+from utils import send_alert_notification
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -66,10 +67,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     DealerIntegrationPartner.is_active_chatai.is_(True))
             ).first()
             if not dealer_partner:
-                logger.error(f"No active dealer found with id {product_dealer_id}. Consumer failed to be created.")
+                error_msg = f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."
+                logger.error(error_msg)
+                send_alert_notification(subject=f'CRM API: Consumer Syndication Failure - Dealer integration partner inactive', message=error_msg)
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."})
+                    "body": dumps({"error": error_msg})
                 }
 
             # Query for existing consumer
