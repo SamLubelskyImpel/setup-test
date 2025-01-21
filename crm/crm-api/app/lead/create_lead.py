@@ -167,7 +167,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
-                if not all ([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
+                if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                     error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
                     logger.error(error_msg)
                     send_alert_notification(subject=f'CRM API: Lead Syndication Failure - Dealer integration partner inactive', message=error_msg)
