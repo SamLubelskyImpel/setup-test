@@ -47,7 +47,7 @@ def lambda_handler(event, context):
 
         validate_request_body(body, required_params)
 
-        op_code = body["op_code"]
+        service_type = body["op_code"]
         timeslot = body["timeslot"]
         consumer = body["consumer"]
         vehicle = body["vehicle"]
@@ -86,20 +86,20 @@ def lambda_handler(event, context):
             partner_metadata = dealer_partner.metadata_
             source_product = dealer_partner.product_name
 
-            # Get vendor op code
-            op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
+            # Get vendor op code using service type
+            op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, service_type)
             if not op_code_result:
-                logger.error(f"No integration op code mapping found for product op code: {op_code}")
+                logger.error(f"No integration op code mapping found for service type: {service_type} for dealer {dealer_integration_partner_id}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
-                        "error": f"No integration op code mapping found for product op code: {op_code}",
+                        "error": f"No integration op code mapping found for service type: {service_type} for dealer {dealer_integration_partner_id}",
                         "request_id": request_id,
                     })
                 }
             vendor_op_code = op_code_result.op_code
             appt_op_code_id = op_code_result.id
-            logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
+            logger.info(f"Service type {service_type} mapped to vendor op code {vendor_op_code}")
 
         create_appt_arn = partner_metadata.get("create_appt_arn", "")
         if not create_appt_arn:
