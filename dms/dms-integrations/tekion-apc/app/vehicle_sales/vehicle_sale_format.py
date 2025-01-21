@@ -6,6 +6,7 @@ from json import dumps, loads
 from os import environ
 import boto3
 from unified_df import upload_unified_json
+import calendar
 
 REGION = environ.get("REGION", "us-east-1")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -27,9 +28,67 @@ def convert_unix_to_timestamp(unix_time):
         return None
     return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
 
+
+def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
+    """Calculate the Expected Payoff Date."""
+    first_payment_date_str = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
+    first_payment_date = datetime.strptime(first_payment_date_str, "%Y-%m-%d %H:%M:%S")
+
+    payment_option = default_get(deal_payment, "paymentOption", {})
+    payment_value = default_get(payment_option, "value", 0)
+    frequency = default_get(payment_option, "frequency", "").upper()
+
+    frequency_intervals = {
+        "BIWEEKLY": 14,
+        "FORTNIGHTLY": 14,
+        "ONE_TIME": 0,
+        "SEMI_MONTHLY": 15,
+        "WEEKLY": 7,
+    }
+
+    def add_months(date, months):
+        """Add months to a date, considering month lengths."""
+        month = date.month - 1 + months
+        year = date.year + month // 12
+        month = month % 12 + 1
+        day = min(date.day, calendar.monthrange(year, month)[1])
+        return date.replace(year=year, month=month, day=day)
+
+    def add_quarters(date, quarters):
+        """Add quarters (3 months each) to a date."""
+        return add_months(date, quarters * 3)
+
+    def add_half_years(date, half_years):
+        """Add half-years (6 months each) to a date."""
+        return add_months(date, half_years * 6)
+
+    if frequency in frequency_intervals:
+        interval_days = frequency_intervals[frequency]
+        total_payoff_days = payment_value * interval_days
+        expected_payoff_date = first_payment_date + timedelta(days=total_payoff_days)
+    elif frequency == "MONTHLY":
+        expected_payoff_date = first_payment_date
+        for _ in range(payment_value):
+            expected_payoff_date = add_months(expected_payoff_date, 1)
+    elif frequency == "QUARTERLY":
+        expected_payoff_date = first_payment_date
+        for _ in range(payment_value):
+            expected_payoff_date = add_quarters(expected_payoff_date, 1)
+    elif frequency == "SEMI_ANNUALLY":
+        expected_payoff_date = first_payment_date
+        for _ in range(payment_value):
+            expected_payoff_date = add_half_years(expected_payoff_date, 1)
+    else:
+        raise ValueError(f"Unsupported frequency: {frequency}")
+    
+    logger.info(f"Adding to First Payment Date: {first_payment_date} with Payment Frequency: {frequency}, Payment Value: {payment_value}. Result: {expected_payoff_date}")
+
+    return expected_payoff_date.strftime("%Y-%m-%d %H:%M:%S")
+
 def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     """Calculate the First Payment Date"""
-    logger.info(f"deal payment: {deal_payment}, contract_date: {contract_date}, delivery_date: {delivery_date}")
+    logger.info(f"Calculating First Payment Date for contract_date: {contract_date} or delivery_date: {delivery_date}")
+
     if contract_date:
         date = datetime.utcfromtimestamp(contract_date / 1000)
     elif delivery_date:
@@ -41,6 +100,8 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
 
     if not isinstance(days_to_first_payment, int):
         raise ValueError("daysToFirstPayment must be an integer")
+    
+    logger.info(f"days_to_first_payment: {days_to_first_payment}, date: {date}")
     
     first_payment_date = date + timedelta(days=days_to_first_payment)
 
@@ -174,6 +235,13 @@ def parse_json_to_entries(json_data, s3_uri):
         
         first_payment_date = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
         db_vehicle_sale["first_payment"] = first_payment_date
+    
+        try:
+            expected_payoff_date = calculate_expected_payoff_date(deal_payment, contract_date, delivery_date)
+            db_vehicle_sale["expected_payoff_date"] = expected_payoff_date
+        except Exception as e:
+            logger.warning(f"Error calculating expected payoff date: {e}")
+            db_vehicle_sale["expected_payoff_date"] = None
 
         gross_details = default_get(entry, "grossDetails", {})
         gross_cap_cost = default_get(gross_details, "grossCapCost", {})
