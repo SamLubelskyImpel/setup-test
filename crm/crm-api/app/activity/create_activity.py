@@ -187,7 +187,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if not any([dealer_partner_db.is_active, dealer_partner_db.is_active_salesai, dealer_partner_db.is_active_chatai]):
                 error_msg = f"Dealer integration partner {dealer_partner_db.id} is not active. Activity failed to be created."
                 logger.error(error_msg)
-                send_general_alert_notification(subject=f'CRM API: Activity Syndication Failure - Dealer integration partner inactive', message=error_msg)
+                send_general_alert_notification(subject=f'CRM API: Activity creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": error_msg})

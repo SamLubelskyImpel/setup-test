@@ -69,7 +69,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if not dealer_partner:
                 error_msg = f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."
                 logger.error(error_msg)
-                send_alert_notification(subject=f'CRM API: Consumer Syndication Failure - Dealer integration partner inactive', message=error_msg)
+                send_alert_notification(subject=f'CRM API: Consumer creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": error_msg})

@@ -170,7 +170,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                     error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
                     logger.error(error_msg)
-                    send_alert_notification(subject=f'CRM API: Lead Syndication Failure - Dealer integration partner inactive', message=error_msg)
+                    send_alert_notification(subject=f'CRM API: Lead creation failure', message=error_msg)
                     return {
                         "statusCode": 404,
                         "body": dumps({"error": error_msg})
