@@ -44,6 +44,7 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
         "ONE_TIME": 0,
         "SEMI_MONTHLY": 15,
         "WEEKLY": 7,
+        "YEARLY": 365,
     }
 
     def add_months(date, months):
