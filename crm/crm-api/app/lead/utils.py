@@ -27,6 +27,6 @@ def send_alert_notification(message, subject) -> None:
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
         Message=dumps({'default': dumps({"message": message})}),
-        Subject=f'CRM API: {subject}',
+        Subject=f'{subject}',
         MessageStructure='json'
     )
