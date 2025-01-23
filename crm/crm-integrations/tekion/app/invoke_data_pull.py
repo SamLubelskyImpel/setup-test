@@ -64,6 +64,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
         "dealer_id": crm_dealer_id,
         "Authorization": f"Bearer {token}",
     }
+
     params = {
         "createdStartTime": convert_to_epoch(start_time),
         "createdEndTime": convert_to_epoch(end_time),
@@ -124,7 +125,6 @@ def filter_leads(leads: list, start_time_epoch: str, crm_dealer_id: str):
     logger.info(leads)
     for lead in leads:
         try:
-            # TODO: update filters 
             lead_source = lead.get("source", {}).get("sourceType", "").upper()
             if lead_source == "INTERNET" or lead_source == "OEM":
                 lead["impel_crm_dealer_id"] = crm_dealer_id
@@ -156,6 +156,77 @@ def save_raw_leads(leads: list, product_dealer_id: str):
         Key=s3_key,
     )
 
+def fetch_data_from_link(link: str, token: str, app_id: str, crm_dealer_id: str, base_url: str) -> list:
+    """
+    Fetch data using a link provided in the lead object.
+    The link should be dynamically updated to align with the base URL used for fetching leads.
+    """
+    # Extract endpoint from the provided link (e.g., /leads/{lead-id}/vehicles)
+    if not link.startswith("/"):
+        link = f"/{link}"
+
+    api_url = f"{base_url}/openapi/v4.0.0{link}"
+
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {token}",
+        "app_id": app_id,
+        "dealer_id": crm_dealer_id,
+    }
+    try:
+        logger.info(f"Fetching data from API URL: {api_url}")
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        data = response.json().get("data", [])
+        logger.info(f"repsonse is :{data}")
+        return data
+    except Exception as e:
+        logger.error(f"Error fetching data from {api_url}: {e}")
+        return []
+
+def enrich_leads(leads: list, token: str, app_id: str, crm_dealer_id: str, url: str) -> list:
+    """Enrich leads with additional details."""
+    enriched_leads = []
+
+    for lead in leads:
+        try:
+            # Enrich vehicles if the key is a link
+            if isinstance(lead.get("vehicles"), dict) and "link" in lead["vehicles"]:
+                vehicle_link = lead["vehicles"]["link"].replace("{lead-id}", lead["id"])
+                vehicles_data = fetch_data_from_link(vehicle_link, token, app_id, crm_dealer_id, url)
+                lead["vehicles"] = vehicles_data if vehicles_data else None
+
+            # Enrich notes if the key is a link
+            if isinstance(lead.get("notes"), dict) and "link" in lead["notes"]:
+                notes_link = lead["notes"]["link"].replace("{lead-id}", lead["id"])
+                notes_data = fetch_data_from_link(notes_link, token, app_id, crm_dealer_id, url)
+                lead["notes"] = notes_data if notes_data else None
+
+            # Enrich trade-ins if the key is a link
+            if isinstance(lead.get("tradeIns"), dict) and "link" in lead["tradeIns"]:
+                trade_ins_link = lead["tradeIns"]["link"].replace("{lead-id}", lead["id"])
+                tradeIns_data = fetch_data_from_link(trade_ins_link, token, app_id, crm_dealer_id, url)
+                lead["tradeIns"] = tradeIns_data if tradeIns_data else None
+
+            # Enrich assignees if the key is a link
+            if isinstance(lead.get("assignees"), dict) and "link" in lead["assignees"]:
+                assignees_link = lead["assignees"]["link"].replace("{lead-id}", lead["id"])
+                assignees_data = fetch_data_from_link(assignees_link, token, app_id, crm_dealer_id, url)
+                lead["assignees"] = assignees_data if assignees_data else None
+
+            # Enrich contacts if the key is a link
+            if isinstance(lead.get("contacts"), dict) and "link" in lead["contacts"]:
+                contacts_link = lead["contacts"]["link"].replace("{lead-id}", lead["id"])
+                contacts_data = fetch_data_from_link(contacts_link, token, app_id, crm_dealer_id, url)
+                lead["contacts"] = contacts_data if contacts_data else None
+
+            enriched_leads.append(lead)
+        except Exception as e:
+            logger.error(f"Error enriching lead {lead.get('id', 'unknown')}: {e}")
+            continue
+
+    return enriched_leads
+
 
 def record_handler(record: SQSRecord):
     """Invoke Tekion CRM data pull."""
@@ -172,7 +243,13 @@ def record_handler(record: SQSRecord):
         if not leads:
             logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
             return
-        logger.info('hi dev')
+
+        app_id, secret_key, tekion_url = get_credentials_from_secrets()
+        token = get_token_from_s3().token
+
+        enriched_leads = enrich_leads(leads, token, app_id, crm_dealer_id, tekion_url)
+        logger.info(f"enriched_leads is:{enriched_leads}")
+        # return
         save_raw_leads(leads, product_dealer_id)
 
     except Exception as e:

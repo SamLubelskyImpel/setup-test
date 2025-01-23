@@ -203,7 +203,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             vehicles = item.get('vehicles', [])
             trade_ins = item.get('tradeIns', [{}])[0] if item.get('tradeIns') else {}
-
+            
             for vehicle in vehicles:
                 db_vehicle = {
                     "vin": vehicle.get('vin', ''),
