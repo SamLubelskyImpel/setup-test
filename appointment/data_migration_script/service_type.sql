@@ -36,6 +36,9 @@ update test.appt_op_code set service_type_id = (select id from test.appt_service
 -- Update Appointment with Op Code instead of Op Code Appointment ID
 update test.appt_appointment set op_code_id = (select op_code_id from test.appt_op_code_appointment where id = test.appt_appointment.op_code_appointment_id);
 
+-- Add SFDC Account ID to Dealer
+alter table test.appt_dealer add column sfdc_account_id varchar(40) null;
+
 -- -- Drop Op Code Appointment
 -- alter table test.appt_appointment alter column op_code_appointment_id set null;
 -- drop table test.appt_op_code_appointment;
