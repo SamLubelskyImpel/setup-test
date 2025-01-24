@@ -39,7 +39,7 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
     frequency = default_get(payment_option, "frequency", "").upper()
 
     frequency_intervals = {
-        "BIWEEKLY": 14,
+        "BI_WEEKLY": 14,
         "FORTNIGHTLY": 14,
         "ONE_TIME": 0,
         "SEMI_MONTHLY": 15,
