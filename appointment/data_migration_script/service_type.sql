@@ -1,8 +1,8 @@
 -- Create Service Type Table
 create table test.appt_service_type (
 	id serial4 not null,
-	service_type varchar(255) not null
-	description varchar(255) not null
+	service_type varchar(255) not null,
+	description varchar(255) not null,
 	db_creation_date timestamptz DEFAULT now() NULL,
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
@@ -36,9 +36,9 @@ update test.appt_op_code set service_type_id = (select id from test.appt_service
 -- Update Appointment with Op Code instead of Op Code Appointment ID
 update test.appt_appointment set op_code_id = (select op_code_id from test.appt_op_code_appointment where id = test.appt_appointment.op_code_appointment_id);
 
--- Drop Op Code Appointment
-alter table test.appt_appointment alter column op_code_appointment_id set null;
-drop table test.appt_op_code_appointment;
+-- -- Drop Op Code Appointment
+-- alter table test.appt_appointment alter column op_code_appointment_id set null;
+-- drop table test.appt_op_code_appointment;
 
--- Drop Op Code Product
-drop table test.appt_op_code_product;
+-- -- Drop Op Code Product
+-- drop table test.appt_op_code_product;
