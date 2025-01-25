@@ -185,7 +185,7 @@ def lambda_handler(event, context):
             # Create appointment in DB
             appointment_db = Appointment(
                 integration_appointment_id=integration_appointment_id,
-                op_code_appointment_id=appt_op_code_id,
+                op_code_id=appt_op_code_id,
                 timeslot_ts=format_timestamp(timeslot, dealer_timezone),
                 timeslot_duration=body.get("timeslot_duration"),
                 created_date_ts=body.get("created_date_ts", datetime.now(timezone.utc).isoformat()),

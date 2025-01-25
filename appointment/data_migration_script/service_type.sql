@@ -39,6 +39,9 @@ update test.appt_appointment set op_code_id = (select op_code_id from test.appt_
 -- Add SFDC Account ID to Dealer
 alter table test.appt_dealer add column sfdc_account_id varchar(40) null;
 
+-- Drop Not Null Constraint in Appointment Table
+alter table test.appt_appointment alter column op_code_appointment_id drop not null;
+
 -- -- Drop Op Code Appointment
 -- alter table test.appt_appointment alter column op_code_appointment_id set null;
 -- drop table test.appt_op_code_appointment;

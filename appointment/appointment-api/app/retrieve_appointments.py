@@ -60,7 +60,7 @@ def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
     """Extract appointment data from db object."""
     return {
         "id": db_appt.Appointment.id,
-        "op_code": db_appt.service_type,
+        "op_code": db_appt.ServiceType.service_type,
         "timeslot": convert_utc_to_timezone(db_appt.Appointment.timeslot_ts, dealer_timezone, dealer_integration_partner_id),
         "timeslot_duration": db_appt.Appointment.timeslot_duration,
         "created_date_ts": db_appt.Appointment.created_date_ts,
@@ -141,7 +141,7 @@ def lambda_handler(event, context):
             }
 
             appointments_query = session.query(
-                Appointment, Consumer, Vehicle, OpCode.service_type
+                Appointment, Consumer, Vehicle, ServiceType
             ).join(
                 Consumer, Consumer.id == Appointment.consumer_id
             ).join(
