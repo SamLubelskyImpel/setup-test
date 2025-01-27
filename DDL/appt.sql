@@ -287,7 +287,7 @@ CREATE TABLE prod.appt_appointment (
 	consumer_id int4 NULL,
 	vehicle_id int4 NULL,
 	integration_appointment_id varchar(50) NULL,
-	op_code_id int4 NULL,
+	op_code_id int4 NOT NULL,
 	timeslot_ts timestamptz NULL,
 	timeslot_duration int4 NULL,
 	created_date_ts timestamptz NULL,
