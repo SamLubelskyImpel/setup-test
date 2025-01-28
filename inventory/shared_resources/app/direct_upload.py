@@ -116,6 +116,10 @@ def record_handler(record: SQSRecord) -> None:
         provider_dealer_id = key.split('/')[-1].split('.')[0]
         integration = key.split('/')[1]
 
+        if integration == "carsales":
+            logger.info("Carsales integration is not supported by direct upload")
+            return
+
         logger.info(f"Provider dealer id: {provider_dealer_id}")
 
         response = s3_client.get_object(Bucket=bucket, Key=key)

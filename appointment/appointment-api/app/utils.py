@@ -38,7 +38,7 @@ def invoke_vendor_lambda(payload: dict, lambda_arn: str) -> Any:
         Payload=dumps(payload),
     )
     logger.info(f"Response from lambda: {response}")
-    response_json = loads(response["Payload"].read().decode('utf-8'))
+    response_json = loads(response["Payload"].read().decode("utf-8"))
     return response_json
 
 
@@ -63,14 +63,16 @@ def format_timestamp(local_timestamp: Any, timezone: Any) -> Any:
 def convert_utc_to_timezone(input_ts, timezone, dealer_partner_id) -> str:
     """Convert UTC timestamp to dealer's local time."""
     if not timezone:
-        logger.warning("Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id))
-        return input_ts.strftime('%Y-%m-%dT%H:%M:%S')
+        logger.warning(
+            "Dealer timezone not found for dealer_partner: {}".format(dealer_partner_id)
+        )
+        return input_ts.strftime("%Y-%m-%dT%H:%M:%S")
 
     # Get the dealer timezone object, convert UTC datetime to dealer timezone
     dealer_tz = pytz.timezone(timezone)
     dealer_datetime = input_ts.astimezone(dealer_tz)
 
-    return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+    return dealer_datetime.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> None:
@@ -78,49 +80,62 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
     data = {
         "message": f"Error occurred in {endpoint} for request_id {request_id}: {e}",
     }
-    sns_client = boto3.client('sns')
+    sns_client = boto3.client("sns")
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps(data)}),
-        Subject=f'Appointment Service: {endpoint} Failure Alert',
-        MessageStructure='json'
+        Message=dumps({"default": dumps(data)}),
+        Subject=f"Appointment Service: {endpoint} Failure Alert",
+        MessageStructure="json",
     )
 
 
-def get_dealer_info(session, dealer_integration_partner_id: str) -> dict:
+def get_dealer_info(
+    session, dealer_integration_partner_id: str, request_product=None
+) -> dict:
     """Get dealer info from the shared layer."""
-    dealer_partner = session.query(
-        DealerIntegrationPartner.id, DealerIntegrationPartner.product_id,
-        DealerIntegrationPartner.integration_dealer_id,
-        Dealer.timezone, IntegrationPartner.metadata_,
-        Product.product_name
-    ).join(
-        Dealer, Dealer.id == DealerIntegrationPartner.dealer_id
-    ).join(
-        IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
-    ).join(
-        Product, Product.id == DealerIntegrationPartner.product_id
-    ).filter(
-        DealerIntegrationPartner.id == dealer_integration_partner_id,
-        DealerIntegrationPartner.is_active == True
-    ).first()
+    query = (
+        session.query(
+            DealerIntegrationPartner.id,
+            DealerIntegrationPartner.product_id,
+            DealerIntegrationPartner.integration_dealer_id,
+            Dealer.timezone,
+            IntegrationPartner.metadata_,
+            Product.product_name,
+        )
+        .join(Dealer, Dealer.id == DealerIntegrationPartner.dealer_id)
+        .join(
+            IntegrationPartner,
+            IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id,
+        )
+        .join(Product, Product.id == DealerIntegrationPartner.product_id)
+        .filter(
+            DealerIntegrationPartner.id == dealer_integration_partner_id,
+            DealerIntegrationPartner.is_active == True,
+        )
+    )
 
+    if request_product:
+        query = query.filter(Product.product_name == request_product)
+
+    dealer_partner = query.first()
     return dealer_partner
 
 
-def get_vendor_op_code(session, dealer_integration_partner_id: str, op_code: str, product_id: str) -> str:
+def get_vendor_op_code(
+    session, dealer_integration_partner_id: str, op_code: str, product_id: str
+) -> str:
     """Get vendor op code from the shared layer."""
-    op_code_result = session.query(
-        OpCode.op_code, OpCodeAppointment.id
-    ).join(
-        OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id
-    ).join(
-        OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
-    ).filter(
-        OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
-        OpCodeProduct.product_id == product_id,
-        OpCodeProduct.op_code == op_code
-    ).first()
+    op_code_result = (
+        session.query(OpCode.op_code, OpCodeAppointment.id)
+        .join(OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id)
+        .join(OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id)
+        .filter(
+            OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
+            OpCodeProduct.product_id == product_id,
+            OpCodeProduct.op_code == op_code,
+        )
+        .first()
+    )
 
     return op_code_result
 
@@ -131,7 +146,11 @@ def validate_request_body(body: Any, required_params) -> None:
         if isinstance(param, dict):
             for key, value in param.items():
                 if key not in body:
-                    raise ValidationError(f"Required parameter '{key}' not found in request body")
+                    raise ValidationError(
+                        f"Required parameter '{key}' not found in request body"
+                    )
                 validate_request_body(body[key], value)
         elif param not in body:
-            raise ValidationError(f"Required parameter '{param}' not found in request body")
+            raise ValidationError(
+                f"Required parameter '{param}' not found in request body"
+            )

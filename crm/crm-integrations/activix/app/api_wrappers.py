@@ -155,6 +155,10 @@ class ActivixApiWrapper:
         activity_id = str(response_json.get("data", "").get("id", ""))
 
         # Second API call to communications endpoint
+        if self.__activity["dealer_integration_partner_metadata"].get("activix_disable_comm_api") is True:
+            logger.info(f"Dealer {self.__activity['dealer_integration_partner_id']} opted out of calling the communications API endpoint.")
+            return activity_id
+
         url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
 
         dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
