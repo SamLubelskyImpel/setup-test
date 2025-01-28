@@ -6,7 +6,7 @@
 
 CREATE TABLE prod.appt_integration_partner (
 	id serial4 NOT NULL,
-	impel_integration_partner_name varchar(40) NULL,
+	impel_integration_partner_name varchar(40) NOT NULL,
 	integration_date timestamptz NULL,
 	metadata jsonb NULL,
 	db_creation_date timestamptz DEFAULT now() NULL,
@@ -35,7 +35,7 @@ update
 
 CREATE TABLE prod.appt_dealer (
 	id serial4 NOT NULL,
-	dealer_name varchar(80) NULL,
+	dealer_name varchar(80) NOT NULL,
 	dealer_location_name varchar(80) NULL,
 	country varchar(40) NULL,
 	state varchar(20) NULL,
@@ -70,7 +70,7 @@ update
 
 CREATE TABLE prod.appt_product (
 	id serial4 NOT NULL,
-	product_name varchar(80) NULL,
+	product_name varchar(80) NOT NULL,
 	db_creation_date timestamptz DEFAULT now() NULL,
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
@@ -98,9 +98,9 @@ update
 CREATE TABLE prod.appt_dealer_integration_partner (
 	id serial4 NOT NULL,
 	integration_dealer_id varchar(50) NULL,
-	integration_partner_id int4 NULL,
-	dealer_id int4 NULL,
-	product_id int4 NULL,
+	integration_partner_id int4 NOT NULL,
+	dealer_id int4 NOT NULL,
+	product_id int4 NOT NULL,
 	is_active bool NULL,
 	db_creation_date timestamptz DEFAULT now() NULL,
 	db_update_date timestamptz NULL,
@@ -163,8 +163,8 @@ update
 
 CREATE TABLE prod.appt_op_code (
 	id serial4 NOT NULL,
-	dealer_integration_partner_id int4 NULL,
-	op_code varchar(255) NULL,
+	dealer_integration_partner_id int4 NOT NULL,
+	op_code varchar(255) NOT NULL,
 	op_code_description varchar(255) NULL,
 	service_type_id int4 null,
 	db_creation_date timestamptz DEFAULT now() NULL,
@@ -199,7 +199,7 @@ ALTER TABLE prod.appt_op_code ADD CONSTRAINT appt_op_code_service_type_id_fkey F
 
 CREATE TABLE prod.appt_consumer (
 	id serial4 NOT NULL,
-	dealer_integration_partner_id int4 NULL,
+	dealer_integration_partner_id int4 NOT NULL,
 	integration_consumer_id varchar(50) NULL,
 	product_consumer_id varchar(50) NULL,
 	first_name varchar(50) NULL,
@@ -237,7 +237,7 @@ ALTER TABLE prod.appt_consumer ADD CONSTRAINT appt_consumer_dealer_integration_p
 
 CREATE TABLE prod.appt_vehicle (
 	id serial4 NOT NULL,
-	consumer_id int4 NULL,
+	consumer_id int4 NOT NULL,
 	vin varchar(20) NULL,
 	integration_vehicle_id varchar(50) NULL,
 	vehicle_class varchar(40) NULL,
@@ -284,8 +284,8 @@ ALTER TABLE prod.appt_vehicle ADD CONSTRAINT appt_vehicle_consumer_id_fkey FOREI
 
 CREATE TABLE prod.appt_appointment (
 	id serial4 NOT NULL,
-	consumer_id int4 NULL,
-	vehicle_id int4 NULL,
+	consumer_id int4 NOT NULL,
+	vehicle_id int4 NOT NULL,
 	integration_appointment_id varchar(50) NULL,
 	op_code_id int4 NOT NULL,
 	timeslot_ts timestamptz NULL,
