@@ -5,7 +5,7 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from datetime import datetime
+from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
@@ -145,7 +145,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.now(timezone.utc))
+
+        authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         with DBSession() as session:
             try:
@@ -176,6 +178,18 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 product_dealer_id = dealer_db.product_dealer_id
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
+
+                if authorizer_integration_partner:
+                    if integration_partner_name != authorizer_integration_partner:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                                }
+                            ),
+                        }
+
 
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
