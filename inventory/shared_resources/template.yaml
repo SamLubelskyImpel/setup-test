@@ -499,6 +499,18 @@ Resources:
         - Arn: !GetAtt GenerateICC.Arn
           Id: "GenerateICCTarget"
           Input: '{"integration_partner": "carsales"}'
+        # - Arn: !GetAtt GenerateICC.Arn
+        #   Id: "GenerateICCTarget"
+        #   Input: '{"integration_partner": "coxau"}'
+        # - Arn: !GetAtt GenerateICC.Arn
+        #   Id: "GenerateICCTarget"
+        #   Input: '{"integration_partner": "dealerstudio"}'
+        # - Arn: !GetAtt GenerateICC.Arn
+        #   Id: "GenerateICCTarget"
+        #   Input: '{"integration_partner": "icc"}'
+        # - Arn: !GetAtt GenerateICC.Arn
+        #   Id: "GenerateICCTarget"
+        #   Input: '{"integration_partner": "autostock"}'
 
   PermissionForEventsToInvokeGenerateICC:
     Type: AWS::Lambda::Permission
