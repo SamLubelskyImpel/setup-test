@@ -20,7 +20,10 @@ def extract_vehicle_data(json_data):
     year_value = json_data.get('inv_vehicle|year')
     try:
         # Only attempt the conversion if year_value is not an empty string
-        year = int(year_value) if year_value.strip() else None
+        if isinstance(year_value, str):
+            year = int(year_value) if year_value.strip() else None
+        else:
+            year = year_value
     except (ValueError, TypeError, AttributeError):
         # Set to None if conversion fails or if year_value is None
         year = None
@@ -43,6 +46,7 @@ def extract_vehicle_data(json_data):
         'year': year,
         'stock_num': json_data.get('inv_vehicle|stock_num', ''),
         'new_or_used': new_or_used,
+        'metadata': json_data.get('inv_vehicle|metadata'),
     }
     return vehicle_data
 
@@ -58,9 +62,9 @@ def extract_inventory_data(json_data):
             value = value.strip().replace(' ', '')
 
         if ftype == 'int':
-            return int(value.strip())
+            return value if isinstance(value, int) else int(value.strip())
         elif ftype == 'float':
-            return float(value.strip())
+            return value if isinstance(value, float) else float(value.strip())
         elif ftype == 'str':
             return value.strip()
         elif ftype == 'list':
@@ -172,7 +176,9 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
                     len(json_data_list))
 
         # Use dealer_integration_partner_id to update the value of on_lot for vehicles
-        rds_instance.update_dealers_other_vehicles(dealer_integration_partner_id, processed_inventory_ids)
+        partner = key.split('/')[1]
+        if partner not in ['carsales']:
+            rds_instance.update_dealers_other_vehicles(dealer_integration_partner_id, processed_inventory_ids)
         logger.info(f"Data processing and upload completed for {decoded_key}")
 
     except Exception:
