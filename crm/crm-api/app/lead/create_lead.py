@@ -10,6 +10,9 @@ from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
 
+from validation.validation import ValidationErrorResponse, validate_request_body
+from validation.models.create_lead import CreateLeadRequest 
+
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
 from crm_orm.models.consumer import Consumer
@@ -138,6 +141,8 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
+        validate_request_body(event, CreateLeadRequest)
+
         logger.info(f"Event: {event}")
 
         body = loads(event["body"])
@@ -366,6 +371,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
             except Exception as e:
                 raise DASyndicationError(e)
 
+    except ValidationErrorResponse as e:
+        logger.warning(f"Validation failed: {e.errors}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "message": "Validation failed",
+                "errors": e.errors,
+            }),
+        }
     except ADFAssemblerSyndicationError as e:
         logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
         send_alert_notification(

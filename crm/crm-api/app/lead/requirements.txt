@@ -4,3 +4,4 @@ pytz==2023.4
 types-pytz==2023.4.0.20240130
 python-dateutil==2.8.2
 requests==2.29.0
+pydantic==2.10.6

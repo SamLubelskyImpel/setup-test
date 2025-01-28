@@ -323,6 +323,7 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
         - !Ref EventServiceLayer
+        - !Ref ValidationLayer
 
   RetrieveLeads:
     Type: AWS::Serverless::Function
@@ -842,6 +843,17 @@ Resources:
       LayerName: !Sub "event-service-${Environment}"
       Description: INS Event Service Layer
       ContentUri: ./layers/event_service
+      CompatibleRuntimes:
+        - python3.9
+      LicenseInfo: MIT
+      RetentionPolicy: Retain
+
+  ValidationLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "validation-${Environment}"
+      Description: INS Event Service Layer
+      ContentUri: ./layers/validation
       CompatibleRuntimes:
         - python3.9
       LicenseInfo: MIT
