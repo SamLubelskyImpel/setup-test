@@ -238,42 +238,42 @@ Resources:
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
 
-  DirectUploadQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueue'
-      VisibilityTimeout: 60
-      MessageRetentionPeriod: 1209600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
-        maxReceiveCount: 3
+  # DirectUploadQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueue'
+  #     VisibilityTimeout: 60
+  #     MessageRetentionPeriod: 1209600
+  #     RedrivePolicy:
+  #       deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
+  #       maxReceiveCount: 3
 
-  DirectUploadDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
-      VisibilityTimeout: 10
-      MessageRetentionPeriod: 1209600
+  # DirectUploadDeadLetterQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
+  #     VisibilityTimeout: 10
+  #     MessageRetentionPeriod: 1209600
 
-  DirectUploadDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
-      AlarmDescription: There are over 1 unprocessed messages in the Direct SFTP Upload DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt DirectUploadDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
+  # DirectUploadDLQAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
+  #     AlarmDescription: There are over 1 unprocessed messages in the Direct SFTP Upload DLQ
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+  #     Dimensions:
+  #       - Name: QueueName
+  #         Value: !GetAtt DirectUploadDeadLetterQueue.QueueName
+  #     EvaluationPeriods: 1
+  #     MetricName: ApproximateNumberOfMessagesVisible
+  #     Namespace: AWS/SQS
+  #     Period: 300
+  #     Statistic: Sum
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
 
   DirectUploadFunction:
     Type: AWS::Serverless::Function
@@ -288,33 +288,33 @@ Resources:
         Variables:
           INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
 
-  DirectUploadErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub shared-inv-${Environment}-DirectUpload
-      AlarmDescription: Direct SFTP Upload failed to execute
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref DirectUploadFunction
-      EvaluationPeriods: 1
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Period: 900
-      Statistic: Sum
-      Threshold: 1
-      TreatMissingData: notBreaching
+  # DirectUploadErrorAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub shared-inv-${Environment}-DirectUpload
+  #     AlarmDescription: Direct SFTP Upload failed to execute
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Dimensions:
+  #       - Name: FunctionName
+  #         Value: !Ref DirectUploadFunction
+  #     EvaluationPeriods: 1
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Period: 900
+  #     Statistic: Sum
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
 
-  DirectUploadEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt DirectUploadQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt DirectUploadFunction.Arn
+  # DirectUploadEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 1
+  #     EventSourceArn: !GetAtt DirectUploadQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt DirectUploadFunction.Arn
 
   # DirectUploadTopicSubscription:
   #   Type: AWS::SNS::Subscription
@@ -327,94 +327,94 @@ Resources:
   #     FilterPolicy:
   #       '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  DirectUploadQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref DirectUploadQueue
-      PolicyDocument:
-          Version: '2012-10-17'
-          Id: DirectUploadQueuePolicy
-          Statement:
-            - Sid: Allow-SNS-SendMessage
-              Action:
-                - sqs:SendMessage
-              Effect: Allow
-              Resource: !GetAtt DirectUploadQueue.Arn
-              Principal:
-                  Service: sns.amazonaws.com
-              Condition:
-                  ArnEquals:
-                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
+  # DirectUploadQueuePolicy:
+  #   Type: AWS::SQS::QueuePolicy
+  #   Properties:
+  #     Queues:
+  #       - !Ref DirectUploadQueue
+  #     PolicyDocument:
+  #         Version: '2012-10-17'
+  #         Id: DirectUploadQueuePolicy
+  #         Statement:
+  #           - Sid: Allow-SNS-SendMessage
+  #             Action:
+  #               - sqs:SendMessage
+  #             Effect: Allow
+  #             Resource: !GetAtt DirectUploadQueue.Arn
+  #             Principal:
+  #                 Service: sns.amazonaws.com
+  #             Condition:
+  #                 ArnEquals:
+  #                     aws:SourceArn: !Ref InventoryS3ToSNSTopic
 
-  UnifiedLoadQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
-      MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 600
-      RedrivePolicy:
-          deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
-          maxReceiveCount: 2
+  # UnifiedLoadQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadQueue'
+  #     MessageRetentionPeriod: 1209600
+  #     VisibilityTimeout: 600
+  #     RedrivePolicy:
+  #         deadLetterTargetArn: !GetAtt UnifiedLoadDeadLetterQueue.Arn
+  #         maxReceiveCount: 2
 
-  UnifiedLoadDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadDLQ'
-      VisibilityTimeout: 10
-      MessageRetentionPeriod: 1209600
+  # UnifiedLoadDeadLetterQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-UnifiedLoadDLQ'
+  #     VisibilityTimeout: 10
+  #     MessageRetentionPeriod: 1209600
 
-  UnifiedLoadDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
-    Properties:
-      AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadDLQ
-      AlarmDescription: There are messages in the Unified Load DLQ Alarm
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt UnifiedLoadDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 0
-      TreatMissingData: notBreaching
+  # UnifiedLoadDLQAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Condition: IsProd
+  #   Properties:
+  #     AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadDLQ
+  #     AlarmDescription: There are messages in the Unified Load DLQ Alarm
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+  #     Dimensions:
+  #       - Name: QueueName
+  #         Value: !GetAtt UnifiedLoadDeadLetterQueue.QueueName
+  #     EvaluationPeriods: 1
+  #     MetricName: ApproximateNumberOfMessagesVisible
+  #     Namespace: AWS/SQS
+  #     Period: 300
+  #     Statistic: Sum
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Threshold: 0
+  #     TreatMissingData: notBreaching
 
-  UnifiedLoadTopicSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Protocol: sqs
-      RawMessageDelivery: true
-      TopicArn: !Ref InventoryS3ToSNSTopic
-      Endpoint: !GetAtt UnifiedLoadQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  # UnifiedLoadTopicSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Protocol: sqs
+  #     RawMessageDelivery: true
+  #     TopicArn: !Ref InventoryS3ToSNSTopic
+  #     Endpoint: !GetAtt UnifiedLoadQueue.Arn
+  #     FilterPolicyScope: MessageBody
+  #     FilterPolicy:
+  #       '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  UnifiedLoadQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref UnifiedLoadQueue
-      PolicyDocument:
-          Version: '2012-10-17'
-          Id: UnifiedLoadQueuePolicy
-          Statement:
-            - Sid: Allow-SNS-SendMessage
-              Action:
-                - sqs:SendMessage
-              Effect: Allow
-              Resource: !GetAtt UnifiedLoadQueue.Arn
-              Principal:
-                  Service: sns.amazonaws.com
-              Condition:
-                  ArnEquals:
-                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
+  # UnifiedLoadQueuePolicy:
+  #   Type: AWS::SQS::QueuePolicy
+  #   Properties:
+  #     Queues:
+  #       - !Ref UnifiedLoadQueue
+  #     PolicyDocument:
+  #         Version: '2012-10-17'
+  #         Id: UnifiedLoadQueuePolicy
+  #         Statement:
+  #           - Sid: Allow-SNS-SendMessage
+  #             Action:
+  #               - sqs:SendMessage
+  #             Effect: Allow
+  #             Resource: !GetAtt UnifiedLoadQueue.Arn
+  #             Principal:
+  #                 Service: sns.amazonaws.com
+  #             Condition:
+  #                 ArnEquals:
+  #                     aws:SourceArn: !Ref InventoryS3ToSNSTopic
 
   UnifiedLoadInsert:
     Type: AWS::Serverless::Function
@@ -427,33 +427,33 @@ Resources:
       Timeout: 600
       MemorySize: 1024
 
-  UnifiedLoadEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt UnifiedLoadQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt UnifiedLoadInsert.Arn
+  # UnifiedLoadEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 1
+  #     EventSourceArn: !GetAtt UnifiedLoadQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt UnifiedLoadInsert.Arn
 
-  UnifiedLoadInsertErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadInsert
-      AlarmDescription: Inventory database load failed to execute
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref UnifiedLoadInsert
-      EvaluationPeriods: 1
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Period: 900
-      Statistic: Sum
-      Threshold: 1
-      TreatMissingData: notBreaching
+  # UnifiedLoadInsertErrorAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub shared-inv-${Environment}-UnifiedLoadInsert
+  #     AlarmDescription: Inventory database load failed to execute
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Dimensions:
+  #       - Name: FunctionName
+  #         Value: !Ref UnifiedLoadInsert
+  #     EvaluationPeriods: 1
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Period: 900
+  #     Statistic: Sum
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
 
   GenerateICC:
     Type: AWS::Serverless::Function
@@ -493,7 +493,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "shared-inv-${Environment}-GenerateICCScheduleRule"
-      ScheduleExpression: cron(15 4,8,12,16,20 * * ? *)
+      # ScheduleExpression: cron(15 4,8,12,16,20 * * ? *)
+      ScheduleExpression: cron(42 4,8,12,16,20 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt GenerateICC.Arn
@@ -566,7 +567,7 @@ Resources:
       Endpoint: !GetAtt PartnerSyndicationQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"icc/carsales"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"icc"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   PartnerSyndicationQueuePolicy:
     Type: AWS::SQS::QueuePolicy
