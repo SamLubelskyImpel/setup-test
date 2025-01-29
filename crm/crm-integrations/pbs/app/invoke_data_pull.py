@@ -137,9 +137,6 @@ def sort_leads_by_creation_date(leads: list, start_time: str, end_time: str):
         if not creation_date_str:
             continue
 
-        logger.info(f"This is creation_date_str: {creation_date_str}")
-        logger.info(f"{start_time} <= {creation_date_str} <= {end_time}")
-
         if start_time <= creation_date_str <= end_time:
             filtered_leads.append(lead)
 
