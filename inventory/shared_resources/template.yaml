@@ -316,16 +316,16 @@ Resources:
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt DirectUploadFunction.Arn
 
-  DirectUploadTopicSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Protocol: sqs
-      RawMessageDelivery: true
-      TopicArn: !Ref InventoryS3ToSNSTopic
-      Endpoint: !GetAtt DirectUploadQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  # DirectUploadTopicSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Protocol: sqs
+  #     RawMessageDelivery: true
+  #     TopicArn: !Ref InventoryS3ToSNSTopic
+  #     Endpoint: !GetAtt DirectUploadQueue.Arn
+  #     FilterPolicyScope: MessageBody
+  #     FilterPolicy:
+  #       '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   DirectUploadQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -493,24 +493,24 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "shared-inv-${Environment}-GenerateICCScheduleRule"
-      ScheduleExpression: rate(1 hour)  # Adjust the schedule as needed
+      ScheduleExpression: cron(15 4,8,12,16,20 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCTarget"
+          Id: "GenerateICCCarsales"
           Input: '{"integration_partner": "carsales"}'
-        # - Arn: !GetAtt GenerateICC.Arn
-        #   Id: "GenerateICCTarget"
-        #   Input: '{"integration_partner": "coxau"}'
-        # - Arn: !GetAtt GenerateICC.Arn
-        #   Id: "GenerateICCTarget"
-        #   Input: '{"integration_partner": "dealerstudio"}'
-        # - Arn: !GetAtt GenerateICC.Arn
-        #   Id: "GenerateICCTarget"
-        #   Input: '{"integration_partner": "icc"}'
-        # - Arn: !GetAtt GenerateICC.Arn
-        #   Id: "GenerateICCTarget"
-        #   Input: '{"integration_partner": "autostock"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCCoxau"
+          Input: '{"integration_partner": "coxau"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCDealerStudio"
+          Input: '{"integration_partner": "dealerstudio"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCICC"
+          Input: '{"integration_partner": "icc"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCAutostock"
+          Input: '{"integration_partner": "autostock"}'
 
   PermissionForEventsToInvokeGenerateICC:
     Type: AWS::Lambda::Permission
