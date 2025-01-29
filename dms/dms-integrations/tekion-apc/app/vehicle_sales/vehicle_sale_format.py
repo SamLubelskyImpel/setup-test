@@ -26,13 +26,13 @@ def convert_unix_to_timestamp(unix_time):
     """Convert unix time to datetime object"""
     if not unix_time or not isinstance(unix_time, int) or unix_time == 0:
         return None
-    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d")
 
 
 def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
     """Calculate the Expected Payoff Date."""
     first_payment_date_str = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
-    first_payment_date = datetime.strptime(first_payment_date_str, "%Y-%m-%d %H:%M:%S")
+    first_payment_date = datetime.strptime(first_payment_date_str, "%Y-%m-%d")
 
     payment_option = default_get(deal_payment, "paymentOption", {})
     payment_value = default_get(payment_option, "value", 0)
@@ -82,13 +82,10 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
     else:
         raise ValueError(f"Unsupported frequency: {frequency}")
     
-    logger.info(f"Adding to First Payment Date: {first_payment_date} with Payment Frequency: {frequency}, Payment Value: {payment_value}. Result: {expected_payoff_date}")
-
-    return expected_payoff_date.strftime("%Y-%m-%d %H:%M:%S")
+    return expected_payoff_date.strftime("%Y-%m-%d")
 
 def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     """Calculate the First Payment Date"""
-    logger.info(f"Calculating First Payment Date for contract_date: {contract_date} or delivery_date: {delivery_date}")
 
     if contract_date:
         date = datetime.utcfromtimestamp(contract_date / 1000)
@@ -101,12 +98,10 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
 
     if not isinstance(days_to_first_payment, int):
         raise ValueError("daysToFirstPayment must be an integer")
-    
-    logger.info(f"days_to_first_payment: {days_to_first_payment}, date: {date}")
-    
+        
     first_payment_date = date + timedelta(days=days_to_first_payment)
 
-    return first_payment_date.strftime("%Y-%m-%d %H:%M:%S")
+    return first_payment_date.strftime("%Y-%m-%d")
 
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
