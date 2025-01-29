@@ -96,7 +96,7 @@ class PbsApiWrapper:
         self.secret_name = SECRET_NAME
         self.region_name = REGION_NAME
         self.secret_client = boto3.client('secretsmanager', region_name='us-east-1')
-        self.__activity = kwargs.get("activity")
+        self.__activity = kwargs.get("activity", {})
         self.credentials = self.get_secret()
         self.__consumer = kwargs.get("consumer")
         self.base_url = self.credentials["API_URL"]
