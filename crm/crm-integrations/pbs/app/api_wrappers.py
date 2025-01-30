@@ -11,6 +11,8 @@ from requests.auth import HTTPBasicAuth
 from botocore.exceptions import ClientError
 from os import environ
 import logging
+import pytz
+from datetime import datetime
 logger = logging.getLogger(__name__)
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -94,12 +96,27 @@ class PbsApiWrapper:
         self.secret_name = SECRET_NAME
         self.region_name = REGION_NAME
         self.secret_client = boto3.client('secretsmanager', region_name='us-east-1')
-        self.__activity = kwargs.get("activity")
+        self.__activity = kwargs.get("activity", {})
         self.credentials = self.get_secret()
         self.__consumer = kwargs.get("consumer")
         self.base_url = self.credentials["API_URL"]
         self.auth = HTTPBasicAuth(self.credentials["API_USERNAME"], self.credentials["API_PASSWORD"])
         self.__salesperson = kwargs.get("salesperson")
+        self.__dealer_timezone = self.__activity.get("dealer_timezone")
+
+    def convert_utc_to_timezone(self, input_ts: str) -> str:
+        """Convert UTC timestamp to dealer's local time."""
+        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+        utc_datetime = pytz.utc.localize(utc_datetime)
+
+        if not self.__dealer_timezone:
+            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(
+                self.__activity["crm_dealer_id"]))
+            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+
+        dealer_tz = pytz.timezone(self.__dealer_timezone)
+        dealer_datetime = utc_datetime.astimezone(dealer_tz)
+        return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
     def get_secret(self):
         """Retrieve the API credentials from AWS Secrets Manager."""
@@ -248,9 +265,9 @@ class PbsApiWrapper:
 
         # Conditionally add DueDate or EventDate based on the activity type
         if event_type in ["appointment", "phone_call_task"]:
-            payload["DueDate"] = self.__activity.get("activity_due_ts")
+            payload["DueDate"] = self.convert_utc_to_timezone(self.__activity.get("activity_due_ts"))
         elif event_type == "outbound_call":
-            payload["EventDate"] = self.__activity.get("activity_requested_ts")
+            payload["EventDate"] = self.convert_utc_to_timezone(self.__activity.get("activity_requested_ts"))
 
         return payload
 
