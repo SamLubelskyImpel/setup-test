@@ -1462,7 +1462,7 @@ components:
           condition:
             type: string
             description: Condition of the vehicle
-            enum: [New, Used]
+            enum: [New, Used, CPO]
             example: Used
             maxLength: 20
           odometer_units:

@@ -167,6 +167,11 @@ def record_handler(record: SQSRecord) -> None:
 
         data = {'metadata': {}}
 
+        if lead_status:
+            data['lead_status'] = lead_status
+        else:
+            logger.warning(f"Lead status is empty for CRM lead ID: {crm_lead_id}. No update will be performed for this field.")
+
         if json_data.get("bdc"):
             salesperson = update_lead_salespersons(json_data["bdc"], lead_id, crm_api_key, "BDC")
             data['salespersons'] = salesperson

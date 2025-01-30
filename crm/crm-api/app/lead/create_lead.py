@@ -5,7 +5,7 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from datetime import datetime
+from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
@@ -135,7 +135,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.now(timezone.utc))
+
+        authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         with DBSession() as session:
             try:
@@ -167,6 +169,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
+                if authorizer_integration_partner:
+                    if integration_partner_name != authorizer_integration_partner:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                                }
+                            ),
+                        }
+                
                 if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                     error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
                     logger.error(error_msg)
@@ -175,7 +188,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         "statusCode": 404,
                         "body": dumps({"error": error_msg})
                     }
-
+                
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
@@ -333,6 +346,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             try:
                 if dip_metadata:
                     adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    oem_partner = dip_metadata.get("oem_partner", "")
                     sftp_config = dip_metadata.get("adf_sftp_config", {})
                 else:
                     logger.warning(f"No metadata found for dealer: {product_dealer_id}")
@@ -341,7 +355,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
                     "partner_name": integration_partner_name,
-                    "sftp_config": sftp_config
+                    "sftp_config": sftp_config, 
+                    "oem_partner": oem_partner
                 }
                 sqs_client = boto3.client('sqs')
 

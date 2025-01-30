@@ -50,7 +50,7 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "Make": "inv_vehicle|make",
         "Model": "inv_vehicle|model",
         "Year": "inv_vehicle|year",
-        "isNew": "inv_vehicle|new_or_used",
+        "IsNew": "inv_vehicle|new_or_used",
         "Stock": "inv_vehicle|stock_num",
 
         "ListPrice": "inv_inventory|list_price",
@@ -81,12 +81,20 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "EngineDisplacement": "inv_inventory|engine_displacement",
         "FactoryCertified": "inv_inventory|factory_certified",  # C if True, else null
     }
+    is_new_mapping = {
+        'new': 'N',
+        'used': 'U'
+    }
+
     rows = []
     for entry in unified_inventory:
         try:
             row = {}
             for icc_field, unified_field in field_mappings.items():
                 row[icc_field] = entry.get(unified_field)
+
+            new_or_used_value = entry.get('inv_vehicle|new_or_used', '').strip().lower()
+            row['IsNew'] = is_new_mapping.get(new_or_used_value, '') 
 
             options = entry.get("inv_inventory|options", [])
             priority_options = entry.get("inv_inventory|priority_options", [])
@@ -115,6 +123,10 @@ def record_handler(record: SQSRecord) -> None:
         key = body["Records"][0]["s3"]["object"]["key"]
         provider_dealer_id = key.split('/')[-1].split('.')[0]
         integration = key.split('/')[1]
+
+        if integration == "carsales":
+            logger.info("Carsales integration is not supported by direct upload")
+            return
 
         logger.info(f"Provider dealer id: {provider_dealer_id}")
 
