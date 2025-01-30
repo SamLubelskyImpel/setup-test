@@ -13,8 +13,7 @@ from utils import (invoke_vendor_lambda, IntegrationError, convert_utc_to_timezo
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_product import OpCodeProduct
-from appt_orm.models.op_code_appointment import OpCodeAppointment
+from appt_orm.models.service_type import ServiceType
 from appt_orm.models.appointment import Appointment
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
@@ -42,29 +41,26 @@ def update_appointment_status(appointment_id, session, new_status):
     session.query(Appointment).filter(Appointment.id == appointment_id).update({"status": new_status})
 
 
-def get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code):
-    """Retrieve product op code from database."""
+def get_service_type(dealer_integration_partner_id, integration_op_code):
+    """Retrieve service type from database."""
     with DBSession() as session:
-        product_op_code = session.query(
-            OpCodeProduct
+        service_type = session.query(
+            ServiceType
         ).join(
-            OpCodeAppointment, OpCodeAppointment.op_code_product_id == OpCodeProduct.id
-        ).join(
-            OpCode, OpCode.id == OpCodeAppointment.id
+            OpCode, OpCode.service_type_id == ServiceType.id
         ).filter(
-            OpCodeProduct.product_id == product_id,
             OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
             OpCode.op_code == integration_op_code
         ).first()
 
-    return product_op_code.op_code if product_op_code else None
+    return service_type.service_type if service_type else None
 
 
 def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
     """Extract appointment data from db object."""
     return {
         "id": db_appt.Appointment.id,
-        "op_code": db_appt.op_code,
+        "op_code": db_appt.ServiceType.service_type,
         "timeslot": convert_utc_to_timezone(db_appt.Appointment.timeslot_ts, dealer_timezone, dealer_integration_partner_id),
         "timeslot_duration": db_appt.Appointment.timeslot_duration,
         "created_date_ts": db_appt.Appointment.created_date_ts,
@@ -145,15 +141,15 @@ def lambda_handler(event, context):
             }
 
             appointments_query = session.query(
-                Appointment, Consumer, Vehicle, OpCodeProduct.op_code
+                Appointment, Consumer, Vehicle, ServiceType
             ).join(
                 Consumer, Consumer.id == Appointment.consumer_id
             ).join(
                 Vehicle, Vehicle.id == Appointment.vehicle_id
             ).join(
-                OpCodeAppointment, OpCodeAppointment.id == Appointment.op_code_appointment_id
+                OpCode, OpCode.id == Appointment.op_code_id
             ).join(
-                OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
+                ServiceType, ServiceType.id == OpCode.service_type_id
             ).filter(
                 Consumer.dealer_integration_partner_id == dealer_integration_partner_id,
                 Vehicle.vin == vin
@@ -247,7 +243,7 @@ def lambda_handler(event, context):
             else:
                 integration_op_code = appt["services"][0].get("op_code") if appt.get("services") else None
                 appointment = {
-                    "op_code": get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code),
+                    "op_code": get_service_type(dealer_integration_partner_id, integration_op_code),
                     "timeslot": appt["timeslot"],
                     "timeslot_duration": appt.get("timeslot_duration"),
                     "comment": appt.get("comment"),

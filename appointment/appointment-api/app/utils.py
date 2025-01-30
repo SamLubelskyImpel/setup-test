@@ -12,8 +12,7 @@ from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_product import OpCodeProduct
-from appt_orm.models.op_code_appointment import OpCodeAppointment
+from appt_orm.models.service_type import ServiceType
 from appt_orm.models.product import Product
 
 logger = logging.getLogger()
@@ -121,18 +120,14 @@ def get_dealer_info(
     return dealer_partner
 
 
-def get_vendor_op_code(
-    session, dealer_integration_partner_id: str, op_code: str, product_id: str
-) -> str:
+def get_vendor_op_code(session, dealer_integration_partner_id: str, service_type: str) -> str:
     """Get vendor op code from the shared layer."""
     op_code_result = (
-        session.query(OpCode.op_code, OpCodeAppointment.id)
-        .join(OpCodeAppointment, OpCodeAppointment.op_code_id == OpCode.id)
-        .join(OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id)
+        session.query(OpCode.op_code, OpCode.id)
+        .join(ServiceType, ServiceType.id == OpCode.service_type_id)
         .filter(
             OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
-            OpCodeProduct.product_id == product_id,
-            OpCodeProduct.op_code == op_code,
+            ServiceType.service_type == service_type,
         )
         .first()
     )

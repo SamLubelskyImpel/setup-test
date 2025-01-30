@@ -8,7 +8,6 @@ from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_appointment import OpCodeAppointment
 
 
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:143813444726:alert_client_engineering")
@@ -72,6 +71,8 @@ def lambda_handler(event, context):
         try:
             # Get mapped opcodes
             db_dealers = get_opcode_mappings(partner)
+            logger.info(f"DB Dealers OpCode Mappings: {db_dealers}")
+
             if not db_dealers:
                 continue
 
