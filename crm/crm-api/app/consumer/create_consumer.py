@@ -5,11 +5,14 @@ from os import environ
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy import or_
+from utils import send_alert_notification
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.consumer import Consumer
 from crm_orm.session_config import DBSession
+from crm_orm.models.integration_partner import IntegrationPartner
+
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -43,6 +46,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         body = loads(event["body"])
         request_product = event["headers"]["partner_id"]
         product_dealer_id = event["queryStringParameters"]["dealer_id"]
+        authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         crm_consumer_id = body.get("crm_consumer_id", None)
         created_consumer = True
@@ -55,10 +59,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         with DBSession() as session:
-            dealer_partner = session.query(
-                DealerIntegrationPartner
+            dealer_partner, integration_partner_name = session.query(
+                DealerIntegrationPartner, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            ).join(
+                IntegrationPartner, IntegrationPartner.id == DealerIntegrationPartner.integration_partner_id
             ).filter(
                 Dealer.product_dealer_id == product_dealer_id,
                 or_(DealerIntegrationPartner.is_active.is_(True),
@@ -66,11 +72,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     DealerIntegrationPartner.is_active_chatai.is_(True))
             ).first()
             if not dealer_partner:
-                logger.error(f"No active dealer found with id {product_dealer_id}. Consumer failed to be created.")
+                error_msg = f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."
+                logger.error(error_msg)
+                send_alert_notification(subject=f'CRM API: Consumer creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
-                    "body": dumps({"error": f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."})
+                    "body": dumps({"error": error_msg})
                 }
+            if authorizer_integration_partner:
+                if authorizer_integration_partner != integration_partner_name:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": f"This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                                }
+                            ),
+                        }
 
             # Query for existing consumer
             consumer_db = None

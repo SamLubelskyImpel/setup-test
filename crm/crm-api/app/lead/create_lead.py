@@ -5,10 +5,11 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from datetime import datetime
+from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
+from utils import send_alert_notification
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -55,17 +56,6 @@ class ADFAssemblerSyndicationError(Exception):
 class DASyndicationError(Exception):
     """Custom exception for DA syndication errors."""
     pass
-
-
-def send_alert_notification(message, subject) -> None:
-    """Send alert notification to CE team."""
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps({"message": message})}),
-        Subject=f'CRM API: {subject}',
-        MessageStructure='json'
-    )
 
 
 def send_notification_to_event_listener(integration_partner_name: str) -> bool:
@@ -145,7 +135,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = body["consumer_id"]
         salespersons = body.get("salespersons", [])
         crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts", datetime.utcnow())
+        lead_ts = body.get("lead_ts", datetime.now(timezone.utc))
+
+        authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         with DBSession() as session:
             try:
@@ -177,6 +169,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
+                if authorizer_integration_partner:
+                    if integration_partner_name != authorizer_integration_partner:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                                }
+                            ),
+                        }
+                
+                if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
+                    error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
+                    logger.error(error_msg)
+                    send_alert_notification(subject=f'CRM API: Lead creation failure', message=error_msg)
+                    return {
+                        "statusCode": 404,
+                        "body": dumps({"error": error_msg})
+                    }
+                
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
