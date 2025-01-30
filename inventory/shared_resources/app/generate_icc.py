@@ -42,7 +42,7 @@ def convert_unified_to_icc(unified_inventory: list) -> pd.DataFrame:
         "Make": "inv_vehicle|make",
         "Model": "inv_vehicle|model",
         "Year": "inv_vehicle|year",
-        "isNew": "inv_vehicle|new_or_used",
+        "IsNew": "inv_vehicle|new_or_used",
         "Stock": "inv_vehicle|stock_num",
         "CostPrice": "inv_inventory|cost_price",
         "FuelType": "inv_inventory|fuel_type",
