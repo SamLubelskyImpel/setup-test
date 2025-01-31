@@ -37,7 +37,8 @@ FIELD_MAPPINGS = {
         'metadata': lambda e: dumps({
             'odometer_units': get_nested_value(e, 'OdometerReadings.-1.UnitOfMeasure'),
             'source': 'Redbook',
-            'source_id': get_nested_value(e, 'Specification.SpecificationCode')
+            'source_id': get_nested_value(e, 'Specification.SpecificationCode'),
+            'carsales_legacy_id': get_from_list({"Identification": get_nested_value(e, 'Seller.Identification', [])}, 'Identification', 'Value', 'Type', 'LegacyId')
         })
     },
     'inv_dealer_integration_partner': {
