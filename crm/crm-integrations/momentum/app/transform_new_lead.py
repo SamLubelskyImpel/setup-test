@@ -162,7 +162,7 @@ def parse_lead(product_dealer_id, data):
             "crm_lead_id": crm_lead_id,
             "lead_status": data["leadStatus"],
             "lead_substatus": "",
-            "lead_comment": data.get("comments", ""),
+            "lead_comment": data.get("comments", "")[:10000],
             "lead_origin": data["leadType"],
             "lead_source": data.get("providerName", ""),
         }
