@@ -73,26 +73,33 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Entries: {entries}")
 
-        event_response = events_client.put_events(
-            Entries=entries
-        )
-        logger.info(f"Event response: {event_response}")
-
-        response_entries = event_response.get('Entries', [])
+        # group events into groups of 10, 10 is the max there can be less
+        grouped_entries = [entries[i:i + 10] for i in range(0, len(entries), 10)]
         api_response = []
 
-        # AWS EventBridge guarantees order of responses to match order of events, this is a fail safe catch.
-        if len(response_entries) != len(event_json):
-            logger.error("Number of responses does not match number of events. Cannot guarantee order.")
-            raise Exception("Number of responses does not match number of events. Cannot guarantee order.")
+        for i, entry_group in enumerate(grouped_entries):
+            logger.info(f"Batch: {i} Size: {len(entry_group)}")
+            # Send events to EventBridge
+            event_response = events_client.put_events(
+                Entries=entry_group
+            )
+            logger.info(f"Batch: {i} Event response: {event_response}")
 
-        for original_event, response_entry in zip(event_json, response_entries):
-            api_response.append({
-                "event_json": original_event,
-                "event_bus_id": response_entry.get("EventId", None),
-                "error_code": response_entry.get("ErrorCode", None),
-                "error_message": response_entry.get("ErrorMessage", None)
-            })
+            response_entries = event_response.get('Entries', [])
+
+            # AWS EventBridge guarantees order of responses to match order of events, this is a fail safe catch.
+            if len(response_entries) != len(entry_group):
+                logger.error("Number of responses does not match number of events. Cannot guarantee order.")
+                raise Exception("Number of responses does not match number of events. Cannot guarantee order.")
+
+            for original_event, response_entry in zip(entry_group, response_entries):
+                raw_event = original_event.get("Detail", "")
+                api_response.append({
+                    "event_json": loads(raw_event) if raw_event and isinstance(raw_event, str) else {},
+                    "event_bus_id": response_entry.get("EventId", None),
+                    "error_code": response_entry.get("ErrorCode", None),
+                    "error_message": response_entry.get("ErrorMessage", None)
+                })
 
     except ClientError as e:
         if e.response['Error']['Code'] == 'InternalException':
@@ -101,6 +108,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
             return {
                 "statusCode": 500,
                 "body": dumps({"error": {error_message}}),
+            }
+        logger.exception(f"Unknown exception occured sending events: {e}.")
+        return {
+                "statusCode": 500,
+                "body": dumps({"error": str(e)}),
             }
 
     except Exception as e:
