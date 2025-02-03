@@ -81,6 +81,56 @@ class MerchSalesAIBaseUploader(BaseUploader):
 class MerchUploader(MerchSalesAIBaseUploader):
     """Uploader for Merchandising."""
 
+    def assign_carsales_legacy_id(self, rds_instance):
+
+        vin_list = self.icc_formatted_inventory['VIN']
+        
+        vehicle_metadata = rds_instance.get_vehicle_metadata(self.provider_dealer_id, vin_list)
+        logger.info(vehicle_metadata)
+
+        legacy_id_list = []
+        for index, row in self.icc_formatted_inventory.iterrows():
+            match_vin = row.get('VIN')
+            data = None
+            for entry in vehicle_metadata:
+                vin = entry["vin"]
+                if match_vin == vin:
+                    metadata = str(entry["metadata"])
+                    a = metadata.strip("{}").replace('\"', "").replace('\'', '')
+                    b = dict(item.split(": ") for item in a.split(", "))
+                    data = b.get('carsales_legacy_id', None)
+            legacy_id_list.append(data)
+        logger.info("Found Legacy Ids:" + str(legacy_id_list))
+        self.icc_formatted_inventory["DealerId"] = legacy_id_list
+        return
+
+    # Overridden parent class method to accommodate for CarSales LegacyId ingestion
+    def proccess_and_upload_to_sftp(self, product_dealer_id, secret_key) -> None:
+        """Upload to sftp server."""
+        # Set DealerId to match product expected DealerId
+
+        rds_instance = RDSInstance()
+        impel_integration_partner_id = rds_instance.find_impel_integration_partner_id(self.provider_dealer_id)
+
+        if impel_integration_partner_id == 'carsales':
+            self.assign_carsales_legacy_id(rds_instance)
+        
+        else:
+            self.icc_formatted_inventory["DealerId"] = product_dealer_id
+
+        csv_content = self.icc_formatted_inventory.to_csv(index=False)
+
+        # Upload to SFTP
+        hostname, port, username, password = self.get_sftp_secrets("inventory-integrations-sftp", secret_key)
+        prefix = '' if ENVIRONMENT == 'prod' else 'deleteme_'
+        filename = f"{prefix}{product_dealer_id}.csv"
+
+        with self.connect_sftp_server(hostname, port, username, password) as sftp:
+            csv_file_like = BytesIO(csv_content.encode())
+            sftp.putfo(csv_file_like, filename)
+
+        self.log_info(f"File {filename} uploaded to SFTP")
+
 
 class SalesAIUploader(MerchSalesAIBaseUploader):
     """Uploader for Sales AI."""

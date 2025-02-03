@@ -429,3 +429,29 @@ class RDSInstance:
         inv_rows = results.fetchall()
         inv_columns = [desc[0] for desc in results.description]
         return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+    def get_vehicle_metadata(self, provider_dealer_id, vin_list):
+
+        vin_list = [f'\'{s}\'' for s in vin_list]
+        query = f"""
+            SELECT
+                veh.vin AS "vin",
+                veh.metadata AS "metadata"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            WHERE dip.provider_dealer_id = '{provider_dealer_id}'
+            AND inv.on_lot = 'TRUE'
+            AND veh.vin in ({",".join(vin_list)});
+        """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+
+    def find_impel_integration_partner_id(self, provider_dealer_id):
+        """Query for DIP ID based on provider dealer ID."""
+        query = f"SELECT ip.impel_integration_partner_id FROM {self.schema}.inv_dealer_integration_partner AS dip JOIN {self.schema}.inv_integration_partner AS ip ON ip.id = dip.integration_partner_id WHERE dip.provider_dealer_id = '{provider_dealer_id}';"
+        result = self.execute_rds(query).fetchone()
+        return result[0] if result else None
