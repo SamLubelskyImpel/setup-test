@@ -72,19 +72,14 @@ def insert_fi_deal_parquet(key, df):
             "vehicle_sale|dealer_integration_partner_id"
         ] = db_dealer_integration_partner_id
 
-        df["cobuyer_consumer|dealer_integration_partner_id"] = df.apply(
-            lambda row: db_dealer_integration_partner_id if any(
-                col.startswith("cobuyer_consumer|") and pd.notna(row[col]) for col in df.columns
-            ) else None,
-            axis=1
-        )
+        # Only assign dealer_integration_partner_id if there are relevant columns in the dataset
+        for entity in ["cobuyer_consumer", "trade_in_vehicle"]:
+            if any(col.startswith(f"{entity}|") for col in df.columns):
+                df[f"{entity}|dealer_integration_partner_id"] = df.apply(
+                    lambda row: db_dealer_integration_partner_id if any(pd.notna(row[col]) for col in df.columns if col.startswith(f"{entity}|")) else None,
+                    axis=1
+                )
 
-        df["trade_in_vehicle|dealer_integration_partner_id"] = df.apply(
-            lambda row: db_dealer_integration_partner_id if any(
-                col.startswith("trade_in_vehicle|") and pd.notna(row[col]) for col in df.columns
-            ) else None,
-            axis=1
-        )
 
         # Unique dealer_integration_partner_id, vin, sale_date SQL can't insert duplicates
         vehicle_sale_unique_constraint = [
