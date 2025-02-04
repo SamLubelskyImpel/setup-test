@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy import func
 from utils import (invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone,
-                   send_alert_notification, get_dealer_info)
+                   send_alert_notification, get_dealer_info, is_valid_timezone, ValidationError)
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.op_code import OpCode
@@ -128,6 +128,10 @@ def lambda_handler(event, context):
 
             logger.info(f"Dealer integration partner: {dealer_partner}")
             dealer_timezone = dealer_partner.timezone
+
+            if not is_valid_timezone(dealer_timezone):
+                raise ValidationError("Invalid dealer timezone provided")
+            
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
             product_id = dealer_partner.product_id
@@ -283,6 +287,15 @@ def lambda_handler(event, context):
                     "code": "I002",
                     "message": "Unexpected response from vendor integration. Please contact Impel support."
                 },
+                "request_id": request_id,
+            })
+        }
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "error": str(e),
                 "request_id": request_id,
             })
         }
