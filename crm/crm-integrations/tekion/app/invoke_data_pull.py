@@ -173,7 +173,7 @@ def fetch_data_from_link(link: str, token: str, app_id: str, crm_dealer_id: str,
         data = response.json().get("data", [])
         return data
     except Exception as e:
-        logger.error(f"Error fetching data from {api_url}: {e}")
+        logger.error(f"Error fetching data: {e}")
         return []
 
 def enrich_leads(leads: list, token: str, app_id: str, crm_dealer_id: str, url: str) -> list:
