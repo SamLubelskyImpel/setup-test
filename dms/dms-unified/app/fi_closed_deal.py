@@ -24,7 +24,6 @@ def insert_entity_if_exists(df, prefix, table, result_column, rds, rename_prefix
     """
     relevant_columns = [col for col in df.columns if col.startswith(prefix)]
 
-    # If no relevant columns exist, return immediately
     if not relevant_columns:
         logger.info(f"[SKIPPING] No columns with prefix '{prefix}' found for table '{table}'. Setting {result_column} to None.")
         df[result_column] = None
@@ -32,8 +31,6 @@ def insert_entity_if_exists(df, prefix, table, result_column, rds, rename_prefix
 
     # Select only rows where at least one relevant column has a non-null value
     df_subset = df.loc[df[relevant_columns].notna().any(axis=1), relevant_columns].copy()
-
-    # Check if df_subset is empty after filtering
     if df_subset.empty:
         logger.info(f"[SKIPPING] No non-null values found for prefix '{prefix}' in table '{table}'.")
         df[result_column] = None
@@ -79,7 +76,6 @@ def insert_fi_deal_parquet(key, df):
                     lambda row: db_dealer_integration_partner_id if any(pd.notna(row[col]) for col in df.columns if col.startswith(f"{entity}|")) else None,
                     axis=1
                 )
-
 
         # Unique dealer_integration_partner_id, vin, sale_date SQL can't insert duplicates
         vehicle_sale_unique_constraint = [
