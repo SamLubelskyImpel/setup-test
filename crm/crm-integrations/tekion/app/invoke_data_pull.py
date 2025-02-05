@@ -68,13 +68,8 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
     params = {
         "createdStartTime": convert_to_epoch(start_time),
         "createdEndTime": convert_to_epoch(end_time),
-        # TODO: New params
-        "sortedBy": "CREATED_TIME",
-        "sortOrder": "DESC",
-        "status": "ACTIVE"
     }
-    # TODO: change url
-    # api_url = f"{url}/openapi/v3.1.0/crm-leads"
+
     api_url = f"{url}/openapi/v4.0.0/leads"
     logger.info(f"Calling Tekion API: {api_url}", extra={"params": params})
 
@@ -104,6 +99,7 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
 
             # Update params for the next page
             next_page_key = raw_data["meta"].get("nextFetchKey", None)
+            logger.info(f"next_page_key is:{next_page_key}")
             params["nextFetchKey"] = next_page_key
 
         except Exception as e:
@@ -174,11 +170,9 @@ def fetch_data_from_link(link: str, token: str, app_id: str, crm_dealer_id: str,
         "dealer_id": crm_dealer_id,
     }
     try:
-        logger.info(f"Fetching data from API URL: {api_url}")
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
         data = response.json().get("data", [])
-        logger.info(f"repsonse is :{data}")
         return data
     except Exception as e:
         logger.error(f"Error fetching data from {api_url}: {e}")
@@ -196,25 +190,21 @@ def enrich_leads(leads: list, token: str, app_id: str, crm_dealer_id: str, url: 
                 vehicles_data = fetch_data_from_link(vehicle_link, token, app_id, crm_dealer_id, url)
                 lead["vehicles"] = vehicles_data if vehicles_data else None
 
-            # Enrich notes if the key is a link
             if isinstance(lead.get("notes"), dict) and "link" in lead["notes"]:
                 notes_link = lead["notes"]["link"].replace("{lead-id}", lead["id"])
                 notes_data = fetch_data_from_link(notes_link, token, app_id, crm_dealer_id, url)
                 lead["notes"] = notes_data if notes_data else None
 
-            # Enrich trade-ins if the key is a link
             if isinstance(lead.get("tradeIns"), dict) and "link" in lead["tradeIns"]:
                 trade_ins_link = lead["tradeIns"]["link"].replace("{lead-id}", lead["id"])
                 tradeIns_data = fetch_data_from_link(trade_ins_link, token, app_id, crm_dealer_id, url)
                 lead["tradeIns"] = tradeIns_data if tradeIns_data else None
 
-            # Enrich assignees if the key is a link
             if isinstance(lead.get("assignees"), dict) and "link" in lead["assignees"]:
                 assignees_link = lead["assignees"]["link"].replace("{lead-id}", lead["id"])
                 assignees_data = fetch_data_from_link(assignees_link, token, app_id, crm_dealer_id, url)
                 lead["assignees"] = assignees_data if assignees_data else None
 
-            # Enrich contacts if the key is a link
             if isinstance(lead.get("contacts"), dict) and "link" in lead["contacts"]:
                 contacts_link = lead["contacts"]["link"].replace("{lead-id}", lead["id"])
                 contacts_data = fetch_data_from_link(contacts_link, token, app_id, crm_dealer_id, url)
@@ -248,9 +238,7 @@ def record_handler(record: SQSRecord):
         token = get_token_from_s3().token
 
         enriched_leads = enrich_leads(leads, token, app_id, crm_dealer_id, tekion_url)
-        logger.info(f"enriched_leads is:{enriched_leads}")
-        # return
-        save_raw_leads(leads, product_dealer_id)
+        save_raw_leads(enriched_leads, product_dealer_id)
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")

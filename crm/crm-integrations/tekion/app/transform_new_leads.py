@@ -83,52 +83,54 @@ def format_ts(input_ts: str) -> str:
     return dt.strftime(output_format)
 
 
-def parse_email(emails):
-    """Parse the email and return a dictionary with email details."""
+def parse_email(email_communications):
+    """Extract the preferred email or return a default empty email."""
     default_email = {
-        "emailId": "",
+        "email": "",
         "optedForCommunication": False
     }
 
-    if not emails:
+    if not email_communications:
         return default_email
 
-    preferred_email = emails[0]
-    for email in emails:
-        if email.get('emailType') == "PRIMARY":
+    preferred_email = email_communications[0]
+
+    for email in email_communications:
+        if email.get("usagePreference", {}).get("preferred", False):
             preferred_email = email
             break
 
     return {
-        "emailId": preferred_email.get("emailId", ""),
-        "optedForCommunication": preferred_email.get("optedForCommunication", False)
+        "email": preferred_email.get("email", ""),
+        "optedForCommunication": preferred_email.get("usagePreference", {}).get("preferred", False)
     }
 
 
-def parse_phone_number(phones):
-    """Parse the phone number and return a dictionary with phone details."""
+def parse_phone_number(phone_communications):
+    """Extract the preferred phone number or return a default empty number."""
     default_phone = {
         "number": "",
         "optedForCommunication": False
     }
 
-    if not phones:
+    if not phone_communications:
         return default_phone
 
-    preferred_phone = phones[0]
-    for phone in phones:
-        if phone.get('phoneType') == "PRIMARY":
+    preferred_phone = phone_communications[0]
+
+    for phone in phone_communications:
+        if phone.get("usagePreference", {}).get("preferred", False):
             preferred_phone = phone
             break
 
     return {
-        "number": preferred_phone.get("number", ""),
-        "optedForCommunication": preferred_phone.get("optedForCommunication", False)
+        "number": preferred_phone.get("phone", {}).get("completeNumber", ""),
+        "optedForCommunication": preferred_phone.get("usagePreference", {}).get("preferred", False)
     }
 
 
-def parse_address(addresses):
-    """Parse the address and return a dictionary with address components."""
+def parse_address(residence):
+    """Extracts address details from the residence field."""
     default_address = {
         "line1": "",
         "line2": "",
@@ -137,21 +139,19 @@ def parse_address(addresses):
         "zip": ""
     }
 
-    if not addresses:
+    if not residence:
         return default_address
 
-    preferred_address = addresses[0]
-    for address in addresses:
-        if address.get('addressType') == "CURRENT":
-            preferred_address = address
-            break
-
+    address = residence.get("address", {})
     return {
-        "line1": preferred_address.get("line1", ""),
-        "line2": preferred_address.get("line2", ""),
-        "city": preferred_address.get("city", ""),
-        "country": preferred_address.get("country", ""),
-        "zip": preferred_address.get("zip", "")
+        "line1": address.get("addressLine1", "") or default_address["line1"],
+        "line2": address.get("addressLine2", "") or default_address["line2"],
+        "city": next(
+            (unit["value"] for unit in address.get("locationUnits", []) if unit["unit"] == "City"),
+            default_address["city"]
+        ),
+        "country": address.get("addressCountry", "") or default_address["country"],
+        "zip": address.get("postalCode", "") or default_address["zip"]
     }
 
 
@@ -162,20 +162,20 @@ def extract_salesperson(salespersons):
 
     primary_salesperson = salespersons[0]
     for salesperson in salespersons:
-        if salesperson.get("isPrimary") is True:
+        if salesperson.get("isPrimary", False):
             primary_salesperson = salesperson
             break
 
     return {
-        "crm_salesperson_id": str(primary_salesperson.get("arcId")),
+        "crm_salesperson_id": str(primary_salesperson.get("id", "")),
         "is_primary": True,
-        "position_name": primary_salesperson.get("type"),
+        "position_name": primary_salesperson.get("role", "")
     }
-
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format tekion crm json data to unified format."""
     entries = []
+    logger.info(f"Total leads received: {len(json_data)}")  # Log incoming data count
     try:
         for item in json_data:
             db_lead = {}
@@ -185,7 +185,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             lead_origin = item.get('source', {}).get('sourceType', '').upper()
             if lead_origin not in ['INTERNET', 'OEM']:
-                logger.info(f"Skipping lead with origin: {lead_origin}")
+                logger.warning(f"Skipping lead {item.get('id', 'UNKNOWN_ID')} due to invalid origin: {lead_origin}")
                 continue
 
             # Extract crm_dealer_id, placed in lead data by invoke.
@@ -203,43 +203,57 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             vehicles = item.get('vehicles', [])
             trade_ins = item.get('tradeIns', [{}])[0] if item.get('tradeIns') else {}
-            
-            for vehicle in vehicles:
-                db_vehicle = {
-                    "vin": vehicle.get('vin', ''),
-                    "year": int(vehicle.get('year')) if vehicle.get('year') else None,
-                    "make": vehicle.get('make', ''),
-                    "model": vehicle.get('model', ''),
-                    "condition": vehicle.get('stockType', ''),
-                    "oem_name": vehicle.get('trimDetails', {}).get('oem', ''),
-                    "type": vehicle.get('trimDetails', {}).get('bodyType', ''),
-                    "class": vehicle.get('trimDetails', {}).get('bodyClass', ''),
-                    "transmission": vehicle.get('trimDetails', {}).get('transmissionControlType', ''),
-                    "interior_color": vehicle.get('interiorColor', ''),
-                    "exterior_color": vehicle.get('exteriorColor', ''),
-                    "trim": vehicle.get('trimDetails', {}).get('trim', ''),
-                    "trade_in_vin": trade_ins.get('vehicle', {}).get('vin', ''),
-                    "trade_in_year": int(vehicle.get('year')) if vehicle.get('year') else None,
-                    "trade_in_make": trade_ins.get('vehicle', {}).get('make', ''),
-                    "trade_in_model": trade_ins.get('vehicle', {}).get('model', ''),
-                }
+            if not vehicles: 
+                logger.warning(f"Lead {crm_lead_id}: No vehicles found, setting vehicles_of_interest to an empty list.")
+            else:
+                for vehicle in vehicles:
+                    vehicle_spec = vehicle.get('vehicleSpecification', {})
+                    trim_details = vehicle_spec.get('trimDetails', {})
+                    trade_in_vehicle = trade_ins.get('vehicle', {})
+                    trade_in_spec = trade_in_vehicle.get('vehicleSpecification', {})
 
-                db_vehicle = {key: value for key, value in db_vehicle.items() if value not in [None, ""]}
+                    interior_color = ""
+                    exterior_color = ""
+                    for color in vehicle_spec.get("vehicleColors", []):
+                        if color.get("type") == "INTERIOR":
+                            interior_color = color.get("colour", "")
+                        elif color.get("type") == "EXTERIOR":
+                            exterior_color = color.get("colour", "")
 
-                db_vehicles.append(db_vehicle)
+                    db_vehicle = {
+                        "vin": vehicle.get('vin', ''),
+                        "year": int(vehicle_spec.get('year')) if vehicle_spec.get('year') else None,
+                        "make": vehicle_spec.get('make', ''),
+                        "model": vehicle_spec.get('model', ''),
+                        "condition": vehicle.get('stockType', ''),
+                        "oem_name": item.get('oemName', ''),
+                        "type": trim_details.get('bodyType', ''),
+                        "class": vehicle_spec.get('bodyClass', ''),
+                        "transmission": trim_details.get('transmissionControlType', ''),
+                        "interior_color": interior_color,
+                        "exterior_color": exterior_color,
+                        "trim": trim_details.get('trimCode', ''),
+                        "trade_in_vin": trade_in_vehicle.get('vin', ''),
+                        "trade_in_year": int(trade_in_spec.get('year')) if trade_in_spec.get('year') else None,
+                        "trade_in_make": trade_in_spec.get('make', ''),
+                        "trade_in_model": trade_in_spec.get('model', ''),
+                    }
+
+                    db_vehicle = {key: value for key, value in db_vehicle.items() if value not in [None, ""]}
+                    db_vehicles.append(db_vehicle)
 
             db_lead["vehicles_of_interest"] = db_vehicles
 
-            consumer = item.get('customers', [{}])[0]
-            address = parse_address(consumer.get('addresses', []))
-            email = parse_email(consumer.get('emails', []))
-            phone = parse_phone_number(consumer.get('phones', []))
+            consumer = item.get('contacts', [{}])[0]
+            address = parse_address(consumer.get('customerDetails', {}).get('residence', {}))
+            email = parse_email(consumer.get('customerDetails', {}).get('emailCommunications', []))
+            phone = parse_phone_number(consumer.get('customerDetails', {}).get('phoneCommunications', []))
 
             db_consumer = {
-                "first_name": consumer.get('firstName', ''),
-                "last_name": consumer.get('lastName', ''),
-                "middle_name": consumer.get('middleName', ''),
-                "email": email["emailId"],
+                "first_name": consumer.get('customerDetails', {}).get('name', {}).get('firstName', ''),
+                "last_name": consumer.get('customerDetails', {}).get('name', {}).get('lastName', ''),
+                "middle_name": consumer.get('customerDetails', {}).get('name', {}).get('middleName', ''),
+                "email": email["email"],
                 "phone": phone["number"],
                 "address": f"{address['line1']} {address['line2']}".strip(),
                 "city": address["city"],
@@ -262,8 +276,10 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "consumer": db_consumer,
                 "crm_dealer_id": crm_dealer_id
             }
-
+            logger.info(f"entry is: {entry}")
             entries.append(entry)
+            logger.info(f"Successfully added lead {crm_lead_id} to entries.")
+        logger.info(f"Total transformed entries: {len(entries)}")
         return entries
     except Exception as e:
         logger.error(f"Error processing record: {e}")
