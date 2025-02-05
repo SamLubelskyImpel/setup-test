@@ -64,10 +64,9 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
         "dealer_id": crm_dealer_id,
         "Authorization": f"Bearer {token}",
     }
-
     params = {
         "createdStartTime": convert_to_epoch(start_time),
-        "createdEndTime": convert_to_epoch(end_time),
+        "createdEndTime": convert_to_epoch(end_time)
     }
 
     api_url = f"{url}/openapi/v4.0.0/leads"
@@ -99,7 +98,6 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
 
             # Update params for the next page
             next_page_key = raw_data["meta"].get("nextFetchKey", None)
-            logger.info(f"next_page_key is:{next_page_key}")
             params["nextFetchKey"] = next_page_key
 
         except Exception as e:

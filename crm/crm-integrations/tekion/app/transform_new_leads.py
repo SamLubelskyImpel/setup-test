@@ -276,7 +276,6 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "consumer": db_consumer,
                 "crm_dealer_id": crm_dealer_id
             }
-            logger.info(f"entry is: {entry}")
             entries.append(entry)
             logger.info(f"Successfully added lead {crm_lead_id} to entries.")
         logger.info(f"Total transformed entries: {len(entries)}")
