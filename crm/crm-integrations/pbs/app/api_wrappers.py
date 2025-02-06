@@ -435,7 +435,7 @@ class PbsApiWrapper:
             logger.error(f"Other error occurred: {err}")
             raise
 
-    def call_workplan_event_get(self, contact_ref: str, crm_dealer_id: str):
+    def call_workplan_event_post(self, contact_ref: str, crm_dealer_id: str):
         endpoint = f"{self.base_url}/json/reply/WorkplanEventGet"
         params = {
             "SerialNumber": crm_dealer_id,
@@ -451,11 +451,9 @@ class PbsApiWrapper:
             raise
 
     def get_lead_notes(self, contact_ref: str, crm_dealer_id: str) -> str:
-        logger.info(f"Getting lead notes for Contact ")
-        #Get lead notes from WorkplanEventGet endpoint.
         
         try:
-            events = self.call_workplan_event_get(contact_ref, crm_dealer_id).get("Events", [])
+            events = self.call_workplan_event_post(contact_ref, crm_dealer_id).get("Events", [])
             
             lead_notes = []
             lead_notes = [event.get("Details", "").strip() for event in events if event.get("Summary") == "Lead Notes"]
