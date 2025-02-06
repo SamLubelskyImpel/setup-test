@@ -437,14 +437,13 @@ class PbsApiWrapper:
 
     def call_workplan_event_post(self, contact_ref: str, crm_dealer_id: str):
         endpoint = f"{self.base_url}/json/reply/WorkplanEventGet"
-        params = {
+        payload = {
             "SerialNumber": crm_dealer_id,
             "ContactRef": contact_ref
         }
         try:
-            response = requests.post(endpoint, params=params, auth=self.auth)
+            response = requests.post(endpoint, json=payload, auth=self.auth)
             response.raise_for_status()
-            logger.info(f"Successfully fetched lead notes for Contact {contact_ref}")
             return response.json()
         except Exception as err:
             logger.error(f"Error occurred while calling WorkplanEventGet: {err}")
