@@ -57,6 +57,7 @@ def find_value(type: str, dataset: list, id: str):
 
 def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
+
     api = PbsApiWrapper()
 
     end_time = parser.isoparse(sort_time_end)
@@ -126,8 +127,8 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
 
         if contact_id:
             try:
-                lead_notes = api.get_lead_notes(contact_id, crm_dealer_id)
-                existing_notes = lead.get("Notes", "")                    
+                lead_notes = api.get_lead_notes(contact_id, crm_dealer_id, deal_id)
+                existing_notes = lead.get("Notes", "")
                 lead["Lead_Notes"] = "\n".join([existing_notes, lead_notes])
                 logger.info(f"Lead Notes: {lead['Lead_Notes']}")
             except Exception as e:
@@ -201,6 +202,7 @@ def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
     try:
         body = loads(record["body"])
+        #body = record["body"] if isinstance(record["body"], dict) else loads(record["body"])
         logger.info(body)
 
         start_time = body.get("start_time")
