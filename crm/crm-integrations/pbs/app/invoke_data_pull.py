@@ -127,15 +127,8 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
         if contact_id:
             try:
                 lead_notes = api.get_lead_notes(contact_id, crm_dealer_id)
-                existing_notes = lead.get("Notes", "")
-                
-                combined_notes = []
-                if existing_notes:
-                    combined_notes.append(existing_notes)
-                if lead_notes:
-                    combined_notes.append(lead_notes)
-                    
-                lead["Lead_Notes"] = "\n".join(combined_notes)
+                existing_notes = lead.get("Notes", "")                    
+                lead["Lead_Notes"] = "\n".join([existing_notes, lead_notes])
                 logger.info(f"Lead Notes: {lead['Lead_Notes']}")
             except Exception as e:
                 logger.warning(

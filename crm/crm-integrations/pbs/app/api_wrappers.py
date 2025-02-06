@@ -436,16 +436,13 @@ class PbsApiWrapper:
             raise
 
     def call_workplan_event_get(self, contact_ref: str, crm_dealer_id: str):
-        logger.info(f"Calling WorkplanEventGet endpoint for Contact")
-        #Call the WorkplanEventGet endpoint to fetch lead notes
-
         endpoint = f"{self.base_url}/json/reply/WorkplanEventGet"
         params = {
             "SerialNumber": crm_dealer_id,
             "ContactRef": contact_ref
         }
         try:
-            response = requests.get(endpoint, params=params, auth=self.auth)
+            response = requests.post(endpoint, params=params, auth=self.auth)
             response.raise_for_status()
             logger.info(f"Successfully fetched lead notes for Contact {contact_ref}")
             return response.json()
@@ -461,12 +458,7 @@ class PbsApiWrapper:
             events = self.call_workplan_event_get(contact_ref, crm_dealer_id).get("Events", [])
             
             lead_notes = []
-            for event in events:
-                if event.get("Summary") == "Lead Notes":
-
-                    details = event.get("Details", "").strip()
-                    if details:
-                        lead_notes.append(details)
+            lead_notes = [event.get("Details", "").strip() for event in events if event.get("Summary") == "Lead Notes"]
             
             return "\n".join(lead_notes)
         except Exception as e:
