@@ -99,6 +99,7 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
         )
 
     for lead in sorted_leads:
+        logger.info(f"LeadDDDD: {lead}")
         contact_id = lead.get("BuyerRef", None)
         vehicle_id = None
         deal_id = lead.get("DealId")
@@ -130,7 +131,6 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
                 lead_notes = api.get_lead_notes(contact_id, crm_dealer_id, deal_id)
                 existing_notes = lead.get("Notes", "")
                 lead["Lead_Notes"] = "\n".join([existing_notes, lead_notes])
-                logger.info(f"Lead Notes: {lead['Lead_Notes']}")
             except Exception as e:
                 logger.warning(
                     f"Error getting lead notes: {e}"
@@ -201,8 +201,8 @@ def record_handler(record: SQSRecord):
     """Invoke PBS data pull."""
     logger.info(f"Record: {record}")
     try:
-        body = loads(record["body"])
-        #body = record["body"] if isinstance(record["body"], dict) else loads(record["body"])
+        #body = loads(record["body"])
+        body = record["body"] if isinstance(record["body"], dict) else loads(record["body"])
         logger.info(body)
 
         start_time = body.get("start_time")

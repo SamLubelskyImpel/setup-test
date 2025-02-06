@@ -445,15 +445,11 @@ class PbsApiWrapper:
             "ContactRef": contact_ref,
             "SourceRef": deal_id
         }
-        headers = {
-            "Content-Type": "application/json",
-        }
         try:
             response = requests.post(
                 endpoint, 
                 params=params,
                 json=payload,
-                headers=headers,
                 auth=self.auth
             )
             response.raise_for_status()
