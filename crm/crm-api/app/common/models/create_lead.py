@@ -90,7 +90,8 @@ class Metadata(BaseModel):
 
 class CreateLeadRequest(BaseModel):
     consumer_id: int = Field(
-        ..., description="Unique identifier for the associated consumer"
+        ..., description="Unique identifier for the associated consumer",
+
     )
     crm_lead_id: Optional[str] = Field(
         None, description="CRM lead identifier"
@@ -114,7 +115,8 @@ class CreateLeadRequest(BaseModel):
         None, 
         max_length=10000,
         examples=["Does this car have a sunroof?"],
-        description="Comment about the lead or generated text from the source on behalf of the lead"
+        description="Comment about the lead or generated text from the source on behalf of the lead",
+        
     )
     lead_origin: Optional[str] = Field(
         None, 

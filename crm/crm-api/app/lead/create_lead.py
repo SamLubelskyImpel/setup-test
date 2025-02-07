@@ -10,8 +10,8 @@ from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
 
-from validation.validation import ValidationErrorResponse, validate_request_body
-from validation.models.create_lead import CreateLeadRequest 
+from common.validation import validate_request_body, ValidationErrorResponse
+from common.models.create_lead import CreateLeadRequest
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle

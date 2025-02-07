@@ -57,6 +57,7 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
         ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
+        PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -201,7 +202,6 @@ Resources:
                       !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/notification-service-test-EventBus"
                     ]
 
-
   CrmApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -308,8 +308,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "crm-api-${Environment}-CreateLead"
-      CodeUri: app/lead/
-      Handler: create_lead.lambda_handler
+      CodeUri: app/
+      Handler: lead.create_lead.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -323,7 +323,6 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
         - !Ref EventServiceLayer
-        - !Ref ValidationLayer
 
   RetrieveLeads:
     Type: AWS::Serverless::Function
@@ -843,17 +842,6 @@ Resources:
       LayerName: !Sub "event-service-${Environment}"
       Description: INS Event Service Layer
       ContentUri: ./layers/event_service
-      CompatibleRuntimes:
-        - python3.9
-      LicenseInfo: MIT
-      RetentionPolicy: Retain
-
-  ValidationLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: !Sub "validation-${Environment}"
-      Description: INS Event Service Layer
-      ContentUri: ./layers/validation
       CompatibleRuntimes:
         - python3.9
       LicenseInfo: MIT
