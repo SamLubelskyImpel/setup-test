@@ -374,6 +374,8 @@ paths:
           "$ref": "#/components/responses/401"
         '405':
           description: Method Not Allowed
+        '409':
+          description: Conflict. The dealer already exists in the shared layer with the same sfdc_account_id.
         '500':
           "$ref": "#/components/responses/500"
 components:
