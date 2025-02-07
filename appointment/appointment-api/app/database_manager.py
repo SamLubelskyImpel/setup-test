@@ -69,7 +69,7 @@ class DatabaseManager:
     
 
     def get_dealer_info(self) -> List[Dict[str, str]]:
-        """Fetches dealer configurations from the database based on filters."""
+        """Fetches dealers onboarded from the database based on filters."""
         with DBSession() as session:
             query = self._build_query(session)
             self.dealer_records = [
