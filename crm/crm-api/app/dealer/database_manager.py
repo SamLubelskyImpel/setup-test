@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from json import dumps
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -204,12 +205,15 @@ class DatabaseManager:
                     dip.metadata_ = new_metadata
 
                 session.commit()
-
-                return {"statusCode": 200, "body": "Information updated"}
+                logger.info(f"Updated dealer configuration")
+                return {
+                    "statusCode": 200,
+                    "body": dumps({"message": "Information updated"})
+                }
             
         except SQLAlchemyError as e:
             session.rollback()
-            return {"statusCode": 500, "body": f"Database error: {str(e)}"}
+            return {"statusCode": 500, "body": dumps({"error": f"Database error: {str(e)}"})}
 
     def _build_query(self, session: Session):
         """Builds the query to fetch dealer configurations based on the filters."""
