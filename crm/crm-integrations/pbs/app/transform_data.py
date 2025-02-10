@@ -120,7 +120,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             db_lead["crm_lead_id"] = crm_lead_id[:5000]
             db_lead["lead_status"] = deal.get('Status', '')
             db_lead["lead_substatus"] = deal.get('SystemStatus', '')
-            db_lead["lead_comment"] = deal.get('Notes', '')[:5000]
+            db_lead["lead_comment"] = deal.get('Lead_Notes', '')[:5000]
             db_lead["lead_origin"] = lead_origin
             db_lead["lead_source"] = deal.get('LeadSource', '')
 

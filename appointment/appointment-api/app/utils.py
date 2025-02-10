@@ -41,6 +41,12 @@ def invoke_vendor_lambda(payload: dict, lambda_arn: str) -> Any:
     return response_json
 
 
+
+def is_valid_timezone(dealer_timezone: str) -> bool:
+    if dealer_timezone not in pytz.all_timezones:
+        return False
+    return True
+
 def format_timestamp(local_timestamp: Any, timezone: Any) -> Any:
     """Convert local time to UTC."""
     parsed_ts = date_parser.parse(local_timestamp)
