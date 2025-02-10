@@ -26,6 +26,21 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
+CONFIG_FILE_KEY = "configurations/tekion_api_version_config.json"
+
+
+def get_api_version_config():
+    """Retrieve API version configuration from S3."""
+    try:
+        response = s3_client.get_object(Bucket=BUCKET, Key=CONFIG_FILE_KEY)
+        content = response['Body'].read().decode('utf-8')
+        return json.loads(content)
+    except Exception as e:
+        logger.error(f"Failed to fetch API version config: {e}")
+        return {}
+
+
+version_config = get_api_version_config()
 
 
 def convert_to_epoch(timestamp_str):
@@ -51,7 +66,7 @@ def get_credentials_from_secrets():
     return app_id, secret_key, url
 
 
-def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
+def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str, api_version: str = "v3"):
     """Fetch new leads from Tekion CRM."""
     token_from_s3 = get_token_from_s3()
     token = token_from_s3.token
@@ -69,7 +84,11 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str):
         "createdEndTime": convert_to_epoch(end_time)
     }
 
-    api_url = f"{url}/openapi/v4.0.0/leads"
+    if api_version == "v4":
+        api_url = f"{url}/openapi/v4.0.0/leads"
+    else:
+        api_url = f"{url}/openapi/v3.1.0/crm-leads"
+
     logger.info(f"Calling Tekion API: {api_url}", extra={"params": params})
 
     all_leads = []
@@ -227,7 +246,11 @@ def record_handler(record: SQSRecord):
         crm_dealer_id = body['crm_dealer_id']
         product_dealer_id = body['product_dealer_id']
 
-        leads = fetch_new_leads(start_time, end_time, crm_dealer_id)
+        # Determine API version using gating config
+        api_version = version_config.get(product_dealer_id, "v3")
+        logger.info(f"api_version is:{api_version}")
+
+        leads = fetch_new_leads(start_time, end_time, crm_dealer_id, api_version)
         if not leads:
             logger.info(f"No new leads found for dealer {product_dealer_id} for {start_time} to {end_time}")
             return
@@ -235,8 +258,14 @@ def record_handler(record: SQSRecord):
         app_id, secret_key, tekion_url = get_credentials_from_secrets()
         token = get_token_from_s3().token
 
-        enriched_leads = enrich_leads(leads, token, app_id, crm_dealer_id, tekion_url)
-        save_raw_leads(enriched_leads, product_dealer_id)
+        if api_version == "v4":
+            logger.info('we are using version 4')
+            enriched_leads = enrich_leads(leads, token, app_id, crm_dealer_id, tekion_url)
+            save_raw_leads(enriched_leads, product_dealer_id)
+        else:
+            logger.info('we are using version 3')
+            save_raw_leads(leads, product_dealer_id)
+
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")
