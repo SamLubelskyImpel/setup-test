@@ -268,7 +268,7 @@ paths:
           description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"   
-  /appointments/v1/dealer/onboarding/:
+  /appointments/v1/dealer/onboarding:
     get:
       operationId: dealer-onboarding
       summary: This endpoint handles the onboarding of a new dealer and returns it.
@@ -526,9 +526,9 @@ components:
       type: object
       properties:
         dealer_integration_partner_id:
-          type: string
+          type: number
           description: The dealer_integration_partner_id of the Dealer.
-          example: "10"
+          example: 10
         integration_dealer_id:
           type: string
           description: The integration_dealer_id of the Dealer.
