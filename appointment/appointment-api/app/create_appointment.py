@@ -8,7 +8,7 @@ from typing import Any, List
 from datetime import datetime, timezone
 from utils import (invoke_vendor_lambda, IntegrationError, format_timestamp,
                    send_alert_notification, get_dealer_info, get_vendor_op_code,
-                   validate_request_body, ValidationError)
+                   validate_request_body, ValidationError, is_valid_timezone)
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.consumer import Consumer
@@ -85,6 +85,9 @@ def lambda_handler(event, context):
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
             source_product = dealer_partner.product_name
+
+            if not is_valid_timezone(dealer_timezone):
+                raise ValidationError("Invalid dealer timezone provided")
 
             # Get vendor op code using service type
             op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, service_type)

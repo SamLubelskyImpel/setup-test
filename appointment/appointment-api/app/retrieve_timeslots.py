@@ -6,7 +6,7 @@ from json import dumps, loads
 from uuid import uuid4
 from datetime import datetime
 from utils import (invoke_vendor_lambda, IntegrationError, send_alert_notification,
-                   get_dealer_info, get_vendor_op_code, ValidationError)
+                   get_dealer_info, get_vendor_op_code, ValidationError, is_valid_timezone)
 
 from appt_orm.session_config import DBSession
 
@@ -113,6 +113,10 @@ def lambda_handler(event, context):
 
             logger.info(f"Dealer integration partner: {dealer_partner}")
             dealer_timezone = dealer_partner.timezone
+
+            if not is_valid_timezone(dealer_timezone):
+                raise ValidationError("Invalid dealer timezone provided")
+        
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
 

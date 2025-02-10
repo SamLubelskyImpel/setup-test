@@ -192,7 +192,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                - !GetAtt DirectUploadQueue.Arn
+                # - !GetAtt DirectUploadQueue.Arn
                 - !GetAtt UnifiedLoadQueue.Arn
                 - !GetAtt PartnerSyndicationQueue.Arn
         - PolicyName: AccessSecretsManager
@@ -238,42 +238,43 @@ Resources:
                   - ec2:DeleteNetworkInterface
                 Resource: "*"
 
-  DirectUploadQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueue'
-      VisibilityTimeout: 60
-      MessageRetentionPeriod: 1209600
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
-        maxReceiveCount: 3
+  # The DirectUpload Resources have been deprecated and are no longer in use.
+  # DirectUploadQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-DirectUploadQueue'
+  #     VisibilityTimeout: 60
+  #     MessageRetentionPeriod: 1209600
+  #     RedrivePolicy:
+  #       deadLetterTargetArn: !GetAtt DirectUploadDeadLetterQueue.Arn
+  #       maxReceiveCount: 3
 
-  DirectUploadDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
-      VisibilityTimeout: 10
-      MessageRetentionPeriod: 1209600
+  # DirectUploadDeadLetterQueue:
+  #   Type: AWS::SQS::Queue
+  #   Properties:
+  #     QueueName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
+  #     VisibilityTimeout: 10
+  #     MessageRetentionPeriod: 1209600
 
-  DirectUploadDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
-      AlarmDescription: There are over 1 unprocessed messages in the Direct SFTP Upload DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt DirectUploadDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
+  # DirectUploadDLQAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub 'shared-inv-${Environment}-DirectUploadDLQ'
+  #     AlarmDescription: There are over 1 unprocessed messages in the Direct SFTP Upload DLQ
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+  #     Dimensions:
+  #       - Name: QueueName
+  #         Value: !GetAtt DirectUploadDeadLetterQueue.QueueName
+  #     EvaluationPeriods: 1
+  #     MetricName: ApproximateNumberOfMessagesVisible
+  #     Namespace: AWS/SQS
+  #     Period: 300
+  #     Statistic: Sum
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
 
   DirectUploadFunction:
     Type: AWS::Serverless::Function
@@ -288,64 +289,64 @@ Resources:
         Variables:
           INVENTORY_BUCKET: !Ref InventoryIntegrationsBucket
 
-  DirectUploadErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub shared-inv-${Environment}-DirectUpload
-      AlarmDescription: Direct SFTP Upload failed to execute
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref DirectUploadFunction
-      EvaluationPeriods: 1
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Period: 900
-      Statistic: Sum
-      Threshold: 1
-      TreatMissingData: notBreaching
+  # DirectUploadErrorAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub shared-inv-${Environment}-DirectUpload
+  #     AlarmDescription: Direct SFTP Upload failed to execute
+  #     ActionsEnabled: true
+  #     AlarmActions:
+  #       - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Dimensions:
+  #       - Name: FunctionName
+  #         Value: !Ref DirectUploadFunction
+  #     EvaluationPeriods: 1
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Period: 900
+  #     Statistic: Sum
+  #     Threshold: 1
+  #     TreatMissingData: notBreaching
 
-  DirectUploadEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt DirectUploadQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt DirectUploadFunction.Arn
+  # DirectUploadEventMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     BatchSize: 1
+  #     EventSourceArn: !GetAtt DirectUploadQueue.Arn
+  #     MaximumBatchingWindowInSeconds: 0
+  #     FunctionName: !GetAtt DirectUploadFunction.Arn
 
-  DirectUploadTopicSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      Protocol: sqs
-      RawMessageDelivery: true
-      TopicArn: !Ref InventoryS3ToSNSTopic
-      Endpoint: !GetAtt DirectUploadQueue.Arn
-      FilterPolicyScope: MessageBody
-      FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+  # DirectUploadTopicSubscription:
+  # Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Protocol: sqs
+  #     RawMessageDelivery: true
+  #     TopicArn: !Ref InventoryS3ToSNSTopic
+  #     Endpoint: !GetAtt DirectUploadQueue.Arn
+  #     FilterPolicyScope: MessageBody
+  #     FilterPolicy:
+  #       '{"Records":{"s3":{"object":{"key":[{"prefix":"unified"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
-  DirectUploadQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      Queues:
-        - !Ref DirectUploadQueue
-      PolicyDocument:
-          Version: '2012-10-17'
-          Id: DirectUploadQueuePolicy
-          Statement:
-            - Sid: Allow-SNS-SendMessage
-              Action:
-                - sqs:SendMessage
-              Effect: Allow
-              Resource: !GetAtt DirectUploadQueue.Arn
-              Principal:
-                  Service: sns.amazonaws.com
-              Condition:
-                  ArnEquals:
-                      aws:SourceArn: !Ref InventoryS3ToSNSTopic
+  # DirectUploadQueuePolicy:
+  #   Type: AWS::SQS::QueuePolicy
+  #   Properties:
+  #     Queues:
+  #       - !Ref DirectUploadQueue
+  #     PolicyDocument:
+  #         Version: '2012-10-17'
+  #         Id: DirectUploadQueuePolicy
+  #         Statement:
+  #           - Sid: Allow-SNS-SendMessage
+  #             Action:
+  #               - sqs:SendMessage
+  #             Effect: Allow
+  #             Resource: !GetAtt DirectUploadQueue.Arn
+  #             Principal:
+  #                 Service: sns.amazonaws.com
+  #             Condition:
+  #                 ArnEquals:
+  #                     aws:SourceArn: !Ref InventoryS3ToSNSTopic
 
   UnifiedLoadQueue:
     Type: AWS::SQS::Queue
@@ -493,12 +494,24 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "shared-inv-${Environment}-GenerateICCScheduleRule"
-      ScheduleExpression: rate(1 hour)  # Adjust the schedule as needed
+      ScheduleExpression: cron(15 4,8,12,16,20 * * ? *)
       State: ENABLED
       Targets:
         - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCTarget"
+          Id: "GenerateICCCarsales"
           Input: '{"integration_partner": "carsales"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCCoxau"
+          Input: '{"integration_partner": "coxau"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCDealerStudio"
+          Input: '{"integration_partner": "dealerstudio"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCICC"
+          Input: '{"integration_partner": "icc"}'
+        - Arn: !GetAtt GenerateICC.Arn
+          Id: "GenerateICCAutostock"
+          Input: '{"integration_partner": "autostock"}'
 
   PermissionForEventsToInvokeGenerateICC:
     Type: AWS::Lambda::Permission
@@ -554,7 +567,7 @@ Resources:
       Endpoint: !GetAtt PartnerSyndicationQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"icc/carsales"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"icc"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   PartnerSyndicationQueuePolicy:
     Type: AWS::SQS::QueuePolicy

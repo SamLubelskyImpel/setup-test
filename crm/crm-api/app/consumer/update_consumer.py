@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import loads, dumps
 from typing import Any
+from utils import send_alert_notification
 
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -33,7 +34,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             consumer_query = session.query(
-                Consumer
+                Consumer, DealerIntegrationPartner
             ).join(
                 DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
             ).join(
@@ -51,10 +52,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Consumer {consumer_id} not found."})
                 }
+            
+            consumer, dealer_partner_db = consumer_db
 
+            if not any([dealer_partner_db.is_active, dealer_partner_db.is_active_salesai, dealer_partner_db.is_active_chatai]):
+                error_msg = f"Dealer integration partner {dealer_partner_db.id} is not active. Consumer failed to be updated."
+                logger.error(error_msg)
+                send_alert_notification(subject=f'CRM API: Consumer update failure', message=error_msg)
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": error_msg})
+                }
+            
             for field in fields_to_update:
                 if field in body:
-                    setattr(consumer_db, field, body[field])
+                    setattr(consumer, field, body[field])
 
             session.commit()
 
