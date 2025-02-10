@@ -445,13 +445,13 @@ Resources:
             Type: Api
             Properties:
               RestApiId: !Ref AppointmentServiceApiGateway
-              Path: /appointments/dealer/onboarding
+              Path: /appointments/v1/dealer/onboarding/
               Method: GET
           Post:
             Type: Api
             Properties:
               RestApiId: !Ref AppointmentServiceApiGateway
-              Path: /appointments/dealer/onboarding
+              Path: /appointments/v1/dealer/onboarding/
               Method: POST
         Layers:
           - !Ref ApptOrmLayer
