@@ -1,5 +1,6 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 from pydantic import BaseModel, Field
+from datetime import datetime, timezone
 
 
 class VehicleMetadata(BaseModel):
@@ -60,13 +61,13 @@ class VehicleOfInterest(BaseModel):
     metadata: Optional[VehicleMetadata] = Field(
         None, description="Metadata associated with the vehicle"
     )
-    crm_vehicle_id: Optional[str] = Field(
-        None, description="CRM vehicle identifier"
-    )
+    crm_vehicle_id: Optional[str] = Field(None, description="CRM vehicle identifier")
 
 
 class Salesperson(BaseModel):
-    crm_salesperson_id: str = Field(..., description="CRM identifier for the salesperson")
+    crm_salesperson_id: str = Field(
+        ..., description="CRM identifier for the salesperson"
+    )
     first_name: str = Field(..., description="First name of the salesperson")
     last_name: str = Field(..., description="Last name of the salesperson")
     email: Optional[str] = Field(None, description="Email address of the salesperson")
@@ -75,14 +76,12 @@ class Salesperson(BaseModel):
         None, description="Position or role of the salesperson"
     )
     is_primary: Optional[bool] = Field(
-        None, description="Whether this salesperson is the primary contact"
+        False, description="Whether this salesperson is the primary contact"
     )
 
 
 class Metadata(BaseModel):
-    crmLeadStatus: Optional[str] = Field(
-        None, description="CRM status of the lead"
-    )
+    crmLeadStatus: Optional[str] = Field(None, description="CRM status of the lead")
     appraisalLink: Optional[str] = Field(
         None, description="Link to the appraisal details"
     )
@@ -90,45 +89,39 @@ class Metadata(BaseModel):
 
 class CreateLeadRequest(BaseModel):
     consumer_id: int = Field(
-        ..., description="Unique identifier for the associated consumer",
-
+        ..., description="Unique identifier for the associated consumer"
     )
-    crm_lead_id: Optional[str] = Field(
-        None, description="CRM lead identifier"
-    )
-    lead_ts: Optional[str] = Field(
-        None, description="Timestamp for the lead creation"
-    )
-    lead_status: str = Field(
-        ...,
+    crm_lead_id: Optional[str] = Field(None, description="CRM lead identifier")
+    lead_ts: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp for the lead creation")
+    lead_status: Optional[str] = Field(
+        None,
         max_length=50,
         examples=["ACTIVE", "BAD"],
         description="A status that can be used to group leads that are in a similar state",
     )
     lead_substatus: Optional[str] = Field(
-        None,
+        "",
         max_length=50,
         examples=["Appointment Set"],
         description="Current substatus of the lead",
     )
     lead_comment: Optional[str] = Field(
-        None, 
+        "",
         max_length=10000,
         examples=["Does this car have a sunroof?"],
         description="Comment about the lead or generated text from the source on behalf of the lead",
-        
     )
     lead_origin: Optional[str] = Field(
-        None, 
+        None,
         max_length=100,
         examples=["INTERNET"],
-        description="The first point of contact or channel through which the lead is generated"
+        description="The first point of contact or channel through which the lead is generated",
     )
     lead_source: Optional[str] = Field(
-        None, 
+        None,
         max_length=200,
         examples=["cars.com"],
-        description="The specific channel through which the lead was generated."
+        description="The specific channel through which the lead was generated.",
     )
     lead_source_detail: Optional[str] = Field(
         None, description="Detailed source information of the lead"

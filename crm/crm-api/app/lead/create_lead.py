@@ -11,7 +11,7 @@ from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
 
 from common.validation import validate_request_body, ValidationErrorResponse
-from common.models.create_lead import CreateLeadRequest
+from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -141,16 +141,13 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
-        validate_request_body(event, CreateLeadRequest)
-
-        logger.info(f"Event: {event}")
-
-        body = loads(event["body"])
+        body:CreateLeadRequest = validate_request_body(event, CreateLeadRequest)        
         request_product = event["headers"]["partner_id"]
-        consumer_id = body["consumer_id"]
-        salespersons = body.get("salespersons", [])
-        crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts", datetime.now(timezone.utc))
+        consumer_id = body.consumer_id
+        salespersons = body.salespersons
+        crm_lead_id = body.crm_lead_id
+        lead_ts = body.lead_ts
+        logger.info(f"Body: {body.model_dump()}")
 
         authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
@@ -232,58 +229,40 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 # Create lead
                 lead = Lead(
-                    consumer_id=consumer_id,
-                    status=body["lead_status"],
-                    substatus=body["lead_substatus"],
-                    comment=body["lead_comment"],
-                    origin_channel=body["lead_origin"],
-                    source_channel=body["lead_source"],
-                    source_detail=body.get("lead_source_detail"),
-                    crm_lead_id=crm_lead_id,
-                    request_product=request_product,
-                    lead_ts=lead_ts,
-                    metadata_=body.get("metadata"),
+                    consumer_id = consumer_id,
+                    status = body.lead_status,
+                    substatus = body.lead_substatus,
+                    comment = body.lead_comment,
+                    origin_channel = body.lead_origin,
+                    source_channel = body.lead_source,
+                    source_detail = body.lead_source_detail,
+                    crm_lead_id = crm_lead_id,
+                    request_product = request_product,
+                    lead_ts = lead_ts,
+                    metadata_ = body.metadata,
                 )
 
                 session.add(lead)
                 logger.info("Lead pending")
 
                 # Create vehicles of interest
-                vehicles_of_interest = body["vehicles_of_interest"]
+                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest.
                 for vehicle in vehicles_of_interest:
-                    vehicle = Vehicle(
-                        vin=vehicle.get("vin"),
-                        stock_num=vehicle.get("stock_number"),
-                        type=vehicle.get("type"),
-                        vehicle_class=vehicle.get("class"),
-                        mileage=vehicle.get("mileage"),
-                        make=vehicle.get("make"),
-                        model=vehicle.get("model"),
-                        manufactured_year=vehicle.get("year"),
-                        oem_name=vehicle.get("oem_name"),
-                        body_style=vehicle.get("body_style"),
-                        transmission=vehicle.get("transmission"),
-                        interior_color=vehicle.get("interior_color"),
-                        exterior_color=vehicle.get("exterior_color"),
-                        trim=vehicle.get("trim"),
-                        price=vehicle.get("price"),
-                        status=vehicle.get("status"),
-                        condition=vehicle.get("condition"),
-                        odometer_units=vehicle.get("odometer_units"),
-                        vehicle_comments=vehicle.get("vehicle_comments"),
-                        crm_vehicle_id=vehicle.get("crm_vehicle_id"),
-                        trade_in_vin=vehicle.get("trade_in_vin"),
-                        trade_in_year=vehicle.get("trade_in_year"),
-                        trade_in_make=vehicle.get("trade_in_make"),
-                        trade_in_model=vehicle.get("trade_in_model"),
-                        metadata_=vehicle.get("metadata"),
-                    )
+                    vo_data = vehicle.model_dump()
+                    vo_data["stock_num"] = vo_data.pop("stock_number", None)
+                    vo_data["vehicle_class"] = vo_data.pop("class_", None)
+                    vo_data["manufactured_year"] = vo_data.pop("year", None)
+                    
+                    metadata = vo_data.pop("metadata", None)
+                    vo_data["metadata_"] = metadata.model_dump() if metadata else {}
+                    
+                    vehicle = Vehicle(**vo_data)
                     lead.vehicles.append(vehicle)
 
                 if salespersons:
                     for salesperson in salespersons:
                         # Create salesperson
-                        crm_salesperson_id = salesperson.get("crm_salesperson_id")
+                        crm_salesperson_id = salesperson.crm_salesperson_id
 
                         # Query for existing salesperson
                         salesperson_db = None
@@ -302,7 +281,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                         update_attrs(
                             salesperson_db,
-                            salesperson,
+                            salesperson.model_dump(),
                             dip_db.id,
                             salesperson_attrs,
                             request_product,
@@ -313,7 +292,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                         # Create lead salesperson
                         lead_salesperson = Lead_Salesperson(
-                            is_primary=salesperson.get("is_primary", False),
+                            is_primary=salesperson.is_primary,
                         )
                         lead_salesperson.salesperson = salesperson_db
                         lead_salesperson.lead = lead
