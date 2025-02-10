@@ -268,7 +268,7 @@ paths:
           description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"   
-  /appointments/dealer/onboarding/:
+  /appointments/v1/dealer/onboarding/:
     get:
       operationId: dealer-onboarding
       summary: This endpoint handles the onboarding of a new dealer and returns it.
@@ -278,6 +278,8 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/IntegrationPartnerName"
+        - "$ref": "#/components/parameters/ProductName"
       responses:
         '200':
           description: Success. The request was received and successfully processed by the Appointment persistence data layer.
@@ -318,6 +320,7 @@ paths:
                 - dealer_name
                 - timezone
                 - sfdc_account_id
+                - service_type
               properties:
                 integration_dealer_id:
                   type: string
@@ -522,6 +525,10 @@ components:
       description: A dealer onboarding in the Appointment layer.
       type: object
       properties:
+        dealer_integration_partner_id:
+          type: string
+          description: The dealer_integration_partner_id of the Dealer.
+          example: "10"
         integration_dealer_id:
           type: string
           description: The integration_dealer_id of the Dealer.
@@ -565,18 +572,24 @@ components:
           type: boolean
           description: Indicates if the dealer is active.
           example: true
-        integration_op_code:
-          type: string
-          description: The integration op code.
-          example: "12382910"
-        integration_op_code_description:
-          type: string
-          description: The integration op code description.
-          example: "Generic Op Code description"
-        service_type:
-          type: string
-          description: The type of service provided by the dealer.
-          example: "GENERAL_SERVICE"
+        integration_op_codes:
+          type: array
+          description: List of integration operation codes.
+          items:
+            type: object
+            properties:
+              op_code:
+                type: string
+                description: The integration op code.
+                example: "12382910"
+              op_code_description:
+                type: string
+                description: The integration op code description.
+                example: "Generic Op Code description"
+              service_type:
+                type: string
+                description: The type of service provided by the dealer.
+                example: "GENERAL_SERVICE"
 
   responses:
     '400':
@@ -636,6 +649,20 @@ components:
       name: x_api_key
       in: header
       description: An API Key provided by CE team that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    IntegrationPartnerName:
+      name: integration_partner_name
+      in: query
+      description: Name of the integration partner.
+      required: false
+      schema:
+        type: string
+    ProductName:
+      name: product_name
+      in: query
+      description: Name of the product.
       required: true
       schema:
         type: string
