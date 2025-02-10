@@ -261,6 +261,10 @@ Resources:
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/TekionFTP*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/TekionFTP*",
                   ]
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DealerVaultFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DealerVaultFTP*",
+                  ]
             - Sid: AllowS3
               Effect: Allow
               Action:

@@ -18,7 +18,7 @@ s3_client = boto3.client('s3')
 
 def get_ftp_credentials():
     """Get FTP credentials from Secrets Manager."""
-    secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/TekionFTP"
+    secret_id = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/DealerVaultFTP"
     try:
         secret = boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)
         secret_data = loads(secret["SecretString"])
@@ -35,7 +35,7 @@ def list_new_files(ftp):
     # Get current time and time 24 hours ago
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
-    ftp.cwd(FTP_FOLDER)
+    ftp.cwd("") # TODO: Change to FTP_FOLDER
     logger.info(f"Changed to directory: {FTP_FOLDER}")
     new_files = []
     for file in ftp.nlst():

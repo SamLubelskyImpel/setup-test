@@ -15,6 +15,9 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
+def convert_to_float(value):
+    return float(value) if value and value.replace('.', '', 1).isdigit() else None
+
 def parse_csv_to_entries(csv_data, s3_uri):
     entries = []
     entries_lookup = {}
@@ -42,58 +45,76 @@ def parse_csv_to_entries(csv_data, s3_uri):
             'dms_id': dms_id
         }
 
-        repair_order_no = normalized_row["rono"]
+        repair_order_no = normalized_row["repair_order_number"]
 
         # Check if the repair order has already been processed
         if repair_order_no in entries_lookup:
             matching_entry = entries_lookup[repair_order_no]
             # Create a dictionary for the current operation code and its description
             db_op_code = {
-                "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
+                "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255]#,
+                #"op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
             # add new repair order
             db_service_repair_order["repair_order_no"] = repair_order_no
-            db_service_repair_order["ro_open_date"] = normalized_row.get("rocreatedtime")
-            db_service_repair_order["ro_close_date"] = normalized_row.get("closedtime")
-            db_service_repair_order["txn_pay_type"] = normalized_row.get("paytype")
-            db_service_repair_order["advisor_name"] = normalized_row.get("advisorname")
-            db_service_repair_order["total_amount"] = normalized_row.get("amount")
-            db_service_repair_order["comment"] = normalized_row.get("concern")
+            db_service_repair_order["ro_open_date"] = normalized_row.get("repair_order_open_date")
+            db_service_repair_order["ro_close_date"] = normalized_row.get("repair_order_close_date")
+            #db_service_repair_order["txn_pay_type"] = normalized_row.get("paytype")
+            db_service_repair_order["advisor_name"] = normalized_row.get("service advisor name")
+            db_service_repair_order["service_order_cost"] = convert_to_float(normalized_row.get("total_repair_order_cost"))
+            db_service_repair_order["consumer_labor_amount"] = convert_to_float(normalized_row.get("total_customer_labor_price"))
+            db_service_repair_order["consumer_parts_amount"] = convert_to_float(normalized_row.get("total_customer_parts_price"))
+            db_service_repair_order["consumer_total_amount"] = convert_to_float(normalized_row.get("total_customer_price"))
+            db_service_repair_order["warranty_labor_amount"] = convert_to_float(normalized_row.get("total_warranty_labor_price"))
+            db_service_repair_order["warranty_parts_cost"] = convert_to_float(normalized_row.get("total_warranty_parts_price"))
+            db_service_repair_order["warranty_total_amount"] = convert_to_float(normalized_row.get("total_warranty_price"))
+            db_service_repair_order["customer_pay_parts_cost"] = convert_to_float(normalized_row.get("total_customer_parts_cost"))
+            db_service_repair_order["internal_parts_cost"] = convert_to_float(normalized_row.get("total_internal_parts_cost"))
+            db_service_repair_order["total_internal_labor_amount"] = convert_to_float(normalized_row.get("total_internal_labor_price"))
+            db_service_repair_order["total_internal_parts_amount"] = convert_to_float(normalized_row.get("total_internal_parts_price"))
+            db_service_repair_order["internal_total_amount"] = convert_to_float(normalized_row.get("total_internal_price"))
+            db_service_repair_order["total_amount"] = convert_to_float(normalized_row.get("total_repair_order_price"))
+            db_service_repair_order["comment"] = normalized_row.get("customer_comment ")
+            db_service_repair_order["service_order_status"] = normalized_row.get("ro status")
 
             # add new vehicle
             db_vehicle["vin"] = normalized_row.get("vin")
-            db_vehicle["year"] = int(float(normalized_row["year"])) if normalized_row.get("year") and normalized_row["year"].isdigit() else None
+            db_vehicle["year"] = int(float(normalized_row["model_year"])) if normalized_row.get("model_year") and normalized_row["model_year"].isdigit() else None
             db_vehicle["make"] = normalized_row.get("make")
             db_vehicle["model"] = normalized_row.get("model")
             db_vehicle["oem_name"] = normalized_row.get("make")
-            db_vehicle["type"] = normalized_row.get("bodytype")
-            db_vehicle["vehicle_class"] = normalized_row.get("bodyclass")
-            db_vehicle["mileage"] = int(float(normalized_row["mileagein"])) if normalized_row.get("mileagein") and normalized_row["mileagein"].isdigit() else None
-            db_vehicle["new_or_used"] = "N" if normalized_row.get("vehicletype") == "NEW" else "U" if normalized_row.get("vehicletype") == "USED" else None
+            db_vehicle["stock_num"] = normalized_row.get("stock number")
+            #db_vehicle["type"] = normalized_row.get("bodytype")
+            db_vehicle["vehicle_class"] = normalized_row.get("trim")
+            db_vehicle["trim"] = normalized_row.get("trim")
+            db_vehicle["exterior_color"] = normalized_row.get("exterior_color_description")
+            db_vehicle["mileage"] = int(float(normalized_row["odometer_in"])) if normalized_row.get("odometer_in") and normalized_row["odometer_in"].isdigit() else None
+            db_vehicle["new_or_used"] = "N" if normalized_row.get("new/used") == "NEW" else "U" if normalized_row.get("new/used") == "USED" else None
 
             # add new consumer
-            db_consumer["dealer_customer_no"] = normalized_row.get("displayid")
-            db_consumer["first_name"] = normalized_row.get("firstname")
-            db_consumer["last_name"] = normalized_row.get("lastname")
-            db_consumer["email"] = normalized_row.get("email")
-            db_consumer["cell_phone"] = normalized_row.get("mobilephone")
-            db_consumer["home_phone"] = normalized_row.get("homephone")
-            db_consumer["state"] = normalized_row.get("state")
+            db_consumer["dealer_customer_no"] = normalized_row.get("contact_id")
+            db_consumer["first_name"] = normalized_row.get("first_name")
+            db_consumer["last_name"] = normalized_row.get("last_name")
+            db_consumer["email"] = normalized_row.get("personal_email_address")
+            db_consumer["cell_phone"] = normalized_row.get("cell phone")
+            db_consumer["home_phone"] = normalized_row.get("home_phone_number")
+            db_consumer["state"] = normalized_row.get("state_or_region")
             db_consumer["city"] = normalized_row.get("city")
-            db_consumer["postal_code"] = normalized_row.get("postalcode")
-            db_consumer["address"] = (normalized_row.get("streetaddress1", "") + normalized_row.get("streetaddress2", ""))
-            db_consumer["email_optin_flag"] = bool(normalized_row.get("email"))
-            db_consumer["sms_optin_flag"] = False
+            db_consumer["postal_code"] = normalized_row.get("postal_code")
+            db_consumer["address"] = normalized_row.get("residential_street_address", "")
+            db_consumer["email_optin_flag"] = bool(normalized_row.get("allow_email_solicitation"))
+            db_consumer["phone_optin_flag"] = bool(normalized_row.get("allow_phone_solicitation"))
+            db_consumer["postal_mail_optin_flag"] = bool(normalized_row.get("allow_mail_solicitation"))
+            db_consumer["sms_optin_flag"] = bool(normalized_row.get("allow_phone_solicitation"))
 
             # add new op code
-            db_op_code = {
-                "op_code|op_code": normalized_row.get('opcode', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
-            }
-            db_op_codes.append(db_op_code)
+            # db_op_code = {
+            #     "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255]#,
+            #     #"op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
+            # }
+            # db_op_codes.append(db_op_code)
 
             metadata = dumps(db_metadata)
             db_vehicle["metadata"] = metadata
@@ -105,7 +126,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
                 "service_repair_order": db_service_repair_order,
                 "vehicle": db_vehicle,
                 "consumer": db_consumer,
-                "op_codes.op_codes": db_op_codes,
+                # "op_codes.op_codes": db_op_codes,
             }
             entries.append(entry)
             entries_lookup[repair_order_no] = entry
