@@ -259,11 +259,9 @@ def record_handler(record: SQSRecord):
         token = get_token_from_s3().token
 
         if api_version == "v4":
-            logger.info('we are using version 4')
             enriched_leads = enrich_leads(leads, token, app_id, crm_dealer_id, tekion_url)
             save_raw_leads(enriched_leads, product_dealer_id)
         else:
-            logger.info('we are using version 3')
             save_raw_leads(leads, product_dealer_id)
 
 
