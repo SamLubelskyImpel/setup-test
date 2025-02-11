@@ -152,7 +152,7 @@ class PbsApiWrapper:
         endpoint = f"{self.base_url}/json/reply/EmployeeGet"
         params = {
             "SerialNumber": crm_dealer_id,
-            "IncludeInactive": False
+            "IncludeInactive": False 
         }
 
         try:
@@ -434,3 +434,35 @@ class PbsApiWrapper:
         except Exception as err:
             logger.error(f"Other error occurred: {err}")
             raise
+
+    def call_workplan_event_post(self, contact_ref: str, crm_dealer_id: str, deal_id: str):
+        endpoint = f"{self.base_url}/json/reply/WorkplanEventGet"
+        params = {
+            "SerialNumber": crm_dealer_id,
+        }
+        payload = {
+            "SerialNumber": crm_dealer_id,
+            "ContactRef": contact_ref,
+            "SourceRef": deal_id
+        }
+        try:
+            response = requests.post(
+                endpoint, 
+                params=params,
+                json=payload,
+                auth=self.auth
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as err:
+            logger.error(f"Error occurred while calling WorkplanEventGet: {err}")
+            raise
+
+    def get_lead_notes(self, contact_ref: str, crm_dealer_id: str, deal_id: str) -> str:
+        try:
+            events = self.call_workplan_event_post(contact_ref, crm_dealer_id, deal_id).get("Events")
+            lead_notes = [event.get("Details", "").strip() for event in events if event.get("Summary") == "Lead Notes"]
+            return "\n".join(lead_notes)
+        except Exception as e:
+            logger.error(f"Error getting lead notes: {e}")
+            return ""
