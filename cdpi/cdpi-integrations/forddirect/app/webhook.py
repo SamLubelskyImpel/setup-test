@@ -13,6 +13,7 @@ FILE_TYPES = [
     "inventory",
     "pii_attributes",
     "pii_match",
+    "dsr",
     "other"
 ]
 
