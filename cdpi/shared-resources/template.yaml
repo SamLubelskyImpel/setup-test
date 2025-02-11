@@ -99,6 +99,18 @@ Resources:
             NoncurrentVersionExpiration:
               NoncurrentDays: 3  # A very short limit to avoid excess bucket costs.
             Status: Enabled
+          - Id: DeleteFordProcessedFiles
+            Status: !If [ IsProd, Enabled, Disabled ]
+            Prefix: fd-processed/
+            ExpirationInDays: 5
+          - Id: DeleteFordRawFiles
+            Status: !If [ IsProd, Enabled, Disabled ]
+            Prefix: fd-raw/
+            ExpirationInDays: 5
+          - Id: DeletePScores
+            Status: !If [ IsProd, Enabled, Disabled ]
+            Prefix: scores-syndication/
+            ExpirationInDays: 5
       VersioningConfiguration:
         Status: !If [ IsProd, Enabled, Suspended ]
       Tags:
