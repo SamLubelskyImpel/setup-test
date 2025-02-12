@@ -13,9 +13,9 @@ class VehicleMetadata(BaseModel):
 
 
 class VehicleOfInterest(BaseModel):
-    vin: str = Field(..., description="Vehicle Identification Number")
+    vin: Optional[str] = Field(None, description="Vehicle Identification Number")
     stock_number: Optional[str] = Field(None, description="Stock number of the vehicle")
-    type: str = Field(..., description="Type of the vehicle (e.g., SUV, Sedan)")
+    type: Optional[str] = Field(None, description="Type of the vehicle (e.g., SUV, Sedan)")
     class_: Optional[str] = Field(
         None, alias="class", description="Class of the vehicle (e.g., Compact)"
     )
@@ -68,8 +68,8 @@ class Salesperson(BaseModel):
     crm_salesperson_id: str = Field(
         ..., description="CRM identifier for the salesperson"
     )
-    first_name: str = Field(..., description="First name of the salesperson")
-    last_name: str = Field(..., description="Last name of the salesperson")
+    first_name: Optional[str] = Field("", description="First name of the salesperson")
+    last_name: Optional[str] = Field("", description="Last name of the salesperson")
     email: Optional[str] = Field(None, description="Email address of the salesperson")
     phone: Optional[str] = Field(None, description="Phone number of the salesperson")
     position_name: Optional[str] = Field(

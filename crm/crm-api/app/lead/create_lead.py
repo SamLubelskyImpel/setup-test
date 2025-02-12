@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
-from utils import send_alert_notification
+from lead.utils import send_alert_notification
 
 from common.validation import validate_request_body, ValidationErrorResponse
 from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
@@ -244,7 +244,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 logger.info("Lead pending")
 
                 # Create vehicles of interest
-                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest.
+                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest
                 for vehicle in vehicles_of_interest:
                     vo_data = vehicle.model_dump()
                     vo_data["stock_num"] = vo_data.pop("stock_number", None)
@@ -304,7 +304,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.rollback()
                 logger.info(f"Error occurred: {e}")
                 raise e
-
+            
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
@@ -363,7 +363,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 raise DASyndicationError(e)
 
     except ValidationErrorResponse as e:
-        logger.warning(f"Validation failed: {e.errors}")
+        logger.warning(f"Validation failed: {e.full_errors}")
         return {
             "statusCode": 400,
             "body": dumps({
