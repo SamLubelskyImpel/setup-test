@@ -29,9 +29,9 @@ class DealerOnboardingInfo:
     dealer_name: str
     timezone: str
     sfdc_account_id: str
-    is_active: bool = False
     service_type: str
     integration_dealer_id: str
+    is_active: bool = False
     dealer_location_name: Optional[str] = None
     country: Optional[str] = None
     state: Optional[str] = None
@@ -67,7 +67,6 @@ class DatabaseManager:
 
         return None
     
-
     def get_dealer_info(self) -> List[Dict[str, str]]:
         """Fetches dealers onboarded from the database based on filters."""
         with DBSession() as session:
@@ -77,9 +76,57 @@ class DatabaseManager:
             ]
         return self.dealer_records
 
+    def create_dealer(self, session: Session, dealer_info: DealerOnboardingInfo):
+        logger.info("Creating new dealer")
+        dealer = Dealer(
+            sfdc_account_id=dealer_info.sfdc_account_id,
+            dealer_name=dealer_info.dealer_name,
+            timezone=dealer_info.timezone,
+            dealer_location_name=dealer_info.dealer_location_name,
+            country=dealer_info.country,
+            state=dealer_info.state,
+            city=dealer_info.city,
+            zip_code=dealer_info.zip_code
+        )
+
+        session.add(dealer)
+        session.flush()
+        return dealer
+    
+    def create_dealer_integration_partner(self, session: Session, dealer_info: DealerOnboardingInfo, dealer: Dealer, integration_partner: IntegrationPartner, product: Product):
+        logger.info("Creating new dealer_integration_partner")
+
+        dealer_integration_partner = DealerIntegrationPartner(
+            integration_dealer_id=dealer_info.integration_dealer_id,
+            integration_partner_id=integration_partner.id,
+            dealer_id=dealer.id,
+            product_id=product.id,
+            is_active=dealer_info.is_active
+        )
+
+        session.add(dealer_integration_partner)
+        session.flush()
+        return dealer_integration_partner
+
+    def create_op_code(self, session: Session, dealer_integration_partner: DealerIntegrationPartner, service_type: ServiceType, dealer_info: DealerOnboardingInfo):
+        logger.info("Creating new op_code")
+
+        op_code = OpCode(
+            dealer_integration_partner_id=dealer_integration_partner.id,
+            op_code=dealer_info.integration_op_code,
+            op_code_description=dealer_info.integration_op_code_description,
+            service_type_id=service_type.id
+        )
+
+        session.add(op_code)
+        session.commit()
+        return op_code
+
     def post_dealer_onboarding_info(self, dealer_info: DealerOnboardingInfo) -> Dict[str, str]:
         """Inserts into the database a new appt_dealer, appt_dealer_integration_partner and appt_op_code based on the DealerOnboardingInfo."""
-
+        dealer_integration_partner = None
+        is_new_dealer = False
+        
         if not is_valid_timezone(dealer_info.timezone):
             logger.warning(f"Invalid timezone: {dealer_info.timezone} - Dealer Onboarding Failed")
             return {"statusCode": 400, "body": "Invalid timezone - Dealer Onboarding Failed"}
@@ -130,7 +177,6 @@ class DatabaseManager:
                     "body": f"Service Type '{dealer_info.service_type}' not found",
                 }
             
-
             try:
 
                 logger.info(f"Checking existing dealer")
@@ -143,67 +189,32 @@ class DatabaseManager:
 
                 if dealer:
                     logger.warning(f"Dealer with sfdc_account_id '{dealer_info.sfdc_account_id}' already exists")
-
                 else:
-                    logger.info("Creating new dealer")
+                    is_new_dealer = True
+                    dealer = self.create_dealer(session, dealer_info)
 
-                    dealer = Dealer(
-                        sfdc_account_id=dealer_info.sfdc_account_id,
-                        dealer_name=dealer_info.dealer_name,
-                        timezone=dealer_info.timezone,
-                        dealer_location_name=dealer_info.dealer_location_name,
-                        country=dealer_info.country,
-                        state=dealer_info.state,
-                        city=dealer_info.city,
-                        zip_code=dealer_info.zip_code
+                if not is_new_dealer:
+                    logger.info("Checking existing dealer_integration_partner")
+
+                    dealer_integration_partner = (
+                        session.query(DealerIntegrationPartner)
+                        .filter(DealerIntegrationPartner.integration_partner_id == integration_partner.id)
+                        .filter(DealerIntegrationPartner.dealer_id == dealer.id)
+                        .filter(DealerIntegrationPartner.product_id == product.id)
+                        .first()
                     )
 
-                    session.add(dealer)
-                    session.flush()
-
-                logger.info("Checking existing dealer_integration_partner")
-
-                dealer_integration_partner = (
-                    session.query(DealerIntegrationPartner)
-                    .filter(DealerIntegrationPartner.integration_partner_id == integration_partner.id)
-                    .filter(DealerIntegrationPartner.dealer_id == dealer.id)
-                    .filter(DealerIntegrationPartner.product_id == product.id)
-                    .first()
-                )
-
-                if dealer_integration_partner:
-                    logger.warning(f"Dealer Integration Partner already exists - dip_id: {dealer_integration_partner.id}")
-                    return {
-                        "statusCode": 409,
-                        "body": f"Dealer Integration Partner already exists - dip_id: {dealer_integration_partner.id}",
-                    }
+                    if dealer_integration_partner:
+                        logger.warning(f"Dealer Integration Partner already exists - dip_id: {dealer_integration_partner.id}")
+                        return {
+                            "statusCode": 409,
+                            "body": f"Dealer Integration Partner already exists - dip_id: {dealer_integration_partner.id}",
+                        }
                 
-                else:
-                    
-                    logger.info("Creating new dealer_integration_partner")
+                if not dealer_integration_partner:    
+                    dealer_integration_partner = self.create_dealer_integration_partner(session, dealer_info, dealer, integration_partner, product)
 
-                    dealer_integration_partner = DealerIntegrationPartner(
-                        integration_dealer_id=dealer_info.integration_dealer_id,
-                        integration_partner_id=integration_partner.id,
-                        dealer_id=dealer.id,
-                        product_id=product.id,
-                        is_active=dealer_info.is_active
-                    )
-
-                    session.add(dealer_integration_partner)
-                    session.flush()
-
-                logger.info("Creating new op_code")
-
-                op_code = OpCode(
-                    dealer_integration_partner_id=dealer_integration_partner.id,
-                    op_code=dealer_info.integration_op_code,
-                    op_code_description=dealer_info.integration_op_code_description,
-                    service_type_id=service_type.id
-                )
-
-                session.add(op_code)
-                session.commit()
+                op_code = self.create_op_code(session, dealer_integration_partner, service_type, dealer_info)
 
                 logger.info(f"Dealer onboarded successfully - dealer_id: {dealer.id} - dip_id: {dealer_integration_partner.id}")
 
