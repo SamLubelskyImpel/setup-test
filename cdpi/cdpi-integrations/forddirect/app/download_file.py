@@ -73,6 +73,8 @@ def extract_dealer_id(file_path):
         return file_path.split('inventory/')[1].split('/')[0]
     if 'pii_attributes' in file_path:
         return file_path.split('pii_attributes/')[1].split('/')[0]
+    if 'dsr' in file_path:
+        return None
 
     raise Exception(f"Unable to extract dealer ID from file path: {file_path}")
 
