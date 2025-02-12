@@ -313,6 +313,7 @@ paths:
             schema:
               type: object
               required:
+                - integration_dealer_id
                 - integration_partner_name
                 - integration_op_code
                 - integration_op_code_description

@@ -30,13 +30,13 @@ class DealerOnboardingInfo:
     timezone: str
     sfdc_account_id: str
     is_active: bool = False
-    integration_dealer_id: Optional[str] = None
+    service_type: str
+    integration_dealer_id: str
     dealer_location_name: Optional[str] = None
     country: Optional[str] = None
     state: Optional[str] = None
     city: Optional[str] = None
     zip_code: Optional[str] = None
-    service_type: Optional[str] = None
 
 
 class DatabaseManager:
