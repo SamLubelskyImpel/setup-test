@@ -27,6 +27,7 @@ def convert_unix_to_timestamp(unix_time):
         return None
     return datetime.utcfromtimestamp(unix_time / 1000).strftime("%Y-%m-%d %H:%M:%S")
 
+
 def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     """Calculate the First Payment Date"""
     logger.info(f"deal payment: {deal_payment}, contract_date: {contract_date}, delivery_date: {delivery_date}")
@@ -41,10 +42,11 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
 
     if not isinstance(days_to_first_payment, int):
         raise ValueError("daysToFirstPayment must be an integer")
-    
+
     first_payment_date = date + timedelta(days=days_to_first_payment)
 
     return first_payment_date.strftime("%Y-%m-%d %H:%M:%S")
+
 
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
@@ -55,6 +57,8 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle_sale = {}
         db_vehicle = {}
         db_consumer = {}
+        db_trade_in_vehicle = {}
+        db_cobuyer_consumer = {}
         db_service_contracts = []
 
         db_metadata = {
@@ -149,6 +153,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
         payment_option = default_get(deal_payment, "paymentOption", {})
         db_vehicle_sale["deal_type"] = default_get(payment_option, "type")
+        db_vehicle_sale["sale_type"] = default_get(payment_option, "type")
 
         yearly_miles = default_get(deal_payment, "yearlyMiles", {})
         db_vehicle_sale["miles_per_year"] = default_get(yearly_miles, "totalValue")
@@ -171,7 +176,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
         lease_mileage = default_get(deal_payment, "yearlyMiles", {})
         db_vehicle_sale["lease_mileage_limit"] = default_get(lease_mileage, "totalValue")
-        
+
         first_payment_date = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
         db_vehicle_sale["first_payment"] = first_payment_date
 
@@ -203,6 +208,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
                 trim_details = default_get(vehicle, "trimDetails", {})
                 db_vehicle["oem_name"] = default_get(trim_details, "oem")
+                db_vehicle["trim"] = default_get(trim_details, "trim")
                 db_vehicle["type"] = default_get(trim_details, "bodyType")
                 db_vehicle["vehicle_class"] = default_get(trim_details, "bodyClass")
                 db_vehicle["exterior_color"] = default_get(vehicle, "exteriorColor")
@@ -235,39 +241,67 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle_sale["adjustment_on_price"] = db_adjustment_on_price
                 db_vehicle_sale["profit_on_sale"] = db_profit_on_sale
 
+        trade_in_vehicles = default_get(entry, "tradeIns", [])
+        for trade_in_vehicle in trade_in_vehicles:
+            vehicle = default_get(trade_in_vehicle, "vehicle", {})
+            db_trade_in_vehicle["vin"] = default_get(vehicle, "vin")
+            db_trade_in_vehicle["make"] = default_get(vehicle, "make")
+            db_trade_in_vehicle["model"] = default_get(vehicle, "model")
+            db_trade_in_vehicle["year"] = default_get(vehicle, "year")
+            db_trade_in_vehicle["exterior_color"] = default_get(vehicle, "exteriorColor")
+
+            mileage = default_get(vehicle, "mileage", {})
+            db_vehicle["mileage"] = default_get(mileage, "value")
+
+            trim_details = default_get(trade_in_vehicle, "trimDetails", {})
+            db_trade_in_vehicle["oem_name"] = default_get(trim_details, "oem")
+            db_trade_in_vehicle["type"] = default_get(trim_details, "bodyType")
+            db_trade_in_vehicle["vehicle_class"] = default_get(trim_details, "bodyClass")
+            db_trade_in_vehicle["trim"] = default_get(vehicle, "trim")
+
         customers = default_get(entry, "customers", [])
         if customers:
             for customer in customers:
-                db_consumer["dealer_customer_no"] = default_get(customer, "arcId")
-                db_consumer["first_name"] = default_get(customer, "firstName")
-                db_consumer["last_name"] = default_get(customer, "lastName")
-                db_consumer["email"] = default_get(customer, "email")
+                customer_type = default_get(customer, "type", "")
+
+                if customer_type in ["BUYER", "BOTH"]:
+                    db_target = db_consumer
+                elif customer_type == "CO_BUYER":
+                    db_target = db_cobuyer_consumer
+                else:
+                    logger.warning(f"Unknown customer type: {customer_type}")
+                    continue
+
+                db_target["dealer_customer_no"] = default_get(customer, "arcId")
+                db_target["first_name"] = default_get(customer, "firstName")
+                db_target["last_name"] = default_get(customer, "lastName")
+                db_target["email"] = default_get(customer, "email")
 
                 communication_preferences = default_get(
                     customer, "communicationPreferences", {}
                 )
 
                 email_preference = default_get(communication_preferences, "email", {})
-                db_consumer["email_optin_flag"] = default_get(
+                db_target["email_optin_flag"] = default_get(
                     email_preference, "isOptInService"
                 )
 
                 call_preference = default_get(communication_preferences, "call", {})
-                db_consumer["phone_optin_flag"] = default_get(
+                db_target["phone_optin_flag"] = default_get(
                     call_preference, "isOptInService"
                 )
 
                 addresses = default_get(customer, "addresses", [])
                 for address in addresses:
-                    db_consumer["city"] = default_get(address, "city")
-                    db_consumer["state"] = default_get(address, "state")
-                    db_consumer["postal_code"] = default_get(address, "zip")
+                    db_target["city"] = default_get(address, "city")
+                    db_target["state"] = default_get(address, "state")
+                    db_target["postal_code"] = default_get(address, "zip")
                     address_line1 = default_get(address, "line1")
                     address_line2 = default_get(address, "line2")
                     if address_line1 and address_line2:
-                        db_consumer["address"] = f"{address_line1} {address_line2}"
+                        db_target["address"] = f"{address_line1} {address_line2}"
                     elif address_line1:
-                        db_consumer["address"] = address_line1
+                        db_target["address"] = address_line1
 
                 db_cell_phone = None
                 db_home_phone = None
@@ -281,19 +315,38 @@ def parse_json_to_entries(json_data, s3_uri):
                                 db_home_phone = phone_number
                             if phone_type.upper() == "CELL":
                                 db_cell_phone = phone_number
-                db_consumer["cell_phone"] = db_cell_phone
-                db_consumer["home_phone"] = db_home_phone
+                db_target["cell_phone"] = db_cell_phone
+                db_target["home_phone"] = db_home_phone
+
+        assignees = default_get(entry, "assignees", [])
+        for assignee in assignees:
+            assignee_roles = default_get(assignee, "roles", {})
+            assignee_role = default_get(assignee_roles, "id")
+            if assignee_role == "SALES_PERSON":
+                db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "arcId")
+                first_name = default_get(assignee, "firstName", "")
+                last_name = default_get(assignee, "lastName", "")
+                db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
+                break
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = metadata
         db_vehicle_sale["metadata"] = metadata
 
+        if db_cobuyer_consumer:
+            db_cobuyer_consumer["metadata"] = metadata
+
+        if db_trade_in_vehicle:
+            db_trade_in_vehicle["metadata"] = metadata
+
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
             "vehicle_sale": db_vehicle_sale,
             "vehicle": db_vehicle,
             "consumer": db_consumer,
+            "trade_in_vehicle": db_trade_in_vehicle,
+            "cobuyer_consumer": db_cobuyer_consumer,
             "service_contracts.service_contracts": db_service_contracts,
         }
         entries.append(entry)
