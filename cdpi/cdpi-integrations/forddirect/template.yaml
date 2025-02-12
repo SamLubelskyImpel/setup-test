@@ -855,3 +855,49 @@ Resources:
             Queue: !GetAtt DownloadQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
+  
+  DsrOptout:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: dsr_optout.lambda_handler
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-dsr-output
+      MemorySize: 128
+      Timeout: 30
+      Events:
+        HttpApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FordDirectWebhookAPI
+            Path: /v1/dsr-optout
+            Method: POST
+      Policies:
+        - !Ref LambdaExecutionPolicy
+
+  DsrOptoutLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-output"
+
+  DsrDelete:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: dsr_delete.lambda_handler
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-dsr-delete
+      MemorySize: 128
+      Timeout: 30
+      Events:
+        HttpApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref FordDirectWebhookAPI
+            Path: /v1/dsr-delete
+            Method: POST
+      Policies:
+        - !Ref LambdaExecutionPolicy
+
+  DsrDeleteLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-delete"
