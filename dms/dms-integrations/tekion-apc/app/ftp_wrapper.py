@@ -1,23 +1,32 @@
 import logging
 import boto3
-from ftplib import FTP, error_perm, error_temp
+import paramiko
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class FtpToS3:
-    def __init__(self, host, user, password):
+    def __init__(self, host, user, password, port):
         self.host = host
         self.user = user
         self.password = password
         self.s3_client = boto3.client("s3")
+        self.port = port
 
     def connect_to_ftp(self):
         try:
-            ftp = FTP(self.host)
-            ftp.login(self.user, self.password)
+            transport = paramiko.Transport((self.host, self.port))
+            transport.connect(username=self.user, password=self.password)
+            ftp = paramiko.SFTPClient.from_transport(transport)
+            logger.info("SFTP connection successful")
             return ftp
-        except (error_perm, error_temp) as e:
-            logger.error("Error connecting to FTP: %s", e)
+        except paramiko.AuthenticationException:
+            print("Authentication failed. Check your username/password.")
+            raise
+        except paramiko.SSHException as e:
+            print(f"SSH error: {e}")
+            raise
+        except Exception as e:
+            print(f"Error connecting to SFTP: {e}")
             raise

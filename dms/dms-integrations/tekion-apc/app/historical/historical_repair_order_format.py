@@ -52,8 +52,8 @@ def parse_csv_to_entries(csv_data, s3_uri):
             matching_entry = entries_lookup[repair_order_no]
             # Create a dictionary for the current operation code and its description
             db_op_code = {
-                "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255]#,
-                #"op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
+                "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255],
+                "op_code|op_code_desc": normalized_row.get('operation codes descriptions', '').strip()[:305]
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
@@ -109,12 +109,12 @@ def parse_csv_to_entries(csv_data, s3_uri):
             db_consumer["postal_mail_optin_flag"] = bool(normalized_row.get("allow_mail_solicitation"))
             db_consumer["sms_optin_flag"] = bool(normalized_row.get("allow_phone_solicitation"))
 
-            # add new op code
-            # db_op_code = {
-            #     "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255]#,
-            #     #"op_code|op_code_desc": normalized_row.get('opcodedescription', '').strip()[:305]
-            # }
-            # db_op_codes.append(db_op_code)
+            #add new op code
+            db_op_code = {
+                "op_code|op_code": normalized_row.get('operation codes', '').strip()[:255],
+                "op_code|op_code_desc": normalized_row.get('operation codes descriptions', '').strip()[:305]
+            }
+            db_op_codes.append(db_op_code)
 
             metadata = dumps(db_metadata)
             db_vehicle["metadata"] = metadata
@@ -126,7 +126,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
                 "service_repair_order": db_service_repair_order,
                 "vehicle": db_vehicle,
                 "consumer": db_consumer,
-                # "op_codes.op_codes": db_op_codes,
+                "op_codes.op_codes": db_op_codes,
             }
             entries.append(entry)
             entries_lookup[repair_order_no] = entry
