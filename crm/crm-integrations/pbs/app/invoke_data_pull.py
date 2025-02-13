@@ -57,6 +57,7 @@ def find_value(type: str, dataset: list, id: str):
 
 def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
     """Fetch new leads from PBS CRM."""
+
     api = PbsApiWrapper()
 
     end_time = parser.isoparse(sort_time_end)
@@ -121,6 +122,17 @@ def fetch_new_leads(sort_time_start, sort_time_end, crm_dealer_id: str):
             except Exception as e:
                 logger.warning(
                     f"Error getting vehicle info: {e}, skipping lead {deal_id}"
+                )
+                continue
+
+        if contact_id:
+            try:
+                lead_notes = api.get_lead_notes(contact_id, crm_dealer_id, deal_id)
+                existing_notes = lead.get("Notes", "")
+                lead["Lead_Notes"] = "\n".join([existing_notes, lead_notes])
+            except Exception as e:
+                logger.warning(
+                    f"Error getting lead notes: {e}"
                 )
                 continue
 
