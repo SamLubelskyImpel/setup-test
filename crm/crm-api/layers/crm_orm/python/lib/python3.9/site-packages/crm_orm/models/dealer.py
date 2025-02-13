@@ -1,0 +1,33 @@
+"""Dealer Model."""
+
+from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
+from typing import Dict, Any
+from crm_orm.session_config import BaseForModels
+
+
+class Dealer(BaseForModels):  # type: ignore
+    """Dealer Model."""
+
+    __tablename__ = "crm_dealer"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    product_dealer_id = Column(Integer, unique=True)
+    sfdc_account_id = Column(String)
+    dealer_name = Column(String)
+    dealer_location_name = Column(String)
+    country = Column(String)
+    state = Column(String)
+    city = Column(String)
+    zip_code = Column(String)
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSONB))  # type: ignore
+    db_creation_date = Column(DateTime)
+    db_update_date = Column(DateTime)
+
+    def as_dict(self) -> Dict[str, Any]:
+        """Return attributes of the keys in the table."""
+        return {
+            key.name: getattr(self, key.name)
+            for key in self.__table__.columns
+        }
