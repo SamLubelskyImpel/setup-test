@@ -329,9 +329,11 @@ paths:
                 integration_partner_name:
                   type: string
                   description: Name of the integration partner.
+                  enum: [XTIME]
                 product_name:
                   type: string
                   description: Product name identifier.
+                  enum: [SERVICE_AI, CHAT_AI, VOICE_AI]
                 dealer_name:
                   type: string
                   description: Name of the dealer.
@@ -368,6 +370,7 @@ paths:
                 service_type:
                   type: string
                   description: Type of service provided by the dealer.
+                  enum: [GENERAL_SERVICE]
 
       responses:
         '201':
