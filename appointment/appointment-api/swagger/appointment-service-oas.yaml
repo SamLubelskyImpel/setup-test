@@ -267,8 +267,121 @@ paths:
         '404':
           description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
         '500':
+          "$ref": "#/components/responses/500"   
+  /appointments/v1/dealer/onboarding:
+    get:
+      operationId: dealer-onboarding
+      summary: This endpoint handles the onboarding of a new dealer and returns it.
+      #{{DEALER_ONBOARDING_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/IntegrationPartnerName"
+        - "$ref": "#/components/parameters/ProductName"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the Appointment persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DealerOnboarding"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '405':
+          description: Method Not Allowed
+        '500':
           "$ref": "#/components/responses/500"
+    post:
+      operationId: post-dealer-onboarding
+      summary: This endpoint will onboard a Dealer into the shared layer.
+      #{{DEALER_ONBOARDING_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - integration_dealer_id
+                - integration_partner_name
+                - integration_op_code
+                - integration_op_code_description
+                - product_name
+                - dealer_name
+                - timezone
+                - sfdc_account_id
+                - service_type
+              properties:
+                integration_dealer_id:
+                  type: string
+                  description: The integration_dealer_id of the dealer.
+                integration_partner_name:
+                  type: string
+                  description: Name of the integration partner.
+                product_name:
+                  type: string
+                  description: Product name identifier.
+                dealer_name:
+                  type: string
+                  description: Name of the dealer.
+                sfdc_account_id:
+                  type: string
+                  description: Salesforce account ID associated with the dealer.
+                dealer_location_name:
+                  type: string
+                  description: Location name of the dealer.
+                country:
+                  type: string
+                  description: Country where the dealer is located.
+                state:
+                  type: string
+                  description: State where the dealer is located.
+                city:
+                  type: string
+                  description: City where the dealer is located.
+                zip_code:
+                  type: string
+                  description: ZIP code of the dealer's location.
+                timezone:
+                  type: string
+                  description: Timezone of the dealer's location.
+                is_active:
+                  type: boolean
+                  description: Indicates if the dealer is active or not.
+                integration_op_code:
+                  type: string
+                  description: Integration op code.
+                integration_op_code_description:
+                  type: string
+                  description: Integration op code description.
+                service_type:
+                  type: string
+                  description: Type of service provided by the dealer.
 
+      responses:
+        '201':
+          description: Dealer onboarded successfully.
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '405':
+          description: Method Not Allowed
+        '409':
+          description: Conflict. The dealer already exists in the shared layer with the same sfdc_account_id.
+        '500':
+          "$ref": "#/components/responses/500"
 components:
   schemas:
     BasicAppointment:
@@ -409,6 +522,76 @@ components:
           example: "123-456-7890"
           minLength: 1
           maxLength: 15
+    DealerOnboarding:
+      description: A dealer onboarding in the Appointment layer.
+      type: object
+      properties:
+        dealer_integration_partner_id:
+          type: number
+          description: The dealer_integration_partner_id of the Dealer.
+          example: 10
+        integration_dealer_id:
+          type: string
+          description: The integration_dealer_id of the Dealer.
+          example: "xts9010"
+        integration_partner_name:
+          type: string
+          description: The name of the integration partner.
+          example: "XTIME"
+        product_name:
+            type: string
+            description: The name of the product.
+            example: "SERVICE_AI"
+        dealer_name:
+          type: string
+          description: The name of the dealer.
+          example: "DEALER_NAME"
+        sfdc_account_id:
+          type: string
+          description: The Salesforce account ID associated with the dealer.
+          example: "1122334455"
+        dealer_location_name:
+          type: string
+          description: Location name of the dealer.
+        country:
+          type: string
+          description: Country where the dealer is located.
+        state:
+          type: string
+          description: State where the dealer is located.
+        city:
+          type: string
+          description: City where the dealer is located.
+        zip_code:
+          type: string
+          description: ZIP code of the dealer's location.
+        timezone:
+          type: string
+          description: The timezone of the dealership.
+          example: "US/Eastern"
+        is_active:
+          type: boolean
+          description: Indicates if the dealer is active.
+          example: true
+        integration_op_codes:
+          type: array
+          description: List of integration operation codes.
+          items:
+            type: object
+            properties:
+              op_code:
+                type: string
+                description: The integration op code.
+                example: "12382910"
+              op_code_description:
+                type: string
+                description: The integration op code description.
+                example: "Generic Op Code description"
+              service_type:
+                type: string
+                description: The type of service provided by the dealer.
+                example: "GENERAL_SERVICE"
+
   responses:
     '400':
       description: This indicates Bad Request. For example this error can occur if
@@ -467,6 +650,20 @@ components:
       name: x_api_key
       in: header
       description: An API Key provided by CE team that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    IntegrationPartnerName:
+      name: integration_partner_name
+      in: query
+      description: Name of the integration partner.
+      required: false
+      schema:
+        type: string
+    ProductName:
+      name: product_name
+      in: query
+      description: Name of the product.
       required: true
       schema:
         type: string
