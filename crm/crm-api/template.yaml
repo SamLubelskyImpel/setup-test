@@ -57,7 +57,7 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
         ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
-        PYTHONPATH: "/opt/python"
+        # PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
