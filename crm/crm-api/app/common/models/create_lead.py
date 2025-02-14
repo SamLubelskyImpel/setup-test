@@ -13,67 +13,102 @@ class VehicleMetadata(BaseModel):
 
 
 class VehicleOfInterest(BaseModel):
-    vin: Optional[str] = Field(None, description="Vehicle Identification Number")
-    stock_number: Optional[str] = Field(None, description="Stock number of the vehicle")
-    type: Optional[str] = Field(None, description="Type of the vehicle (e.g., SUV, Sedan)")
+    vin: Optional[str] = Field(
+        None, max_length=20, description="Vehicle Identification Number"
+    )
+    stock_number: Optional[str] = Field(
+        None, max_length=50, description="Stock number of the vehicle"
+    )
+    type: Optional[str] = Field(
+        None, max_length=100, description="Type of the vehicle (e.g., SUV, Sedan)"
+    )
     class_: Optional[str] = Field(
-        None, alias="class", description="Class of the vehicle (e.g., Compact)"
+        None,
+        alias="class",
+        max_length=80,
+        description="Class of the vehicle (e.g., Compact)",
     )
     mileage: Optional[int] = Field(
         None, description="Mileage of the vehicle in odometer units"
     )
-    year: Optional[int] = Field(None, description="Year of manufacture")
-    make: Optional[str] = Field(None, description="Manufacturer of the vehicle")
-    model: Optional[str] = Field(None, description="Model of the vehicle")
-    oem_name: Optional[str] = Field(None, description="OEM name")
-    trim: Optional[str] = Field(None, description="Trim level of the vehicle")
-    body_style: Optional[str] = Field(None, description="Body style of the vehicle")
-    transmission: Optional[str] = Field(None, description="Transmission type")
+    year: Optional[int] = Field(
+        None, gt=-2147483649, lt=2147483648, description="Year of manufacture"
+    )
+    make: Optional[str] = Field(
+        None, max_length=80, description="Manufacturer of the vehicle"
+    )
+    model: Optional[str] = Field(
+        None, max_length=100, description="Model of the vehicle"
+    )
+    oem_name: Optional[str] = Field(None, max_length=80, description="OEM name")
+    trim: Optional[str] = Field(
+        None, max_length=100, description="Trim level of the vehicle"
+    )
+    body_style: Optional[str] = Field(
+        None, max_length=100, description="Body style of the vehicle"
+    )
+    transmission: Optional[str] = Field(
+        None, max_length=80, description="Transmission type"
+    )
     interior_color: Optional[str] = Field(
-        None, description="Interior color of the vehicle"
+        None, max_length=80, description="Interior color of the vehicle"
     )
     exterior_color: Optional[str] = Field(
-        None, description="Exterior color of the vehicle"
+        None, max_length=80, description="Exterior color of the vehicle"
     )
-    price: Optional[float] = Field(None, description="Price of the vehicle")
-    status: Optional[str] = Field(None, description="Current status of the vehicle")
+    price: Optional[float] = Field(
+        None, gt=-2147483649, lt=2147483648, description="Price of the vehicle"
+    )
+    status: Optional[str] = Field(
+        None, max_length=50, description="Current status of the vehicle"
+    )
     condition: Optional[str] = Field(
-        None, description="Condition of the vehicle (e.g., New, Used)"
+        None, max_length=20, description="Condition of the vehicle (e.g., New, Used)"
     )
     odometer_units: Optional[str] = Field(
-        None, description="Units for odometer readings (e.g., miles)"
+        None, max_length=20, description="Units for odometer readings (e.g., miles)"
     )
     vehicle_comments: Optional[str] = Field(
-        None, description="Additional comments about the vehicle"
+        None, max_length=5000, description="Additional comments about the vehicle"
     )
     trade_in_vin: Optional[str] = Field(
-        None, description="VIN for the trade-in vehicle"
+        None, max_length=20, description="VIN for the trade-in vehicle"
     )
     trade_in_year: Optional[int] = Field(
-        None, description="Year of the trade-in vehicle"
+        None, gt=-2147483649, lt=2147483648, description="Year of the trade-in vehicle"
     )
     trade_in_make: Optional[str] = Field(
-        None, description="Make of the trade-in vehicle"
+        None, max_length=80, description="Make of the trade-in vehicle"
     )
     trade_in_model: Optional[str] = Field(
-        None, description="Model of the trade-in vehicle"
+        None, max_length=80, description="Model of the trade-in vehicle"
     )
     metadata: Optional[VehicleMetadata] = Field(
         None, description="Metadata associated with the vehicle"
     )
-    crm_vehicle_id: Optional[str] = Field(None, description="CRM vehicle identifier")
+    crm_vehicle_id: Optional[str] = Field(
+        None, max_length=50, description="CRM vehicle identifier"
+    )
 
 
 class Salesperson(BaseModel):
     crm_salesperson_id: str = Field(
         ..., description="CRM identifier for the salesperson"
     )
-    first_name: Optional[str] = Field("", description="First name of the salesperson")
-    last_name: Optional[str] = Field("", description="Last name of the salesperson")
-    email: Optional[str] = Field(None, description="Email address of the salesperson")
-    phone: Optional[str] = Field(None, description="Phone number of the salesperson")
+    first_name: Optional[str] = Field(
+        "", max_length=50, description="First name of the salesperson"
+    )
+    last_name: Optional[str] = Field(
+        "", max_length=50, description="Last name of the salesperson"
+    )
+    email: Optional[str] = Field(
+        None, max_length=50, description="Email address of the salesperson"
+    )
+    phone: Optional[str] = Field(
+        None, max_length=20, description="Phone number of the salesperson"
+    )
     position_name: Optional[str] = Field(
-        None, description="Position or role of the salesperson"
+        None, max_length=50, description="Position or role of the salesperson"
     )
     is_primary: Optional[bool] = Field(
         False, description="Whether this salesperson is the primary contact"
@@ -92,7 +127,10 @@ class CreateLeadRequest(BaseModel):
         ..., description="Unique identifier for the associated consumer"
     )
     crm_lead_id: Optional[str] = Field(None, description="CRM lead identifier")
-    lead_ts: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp for the lead creation")
+    lead_ts: Optional[str] = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="Timestamp for the lead creation",
+    )
     lead_status: Optional[str] = Field(
         None,
         max_length=50,
