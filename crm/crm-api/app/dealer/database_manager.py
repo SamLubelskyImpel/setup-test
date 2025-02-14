@@ -176,14 +176,23 @@ class DatabaseManager:
                     )
                     .all()
                 )
+
+                if not dip:
+                    return {
+                        "statusCode": 404, 
+                        "body": dumps({"message": "Dealer configuration not found"})
+                    }
+                
                 if len(dip) > 1:
-                    return {"statusCode": 409, "body": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."}
+                    return {
+                        "statusCode": 409, 
+                        "body": dumps({
+                            "message": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."
+                        })
+                    }
 
                 dip = dip[0]
                 
-                if not dip:
-                    return {"statusCode": 404, "body": "Dealer configuration not found"}
-
                 if dealer_status.is_active_salesai is not None:
                     dip.is_active_salesai = dealer_status.is_active_salesai
 
