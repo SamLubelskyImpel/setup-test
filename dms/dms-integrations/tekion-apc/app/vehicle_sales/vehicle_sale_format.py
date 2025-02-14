@@ -30,7 +30,7 @@ def convert_unix_to_timestamp(unix_time):
 
 def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     """Calculate the First Payment Date"""
-    logger.info(f"deal payment: {deal_payment}, contract_date: {contract_date}, delivery_date: {delivery_date}")
+
     if contract_date:
         date = datetime.utcfromtimestamp(contract_date / 1000)
     elif delivery_date:
@@ -45,8 +45,7 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
 
     first_payment_date = date + timedelta(days=days_to_first_payment)
 
-    return first_payment_date.strftime("%Y-%m-%d %H:%M:%S")
-
+    return first_payment_date.strftime("%Y-%m-%d")
 
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
@@ -242,12 +241,15 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle_sale["profit_on_sale"] = db_profit_on_sale
 
         trade_in_vehicles = default_get(entry, "tradeIns", [])
-        for trade_in_vehicle in trade_in_vehicles:
+        if trade_in_vehicles:
+            trade_in_vehicle = trade_in_vehicles[0]
             vehicle = default_get(trade_in_vehicle, "vehicle", {})
+
             db_trade_in_vehicle["vin"] = default_get(vehicle, "vin")
             db_trade_in_vehicle["make"] = default_get(vehicle, "make")
             db_trade_in_vehicle["model"] = default_get(vehicle, "model")
             db_trade_in_vehicle["year"] = default_get(vehicle, "year")
+            db_trade_in_vehicle["stock_num"] = default_get(vehicle, "stockId")
             db_trade_in_vehicle["exterior_color"] = default_get(vehicle, "exteriorColor")
 
             mileage = default_get(vehicle, "mileage", {})
