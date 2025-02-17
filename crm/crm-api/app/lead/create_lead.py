@@ -244,7 +244,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 logger.info("Lead pending")
 
                 # Create vehicles of interest
-                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest
+                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest or []
                 for vehicle in vehicles_of_interest:
                     vo_data = vehicle.model_dump()
                     vo_data["stock_num"] = vo_data.pop("stock_number", None)

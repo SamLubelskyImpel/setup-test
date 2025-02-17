@@ -92,7 +92,7 @@ class VehicleOfInterest(BaseModel):
 
 
 class Salesperson(BaseModel):
-    crm_salesperson_id: str = Field(
+    crm_salesperson_id: Optional[str] = Field(
         None, max_length=100, description="CRM identifier for the salesperson"
     )
     first_name: Optional[str] = Field(
@@ -132,10 +132,10 @@ class CreateLeadRequest(BaseModel):
         None, max_length=100, description="CRM lead identifier"
     )
     lead_ts: Optional[str] = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="Timestamp for the lead creation",
     )
-    lead_status: Optional[str] = Field(
+    lead_status: str = Field(
         None,
         max_length=50,
         examples=["ACTIVE", "BAD"],
@@ -153,23 +153,23 @@ class CreateLeadRequest(BaseModel):
         examples=["Does this car have a sunroof?"],
         description="Comment about the lead or generated text from the source on behalf of the lead",
     )
-    lead_origin: Optional[str] = Field(
+    lead_origin: str = Field(
         None,
         max_length=100,
         examples=["INTERNET"],
         description="The first point of contact or channel through which the lead is generated",
     )
-    lead_source: Optional[str] = Field(
+    lead_source: str = Field(
         None,
         max_length=200,
         examples=["cars.com"],
         description="The specific channel through which the lead was generated.",
     )
     lead_source_detail: Optional[str] = Field(
-        None, description="Detailed source information of the lead"
+        None, max_length=200, description="Detailed source information of the lead"
     )
     vehicles_of_interest: Optional[List[VehicleOfInterest]] = Field(
-        None, description="An array of vehicles the lead was interested in"
+        default_factory=list, description="An array of vehicles the lead was interested in"
     )
     salespersons: Optional[List[Salesperson]] = Field(
         None, description="List of salespersons involved in the lead"

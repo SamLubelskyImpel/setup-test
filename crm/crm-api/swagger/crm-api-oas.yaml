@@ -96,12 +96,6 @@ paths:
                       items:
                         allOf:
                           - $ref: '#/components/schemas/Salesperson'
-                          - required:
-                              - crm_salesperson_id
-                              - first_name
-                              - last_name
-                              - email
-                              - phone
                 - type: object
                   properties:
                     metadata:
