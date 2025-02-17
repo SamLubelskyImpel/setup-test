@@ -214,7 +214,6 @@ class DatabaseManager:
                     dip.metadata_ = new_metadata
 
                 session.commit()
-                logger.info(f"Updated dealer configuration")
                 return {
                     "statusCode": 200,
                     "body": dumps({"message": "Information updated"})
