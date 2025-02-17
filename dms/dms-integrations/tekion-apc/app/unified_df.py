@@ -44,10 +44,12 @@ def validate_unified_df_columns(df):
             df_col_names.add(col)
 
     # Validate all columns in the DF exist in the database
-    # Ignore these columns since we insert them as consumer and vehicle entities
-    ignored_columns = {"cobuyer_consumer", "trade_in_vehicle"}
+    ignore_tables = {"cobuyer_consumer", "trade_in_vehicle"}
     for df_col in df_col_names:
-        if df_col not in unified_column_names and df_col not in ignored_columns:
+        table = df_col.split('|')[0]
+        if table in ignore_tables:
+            continue
+        if df_col not in unified_column_names:
             raise RuntimeError(
                 f"DF column {df_col} not found in database {unified_column_names}"
             )
