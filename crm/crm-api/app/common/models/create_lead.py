@@ -120,7 +120,9 @@ class Metadata(BaseModel):
     appraisalLink: Optional[str] = Field(
         None, description="Link to the appraisal details"
     )
-
+    # Allow storing any extra fields dynamically
+    class Config:
+        extra = "allow"
 
 class CreateLeadRequest(BaseModel):
     consumer_id: int = Field(

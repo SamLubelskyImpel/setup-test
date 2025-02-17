@@ -42,9 +42,10 @@ def validate_request_body(event: dict, model: BaseModel):
         return model(**body)
     except JSONDecodeError as json_err:
         logger.error("JSON decoding error: %s", json_err, exc_info=True)
-        raise ValidationErrorResponse([
+        sanitized = [
             {"field": "body", "message": "Invalid JSON format"}
-        ])
+        ]
+        raise ValidationErrorResponse(sanitized, json_err)
     except ValidationError as e:
         logger.error("Validation error: %s", e, exc_info=True)
         sanitized = sanitize_errors(e.errors())

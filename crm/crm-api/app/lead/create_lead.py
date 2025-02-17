@@ -237,7 +237,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     crm_lead_id = crm_lead_id,
                     request_product = request_product,
                     lead_ts = lead_ts,
-                    metadata_ = body.metadata,
+                    metadata_ = body.metadata.model_dump() if body.metadata else None,
                 )
 
                 session.add(lead)
@@ -251,9 +251,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     vo_data["vehicle_class"] = vo_data.pop("class_", None)
                     vo_data["manufactured_year"] = vo_data.pop("year", None)
                     
-                    metadata = vo_data.pop("metadata", None)
-                    vo_data["metadata_"] = metadata.model_dump() if metadata else {}
-                    
+                    vo_data["metadata_"] = vehicle.metadata.model_dump() if vehicle.metadata else None
+
                     vehicle = Vehicle(**vo_data)
                     lead.vehicles.append(vehicle)
 
