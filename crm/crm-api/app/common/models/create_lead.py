@@ -93,7 +93,7 @@ class VehicleOfInterest(BaseModel):
 
 class Salesperson(BaseModel):
     crm_salesperson_id: str = Field(
-        ..., description="CRM identifier for the salesperson"
+        None, max_length=100, description="CRM identifier for the salesperson"
     )
     first_name: Optional[str] = Field(
         "", max_length=50, description="First name of the salesperson"
@@ -126,7 +126,9 @@ class CreateLeadRequest(BaseModel):
     consumer_id: int = Field(
         ..., description="Unique identifier for the associated consumer"
     )
-    crm_lead_id: Optional[str] = Field(None, description="CRM lead identifier")
+    crm_lead_id: Optional[str] = Field(
+        None, max_length=100, description="CRM lead identifier"
+    )
     lead_ts: Optional[str] = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp for the lead creation",
