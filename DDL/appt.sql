@@ -46,7 +46,8 @@ CREATE TABLE prod.appt_dealer (
 	db_creation_date timestamptz DEFAULT now() NULL,
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
-	sfdc_account_id varchar(40) Null;
+	sfdc_account_id varchar(40) NOT NULL,
+    CONSTRAINT appt_sfdc_account_id UNIQUE (sfdc_account_id),
 	CONSTRAINT appt_dealer_pkey PRIMARY KEY (id)
 );
 
