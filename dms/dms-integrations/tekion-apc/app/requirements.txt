@@ -3,3 +3,4 @@ urllib3<2
 psycopg2-binary==2.9.9
 pandas==2.2.2
 paramiko==3.5.1
+aws_lambda_powertools==2.39.0
