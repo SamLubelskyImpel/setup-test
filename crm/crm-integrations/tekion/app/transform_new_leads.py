@@ -448,21 +448,16 @@ def parse_email_v3(emails):
 def parse_phone_number_v3(phones):
     """Parse the phone number and return a dictionary with phone details."""
     if not phones:
-        return {
-            "number": "",
-            "optedForCommunication": False
-        }
+        return {"number": "", "optedForCommunication": False}
 
-    preferred_phone = phones[0]
-    for phone in phones:
-        if phone.get('type') == "CELL":
-            preferred_phone = phone
-            break
+    # Select the first "CELL" type phone if available; otherwise, default to the first phone
+    preferred_phone = next((phone for phone in phones if phone.get('type') == "CELL"), phones[0])
 
     return {
         "number": preferred_phone.get("number", ""),
         "optedForCommunication": preferred_phone.get("optedForCommunication", False)
     }
+
 
 def parse_address_v3(addresses):
     """Parse the address and return a dictionary with address components."""
