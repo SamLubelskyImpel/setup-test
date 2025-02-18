@@ -171,6 +171,43 @@ paths:
           description: Not found. The dealer_integration_partner_id included in the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
+    put:
+      #{{UPDATE_APPOINTMENT_INFO}}
+      tags:
+        - Appointments
+      description: Update an appointment in shared layer. For XTime Integrations, only the fields timeslot and timeslot_duration will be updated.
+      operationId: putAppointment
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/appointment_id"
+      requestBody:
+        description: Appointment information
+        required: false
+        content:
+          application/json:
+            schema:
+              allOf:
+                - "$ref": "#/components/schemas/Appointment"
+                - type: object
+                  properties:
+                    consumer:
+                      "$ref": "#/components/schemas/Consumer"
+                - type: object
+                  properties:
+                    vehicle:
+                      "$ref": "#/components/schemas/Vehicle"
+      responses:
+        '204':
+          description: Updated
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not found. The appointment_id included in the request didn't match any existing records on Impel.
+        '500':
+          "$ref": "#/components/responses/500"
   /appointments/v1/timeslots:
     get:
       #{{RETRIEVE_TIMESLOTS_INFO}}
@@ -670,3 +707,11 @@ components:
       required: true
       schema:
         type: string
+    appointment_id:
+      name: appointment_id
+      in: query
+      description: ID of the appointment in the shared layer
+      required: true
+      schema:
+        type: number
+        example: 12345
