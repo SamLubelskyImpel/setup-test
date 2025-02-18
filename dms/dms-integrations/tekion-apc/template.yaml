@@ -857,7 +857,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
-  
+
   AppointmentsQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -866,7 +866,7 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt AppointmentsDLQ.Arn
         maxReceiveCount: 5
-  
+
   AppointmentsDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -1167,3 +1167,214 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 0
       TreatMissingData: notBreaching
+
+  # Customer enrichment
+
+  InvokeCustomerEnrichment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-apc-dms-${Environment}-InvokeCustomerEnrichment
+      Handler: customer_enrichment.invoke_handler
+      Runtime: python3.9
+      CodeUri: app/
+      Timeout: 30
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowAPICredentials
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*"
+                        ]
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt PullCustomersQueue.Arn
+      Environment:
+        Variables:
+          PULL_CUSTOMERS_QUEUE: !Ref PullCustomersQueue
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(40 minutes)
+
+  InvokeCustomerEnrichmentAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-InvokeCustomerEnrichmentAlarm
+      AlarmDescription: Alarm triggered when the InvokeCustomerEnrichment function fails
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeCustomerEnrichment
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: missing
+
+  PullCustomersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub tekion-apc-dms-${Environment}-PullCustomersQueue
+      VisibilityTimeout: 90
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt PullCustomersDLQ.Arn
+        maxReceiveCount: 3
+
+  PullCustomersDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub tekion-apc-dms-${Environment}-PullCustomersDLQ
+
+  PullCustomersDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-PullCustomersDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the PullCustomersDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PullCustomersDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  PullCustomers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-apc-dms-${Environment}-PullCustomers
+      Handler: customer_enrichment.pull_customers_handler
+      Runtime: python3.9
+      CodeUri: app/
+      Timeout: 90
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowDBCredentials
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !If [ IsProd,
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                          !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
+                        ]
+            - Sid: AllowSQS
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt EnrichCustomersQueue.Arn
+      Environment:
+        Variables:
+          ENRICH_CUSTOMERS_QUEUE: !Ref EnrichCustomersQueue
+          CUSTOMER_QUERY_LIMIT: !If [ IsProd, 150, 1 ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt PullCustomersQueue.Arn
+            BatchSize: 1  # avoid timeouts due to the database response time
+
+  EnrichCustomersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub tekion-apc-dms-${Environment}-EnrichCustomersQueue
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EnrichCustomersDLQ.Arn
+        maxReceiveCount: 3
+
+  EnrichCustomersDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub tekion-apc-dms-${Environment}-EnrichCustomersDLQ
+
+  EnrichCustomersDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-EnrichCustomersDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the EnrichCustomersDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EnrichCustomersDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  EnrichCustomers:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub tekion-apc-dms-${Environment}-EnrichCustomers
+      Handler: customer_enrichment.enrich_customers_handler
+      Runtime: python3.9
+      CodeUri: app/
+      Timeout: 90
+      Policies:
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowCredentials
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
+                  ]
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*"
+                  ]
+            - Sid: AllowInvokeFunction
+              Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource:
+                - !GetAtt RefreshTokenLambda.Arn
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:PutObject
+              Resource:
+                - !If [ IsProd,
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                    !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt EnrichCustomersQueue.Arn
+            BatchSize: 1 # avoid timeouts due to the database and api response time
