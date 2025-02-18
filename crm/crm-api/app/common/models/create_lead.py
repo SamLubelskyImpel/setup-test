@@ -153,13 +153,13 @@ class CreateLeadRequest(BaseModel):
         examples=["Does this car have a sunroof?"],
         description="Comment about the lead or generated text from the source on behalf of the lead",
     )
-    lead_origin: str = Field(
+    lead_origin: Optional[str] = Field(
         ...,
         max_length=100,
         examples=["INTERNET"],
         description="The first point of contact or channel through which the lead is generated",
     )
-    lead_source: str = Field(
+    lead_source: Optional[str] = Field(
         ...,
         max_length=200,
         examples=["cars.com"],
@@ -168,8 +168,8 @@ class CreateLeadRequest(BaseModel):
     lead_source_detail: Optional[str] = Field(
         None, max_length=200, description="Detailed source information of the lead"
     )
-    vehicles_of_interest: Optional[List[VehicleOfInterest]] = Field(
-        default_factory=list, description="An array of vehicles the lead was interested in"
+    vehicles_of_interest: List[VehicleOfInterest] = Field(
+        ..., description="An array of vehicles the lead was interested in"
     )
     salespersons: Optional[List[Salesperson]] = Field(
         None, description="List of salespersons involved in the lead"

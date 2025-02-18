@@ -71,8 +71,6 @@ paths:
                 - required:
                     - consumer_id
                     - lead_status
-                    - lead_origin
-                    - lead_source
                     - vehicles_of_interest
                 - type: object
                   properties:
