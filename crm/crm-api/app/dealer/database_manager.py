@@ -1,4 +1,5 @@
 import logging
+from json import dumps
 from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -99,7 +100,10 @@ class DatabaseManager:
             )
 
             if existing_dealer:
-                return {"statusCode": 409, "body": "This dealer config already exists"}
+                return {
+                    "statusCode": 409,
+                    "body": dumps({"message": "This dealer config already exists"}),
+                }
 
             integration_partner = (
                 session.query(IntegrationPartner)
@@ -111,7 +115,7 @@ class DatabaseManager:
                 logger.warning(f"Integration Partner '{dealer_info.integration_partner_name}' not found")
                 return {
                     "statusCode": 404,
-                    "body": f"Integration Partner '{dealer_info.integration_partner_name}' not found",
+                    "body": dumps({"error": f"Integration Partner '{dealer_info.integration_partner_name}' not found"}),
                 }
             
             if not isinstance(dealer_info.metadata, dict):
@@ -148,7 +152,7 @@ class DatabaseManager:
 
                 return {
                     "statusCode": 201,
-                    "body": f"Dealer configuration created successfully dealer_id {dealer.id}",
+                    "body": dumps({"message": f"Dealer configuration created successfully dealer_id {dealer.id}"}),
                 }
 
             except Exception as e:
@@ -156,7 +160,7 @@ class DatabaseManager:
                 session.rollback()
                 return {
                     "statusCode": 500,
-                    "body": "An error occurred while creating the dealer configuration",
+                    "body": dumps({"error": "An error occurred while creating the dealer configuration"}),
                 }
 
     def put_dealers_config(self, dealer_status: DealerStatus) -> Dict[str, str]:
