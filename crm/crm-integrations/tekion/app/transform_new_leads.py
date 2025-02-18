@@ -124,16 +124,14 @@ def parse_email(email_communications):
 def parse_phone_number(phone_communications):
     """Extract the preferred phone number or return a default empty number."""
     if not phone_communications:
-        return {
-            "number": "",
-            "optedForCommunication": False
-        }
+        return {"number": "", "optedForCommunication": False}
 
-    preferred_phone = phone_communications[0]
-    for phone in phone_communications:
-        if phone.get("usagePreference", {}).get("preferred", False):
-            preferred_phone = phone
-            break
+    # Find the first "MOBILE" phone marked as preferred, otherwise use the first phone
+    preferred_phone = next(
+        (phone for phone in phone_communications 
+         if phone.get("usagePreference", {}).get("preferred", False) and phone.get("phoneType") == "MOBILE"),
+        phone_communications[0]
+    )
 
     return {
         "number": preferred_phone.get("phone", {}).get("completeNumber", ""),
