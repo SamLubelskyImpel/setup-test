@@ -136,7 +136,7 @@ class CreateLeadRequest(BaseModel):
         description="Timestamp for the lead creation",
     )
     lead_status: str = Field(
-        None,
+        ...,
         max_length=50,
         examples=["ACTIVE", "BAD"],
         description="A status that can be used to group leads that are in a similar state",
@@ -154,13 +154,13 @@ class CreateLeadRequest(BaseModel):
         description="Comment about the lead or generated text from the source on behalf of the lead",
     )
     lead_origin: str = Field(
-        None,
+        ...,
         max_length=100,
         examples=["INTERNET"],
         description="The first point of contact or channel through which the lead is generated",
     )
     lead_source: str = Field(
-        None,
+        ...,
         max_length=200,
         examples=["cars.com"],
         description="The specific channel through which the lead was generated.",
