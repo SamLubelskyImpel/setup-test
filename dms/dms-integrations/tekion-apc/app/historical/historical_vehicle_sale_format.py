@@ -49,6 +49,8 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale = {}
         db_vehicle = {}
         db_consumer = {}
+        db_trade_in_vehicle = {}
+        db_cobuyer_consumer = {}
 
         db_dealer_integration_partner = {
             'dms_id': dms_id
@@ -71,9 +73,9 @@ def parse_csv_to_entries(csv_data, s3_uri):
         #db_vehicle_sale["cost"] = normalized_row.get("service_contract_cost")
         #db_vehicle_sale["expiration_months"] = normalized_row.get("service_contract_term_in_months")
         #db_vehicle_sale["expiration_miles"] = normalized_row.get("service_contract_term_in_miles")
-        db_vehicle_sale["trade_in_value"] = convert_to_float(normalized_row.get("total_trades_allowance_amount"))
-        #db_vehicle_sale["assignee_dms_id"] = normalized_row["salesman 1 number"]
         #db_vehicle_sale["assignee_name"] = normalized_row["salesman 1 name"]
+        #db_vehicle_sale["assignee_dms_id"] = normalized_row["salesman 1 number"]
+        db_vehicle_sale["trade_in_value"] = convert_to_float(normalized_row.get("total_trades_allowance_amount"))
         db_vehicle_sale["adjustment_on_price"] = convert_to_float(normalized_row.get("adjusted cost"))
         db_vehicle_sale["has_service_contract"] = True if normalized_row.get("service_contract_cost") else False
         db_vehicle_sale["payoff_on_trade"] = convert_to_float(normalized_row.get("total_trades_payoff"))
@@ -91,41 +93,64 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle["year"] = convert_to_int(normalized_row.get("model_year"))
         db_vehicle["make"] = normalized_row.get("make")
         db_vehicle["model"] = normalized_row.get("model")
-        #db_vehicle["oem_name"] = normalized_row["make"]
         db_vehicle["type"] = normalized_row.get("body_description")
         db_vehicle["trim"] = normalized_row.get("trim_level")
         db_vehicle["stock_num"] = normalized_row.get("stock_number")
+        #db_vehicle["oem_name"] = normalized_row["make"]
+        #db_vehicle["sale_type"] = normalized_row["Sale Type"]
         #db_vehicle["vehicle_class"] = normalized_row["bodyclass"]
         db_vehicle["exterior_color"] = normalized_row.get("exterior_color_description")
-        #db_vehicle["sale_type"] = normalized_row["Sale Type"]
         db_vehicle["mileage"] = convert_to_int(normalized_row.get("trade 1 odometer"))
         db_vehicle["new_or_used"] = "N" if normalized_row.get("inventory_type_new_used_flag") == "NEW" else "U" if normalized_row.get("inventory_type_new_used_flag") == "USED" else None
 
-        db_consumer["dealer_customer_no"] = normalized_row.get("buyer_id") if normalized_row.get("buyer_id") else normalized_row.get("co_buyer_id")
-        db_consumer["first_name"] = normalized_row.get("buyer_first_name") if normalized_row.get("buyer_first_name") else normalized_row.get("co_buyer_first_name")
-        db_consumer["last_name"] = normalized_row.get("buyer_last_name") if normalized_row.get("buyer_last_name") else normalized_row.get("co_buyer_last_name")
-        db_consumer["email"] = normalized_row.get("buyer_personal_email_address") if normalized_row.get("buyer_personal_email_address") else normalized_row.get("co_buyer_personal_email_address")
-        db_consumer["cell_phone"] = normalized_row.get("cell phone") if normalized_row.get("cell phone") else normalized_row.get("co-buyer cell phone")
-        db_consumer["home_phone"] = normalized_row.get("buyer_home_phone_number") if normalized_row.get("buyer_home_phone_number") else normalized_row.get("Co-buyer Home")
-        db_consumer["state"] = normalized_row.get("buyer_home_address_region") if normalized_row.get("buyer_home_address_region") else normalized_row.get("co_buyer_home_address_region")
-        #db_consumer["city"] = normalized_row["buyer_city"]
-        db_consumer["postal_code"] = normalized_row.get("buyer_home_address_postal_code") if normalized_row.get("buyer_home_address_postal_code") else normalized_row.get("co_buyer_home_address_postal_code")
-        db_consumer["address"] = normalized_row.get("buyer_home_address") if normalized_row.get("buyer_home_address") else normalized_row.get("co_buyer_home_address") 
-        db_consumer["email_optin_flag"] = True if ((normalized_row.get("block mail") == "Y") or (normalized_row.get("Co Buyer Block mail") == "Y")) else False
-        db_consumer["phone_optin_flag"] = True if ((normalized_row.get("block phone") == "Y") or (normalized_row.get("Co Buyer Block phone") == "Y")) else False
-        db_consumer["postal_mail_optin_flag"] = True if ((normalized_row.get("block mail") == "Y") or (normalized_row.get("Co Buyer Block Mail") == "Y")) else False
-        db_consumer["sms_optin_flag"] = True if ((normalized_row.get("block phone") == "Y") or (normalized_row.get("Co Buyer Block phone") == "Y")) else False
+        db_consumer["dealer_customer_no"] = normalized_row.get("buyer_id")
+        db_consumer["first_name"] = normalized_row.get("buyer_first_name")
+        db_consumer["last_name"] = normalized_row.get("buyer_last_name")
+        db_consumer["email"] = normalized_row.get("buyer_personal_email_address")
+        db_consumer["cell_phone"] = normalized_row.get("cell phone")
+        db_consumer["home_phone"] = normalized_row.get("buyer_home_phone_number")
+        db_consumer["state"] = normalized_row.get("buyer_home_address_region")
+        db_consumer["postal_code"] = normalized_row.get("buyer_home_address_postal_code")
+        db_consumer["address"] = normalized_row.get("buyer_home_address")
+        db_consumer["email_optin_flag"] = True if normalized_row.get("block mail") == 'Y' else False
+        db_consumer["phone_optin_flag"] = True if normalized_row.get("block phone") == 'Y' else False
+        db_consumer["postal_mail_optin_flag"] = True if normalized_row.get("block mail") == 'Y' else False
+        db_consumer["sms_optin_flag"] = True if normalized_row.get("block phone") == 'Y' else False
+
+        db_cobuyer_consumer["dealer_customer_no"] = normalized_row.get("co_buyer_id")
+        db_cobuyer_consumer["first_name"] = normalized_row.get("co_buyer_first_name")
+        db_cobuyer_consumer["last_name"] = normalized_row.get("co_buyer_last_name")
+        db_cobuyer_consumer["email"] = normalized_row.get("co_buyer_personal_email_address")
+        db_cobuyer_consumer["cell_phone"] = normalized_row.get("co-buyer cell phone")
+        db_cobuyer_consumer["home_phone"] = normalized_row.get("co-buyer Home")
+        db_cobuyer_consumer["state"] = normalized_row.get("co_buyer_home_address_region")
+        db_cobuyer_consumer["postal_code"] = normalized_row.get("co_buyer_home_address_postal_code")
+        db_cobuyer_consumer["address"] = normalized_row.get("co_buyer_home_address")
+        db_cobuyer_consumer["email_optin_flag"] = True if normalized_row.get("co buyer block mail") == 'Y' else False
+        db_cobuyer_consumer["phone_optin_flag"] = True if normalized_row.get("co buyer block phone") == 'Y' else False
+        db_cobuyer_consumer["postal_mail_optin_flag"] = True if normalized_row.get("co buyer block Mail") == 'Y' else False
+        db_cobuyer_consumer["sms_optin_flag"] = True if normalized_row.get("co Buyer block phone") == 'Y' else False
+
+        db_trade_in_vehicle["vin"] = normalized_row.get("trade 1 vin")
+        db_trade_in_vehicle["make"] = normalized_row.get("trade 1 make")
+        db_trade_in_vehicle["model"] = normalized_row.get("trade 1 model")
+        db_trade_in_vehicle["year"] = convert_to_int(normalized_row.get("trade 1 year"))
+        db_trade_in_vehicle["mileage"] = convert_to_int(normalized_row.get("trade 1 odometer"))
 
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = metadata
         db_vehicle_sale["metadata"] = metadata
+        db_cobuyer_consumer["metadata"] = metadata
+        db_trade_in_vehicle["metadata"] = metadata
 
         entry = {
             "dealer_integration_partner": db_dealer_integration_partner,
             "vehicle_sale": db_vehicle_sale,
             "vehicle": db_vehicle,
-            "consumer": db_consumer
+            "consumer": db_consumer,
+            "trade_in_vehicle": db_trade_in_vehicle,
+            "cobuyer_consumer": db_cobuyer_consumer
         }
         entries.append(entry)
 

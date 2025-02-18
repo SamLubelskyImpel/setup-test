@@ -52,8 +52,8 @@ def parse_csv_to_entries(csv_data, s3_uri):
             matching_entry = entries_lookup[repair_order_no]
             # Create a dictionary for the current operation code and its description
             db_op_code = {
-                "op_code|op_code": normalized_row.get('Operation Codes', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('operation codes descriptions', '').strip()[:305]
+                "op_code|op_code": normalized_row.get('operation codes', '').strip()[:255],
+                "op_code|op_code_desc": normalized_row.get('operation code descriptions', '').strip()[:305]
             }
             matching_entry["op_codes.op_codes"].append(db_op_code)
         else:
@@ -61,7 +61,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             db_service_repair_order["repair_order_no"] = repair_order_no
             db_service_repair_order["ro_open_date"] = normalized_row.get("repair_order_open_date")
             db_service_repair_order["ro_close_date"] = normalized_row.get("repair_order_close_date")
-            #db_service_repair_order["txn_pay_type"] = normalized_row.get("paytype")
+            db_service_repair_order["txn_pay_type"] = normalized_row.get("payment_methods_multi_valued")
             db_service_repair_order["advisor_name"] = normalized_row.get("service advisor name")
             db_service_repair_order["service_order_cost"] = convert_to_float(normalized_row.get("total_repair_order_cost"))
             db_service_repair_order["consumer_labor_amount"] = convert_to_float(normalized_row.get("total_customer_labor_price"))
@@ -112,7 +112,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             #add new op code
             db_op_code = {
                 "op_code|op_code": normalized_row.get('operation codes', '').strip()[:255],
-                "op_code|op_code_desc": normalized_row.get('operation codes descriptions', '').strip()[:305]
+                "op_code|op_code_desc": normalized_row.get('operation code descriptions', '').strip()[:305]
             }
             db_op_codes.append(db_op_code)
 
