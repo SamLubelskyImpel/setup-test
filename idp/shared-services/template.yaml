@@ -139,7 +139,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub idp-shared-services-${Environment}-IDPEventRule
-      EventPattern: '{"source":[{"prefix":"service_ai"}]}'
+      EventPattern: '{"source":[{"prefix":"service_ai"},{"prefix":"sales_ai"}]}'
       State: ENABLED
       EventBusName: !GetAtt EventBus.Name
       Targets:
