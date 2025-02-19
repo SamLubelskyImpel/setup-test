@@ -97,7 +97,7 @@ def parse_data(data):
     try:
         dealer_id = data["dealer_id"]
         end_dt = data["end_dt_str"]
-        s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%m/%d")
+        s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%-m/%-d")
 
         host, user, password, port = get_ftp_credentials()
         ftp_session = FtpToS3(host=host, user=user, password=password, port=port)
