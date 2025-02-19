@@ -154,13 +154,13 @@ class CreateLeadRequest(BaseModel):
         description="Comment about the lead or generated text from the source on behalf of the lead",
     )
     lead_origin: Optional[str] = Field(
-        ...,
+        "",
         max_length=100,
         examples=["INTERNET"],
         description="The first point of contact or channel through which the lead is generated",
     )
     lead_source: Optional[str] = Field(
-        ...,
+        "",
         max_length=200,
         examples=["cars.com"],
         description="The specific channel through which the lead was generated.",
