@@ -28,5 +28,5 @@ class FtpToS3:
             print(f"SSH error: {e}")
             raise
         except Exception as e:
-            print(f"Error connecting to SFTP: {e}")
+            logger.error(f"Error connecting to SFTP: {e}")
             raise
