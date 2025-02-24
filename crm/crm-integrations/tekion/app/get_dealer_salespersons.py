@@ -51,39 +51,29 @@ def get_dealer_salespersons(crm_dealer_id):
     """Get dealer's salespersons list from Tekion."""
 
     salespersons = []
-    roles = ["SALES_PERSON", "SALES_MANAGER", "BDCManager"]
+    roles = ["SALES_PERSON", "SALES_MANAGER", "BDC_MANAGER"]
 
     for role in roles:
-        next_fetch_key = None
+        params = {"persona": role}
+        response = hit_tekion_api("openapi/v4.0.0/users", params, crm_dealer_id)
 
-        while True:
-            params = {"isActive": "true", "role": role}
-            if next_fetch_key:
-                params["nextFetchKey"] = next_fetch_key
+        if response['meta'].get('status') != 'success':
+            print(f"Error: {response['meta']['message']}")
+            continue
 
-            response = hit_tekion_api("openapi/v3.1.0/employees", params, crm_dealer_id)
-
-            if response.get("status") == "Failed":
-                logger.error(response["message"]["reasons"])
-                break
-
-            # Parse the response and filter for active users with the current role
-            for user in response["data"]:
-                if user.get("role") == role and user.get("isActive"):
-                    salesperson = {
-                        "crm_salesperson_id": user["id"],
-                        "first_name": user["fname"],
-                        "last_name": user["lname"],
-                        "email": user["email"],
-                        "phone": None,  # Phone number is not provided in the response
-                        "position_name": user["role"]
-                    }
-                    salespersons.append(salesperson)
-
-            # Check if there are more pages
-            next_fetch_key = response["meta"]["nextFetchKey"]
-            if next_fetch_key is None:
-                break
+        for user in response["data"]:
+            if user.get("active") == True:
+                salesperson = {
+                    "crm_salesperson_id": user["id"],
+                    "first_name": user.get("userNameDetails", {}).get("firstName"),
+                    "last_name": user.get("userNameDetails", {}).get("lastName"),
+                    "email": user["email"],
+                    "phone": None,
+                    "position_name": user.get("userRoleDetails", {})
+                    .get("primaryRoleDetails", {})
+                    .get("roleName", role),
+                }
+                salespersons.append(salesperson)
 
     logger.info(f"Found {len(salespersons)} salespersons: {salespersons}")
     return salespersons

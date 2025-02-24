@@ -9,9 +9,9 @@ import boto3
 from dataclasses import dataclass, asdict
 from requests import get
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
-SECRET_KEY = environ.get("SECRET_KEY")
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
+ENVIRONMENT = 'prod'#environ.get("ENVIRONMENT")
+SECRET_KEY = 'TEKION_V3'#environ.get("SECRET_KEY")
+BUCKET = 'crm-integrations-prod'#environ.get("INTEGRATIONS_BUCKET")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -65,14 +65,16 @@ def call_tekion_api(endpoint: str, dealer_id: str, params: Optional[Dict[str, An
         "app_id": client_id,
         "Authorization": f"Bearer {access_key}",
     }
+    print(headers)
+    print(api_url)
     response = get(
         url=f"{api_url}/{endpoint}",
         headers=headers,
         params=params,
     )
 
-    logger.info(f"Tekion responded with: {response.status_code}, {response.text}")
-    save_raw_response(response.text, dealer_id)
+    print(f"Tekion responded with: {response.status_code}, {response.text}")
+    # save_raw_response(response.text, dealer_id)
     response.raise_for_status()
     return response.json()
 
@@ -99,36 +101,47 @@ def send_sqs_message(message_body: Dict[str, Any]) -> None:
 def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_partner_id) -> ApiResponse:
     """Get lead from Tekion."""
     tekion_res = call_tekion_api(
-        endpoint="openapi/v3.1.0/crm-leads",
+        endpoint=f"openapi/v4.0.0/leads/{crm_lead_id}",
         dealer_id=crm_dealer_id,
-        params={"id": crm_lead_id}
     )
-    lead = next(iter(tekion_res["data"]), None)
+    print(f"Tekion responded with: \n\n{tekion_res}\n\n")
 
-    if not lead:
+    if tekion_res["meta"].get("status") != 'SUCCESS':
         logger.info(f"Lead not found. "
                     f"lead_id={lead_id}, "
-                    f"crm_lead_id={crm_lead_id}")
+                    f"crm_lead_id={crm_lead_id}, "
+                    f"error_response={tekion_res}, ")
         body = {"error": f"Lead not found. lead_id={lead_id}, crm_lead_id={crm_lead_id}"}
         return ApiResponse(404, body)
 
-    status = lead.get("status")
+    status = tekion_res['data'][0].get("status")
 
-    logger.info(
+    salespersons = [
+        {
+            "crm_salesperson_id": salesperson["arcId"],
+            "is_primary": salesperson.get("isPrimary", False),
+            "position_name": salesperson.get("type", ""),
+        }
+        for salesperson in tekion_res["data"][0].get("assignees", [])
+    ]
+
+    print(
         f"Found lead_id={lead_id}, "
         f"dealer_integration_partner={dealer_partner_id}, "
-        f"status={status}"
+        f"status={status}",
+        f"salespersons={salespersons}",
     )
 
-    send_sqs_message(
-        {
-            "lead_id": lead_id,
-            "dealer_integration_partner_id": dealer_partner_id,
-            "status": status
-        }
-    )
+    # send_sqs_message(
+    #     {
+    #         "lead_id": lead_id,
+    #         "dealer_integration_partner_id": dealer_partner_id,
+    #         "status": status,
+    #         "salespersons": salespersons,
+    #     }
+    # )
 
-    body = {"status": status}
+    body = {"status": status,"salespersons": salespersons}
     return ApiResponse(200, body)
 
 
@@ -159,3 +172,22 @@ def lambda_handler(event: Dict[str, Any], _: Any) -> Dict[str, Any]:
             crm_lead_id,
         )
         raise
+
+
+
+if __name__ == "__main__":
+    get_lead_status_update_from_crm(
+        crm_dealer_id="classictoyota_1752_0",
+        crm_lead_id="67a5e6473f93353ec1e19db5",
+        lead_id="279462",
+        dealer_partner_id="102",
+    )
+    # lambda_handler(
+    #     {
+    #         "crm_dealer_id": None,
+    #         "dealer_integration_partner_id": "116",
+    #         "lead_id": "410793",
+    #         "crm_lead_id": "2053378",
+    #     },
+    #     None,
+    # )
