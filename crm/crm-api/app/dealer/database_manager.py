@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from json import dumps
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -175,14 +176,23 @@ class DatabaseManager:
                     )
                     .all()
                 )
+
+                if not dip:
+                    return {
+                        "statusCode": 404, 
+                        "body": dumps({"message": "Dealer configuration not found"})
+                    }
+                
                 if len(dip) > 1:
-                    return {"statusCode": 409, "body": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."}
+                    return {
+                        "statusCode": 409, 
+                        "body": dumps({
+                            "message": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."
+                        })
+                    }
 
                 dip = dip[0]
                 
-                if not dip:
-                    return {"statusCode": 404, "body": "Dealer configuration not found"}
-
                 if dealer_status.is_active_salesai is not None:
                     dip.is_active_salesai = dealer_status.is_active_salesai
 
@@ -204,12 +214,14 @@ class DatabaseManager:
                     dip.metadata_ = new_metadata
 
                 session.commit()
-
-                return {"statusCode": 200, "body": "Information updated"}
+                return {
+                    "statusCode": 200,
+                    "body": dumps({"message": "Information updated"})
+                }
             
         except SQLAlchemyError as e:
             session.rollback()
-            return {"statusCode": 500, "body": f"Database error: {str(e)}"}
+            return {"statusCode": 500, "body": dumps({"error": f"Database error: {str(e)}"})}
 
     def _build_query(self, session: Session):
         """Builds the query to fetch dealer configurations based on the filters."""
