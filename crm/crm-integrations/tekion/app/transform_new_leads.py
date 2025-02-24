@@ -123,20 +123,15 @@ def parse_email(email_communications):
 
 def parse_phone_number(phone_communications):
     """Extract the preferred phone number or return a default empty number."""
-    default_phone = {
-        "number": "",
-        "optedForCommunication": False
-    }
-
     if not phone_communications:
-        return default_phone
+        return {"number": "", "optedForCommunication": False}
 
-    preferred_phone = phone_communications[0]
-
-    for phone in phone_communications:
-        if phone.get("usagePreference", {}).get("preferred", False):
-            preferred_phone = phone
-            break
+    # Find the first "MOBILE" phone marked as preferred, otherwise use the first phone
+    preferred_phone = next(
+        (phone for phone in phone_communications 
+         if phone.get("usagePreference", {}).get("preferred", False) and phone.get("phoneType") == "MOBILE"),
+        phone_communications[0]
+    )
 
     return {
         "number": preferred_phone.get("phone", {}).get("completeNumber", ""),
@@ -450,24 +445,17 @@ def parse_email_v3(emails):
 
 def parse_phone_number_v3(phones):
     """Parse the phone number and return a dictionary with phone details."""
-    default_phone = {
-        "number": "",
-        "optedForCommunication": False
-    }
-
     if not phones:
-        return default_phone
+        return {"number": "", "optedForCommunication": False}
 
-    preferred_phone = phones[0]
-    for phone in phones:
-        if phone.get('phoneType') == "PRIMARY":
-            preferred_phone = phone
-            break
+    # Select the first "CELL" type phone if available; otherwise, default to the first phone
+    preferred_phone = next((phone for phone in phones if phone.get('type') == "CELL"), phones[0])
 
     return {
         "number": preferred_phone.get("number", ""),
         "optedForCommunication": preferred_phone.get("optedForCommunication", False)
     }
+
 
 def parse_address_v3(addresses):
     """Parse the address and return a dictionary with address components."""
