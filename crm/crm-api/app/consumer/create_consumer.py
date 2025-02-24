@@ -59,7 +59,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         with DBSession() as session:
-            dealer_partner, integration_partner_name = session.query(
+            db_results = session.query(
                 DealerIntegrationPartner, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
@@ -71,24 +71,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     DealerIntegrationPartner.is_active_salesai.is_(True),
                     DealerIntegrationPartner.is_active_chatai.is_(True))
             ).first()
-            if not dealer_partner:
+            if not db_results:
                 error_msg = f"No active dealer found with id {product_dealer_id}. Consumer failed to be created."
                 logger.error(error_msg)
-                send_alert_notification(subject=f'CRM API: Consumer creation failure', message=error_msg)
+                send_alert_notification(subject='CRM API: Consumer creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": error_msg})
                 }
+
+            dealer_partner, integration_partner_name = db_results
             if authorizer_integration_partner:
                 if authorizer_integration_partner != integration_partner_name:
-                        return {
-                            "statusCode": 401,
-                            "body": dumps(
-                                {
-                                    "error": f"This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
-                                }
-                            ),
-                        }
+                    return {
+                        "statusCode": 401,
+                        "body": dumps(
+                            {
+                                "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                            }
+                        ),
+                    }
 
             # Query for existing consumer
             consumer_db = None
