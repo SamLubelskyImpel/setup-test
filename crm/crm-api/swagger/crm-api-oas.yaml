@@ -507,6 +507,78 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
 
+  /leads/consumer/{consumer_id}:
+    get:
+      operationId: get-lead-by-consumer-id
+      summary: Retrieve a specific lead by Consumer ID with sorting options. For internal use only.
+      #{{RETRIEVE_LEAD_BY_CONSUMER_ID_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/consumerId"
+        - name: sort_order
+          in: query
+          description: Determines the sorting order of the response data. Accepts "asc" for ascending and "desc" for descending.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistance data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
+                  - type: object
+                    properties:
+                      lead_id:
+                        type: integer
+                        description: Unique lead_id in the Impel system
+                        example: 3
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
+
   /consumers:
     post:
       operationId: post-consumer

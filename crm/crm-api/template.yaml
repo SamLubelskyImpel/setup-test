@@ -381,6 +381,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveLeadByConsumerId:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadByConsumerId"
+      CodeUri: app/lead/
+      Handler: retrieve_lead_by_consumer_id.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /leads/consumer/{consumer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   UpdateLead:
     Type: AWS::Serverless::Function
     Properties:
