@@ -7,11 +7,9 @@ from botocore.exceptions import ClientError
 from shared_class import BaseClass
 import uuid
 
-# Logging
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-# AWS Secrets Manager Config
 ENVIRONMENT = environ.get("ENVIRONMENT")
 is_prod = ENVIRONMENT == "prod"
 SECRET_NAME = "prod/crm-integrations-partner" if is_prod else "test/crm-integrations-partner"
@@ -109,9 +107,8 @@ class ShiftDigitalAPIWrapper:
 
         try:
             response = self.secret_client.get_secret_value(SecretId=SECRET_NAME)
-            secret_data = loads(response["SecretString"])  # Convert string to dictionary
+            secret_data = loads(response["SecretString"])
 
-            # Extract only the SHIFT_DIGITAL key
             shift_digital_secret = loads(secret_data["SHIFT_DIGITAL"])  
 
             logger.info("Successfully retrieved Shift Digital API secrets.")
@@ -269,4 +266,3 @@ class ShiftDigitalAPIWrapper:
         except APIError as e:
             logger.error(f"Error processing callback: {e}")
             raise
-
