@@ -18,6 +18,7 @@ logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+SECRET_KEY = environ.get("SECRET_KEY", "")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -54,6 +55,23 @@ def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
         logger.error(f"Error getting existing lead from CRM API: {e}")
         raise
 
+def get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key):
+    """Get existing consumer by CRM Consumer ID through CRM API."""
+    url = f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}?crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
+
+    response = make_crm_api_request(url, "GET", crm_api_key)
+
+    if response.status_code == 404:
+        logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} not found. {response.text}")
+        return None
+
+    response.raise_for_status()
+
+    response_json = response.json()
+    logger.info(f"Existing consumer with CRM Consumer ID {response_json}")
+    consumer_id = response_json["consumer_id"]
+
+    return consumer_id
 
 def create_consumer(parsed_lead, crm_api_key) -> dict:
     """Create consumer in db."""
@@ -143,10 +161,12 @@ def parse_lead(product_dealer_id, data):
     parsed_data = {}
     try:
         crm_lead_id = data["id"]
+        crm_consumer_id = data["personApiID"]
 
         db_consumer = {
             "first_name": data.get("firstName"),
             "last_name": data.get("lastName"),
+            "crm_consumer_id": crm_consumer_id,
             "phone": parse_phone_number(data),
             "email": data.get("email"),
             "address": parse_address(data),
@@ -227,6 +247,7 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_lead_id = json_data["id"]
         crm_dealer_id = json_data["dealerID"]
+        crm_consumer_id = json_data["personApiID"]
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
@@ -235,10 +256,15 @@ def record_handler(record: SQSRecord) -> None:
             return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
+        existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key) # Checks that the crm_lead_id already exists
         if existing_lead:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
+        
+        # Add logic: get consumer_id based on dealer ID and crm_consumer_id
+        existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
+        # Add logic: get leads based on the consumer_id from above
+        # Add error handling
 
         consumer = parsed_lead["consumer"]
         if consumer.get("email") is None and consumer.get("phone") is None:
