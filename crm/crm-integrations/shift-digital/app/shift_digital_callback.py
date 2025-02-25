@@ -29,8 +29,6 @@ def process_callback(record: SQSRecord) -> None:
         if not shift_digital_lead_id:
             logger.error("Missing required shift_digital_lead_id")
             raise ValueError("Missing required fields: shift_digital_lead_id")
-            
-        logger.info(f"Shift Digital Lead ID: {shift_digital_lead_id}, lead_id: {lead_id}")
 
         shift_digital_api = ShiftDigitalAPIWrapper()
         shift_digital_api.process_callback(shift_digital_lead_id, lead_id)

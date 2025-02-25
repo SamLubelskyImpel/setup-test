@@ -77,11 +77,11 @@ def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
 
         logger.info(f"Successfully posted lead {lead_id} to Shift Digital. Shift Digital Lead ID: {shift_digital_lead_id}")
 
+        # Send message to callback queue for further processing
         sqs_payload = {
             "shift_digital_lead_id": shift_digital_lead_id,
             "lead_id": lead_id,
         }
-
         sqs_client.send_message(
             QueueUrl=CALLBACK_QUEUE_URL,
             MessageBody=json.dumps(sqs_payload),

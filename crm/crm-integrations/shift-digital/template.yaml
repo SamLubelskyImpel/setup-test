@@ -146,7 +146,7 @@ Resources:
                         - !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
                         - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerQueue"
                         - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerDeadLetterQueue"
-    
+
     ShiftDigitalPostLead:
         Type: AWS::Serverless::Function
         Properties:
@@ -217,7 +217,7 @@ Resources:
             QueueName: !Sub "shift-digital-${Environment}-CallbackQueue"
             VisibilityTimeout: 60
             MessageRetentionPeriod: 604800  
-            # DelaySeconds: 900 # todo: update this
+            DelaySeconds: 900
             RedrivePolicy:
                 deadLetterTargetArn: !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
                 maxReceiveCount: 3

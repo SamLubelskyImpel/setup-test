@@ -45,21 +45,33 @@ def load_adf_config() -> Dict[str, str]:
 adf_config = load_adf_config()
 
 def send_to_adf_assembler(event: Dict[str, Any]) -> None:
-    """Send event to ADF Assembler based on event type."""
+    """Send event to the appropriate ADF Assembler queue."""
     try:
-        queue_key = "OEM_PARTNER_ADF_QUEUE" if event.get("oem_partner") else "STANDARD_ADF_QUEUE"
-        sqs_url = adf_config.get(queue_key)
-        if not sqs_url:
-            raise ValueError(f"No SQS URL configured for key '{queue_key}'")
+        queue_url = None
+        oem_partner = event.get("oem_partner", {}).get("name", "").upper()
+        if oem_partner:
+            # Iterate through OEM_PARTNER_QUEUES to find the correct queue
+            for queue_key, queue_details in adf_config.get("OEM_PARTNER_QUEUES", {}).items():
+                if oem_partner in queue_details.get("partners", []):
+                    queue_url = queue_details.get("queue_url")
+                    logger.info(f"OEM Partner '{oem_partner}' matched with queue: {queue_url}")
+                    break
 
-        logger.info(f"Sending message to {queue_key}\nThis is event: {event}")
-        sqs_client.send_message(QueueUrl=sqs_url, MessageBody=dumps(event))
+        # If no specific queue is found, fall back to the STANDARD_ADF_QUEUE
+        if not queue_url:
+            queue_url = adf_config.get("STANDARD_ADF_QUEUE")
+        if not queue_url:
+            raise ValueError("No SQS URL configured for the event.")
+
+        logger.info(f"Sending message to queue URL: {queue_url}")
+        sqs_client.send_message(QueueUrl=queue_url, MessageBody=dumps(event))
         logger.info("Message successfully sent to ADF Assembler.")
     except (Boto3Error, ValueError) as e:
         error_message = f"Error sending event to ADF Assembler: {e}"
         logger.error(error_message)
         send_email_notification(error_message, subject="ADF Assembler Failure Alert")
         raise ADFAssemblerError(error_message)
+
 
 def record_handler(record: SQSRecord) -> None:
     """Process each SQS record."""

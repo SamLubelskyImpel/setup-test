@@ -18,6 +18,7 @@ SECRET_NAME = "prod/crm-integrations-partner" if is_prod else "test/crm-integrat
 REGION_NAME = "us-east-1"
 SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 
 class APIError(Exception):
@@ -25,14 +26,29 @@ class APIError(Exception):
     pass
 
 
+def send_alert_notification(alert_title: str, alert_body: str):
+    """Send alert notification to Client Engineering team."""
+    sns_client = boto3.client('sns')
+    try:
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=alert_body,
+            Subject=f'CRM Shared Layer Alerts: Shift Digital - {alert_title}',
+            MessageStructure='string'
+        )
+        logger.info(f"Sent alert: {alert_title}")
+    except Exception as e:
+        logger.error(f"Failed to send alert notification: {e}")
+
+
 class CRMAPIWrapper(BaseClass):
     """Handles calls to the CRM API by extending BaseClass."""
 
     def __init__(self):
         """Initialize the wrapper using BaseClass."""
-        super().__init__()  # Inherit BaseClass functionality
+        super().__init__()
 
-    def get_vehile_lead_data(self, lead_id: int):
+    def get_vehicle_lead_data(self, lead_id: int):
         """Fetch lead details from CRM API."""
         return self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
@@ -46,7 +62,7 @@ class CRMAPIWrapper(BaseClass):
 
     def update_lead(self, lead_id: int, update_data: dict):
         """Update lead in CRM API."""
-        url = f"{self.crm_api_url}/leads/{lead_id}"
+        url = f"https://{CRM_API_DOMAIN}/leads/{lead_id}"
         headers = {
             "x_api_key": self.api_key,
             "partner_id": self.partner_id,
@@ -108,14 +124,12 @@ class ShiftDigitalAPIWrapper:
             logger.error(f"Error retrieving Shift Digital API secret: {e}")
             raise e
 
-
     def format_lead_data(self, lead_id: int, dealer_code: str) -> dict:
         """Retrieve data from CRM API and format it for Shift Digital API."""
         logger.info(f"Formatting lead data for Shift Digital submission: lead_id={lead_id}, dealer_code={dealer_code}")
 
-        # Fetch data from CRM API
         try:
-            lead = self.crm_api.get_vehile_lead_data(lead_id) or {}
+            lead = self.crm_api.get_vehicle_lead_data(lead_id) or {}
             vehicle_of_interest = lead["vehicles_of_interest"][0] if lead.get("vehicles_of_interest", []) else {}
 
             is_vehicle_of_interest = any(vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model'])
@@ -126,25 +140,21 @@ class ShiftDigitalAPIWrapper:
             logger.error(f"Failed to fetch data from CRM API: {e}")
             raise APIError(f"Could not retrieve data from CRM API for lead_id: {lead_id}")
 
-        # Determine preferred contact method
         preferred_contact = "email" if customer_data.get("email_optin_flag") else "sms" if customer_data.get("sms_optin_flag") else "phone"
 
-        # Determine provider source ID based on lead type
         sourceId = self.provider_source_ids.get(self.oem_name, {}).get(
             "sales" if is_vehicle_of_interest else "contact", "UNKNOWN"
         )
 
-        # Generate UUID for the Lead ID
         lead_uuid = str(uuid.uuid4())
 
-        # Construct formatted data
         formatted_data = {
             "lead": {
                 "id": lead_uuid,
                 "sourceId": sourceId,
                 "dealerCode": dealer_code,
                 "timestamp": lead.get("lead_ts", ""),
-                "url": lead.get("lead_url", ""), ####TODO: ASK ABOUT THIS
+                "url": lead.get("lead_url", "")
             },
             "customer": {
                 "firstName": customer_data.get("first_name", ""),
@@ -157,11 +167,9 @@ class ShiftDigitalAPIWrapper:
                 "mobilePhone": customer_data.get("phone", ""),
                 "emailAddress": customer_data.get("email", ""),
                 "preferredContactMethod": preferred_contact,
-                "comments": lead.get("lead_comment", ""),
+                "comments": lead.get("lead_comment", "")
             },
         }
-
-        # ✅ Only include `vehicles` field if it's a vehicle of interest
         if is_vehicle_of_interest:
             formatted_data["vehicles"] = [
                 {
@@ -173,7 +181,7 @@ class ShiftDigitalAPIWrapper:
                     "model": vehicle_of_interest.get("model", ""),
                     "trim": vehicle_of_interest.get("trim", ""),
                     "exteriorColor": vehicle_of_interest.get("exterior_color", ""),
-                    "interiorColor": vehicle_of_interest.get("interior_color", ""),
+                    "interiorColor": vehicle_of_interest.get("interior_color", "")
                 }
             ]
 
@@ -181,24 +189,23 @@ class ShiftDigitalAPIWrapper:
 
     def submit_lead(self, lead_id: int, dealer_code: str) -> str:
         """Formats data and submits a lead to Shift Digital API."""
-        logger.info(f"Submitting lead {lead_id} to Shift Digital.")
         payload, is_vehicle_of_interest = self.format_lead_data(lead_id, dealer_code)
+        shift_digital_lead_id = payload["lead"]["id"]
 
         try:
-            logger.info(f"Payload before sending: {dumps(payload, indent=2)}")
+            logger.info(f"Sending payload to Shift Digital: {dumps(payload, indent=2)}")
             response = requests.post(f"{self.api_url}/deals", json=payload, headers=self.headers)
             response.raise_for_status()
 
             lead_response = response.json()
             logger.info(f"Shift Digital Responded with: {lead_response}")
 
-            lead_response_id = lead_response.get("Id")
-            if not lead_response_id:
-                logger.error(f"Shift Digital API did not return a lead ID. Full Response: {lead_response}")
-                raise APIError("Shift Digital API did not return a lead ID.")
+            if not lead_response.get("Successful"):
+                logger.error(f"Shift Digital API returned an unsuccessful response: {lead_response}")
+                raise APIError(f"Shift Digital API error: {lead_response.get('ErrorMessage', 'Unknown error')}")
 
-            logger.info(f"Lead successfully submitted to Shift Digital. Lead ID: {lead_response_id}")
-            return lead_response_id, is_vehicle_of_interest
+            logger.info(f"Lead successfully submitted to Shift Digital. Lead ID: {shift_digital_lead_id}")
+            return shift_digital_lead_id, is_vehicle_of_interest
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error submitting lead to Shift Digital API: {e}. Response: {response.text}")
@@ -228,32 +235,38 @@ class ShiftDigitalAPIWrapper:
 
         return None
 
-
     def process_callback(self, shift_digital_lead_id: str, lead_id: str):
         """Process the callback by checking the lead status and updating CRM API."""
         try:
-            # Check Shift Digital lead status
             status_response = self.check_lead_status(shift_digital_lead_id)
             logger.info(f"Lead status response: {status_response}")
 
-            # Ensure the lead is generated before updating our CRM
-            if status_response.get("status") == "Lead Generated":
-                extracted_crm_lead_id = self.extract_crm_lead_id(status_response)
+            lead_status = status_response.get("Status")
 
-                if not extracted_crm_lead_id:
-                    logger.warning(f"No CRM lead ID found in response for Shift Digital Lead ID {shift_digital_lead_id}")
-                    return
+            if lead_status == "Pending Min Requirements":
+                warning_message = f"Shift Digital Lead {shift_digital_lead_id} is in 'Pending Min Requirements' state."
+                logger.warning(warning_message)
+                send_alert_notification("Shift Digital Alert", warning_message)
+                return
 
-                update_payload = {
-                    "crm_lead_id": extracted_crm_lead_id
-                }
-                # Update our CRM API
-                logger.info(f"Updating CRM API with Shift Digital Lead ID: {shift_digital_lead_id}")
-                self.crm_api.update_lead(lead_id, update_payload)
-                logger.info(f"Successfully updated CRM API for lead {extracted_crm_lead_id}.")
-            else:
-                logger.warning(f"Lead ID {shift_digital_lead_id} is not yet processed by Shift Digital.")
+            elif lead_status != "Lead Generated":
+                logger.warning(f"Unexpected lead status: {lead_status} for Shift Digital Lead ID {shift_digital_lead_id}")
+                raise APIError("Lead status not yet 'Lead Generated'.")
+
+            extracted_crm_lead_id = self.extract_crm_lead_id(status_response)
+
+            if not extracted_crm_lead_id:
+                logger.error(f"No CRM lead ID found in response for Shift Digital Lead ID {shift_digital_lead_id}")
+                raise APIError("Missing CRM lead ID in Shift Digital response.")
+
+            update_payload = {
+                "crm_lead_id": extracted_crm_lead_id
+            }
+
+            self.crm_api.update_lead(lead_id, update_payload)
+            logger.info(f"Successfully updated CRM API for lead {extracted_crm_lead_id}.")
 
         except APIError as e:
             logger.error(f"Error processing callback: {e}")
             raise
+
