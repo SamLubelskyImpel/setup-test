@@ -49,15 +49,6 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
-RETRIEVE_LEAD_BY_CONSUMER_ID_LAMBDA_INFO = """
-x-amazon-apigateway-integration:
-  uri:
-    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveLeadByConsumerId.Arn}/invocations
-  passthroughBehavior: never
-  httpMethod: POST
-  type: aws_proxy
-"""
-
 UPDATE_LEAD_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
