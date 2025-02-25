@@ -114,15 +114,42 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub idp-shared-services-${Environment}-ServiceAIEventRule
-      EventPattern: !If [IsProd, '{"source":[{"prefix":"idp"}]}', '{"source":[{"prefix":"serviceai.test"}]}']
+      EventPattern: !If [IsProd, '{"source":[{"prefix":"IDP"}]}', '{"source":[{"prefix":"IDP"}]}']
       State: ENABLED
       EventBusName: !GetAtt EventBus.Name
       Targets:
-        - Id: SQS
+        - Id: consumerUnsubscribeSQS
           Arn: !If [
             IsProd,
             'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-prod',
             'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+        - Id: vinDisposedSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+        - Id: appointmentScheduledSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+        - Id: roScheduledSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
           ]
           RoleArn: !GetAtt EnterpriseBusRole.Arn
           DeadLetterConfig:
