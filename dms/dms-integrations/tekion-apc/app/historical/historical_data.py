@@ -5,7 +5,6 @@ from os import environ
 from json import loads
 from datetime import datetime, timedelta, timezone
 from ftp_wrapper import FtpToS3
-from paramiko import SFTPClient
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -26,28 +25,27 @@ def get_ftp_credentials():
         host = secret_data.get("host")
         user = secret_data.get("user")
         password = secret_data.get("password")
-        port = int(secret_data.get("port"))
 
-        return host, user, password, port
+        return host, user, password
     except boto3.exceptions.Boto3Error as e:
         logger.error(f"Failed to retrieve secret {secret_id}: {e}")
         raise
 
 
-def list_new_files(ftp: SFTPClient):
+def list_new_files(ftp):
     # Get current time and time 24 hours ago
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
 
-    ftp_folder  = f"/home/dealervault/{FTP_FOLDER}"
-    files = ftp.listdir(ftp_folder)
-
-    logger.info(f"Looking directory: /home/dealervault/{FTP_FOLDER}")
+    ftp.cwd(FTP_FOLDER)
+    logger.info(f"Changed to directory: {FTP_FOLDER}")
     new_files = []
-    for file in files:
-        file_path = f"{ftp_folder}/{file}"
-        file_modified_timestamp = ftp.stat(file_path).st_mtime
-        file_modified_time = datetime.utcfromtimestamp(file_modified_timestamp).replace(tzinfo=timezone.utc)
+    for file in ftp.nlst():
+        file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
+        try:
+            file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S.%f").replace(tzinfo=timezone.utc)
+        except ValueError:
+            file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
 
         if file_modified_time > last_24_hours:
             new_files.append(file)
@@ -64,18 +62,13 @@ def upload_file_to_s3(local_file, s3_key):
         raise
 
 
-def process_file(file, ftp: SFTPClient, dealer_id, s3_date_path):
+def process_file(file, ftp, dealer_id, s3_date_path):
     try:
         if file.startswith(f"{dealer_id}_"):
-            ftp_folder  = f"/home/dealervault/{FTP_FOLDER}"
 
             local_file = f"/tmp/{file}"
-            remote_file_path = f"{ftp_folder}/{file}"
+            ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
             
-            # Download file from SFTP
-            ftp.get(remote_file_path, local_file)
-            logger.info(f"Downloaded {remote_file_path} to {local_file}")
-
             if any(keyword in file for keyword in ["RO"]):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
             elif any(keyword in file for keyword in ["VS"]):
@@ -99,8 +92,8 @@ def parse_data(data):
         end_dt = data["end_dt_str"]
         s3_date_path = datetime.strptime(end_dt, "%Y-%m-%dT%H:%M:%S").strftime("%Y/%m/%d")
 
-        host, user, password, port = get_ftp_credentials()
-        ftp_session = FtpToS3(host=host, user=user, password=password, port=port)
+        host, user, password = get_ftp_credentials()
+        ftp_session = FtpToS3(host=host, user=user, password=password)
         ftp = ftp_session.connect_to_ftp()
 
         if ftp:

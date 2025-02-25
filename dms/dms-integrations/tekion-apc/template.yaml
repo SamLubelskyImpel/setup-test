@@ -58,7 +58,7 @@ Globals:
                         !Sub "integrations-${AWS::Region}-prod",
                         !Sub "integrations-${AWS::Region}-test"
                       ]
-        FTP_FOLDER: !If [ IsProd, "Historical_Files", "dev1/Historical_Files"]
+        FTP_FOLDER: !If [ IsProd, "", ""]
     VpcConfig:
       SecurityGroupIds:
         - !Ref TekionSecurityGroup
