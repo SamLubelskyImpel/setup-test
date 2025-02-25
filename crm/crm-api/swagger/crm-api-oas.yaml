@@ -218,6 +218,20 @@ paths:
           required: false
           schema:
             type: string
+        - name: consumer_id
+          in: query
+          description: The ID of the consumer
+          required: false
+          schema:
+            type: integer
+        - name: sort_order
+          in: query
+          description: Determines the sorting order of the response data by "db_creation_date". Accepts "asc" for ascending and "desc" for descending.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - "$ref": '#/components/parameters/page'
         - "$ref": '#/components/parameters/resultCount'
   /leads/{lead_id}:
@@ -507,26 +521,6 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
 
-  /leads/consumer/{consumer_id}:
-    get:
-      operationId: get-lead-by-consumer-id
-      summary: Retrieve a specific lead by Consumer ID with sorting options. For internal use only.
-      #{{RETRIEVE_LEAD_BY_CONSUMER_ID_LAMBDA_INFO}}
-      tags:
-        - Leads
-      parameters:
-        - "$ref": "#/components/parameters/partnerId"
-        - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/consumerId"
-        - name: sort_order
-          in: query
-          description: Determines the sorting order of the response data. Accepts "asc" for ascending and "desc" for descending.
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-      responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistance data layer.
           content:
