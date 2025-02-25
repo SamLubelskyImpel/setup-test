@@ -115,18 +115,20 @@ def lambda_handler(event, context):
                     failed_dealers.append(db_dealer["dealer_name"])
                     continue
 
-                codes = dealer_codes[db_dealer["integration_dealer_id"]]
+                codes_from_vendor = dealer_codes[db_dealer["integration_dealer_id"]]
+                if not codes_from_vendor:
+                    failed_dealers.append(db_dealer["dealer_name"])
+                    continue
 
-                if codes == "ERROR":
+                if codes_from_vendor == "ERROR":
                     failed_dealers.append(db_dealer["dealer_name"])
                     continue
 
                 missing_codes = []
                 for db_code in db_dealer["op_codes"]:
-                    if codes:
-                        for code in codes:
-                            if str(db_code) == str(code):
-                                break
+                    for v_code in codes_from_vendor:
+                        if str(db_code) == str(v_code):
+                            break
                     else:
                         missing_codes.append(db_code)
 
