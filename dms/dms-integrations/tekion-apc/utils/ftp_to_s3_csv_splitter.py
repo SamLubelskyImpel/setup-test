@@ -133,7 +133,7 @@ def main():
     host = ftp_credentials['host']
     user = ftp_credentials['user']
     password = ftp_credentials['password']
-    remote_directory = f"/home/dealervault/{'Historical_Files' if AWS_PROFILE in ('unified-prod','unified-admin') else 'dev1/Historical_Files'}"  # Directory on the FTP server where the file is located
+    remote_directory = f"/{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}_tekion_dms"
     local_file_path = os.path.join(os.getcwd(), filename)  # Save the file in the current directory
 
     ftp = connect_to_ftp(host, user, password)
