@@ -51,3 +51,15 @@ class GetAppointments:
     year: Optional[int] = None
     make: Optional[str] = None
     model: Optional[str] = None
+
+
+@dataclass
+class UpdateAppointment:
+    request_id: str
+    appointment_id: str
+    timeslot: str
+    dealer_timezone: str
+    vin: str
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None

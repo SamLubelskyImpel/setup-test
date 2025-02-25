@@ -12,7 +12,7 @@ from boto3 import client
 from dateutil import parser
 from ratelimit import limits, sleep_and_retry
 
-from models import GetAppointments, CreateAppointment, AppointmentSlots
+from models import GetAppointments, CreateAppointment, AppointmentSlots, UpdateAppointment
 from xtime_token_management.secrets import get_token, update_token
 from xtime_token_management.token_status import is_token_expired
 
@@ -195,6 +195,33 @@ class XTimeApiWrapper:
 
         logger.info(f"XTime Timeslots Response: {response_json}")
         return response_json
+
+    def update_appointment(self, update_appt_data: UpdateAppointment):
+
+        url = "{}/service/appointments-bookings".format(self.__api_url)
+
+        params = {
+
+        "dealerCode": create_appt_data.integration_dealer_id
+
+        }
+        self._add_optional_params(params=params, data_instance=update_appt_data)
+        logger.info(f"Params for XTime: \n {params}")
+
+        payload = {
+            "appointmentId": update_appt_data.appointment_id,
+            "appointmentDateTimeLocal":  self.__localize_time(update_appt_data.timeslot, update_appt_data.dealer_timezone)
+        }
+
+        payload = {key: value for key, value in payload.items() if value}
+        logger.info(f"Payload for XTime: \n {payload}")
+
+        response_json = self.__call_api(url, payload=payload, params=params)
+
+        logger.info(f"XTime Update Appt Response: {response_json}")
+        return response_json
+
+        return
 
 
     @sleep_and_retry

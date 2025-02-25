@@ -7,7 +7,7 @@ from logging import getLogger
 from os import environ
 from typing import Any
 
-from models import GetAppointments, CreateAppointment, AppointmentSlots
+from models import GetAppointments, CreateAppointment, AppointmentSlots, UpdateAppointment
 from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
 from xtime_api_wrapper import XTimeApiWrapper
 
@@ -152,6 +152,40 @@ def get_appointments(event: Any, context: Any) -> Any:
 
     except Exception as e:
         return handle_exception(e, "get_appointments")
+
+
+def update_appointment(event: Any, context: Any) -> Any:
+    """Update an appointment in XTime."""
+    logger.info(f"Event: {event}")
+
+    try:
+        data = parse_event(event)
+        api_wrapper = XTimeApiWrapper()
+
+        update_appointment_data = validate_data(data, UpdateAppointment)
+        update_appointment = api_wrapper.update_appointment(update_appointment_data)
+
+        if update_appointment["success"]:
+            return {
+                "statusCode": 204
+            }
+
+        return {
+            "statusCode": 500,
+            "body": dumps(
+                {
+                    "error": {
+                        "code": "V002",
+                        "message": "XTime responded with an error: {} {}".format(
+                            update_appointment["code"], update_appointment["message"]
+                        ),
+                    }
+                }
+            ),
+        }
+
+    except Exception as e:
+        return handle_exception(e, "update_appointment")
 
 
 def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
