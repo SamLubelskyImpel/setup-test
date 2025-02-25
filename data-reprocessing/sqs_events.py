@@ -73,6 +73,9 @@ events = {}
 
 # Find the event for each execution ID
 for execution_id in error_execution_ids:
+    if execution_id == 'All':   # This might happen due to powertools batcher logging
+        continue
+
     response = logs.filter_log_events(
         logGroupName=log_group,
         startTime=calendar.timegm(date_start.timetuple())*1000,
@@ -85,11 +88,14 @@ for execution_id in error_execution_ids:
         continue
 
     event_message = response['events'][0]['message']
-    event = ''.join(event_message.split()[4:]).replace("\'", "\"").replace('None', 'null').replace('False', 'false').replace('True', 'true').replace("\"{", "{").replace("}\"", "}")
-    event_dict = loads(event)
-    for event_record in event_dict['Records']:
-        # Lambda retries failed SQS events, this assures we only get 1 per messageId
-        events[event_record['messageId']] = (execution_id, event_record)
+    try:
+        event = ''.join(event_message.split()[4:]).replace("\'", "\"").replace('None', 'null').replace('False', 'false').replace('True', 'true').replace("\"{", "{").replace("}\"", "}")
+        event_dict = loads(event)
+        for event_record in event_dict['Records']:
+            # Lambda retries failed SQS events, this assures we only get 1 per messageId
+            events[event_record['messageId']] = (execution_id, event_record)
+    except:
+        print(f'Failed to parse event {execution_id}')
 
 events = events.values()
 print(f'Found {len(events)} events to reprocess')

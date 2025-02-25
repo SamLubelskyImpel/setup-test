@@ -71,10 +71,6 @@ paths:
                 - required:
                     - consumer_id
                     - lead_status
-                    - lead_substatus
-                    - lead_comment
-                    - lead_origin
-                    - lead_source
                     - vehicles_of_interest
                 - type: object
                   properties:
@@ -98,12 +94,6 @@ paths:
                       items:
                         allOf:
                           - $ref: '#/components/schemas/Salesperson'
-                          - required:
-                              - crm_salesperson_id
-                              - first_name
-                              - last_name
-                              - email
-                              - phone
                 - type: object
                   properties:
                     metadata:
@@ -1571,20 +1561,17 @@ components:
         lead_status:
           type: string
           description: A status that can be used to group leads that are in similar state
-          minLength: 1
           maxLength: 50
           example: "ACTIVE"
         lead_substatus:
           type: string
           description: Current state of the lead
-          minLength: 1
           maxLength: 50
           example: "Appointment Set"
         lead_comment:
           type: string
           description: Comment about the lead or generated text from the source on behalf of the lead
-          minLength: 1
-          maxLength: 5000
+          maxLength: 10000
           example: "Does this car have a sunroof?"
         lead_origin:
           type: string
@@ -1595,17 +1582,16 @@ components:
         lead_source:
           type: string
           description: The specific channel through which the lead was generated.
-          minLength: 1
           maxLength: 200
           example: cars.com
         lead_source_detail:
           type: string
           description: The specific detail about the lead source.
-          minLength: 1
           maxLength: 200
           example: "Inventory Leads Website"
         vehicles_of_interest:
           $ref: '#/components/schemas/VehiclesOfInterest'
+    
     Salesperson:
       description: An object containing all information about a salesperson
       type: object

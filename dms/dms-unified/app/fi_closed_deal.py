@@ -18,6 +18,33 @@ IS_PROD = ENVIRONMENT == "prod"
 s3_client = boto3.client("s3")
 
 
+def insert_entity_if_exists(df, prefix, table, result_column, rds, rename_prefix=None):
+    """
+    Inserts data into the given table if relevant data exists in the DataFrame.
+    """
+    relevant_columns = [col for col in df.columns if col.startswith(prefix)]
+
+    if not relevant_columns:
+        logger.info(f"[SKIPPING] No columns with prefix '{prefix}' found for table '{table}'. Setting {result_column} to None.")
+        df[result_column] = None
+        return df
+
+    # Select only rows where at least one relevant column has a non-null value
+    df_subset = df.loc[df[relevant_columns].notna().any(axis=1), relevant_columns].copy()
+    if df_subset.empty:
+        logger.info(f"[SKIPPING] No non-null values found for prefix '{prefix}' in table '{table}'.")
+        df[result_column] = None
+        return df
+
+    if rename_prefix:
+        df_subset.columns = [col.replace(prefix, rename_prefix) for col in relevant_columns]
+
+    inserted_ids = rds.insert_table_from_df(df_subset, table)
+    df.loc[df[relevant_columns].notna().any(axis=1), result_column] = inserted_ids
+
+    return df
+
+
 def insert_fi_deal_parquet(key, df):
     """Insert to vehicle sale table and linked tables."""
     integration = key.split("/")[2]
@@ -42,6 +69,14 @@ def insert_fi_deal_parquet(key, df):
             "vehicle_sale|dealer_integration_partner_id"
         ] = db_dealer_integration_partner_id
 
+        # Only assign dealer_integration_partner_id if there are relevant columns in the dataset
+        for entity in ["cobuyer_consumer", "trade_in_vehicle"]:
+            if any(col.startswith(f"{entity}|") for col in df.columns):
+                df[f"{entity}|dealer_integration_partner_id"] = df.apply(
+                    lambda row: db_dealer_integration_partner_id if any(pd.notna(row[col]) for col in df.columns if col.startswith(f"{entity}|")) else None,
+                    axis=1
+                )
+
         # Unique dealer_integration_partner_id, vin, sale_date SQL can't insert duplicates
         vehicle_sale_unique_constraint = [
             "vehicle_sale|dealer_integration_partner_id",
@@ -55,8 +90,24 @@ def insert_fi_deal_parquet(key, df):
         inserted_consumer_ids = rds.insert_table_from_df(df, "consumer")
         df["vehicle_sale|consumer_id"] = inserted_consumer_ids
 
+        df = insert_entity_if_exists(
+            df, prefix="cobuyer_consumer|",
+            table="consumer",
+            result_column="vehicle_sale|cobuyer_consumer_id",
+            rds=rds,
+            rename_prefix="consumer|"
+        )
+
         inserted_vehicle_ids = rds.insert_table_from_df(df, "vehicle")
         df["vehicle_sale|vehicle_id"] = inserted_vehicle_ids
+
+        df = insert_entity_if_exists(
+            df, prefix="trade_in_vehicle|",
+            table="vehicle",
+            result_column="vehicle_sale|trade_in_vehicle_id",
+            rds=rds,
+            rename_prefix="vehicle|"
+        )
 
         vehicle_sale_columns = [
             x.split("|")[1] for x in list(df.columns) if x.startswith("vehicle_sale|")
