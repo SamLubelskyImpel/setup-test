@@ -34,6 +34,9 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
+        DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
+        DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
+        DEALERSOCKET_VENDOR: "random_value"
 
 Resources:
   LambdaRole:
@@ -89,7 +92,11 @@ Resources:
                   - "s3:GetObject"
                   - "s3:ListBucket"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                - !If [
+                    IsProd,
+                    !Sub "arn:aws:s3:::crm-integrations-prod*",
+                    !Sub "arn:aws:s3:::crm-integrations-test*"
+                  ]
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -100,6 +107,8 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
+                  - !GetAtt LeadSearchQueue.Arn
+                  - !GetAtt LeadTransformationQueue.Arn
                   - !GetAtt SendActivityQueue.Arn
               - Effect: "Allow"
                 Action:
@@ -127,6 +136,197 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource: "*"
+
+  LeadSearch:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: !Sub dealersocket-au-${Environment}-LeadSearch
+        CodeUri: app/
+        Handler: lead_search.lambda_handler
+        Timeout: 60
+        MemorySize: 256
+        Role: !GetAtt LambdaRole.Arn
+
+  LeadSearchLogGroup:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadSearch"
+
+  LeadSearchEventMapping:
+      Type: AWS::Lambda::EventSourceMapping
+      DependsOn: LeadSearch
+      Properties:
+        BatchSize: 1
+        EventSourceArn: !GetAtt LeadSearchQueue.Arn
+        MaximumBatchingWindowInSeconds: 0
+        FunctionName: !GetAtt LeadSearch.Arn
+
+  LeadSearchQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadSearchQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LeadSearchDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  LeadSearchDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadSearchDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  LeadSearchDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "dealersocket-au-${Environment}-LeadSearchDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket LeadSearch DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt LeadSearchDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  LeadSearchQueuePolicy:
+    Type: "AWS::SQS::QueuePolicy"
+    Properties:
+      Queues:
+        - !Ref LeadSearchQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt LeadSearchQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
+
+  EventBridgeRuleNewLead:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.s3"
+        detail-type:
+          - "Object Created"
+        detail:
+          bucket:
+            name:
+              - !Sub "crm-integrations-${Environment}"
+          object:
+            key:
+              - { "prefix": "raw/carsales-dealersocket-au/" }
+      Targets:
+        - Id: "LeadSearchQueueTarget"
+          Arn: !GetAtt LeadSearchQueue.Arn
+
+  LeadTransformationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadTransformationQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LeadTransformationDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  LeadTransformationDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-LeadTransformationDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  LeadTransformationDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "dealersocket-au-${Environment}-LeadTransformationDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Dealersocket Lead Transformation DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt LeadTransformationDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  LeadTransformation:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealersocket-au-${Environment}-LeadTransformation
+      CodeUri: app/
+      Handler: lead_transformation.lambda_handler
+      Timeout: 180
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  LeadTransformationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadTransformation"
+
+  LeadTransformationEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: LeadTransformation
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt LeadTransformationQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt LeadTransformation.Arn
+
+  LeadUpdatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealersocket-au-${Environment}-LeadUpdates
+      CodeUri: app/
+      Handler: lead_updates.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  LeadUpdatesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-LeadUpdates"
+
+  LeadUpdatesErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub dealersocket-au-${Environment}-LeadUpdates
+      AlarmDescription: DealerSocket AU Lead Updates failed once within 15 minutes
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LeadUpdatesFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   SendActivityQueue:
     Type: AWS::SQS::Queue
@@ -186,3 +386,4 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
