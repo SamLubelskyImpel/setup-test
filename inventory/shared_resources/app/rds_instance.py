@@ -27,7 +27,7 @@ class RDSInstance:
         sm_client = boto3.client("secretsmanager")
         secret_string = loads(
             sm_client.get_secret_value(
-                SecretId="prod/DMSDB" if self.is_prod else "test/DMSDB"
+                SecretId="prod/RDS/SHARED" if self.is_prod else "test/RDS/SHARED"
             )["SecretString"]
         )
         return psycopg2.connect(
@@ -50,26 +50,13 @@ class RDSInstance:
         self.rds_connection.commit()
         return cursor
 
-    def select_db_dealer_sftp_details(self, provider_dealer_id):
-        """Get the db dealer id for the given provider dealer id."""
-        db_dealer_sftp_details_query = f"""
-            select iv.merch_dealer_id, iv.salesai_dealer_id, iv.merch_is_active, iv.salesai_is_active
-            from {self.schema}.inv_dealer iv
-            join {self.schema}.inv_dealer_integration_partner idipv on idipv.dealer_id = iv.id
-            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active"""
-        results = self.execute_rds(db_dealer_sftp_details_query)
-        db_dealer_sftp_details = results.fetchall()
-        if not results:
-            return []
-        else:
-            return db_dealer_sftp_details
-
     def select_db_dip_metadata(self, provider_dealer_id) -> dict:
         """Get the db dip metadata for the given provider dealer id."""
         query = f"""
             select idipv.metadata
             from {self.schema}.inv_dealer_integration_partner idipv
-            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active"""
+            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active;
+        """
         results = self.execute_rds(query)
         metadata = results.fetchone()
         if not metadata:
@@ -101,28 +88,8 @@ class RDSInstance:
                 unified_column_names.append(f"{table}|{column}")
         return unified_column_names
 
-    def insert_and_get_id(self, table, data, returning_col="id"):
-        """Insert a record into a table and return the specified column (default 'id')."""
-        keys = data.keys()
-        values = tuple(data.values())
-
-        if returning_col:
-            query = f"INSERT INTO {self.schema}.{table} ({', '.join(keys)}) VALUES ({', '.join(['%s'] * len(values))}) RETURNING {returning_col};"
-        else:
-            query = f"INSERT INTO {self.schema}.{table} ({', '.join(keys)}) VALUES ({', '.join(['%s'] * len(values))});"
-
-        try:
-            with self.rds_connection.cursor() as cursor:
-                cursor.execute(query, values)
-                self.rds_connection.commit()
-                if returning_col:
-                    result = cursor.fetchone()
-                    return result[0] if result else None
-        except Exception as e:
-            self.rds_connection.rollback()
-            raise e
-
     def is_new_data(self, incoming_received_datetime, provider_dealer_id):
+        """Compare incoming data's received datetime with the latest datetime in the database."""
         # Verify that incoming_received_datetime is a string and is not empty
         if (
             not isinstance(incoming_received_datetime, str)
@@ -173,8 +140,12 @@ class RDSInstance:
     def update_dealers_other_vehicles(
         self, dealer_integration_partner_id, current_feed_inventory_ids
     ):
-        """Set the inv_inventory record's on_lot to false for vehicles associated with the dealer not in the current_feed_inventory_ids list, but only if on_lot is currently true."""
+        """
+        Set the inv_inventory record's on_lot to false for vehicles associated with the dealer not
+        in the current_feed_inventory_ids list, but only if on_lot is currently true.
+        """
         try:
+            logger.info(f'Batch updating on_lot for dealer_integration_partner_id {dealer_integration_partner_id}')
             with self.rds_connection.cursor() as cursor:
                 select_query = f"""
                 SELECT id FROM {self.schema}.inv_inventory
@@ -207,227 +178,280 @@ class RDSInstance:
             )
             self.rds_connection.rollback()
 
-    def check_existing_record(self, table, check_columns, data):
-        """Check for an existing record in the database."""
-        placeholders = " AND ".join([f"{col} = %s" for col in check_columns])
-        query = f"SELECT id FROM {self.schema}.{table} WHERE {placeholders}"
-        values = [data[col] for col in check_columns]
-
-        with self.rds_connection.cursor() as cursor:
-            cursor.execute(query, values)
-            result = cursor.fetchone()
-            return result[0] if result else None
-
-    def insert_unique_record(self, table, data, unique_columns):
-        """Insert a record if it does not exist, and return its ID."""
-        existing_id = self.check_existing_record(table, unique_columns, data)
-        if existing_id:
-            return existing_id
-        else:
-            return self.insert_and_get_id(table, data)
-
     def find_dealer_integration_partner_id(self, provider_dealer_id):
+        """Query for DIP ID based on provider dealer ID."""
         query = f"SELECT id FROM {self.schema}.inv_dealer_integration_partner WHERE provider_dealer_id = %s"
         with self.rds_connection.cursor() as cursor:
             cursor.execute(query, (provider_dealer_id,))
             result = cursor.fetchone()
             return result[0] if result else None
 
-    def insert_vehicle(self, vehicle_data):
-        """Insert a vehicle record if it doesn't exist based on unique attributes, or update the existing record if it does."""
-        unique_columns = [
-            "vin",
-            "model",
-            "stock_num",
-            "dealer_integration_partner_id",
-            "mileage",
-        ]
+    def batch_upsert_vehicles(self, vehicle_data_list, dealer_integration_partner_id):
+        """Batch upsert vehicles by pre-checking for existing records."""
+        logger.info(f"Batch upserting {len(vehicle_data_list)} vehicles.")
 
-        # Prepare data for checking existing record
-        check_data = {
-            col: vehicle_data.get(col) for col in unique_columns if col in vehicle_data
+        # Step 1: Pre-batch lookup of existing vehicles by key attributes
+        lookup_keys = [(v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage']) for v in vehicle_data_list]
+        lookup_query = f"""
+        SELECT id, vin, dealer_integration_partner_id, model, stock_num, mileage
+        FROM {self.schema}.inv_vehicle
+        WHERE (vin, dealer_integration_partner_id, model, stock_num, mileage) IN %s;
+        """
+        with self.rds_connection.cursor() as cursor:
+            psycopg2.extras.execute_values(cursor, lookup_query, [lookup_keys])
+            existing_vehicles = cursor.fetchall()
+
+        # Map existing vehicles by their key attributes to their IDs
+        existing_vehicle_map = {
+            (v[1], v[2], v[3], v[4], v[5]): v[0]
+            for v in existing_vehicles
         }
+        logger.info(f"Existing vehicles: {len(existing_vehicle_map)}")
 
-        existing_vehicle_id = self.check_existing_record(
-            "inv_vehicle", list(check_data.keys()), check_data
-        )
-        if existing_vehicle_id:
-            # Columns to update, excluding unique columns and 'id'
-            update_columns = {"type", "new_or_used", "oem_name", "make", "year"}
-            set_clause = ", ".join(
-                [f"{col} = %s" for col in update_columns if col in vehicle_data]
-            )
+        # Step 2: Separate records for update and insert
+        update_data = []
+        insert_data = []
+
+        for v in vehicle_data_list:
+            key = (v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage'])
+            if key in existing_vehicle_map:
+                # Update record if it exists
+                v['id'] = existing_vehicle_map[key]  # Add ID for updating
+                update_data.append(v)
+            else:
+                # Otherwise, insert as a new record
+                insert_data.append(v)
+
+        if len(update_data) + len(insert_data) != len(vehicle_data_list):
+            logger.info(f"update_data: {update_data}")
+            logger.info(f"insert_data: {insert_data}")
+            raise ValueError("Mismatch between update and insert data lengths.")
+
+        # Step 3: Perform batch updates and inserts
+        if update_data:
             update_query = f"""
-            UPDATE {self.schema}.inv_vehicle
-            SET {set_clause}
-            WHERE id = %s;
+            UPDATE {self.schema}.inv_vehicle AS v SET
+                type = data.type,
+                new_or_used = data.new_or_used,
+                oem_name = data.oem_name,
+                make = data.make,
+                year = data.year,
+                metadata = to_jsonb(data.metadata)
+            FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year, metadata)
+            WHERE v.id = data.id;
             """
             update_values = [
-                vehicle_data[col] for col in update_columns if col in vehicle_data
-            ]
-            update_values.append(existing_vehicle_id)
-
-            with self.rds_connection.cursor() as cursor:
-                cursor.execute(update_query, update_values)
-                self.rds_connection.commit()
-                # logger.info(f"Updated existing vehicle record ID: {existing_vehicle_id} with new data.")
-            return existing_vehicle_id
-        else:
-            return self.insert_and_get_id("inv_vehicle", vehicle_data)
-
-    def insert_inventory_item(self, inventory_data):
-        """Insert an inventory item record if it doesn't exist based on unique attributes, or update the existing record if it does."""
-        unique_columns = ["vehicle_id", "dealer_integration_partner_id"]
-
-        check_data = {
-            col: inventory_data.get(col)
-            for col in unique_columns
-            if col in inventory_data
-        }
-        existing_inventory_id = self.check_existing_record(
-            "inv_inventory", list(check_data.keys()), check_data
-        )
-        if existing_inventory_id:
-            update_columns = {
-                "list_price",
-                "special_price",
-                "fuel_type",
-                "exterior_color",
-                "interior_color",
-                "doors",
-                "seats",
-                "transmission",
-                "drive_train",
-                "cylinders",
-                "body_style",
-                "series",
-                "vin",
-                "interior_material",
-                "trim",
-                "factory_certified",
-                "region",
-                "on_lot",
-                "metadata",
-                "received_datetime",
-                "photo_url",
-                "vdp",
-                "comments",
-            }
-            set_clause = ", ".join(
-                [f"{col} = %s" for col in update_columns if col in inventory_data]
-            )
-            update_query = f"""
-            UPDATE {self.schema}.inv_inventory
-            SET {set_clause}
-            WHERE id = %s;
-            """
-            update_values = [
-                inventory_data[col] for col in update_columns if col in inventory_data
-            ]
-            update_values.append(existing_inventory_id)
-
-            with self.rds_connection.cursor() as cursor:
-                cursor.execute(update_query, update_values)
-                self.rds_connection.commit()
-                # logger.info(f"Updated existing inventory record ID: {existing_inventory_id} with new data.")
-            return existing_inventory_id
-        else:
-            return self.insert_and_get_id("inv_inventory", inventory_data)
-
-    def link_option_to_inventory(self, inventory_id, option_ids):
-        """Link options to an inventory item via inv_option_inventory, avoiding duplicates."""
-        try:
-            with self.rds_connection.cursor() as cursor:
-                insert_query = f"""
-                INSERT INTO {self.schema}.inv_option_inventory (inv_inventory_id, inv_option_id)
-                VALUES %s
-                ON CONFLICT DO NOTHING
-                """
-                values = [(inventory_id, option_id) for option_id in option_ids]
-                psycopg2.extras.execute_values(
-                    cursor, insert_query, values, template=None, page_size=100
+                (
+                    v['id'], v.get('type'), v.get('new_or_used'),
+                    v.get('oem_name'), v.get('make'), v.get('year'), v.get('metadata')
                 )
-                self.rds_connection.commit()
-        except Exception as e:
-            self.rds_connection.rollback()
-            raise e
-
-    def bulk_check_existing_records(self, table, check_columns, data_list):
-        """Check for existing records using a bulk transaction."""
-        try:
-            # Construct the WHERE clause for the bulk check
-            values = []
-            for data in data_list:
-                values.append(tuple([data[col] for col in check_columns]))
-
-            where_clause = f"({', '.join(check_columns)}) IN %s"
-
-            query = f"""
-                SELECT id, {', '.join(check_columns)}
-                FROM {self.schema}.{table}
-                WHERE {where_clause}
-            """
-
+                for v in update_data
+            ]
             with self.rds_connection.cursor() as cursor:
-                cursor.execute(query, (tuple(values),))
-                results = cursor.fetchall()
+                psycopg2.extras.execute_values(cursor, update_query, update_values)
+                self.rds_connection.commit()
 
-                # Map the results to a dictionary
-                existing_records = {
-                    tuple(result[1:]): result[0] for result in results
-                }
+        new_vehicle_records = []
+        if insert_data:
+            logger.info(f"Inserting {len(insert_data)} new vehicles.")
 
-            return existing_records
-        except Exception as e:
-            self.rds_connection.rollback()
-            raise e
-
-    def insert_options(self, option_data_list):
-        """Insert multiple option records in a single bulk transaction."""
-        try:
-            # Check for existing options and filter out duplicates
-            existing_records = self.bulk_check_existing_records(
-                table="inv_option",
-                check_columns=["option_description", "is_priority"],
-                data_list=option_data_list,
-            )
-
-            existing_option_ids = []
-            new_option_data_list = []
-            for option_data in option_data_list:
-                key = (option_data["option_description"], option_data["is_priority"])
-                if key in existing_records:
-                    existing_option_ids.append(existing_records[key])
-                else:
-                    new_option_data_list.append(option_data)
-
-            # Perform bulk insert for new options
-            if new_option_data_list:
-                new_option_data_list_values = [
-                    (option_data["option_description"], option_data["is_priority"])
-                    for option_data in new_option_data_list
+            insert_query = f"""
+            INSERT INTO {self.schema}.inv_vehicle (vin, dealer_integration_partner_id, model, stock_num, mileage, type, new_or_used, oem_name, make, year, metadata)
+            VALUES %s
+            RETURNING id, vin, dealer_integration_partner_id, model, stock_num, mileage;
+            """
+            # Process in batches to handle large inserts
+            for i in range(0, len(insert_data), 100):
+                batch = insert_data[i:i+100]
+                insert_values = [
+                    (v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage'],
+                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'], v['metadata'])
+                    for v in batch
                 ]
 
                 with self.rds_connection.cursor() as cursor:
-                    insert_query = f"""
-                    INSERT INTO {self.schema}.inv_option (option_description, is_priority)
-                    VALUES %s
-                    ON CONFLICT (option_description, is_priority) DO NOTHING
-                    RETURNING id
-                    """
-                    psycopg2.extras.execute_values(
-                        cursor,
-                        insert_query,
-                        new_option_data_list_values,
-                        template="(%s, %s)",
-                        page_size=100,
-                    )
-                    new_option_ids = [row[0] for row in cursor.fetchall()]
-                    self.rds_connection.commit()
-            else:
-                new_option_ids = []
+                    psycopg2.extras.execute_values(cursor, insert_query, insert_values)
+                    batch_results = cursor.fetchall()
+                    new_vehicle_records.extend(batch_results)  # Append results of each batch
 
-            return existing_option_ids + new_option_ids
-        except Exception as e:
-            self.rds_connection.rollback()
-            raise e
+        if len(new_vehicle_records) != len(insert_data):
+            logger.info(f"New vehicles: {len(new_vehicle_records)}")
+            raise ValueError("Mismatch between inserted records and new vehicle records.")
+
+        # Add newly inserted records to the map
+        for v in new_vehicle_records:
+            key = (v[1], v[2], v[3], v[4], v[5])
+            existing_vehicle_map[key] = v[0]
+
+        # Return the map of unique keys to vehicle IDs
+        return existing_vehicle_map
+
+    def batch_insert_inventory(self, inventory_data_list, dealer_integration_partner_id):
+        """Batch insert or update inventory items based on vehicle_id and dealer_integration_partner_id."""
+        inventory_ids = set()
+
+        insert_query = f"""
+        INSERT INTO {self.schema}.inv_inventory (vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color,
+        interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin, interior_material, trim,
+        factory_certified, region, on_lot, metadata, received_datetime, photo_url, vdp, comments, options, priority_options)
+        VALUES %s
+        ON CONFLICT (vehicle_id, dealer_integration_partner_id) DO UPDATE SET
+            list_price = EXCLUDED.list_price,
+            special_price = EXCLUDED.special_price,
+            fuel_type = EXCLUDED.fuel_type,
+            exterior_color = EXCLUDED.exterior_color,
+            interior_color = EXCLUDED.interior_color,
+            doors = EXCLUDED.doors,
+            seats = EXCLUDED.seats,
+            transmission = EXCLUDED.transmission,
+            drive_train = EXCLUDED.drive_train,
+            cylinders = EXCLUDED.cylinders,
+            body_style = EXCLUDED.body_style,
+            series = EXCLUDED.series,
+            vin = EXCLUDED.vin,
+            interior_material = EXCLUDED.interior_material,
+            trim = EXCLUDED.trim,
+            factory_certified = EXCLUDED.factory_certified,
+            region = EXCLUDED.region,
+            on_lot = EXCLUDED.on_lot,
+            metadata = EXCLUDED.metadata,
+            received_datetime = EXCLUDED.received_datetime,
+            photo_url = EXCLUDED.photo_url,
+            vdp = EXCLUDED.vdp,
+            comments = EXCLUDED.comments,
+            options = EXCLUDED.options,
+            priority_options = EXCLUDED.priority_options
+        RETURNING id;
+        """
+        new_inventory_records = []
+
+        # Process in batches to handle large inserts
+        for i in range(0, len(inventory_data_list), 100):
+            batch = inventory_data_list[i:i+100]
+            insert_values = [
+                (
+                    inv['vehicle_id'], dealer_integration_partner_id, inv.get('list_price'), inv.get('special_price'),
+                    inv.get('fuel_type'), inv.get('exterior_color'), inv.get('interior_color'), inv.get('doors'), inv.get('seats'),
+                    inv.get('transmission'), inv.get('drive_train'), inv.get('cylinders'), inv.get('body_style'), inv.get('series'),
+                    inv['vin'], inv.get('interior_material'), inv.get('trim'), inv.get('factory_certified'), inv.get('region'),
+                    inv.get('on_lot'), inv.get('metadata'), inv.get('received_datetime'), inv.get('photo_url'), inv.get('vdp'),
+                    inv.get('comments'), inv.get('options'), inv.get('priority_options')
+                )
+                for inv in batch
+            ]
+
+            with self.rds_connection.cursor() as cursor:
+                psycopg2.extras.execute_values(cursor, insert_query, insert_values)
+                self.rds_connection.commit()
+                batch_results = cursor.fetchall()
+                new_inventory_records.extend(batch_results)  # Append results of each batch
+
+        logger.info(f"Processed inventory: {len(new_inventory_records)}")
+        inventory_ids.update([i[0] for i in new_inventory_records] if new_inventory_records else [])
+
+        if len(new_inventory_records) != len(inventory_data_list):
+            logger.info(f"New inventory IDs: {len(new_inventory_records)}")
+            logger.error(f"Number of processed inventory IDs does not match the number of records available. Expected {len(inventory_data_list)}")
+            raise ValueError("Mismatch between existing and new inventory records.")
+
+        return inventory_ids
+
+    def get_active_dealer_integration_partners(self, integration_partner):
+        """
+        Retrieve the active dealer integration partner IDs and provider dealer IDs
+        for the specified integration partner.
+        """
+        query = f"""
+            SELECT dip.id, dip.provider_dealer_id
+            FROM {self.schema}.inv_dealer_integration_partner AS dip
+            JOIN {self.schema}.inv_integration_partner AS ip
+            ON ip.id = dip.integration_partner_id
+            WHERE ip.impel_integration_partner_id = '{integration_partner}'
+            AND dip.is_active = 'TRUE';
+        """
+        results = self.execute_rds(query)
+        dip_result = results.fetchall()
+        return dip_result
+
+    def get_on_lot_inventory(self, dip_id):
+        """
+        Retrieve the on_lot inventory data for the specified
+        dealer integration partner IDs
+        """
+        query = f"""
+            SELECT
+                dip.provider_dealer_id AS "inv_dealer_integration_partner|provider_dealer_id",
+                veh.vin AS "inv_vehicle|vin",
+                veh.type AS "inv_vehicle|type",
+                veh.mileage AS "inv_vehicle|mileage",
+                veh.make AS "inv_vehicle|make",
+                veh.model AS "inv_vehicle|model",
+                veh.year AS "inv_vehicle|year",
+                veh.new_or_used AS "inv_vehicle|new_or_used",
+                veh.stock_num AS "inv_vehicle|stock_num",
+                inv.cost_price AS "inv_inventory|cost_price",
+                inv.fuel_type AS "inv_inventory|fuel_type",
+                inv.exterior_color AS "inv_inventory|exterior_color",
+                inv.interior_color AS "inv_inventory|interior_color",
+                inv.doors AS "inv_inventory|doors",
+                inv.transmission AS "inv_inventory|transmission",
+                inv.photo_url AS "inv_inventory|photo_url",
+                inv.comments AS "inv_inventory|comments",
+                inv.drive_train AS "inv_inventory|drive_train",
+                inv.cylinders AS "inv_inventory|cylinders",
+                inv.body_style AS "inv_inventory|body_style",
+                inv.interior_material AS "inv_inventory|interior_material",
+                inv.source_data_drive_train AS "inv_inventory|source_data_drive_train",
+                inv.source_data_interior_material_description AS "inv_inventory|source_data_interior_material_description",
+                inv.list_price AS "inv_inventory|list_price",
+                inv.special_price AS "inv_inventory|special_price",
+                inv.source_data_transmission AS "inv_inventory|source_data_transmission",
+                inv.source_data_transmission_speed AS "inv_inventory|source_data_transmission_speed",
+                inv.transmission_speed AS "inv_inventory|transmission_speed",
+                inv.build_data AS "inv_inventory|build_data",
+                inv.highway_mpg AS "inv_inventory|highway_mpg",
+                inv.city_mpg AS "inv_inventory|city_mpg",
+                inv.vdp AS "inv_inventory|vdp",
+                inv.trim AS "inv_inventory|trim",
+                inv.engine AS "inv_inventory|engine",
+                inv.engine_displacement AS "inv_inventory|engine_displacement",
+                inv.factory_certified AS "inv_inventory|factory_certified",
+                inv.options AS "inv_inventory|options",
+                inv.priority_options AS "inv_inventory|priority_options"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            WHERE inv.dealer_integration_partner_id = {dip_id}
+            AND inv.on_lot = 'TRUE'
+            GROUP BY inv.id, veh.id, dip.id;
+            """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+    def get_vehicle_metadata(self, provider_dealer_id, vin_list):
+
+        vin_list = [f'\'{s}\'' for s in vin_list]
+        query = f"""
+            SELECT
+                veh.vin AS "vin",
+                veh.metadata AS "metadata"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            WHERE dip.provider_dealer_id = '{provider_dealer_id}'
+            AND inv.on_lot = 'TRUE'
+            AND veh.vin in ({",".join(vin_list)});
+        """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+
+    def find_impel_integration_partner_id(self, provider_dealer_id):
+        """Query for DIP ID based on provider dealer ID."""
+        query = f"SELECT ip.impel_integration_partner_id FROM {self.schema}.inv_dealer_integration_partner AS dip JOIN {self.schema}.inv_integration_partner AS ip ON ip.id = dip.integration_partner_id WHERE dip.provider_dealer_id = '{provider_dealer_id}';"
+        result = self.execute_rds(query).fetchone()
+        return result[0] if result else None

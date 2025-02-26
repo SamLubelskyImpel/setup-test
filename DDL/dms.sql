@@ -126,6 +126,7 @@ CREATE TABLE prod.dealer_integration_partner (
 	is_customer_integration bool NULL,
 	db_update_date timestamp NULL,
 	db_update_user varchar(255) NULL,
+	metadata jsonb NULL,
 	CONSTRAINT dealer_integration_partner_pkey PRIMARY KEY (id),
 	CONSTRAINT dealer_integration_partner_un UNIQUE (dealer_id, integration_partner_id, dms_id),
 	CONSTRAINT dealer_integration_partner_dealer_id_fkey FOREIGN KEY (dealer_id) REFERENCES prod.dealer(id),

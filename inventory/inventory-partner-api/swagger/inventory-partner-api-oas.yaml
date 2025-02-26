@@ -1,0 +1,426 @@
+openapi: 3.0.0
+servers:
+  - description: Impel Stage Environment
+    url: https://inventory.testenv.impel.io
+  - description: Impel Prod Environment
+    url: https://inventory.impel.io
+info:
+  version: "1.0.0"
+  title: Inventory Partner API
+  description: This API allows Inventory Partners to post records for new vehicles.
+security:
+  - basicAuth: []
+#{{INVENTORY_PARTNER_API_AWS_VALIDATION}}
+paths:
+  /carsales/v1/vehicles:
+    post:
+      summary: Post CarSales vehicles.
+      #{{CARSALES_CREATE_VEHICLE_LAMBDA_INFO}}
+      tags:
+        - CarSales
+      operationId: carsales-post-vehicle
+      description: |-
+        This API endpoint creates an Inventory vehicle record in the Impel system.
+      requestBody:
+        description: "Please click on \"Schema\" next to \"Example Value\" below to view the detailed description of JSON properties in the request body."
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CarSalesVehicle'
+      responses:
+        '200':
+          description: Success. 
+        '400':
+          description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+        '401':
+          description: This request is unauthorized. The authorization credentials are missing or are wrong.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Basic Authentication
+  schemas:
+    CarSalesVehicle:
+      description: Request body for CarSales vehicles
+      type: object
+      properties:
+        Type:
+          type: string
+          description: The type of vehicle.
+          minLength: 1
+          maxLength: 50
+          example: "CAR"
+        Identifier:
+          type: string
+          description: Unique identifier for the vehicle.
+          minLength: 1
+          maxLength: 50
+          example: "e0f7ebf7-e800-404b-b691-8ac39b5c4fa5"
+        ListingType:
+          type: string
+          description: Type of vehicle listing.
+          minLength: 1
+          maxLength: 50
+          example: "Used"
+        SaleStatus:
+          type: string
+          description: Current sale status of the vehicle.
+          minLength: 1
+          maxLength: 50
+          example: "For Sale"
+        SaleType:
+          type: string
+          description: Type of sale.
+          minLength: 1
+          maxLength: 50
+          example: "Retail"
+        Description:
+          type: string
+          description: Detailed description of the vehicle.
+          minLength: 1
+          maxLength: 5000
+          example: "Introducing the 2021 Mazda BT-50..."
+        Registration:
+          type: object
+          properties:
+            Number:
+              type: string
+              description: Registration number of the vehicle.
+              minLength: 1
+              maxLength: 50
+              example: "EOZ90W"
+            ExpiresUtc:
+              type: string
+              format: date-time
+              description: Registration expiry date.
+              example: "2024-10-07T00:00:00Z"
+        Identification:
+          type: array
+          description: Vehicle identification details.
+          items:
+            type: object
+            properties:
+              Type:
+                type: string
+                description: Type of identification (e.g., VIN, StockNumber).
+                minLength: 1
+                maxLength: 50
+                example: "VIN"
+              Value:
+                type: string
+                description: Identification value.
+                minLength: 1
+                maxLength: 50
+                example: "MP2TFR40JNT002167"
+        Colours:
+          type: array
+          description: Vehicle color details.
+          items:
+            type: object
+            properties:
+              Location:
+                type: string
+                description: Where the color is applied (e.g., Interior, Exterior).
+                minLength: 1
+                maxLength: 50
+                example: "Exterior"
+              Generic:
+                type: string
+                description: Generic color name.
+                minLength: 1
+                maxLength: 50
+                example: "White"
+              Name:
+                type: string
+                description: Specific color name.
+                minLength: 1
+                maxLength: 50
+                example: "Ice White"
+        OdometerReadings:
+          type: array
+          description: Odometer readings of the vehicle.
+          items:
+            type: object
+            properties:
+              Type:
+                type: string
+                description: Odometer type.
+                minLength: 1
+                maxLength: 50
+                example: "Original"
+              Value:
+                type: number
+                description: Odometer reading value.
+                example: 45887.0
+              UnitOfMeasure:
+                type: string
+                description: Unit of measure for the reading.
+                minLength: 1
+                maxLength: 20
+                example: "KM"
+        Seller:
+          type: object
+          description: Seller details.
+          properties:
+            Identifier:
+              type: string
+              description: Seller identifier.
+              minLength: 1
+              maxLength: 50
+              example: "6ba7e6d5-863e-1b7a-4ed2-346333d175d7"
+            Type:
+              type: string
+              description: Seller type (e.g., Dealer).
+              minLength: 1
+              maxLength: 50
+              example: "Dealer"
+            Name:
+              type: string
+              description: Seller name.
+              minLength: 1
+              maxLength: 50
+              example: "Mazda New Jersey"
+            Addresses:
+              type: array
+              items:
+                type: object
+                properties:
+                  Line1:
+                    type: string
+                    description: First line of the address.
+                    minLength: 1
+                    maxLength: 50
+                    example: "14 Jack Williams Drive"
+                  Suburb:
+                    type: string
+                    description: Suburb of the address.
+                    minLength: 1
+                    maxLength: 50
+                    example: "Marlboro"
+                  State:
+                    type: string
+                    description: State of the address.
+                    minLength: 1
+                    maxLength: 50
+                    example: "New York"
+                  Postcode:
+                    type: string
+                    description: Postcode of the address.
+                    minLength: 1
+                    maxLength: 50
+                    example: "2750"
+            Identification:
+              type: array
+              items:
+                type: object
+                properties:
+                  Type:
+                    type: string
+                    description: Type of seller identification.
+                    minLength: 1
+                    maxLength: 50
+                    example: "LegacyId"
+                  Value:
+                    type: string
+                    description: Seller identification value.
+                    minLength: 1
+                    maxLength: 50
+                    example: "54618"
+        Specification:
+          type: object
+          description: Vehicle specification details.
+          properties:
+            Identifier:
+              type: string
+              description: Unique identifier for the vehicle specification.
+              minLength: 1
+              maxLength: 50
+              example: "c492be4f-a4cc-4a95-899b-4f65e0b1a488"
+            SpecificationSource:
+              type: string
+              description: Source of the specification.
+              minLength: 1
+              maxLength: 50
+              example: "REDBOOK"
+            SpecificationCode:
+              type: string
+              description: Code for the specification.
+              minLength: 1
+              maxLength: 50
+              example: "AUVMAZD2021AEDC"
+            CountryCode:
+              type: string
+              description: Country code for the vehicle.
+              minLength: 1
+              maxLength: 3
+              example: "AU"
+            Make:
+              type: string
+              description: Vehicle make.
+              minLength: 1
+              maxLength: 50
+              example: "Mazda"
+            Model:
+              type: string
+              description: Vehicle model.
+              minLength: 1
+              maxLength: 50
+              example: "BT-50"
+            Series:
+              type: string
+              description: Vehicle series.
+              minLength: 1
+              maxLength: 50
+              example: "TF"
+            ReleaseDate:
+              type: object
+              properties:
+                Year:
+                  type: integer
+                  description: Release year.
+                  example: 2021
+            Title:
+              type: string
+              description: Vehicle title.
+              minLength: 1
+              maxLength: 255
+              example: "2021 Mazda BT-50 XTR TF Auto 4x2 Dual Cab"
+            Attributes:
+              type: array
+              description: List of vehicle attributes.
+              items:
+                type: object
+                properties:
+                  Name:
+                    type: string
+                    description: Attribute name.
+                    minLength: 1
+                    maxLength: 50
+                    example: "Badge"
+                  Value:
+                    type: string
+                    description: Attribute value.
+                    minLength: 1
+                    maxLength: 50
+                    example: "XTR"
+        GeoLocation:
+          type: object
+          properties:
+            Latitude:
+              type: number
+              format: float
+              description: Latitude of the vehicle's location.
+              example: -33.753418
+            Longitude:
+              type: number
+              format: float
+              description: Longitude of the vehicle's location.
+              example: 150.673447
+        Media:
+          type: object
+          description: Media details of the vehicle.
+          properties:
+            Photos:
+              type: array
+              items:
+                type: object
+                properties:
+                  Url:
+                    type: string
+                    description: URL to the photo.
+                    minLength: 1
+                    maxLength: 50
+                    example: "https://carsales.pxcrush.net/car/dealer/e6eccb23038c7d88dded2639eafd4627.jpg"
+                  LastModifiedUtc:
+                    type: string
+                    format: date-time
+                    description: Last modification date of the media.
+                    example: "2024-08-26T00:00:03Z"
+                  Order:
+                    type: integer
+                    description: Order in which the photos should appear.
+                    example: 0
+        ComplianceDate:
+          type: object
+          description: Vehicle compliance date.
+          properties:
+            Month:
+              type: integer
+              description: Compliance month.
+              example: 6
+            Year:
+              type: integer
+              description: Compliance year.
+              example: 2021
+        BuildDate:
+          type: object
+          description: Vehicle build date.
+          properties:
+            Month:
+              type: integer
+              description: Build month.
+              example: 5
+            Year:
+              type: integer
+              description: Build year.
+              example: 2021
+        Warranty:
+          type: object
+          description: Warranty details.
+        PublishingDestinations:
+          type: array
+          description: Destinations for publishing vehicle information.
+          items:
+            type: object
+            properties:
+              Name:
+                type: string
+                description: Destination name.
+                example: "SPINCAR"
+        PriceList:
+          type: array
+          description: List of prices for the vehicle.
+          items:
+            type: object
+            properties:
+              Type:
+                type: string
+                description: Price type (e.g., EGC, DAP).
+                minLength: 1
+                maxLength: 20
+                example: "EGC"
+              Currency:
+                type: string
+                description: Currency for the price.
+                minLength: 1
+                maxLength: 20
+                example: "AUD"
+              Amount:
+                type: number
+                format: float
+                description: Price amount.
+                example: 36900.0
+        Certifications:
+          type: array
+          description: List of certifications for the vehicle.
+          items:
+            type: string
+            description: Certification name.
+            minLength: 1
+            maxLength: 100
+            example: "Certified Pre-Owned"
+        LastModifiedUtc:
+          type: string
+          format: date-time
+          description: Last modification date of the vehicle data.
+          example: "2024-08-26T00:00:04Z"
+        CreatedUtc:
+          type: string
+          format: date-time
+          description: Creation date of the vehicle data.
+          example: "2024-06-26T03:06:19Z"

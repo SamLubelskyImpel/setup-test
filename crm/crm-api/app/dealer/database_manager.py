@@ -2,6 +2,7 @@ import logging
 from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from json import dumps
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -99,7 +100,10 @@ class DatabaseManager:
             )
 
             if existing_dealer:
-                return {"statusCode": 409, "body": "This dealer config already exists"}
+                return {
+                    "statusCode": 409,
+                    "body": dumps({"message": "This dealer config already exists"}),
+                }
 
             integration_partner = (
                 session.query(IntegrationPartner)
@@ -111,8 +115,13 @@ class DatabaseManager:
                 logger.warning(f"Integration Partner '{dealer_info.integration_partner_name}' not found")
                 return {
                     "statusCode": 404,
-                    "body": f"Integration Partner '{dealer_info.integration_partner_name}' not found",
+                    "body": dumps({"error": f"Integration Partner '{dealer_info.integration_partner_name}' not found"}),
                 }
+            
+            if not isinstance(dealer_info.metadata, dict):
+                dealer_metadata = dealer_info.metadata.to_dict()
+            else:
+                dealer_metadata = dealer_info.metadata
 
             try:
                 dealer = Dealer(
@@ -128,12 +137,12 @@ class DatabaseManager:
                 )
 
                 dealer_integration_partner = DealerIntegrationPartner(
-                    dealer=dealer, 
+                    dealer=dealer,
                     integration_partner_id=integration_partner.id,
                     crm_dealer_id=dealer_info.crm_dealer_id,
                     is_active_salesai=dealer_info.is_active_salesai,
                     is_active_chatai=dealer_info.is_active_chatai,
-                    metadata_=dealer_info.metadata.to_dict(),
+                    metadata_=dealer_metadata,
                     db_creation_date=self.dt_now
                 )
 
@@ -143,7 +152,7 @@ class DatabaseManager:
 
                 return {
                     "statusCode": 201,
-                    "body": f"Dealer configuration created successfully dealer_id {dealer.id}",
+                    "body": dumps({"message": f"Dealer configuration created successfully dealer_id {dealer.id}"}),
                 }
 
             except Exception as e:
@@ -151,7 +160,7 @@ class DatabaseManager:
                 session.rollback()
                 return {
                     "statusCode": 500,
-                    "body": "An error occurred while creating the dealer configuration",
+                    "body": dumps({"error": "An error occurred while creating the dealer configuration"}),
                 }
 
     def put_dealers_config(self, dealer_status: DealerStatus) -> Dict[str, str]:
@@ -170,14 +179,23 @@ class DatabaseManager:
                     )
                     .all()
                 )
+
+                if not dip:
+                    return {
+                        "statusCode": 404, 
+                        "body": dumps({"message": "Dealer configuration not found"})
+                    }
+                
                 if len(dip) > 1:
-                    return {"statusCode": 409, "body": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."}
+                    return {
+                        "statusCode": 409, 
+                        "body": dumps({
+                            "message": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."
+                        })
+                    }
 
                 dip = dip[0]
                 
-                if not dip:
-                    return {"statusCode": 404, "body": "Dealer configuration not found"}
-
                 if dealer_status.is_active_salesai is not None:
                     dip.is_active_salesai = dealer_status.is_active_salesai
 
@@ -199,12 +217,14 @@ class DatabaseManager:
                     dip.metadata_ = new_metadata
 
                 session.commit()
-
-                return {"statusCode": 200, "body": "Information updated"}
+                return {
+                    "statusCode": 200,
+                    "body": dumps({"message": "Information updated"})
+                }
             
         except SQLAlchemyError as e:
             session.rollback()
-            return {"statusCode": 500, "body": f"Database error: {str(e)}"}
+            return {"statusCode": 500, "body": dumps({"error": f"Database error: {str(e)}"})}
 
     def _build_query(self, session: Session):
         """Builds the query to fetch dealer configurations based on the filters."""

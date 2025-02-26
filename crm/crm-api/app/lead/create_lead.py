@@ -5,10 +5,14 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from datetime import datetime
+from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
+from lead.utils import send_alert_notification
+
+from common.validation import validate_request_body, ValidationErrorResponse
+from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -55,17 +59,6 @@ class ADFAssemblerSyndicationError(Exception):
 class DASyndicationError(Exception):
     """Custom exception for DA syndication errors."""
     pass
-
-
-def send_alert_notification(message, subject) -> None:
-    """Send alert notification to CE team."""
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({'default': dumps({"message": message})}),
-        Subject=f'CRM API: {subject}',
-        MessageStructure='json'
-    )
 
 
 def send_notification_to_event_listener(integration_partner_name: str) -> bool:
@@ -138,14 +131,15 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
-        logger.info(f"Event: {event}")
-
-        body = loads(event["body"])
+        body:CreateLeadRequest = validate_request_body(event, CreateLeadRequest)        
         request_product = event["headers"]["partner_id"]
-        consumer_id = body["consumer_id"]
-        salespersons = body.get("salespersons", [])
-        crm_lead_id = body.get("crm_lead_id")
-        lead_ts = body.get("lead_ts", datetime.utcnow())
+        consumer_id = body.consumer_id
+        salespersons = body.salespersons
+        crm_lead_id = body.crm_lead_id
+        lead_ts = body.lead_ts
+        logger.info(f"Body: {body.model_dump()}")
+
+        authorizer_integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
 
         with DBSession() as session:
             try:
@@ -177,6 +171,26 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
+                if authorizer_integration_partner:
+                    if integration_partner_name != authorizer_integration_partner:
+                        return {
+                            "statusCode": 401,
+                            "body": dumps(
+                                {
+                                    "error": "This request is unauthorized. The authorization credentials are missing or are wrong. For example, the partner_id or the x_api_key provided in the header are wrong/missing."
+                                }
+                            ),
+                        }
+                
+                if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
+                    error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
+                    logger.error(error_msg)
+                    send_alert_notification(subject=f'CRM API: Lead creation failure', message=error_msg)
+                    return {
+                        "statusCode": 404,
+                        "body": dumps({"error": error_msg})
+                    }
+                
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
@@ -213,58 +227,39 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 # Create lead
                 lead = Lead(
-                    consumer_id=consumer_id,
-                    status=body["lead_status"],
-                    substatus=body["lead_substatus"],
-                    comment=body["lead_comment"],
-                    origin_channel=body["lead_origin"],
-                    source_channel=body["lead_source"],
-                    source_detail=body.get("lead_source_detail"),
-                    crm_lead_id=crm_lead_id,
-                    request_product=request_product,
-                    lead_ts=lead_ts,
-                    metadata_=body.get("metadata"),
+                    consumer_id = consumer_id,
+                    status = body.lead_status,
+                    substatus = body.lead_substatus,
+                    comment = body.lead_comment,
+                    origin_channel = body.lead_origin,
+                    source_channel = body.lead_source,
+                    source_detail = body.lead_source_detail,
+                    crm_lead_id = crm_lead_id,
+                    request_product = request_product,
+                    lead_ts = lead_ts,
+                    metadata_ = body.metadata.model_dump() if body.metadata else None,
                 )
 
                 session.add(lead)
                 logger.info("Lead pending")
 
                 # Create vehicles of interest
-                vehicles_of_interest = body["vehicles_of_interest"]
+                vehicles_of_interest: List[VehicleOfInterest] = body.vehicles_of_interest or []
                 for vehicle in vehicles_of_interest:
-                    vehicle = Vehicle(
-                        vin=vehicle.get("vin"),
-                        stock_num=vehicle.get("stock_number"),
-                        type=vehicle.get("type"),
-                        vehicle_class=vehicle.get("class"),
-                        mileage=vehicle.get("mileage"),
-                        make=vehicle.get("make"),
-                        model=vehicle.get("model"),
-                        manufactured_year=vehicle.get("year"),
-                        oem_name=vehicle.get("oem_name"),
-                        body_style=vehicle.get("body_style"),
-                        transmission=vehicle.get("transmission"),
-                        interior_color=vehicle.get("interior_color"),
-                        exterior_color=vehicle.get("exterior_color"),
-                        trim=vehicle.get("trim"),
-                        price=vehicle.get("price"),
-                        status=vehicle.get("status"),
-                        condition=vehicle.get("condition"),
-                        odometer_units=vehicle.get("odometer_units"),
-                        vehicle_comments=vehicle.get("vehicle_comments"),
-                        crm_vehicle_id=vehicle.get("crm_vehicle_id"),
-                        trade_in_vin=vehicle.get("trade_in_vin"),
-                        trade_in_year=vehicle.get("trade_in_year"),
-                        trade_in_make=vehicle.get("trade_in_make"),
-                        trade_in_model=vehicle.get("trade_in_model"),
-                        metadata_=vehicle.get("metadata"),
-                    )
+                    vo_data = vehicle.model_dump()
+                    vo_data["stock_num"] = vo_data.pop("stock_number", None)
+                    vo_data["vehicle_class"] = vo_data.pop("class_", None)
+                    vo_data["manufactured_year"] = vo_data.pop("year", None)
+                    
+                    vo_data["metadata_"] = vehicle.metadata.model_dump() if vehicle.metadata else None
+
+                    vehicle = Vehicle(**vo_data)
                     lead.vehicles.append(vehicle)
 
                 if salespersons:
                     for salesperson in salespersons:
                         # Create salesperson
-                        crm_salesperson_id = salesperson.get("crm_salesperson_id")
+                        crm_salesperson_id = salesperson.crm_salesperson_id
 
                         # Query for existing salesperson
                         salesperson_db = None
@@ -283,7 +278,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                         update_attrs(
                             salesperson_db,
-                            salesperson,
+                            salesperson.model_dump(),
                             dip_db.id,
                             salesperson_attrs,
                             request_product,
@@ -294,7 +289,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                         # Create lead salesperson
                         lead_salesperson = Lead_Salesperson(
-                            is_primary=salesperson.get("is_primary", False),
+                            is_primary=salesperson.is_primary,
                         )
                         lead_salesperson.salesperson = salesperson_db
                         lead_salesperson.lead = lead
@@ -308,7 +303,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.rollback()
                 logger.info(f"Error occurred: {e}")
                 raise e
-
+            
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
@@ -334,6 +329,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             try:
                 if dip_metadata:
                     adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    oem_partner = dip_metadata.get("oem_partner", "")
                     sftp_config = dip_metadata.get("adf_sftp_config", {})
                 else:
                     logger.warning(f"No metadata found for dealer: {product_dealer_id}")
@@ -342,7 +338,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
                     "partner_name": integration_partner_name,
-                    "sftp_config": sftp_config
+                    "sftp_config": sftp_config, 
+                    "oem_partner": oem_partner
                 }
                 sqs_client = boto3.client('sqs')
 
@@ -364,6 +361,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
             except Exception as e:
                 raise DASyndicationError(e)
 
+    except ValidationErrorResponse as e:
+        logger.warning(f"Validation failed: {e.full_errors}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "message": "Validation failed",
+                "errors": e.errors,
+            }),
+        }
     except ADFAssemblerSyndicationError as e:
         logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
         send_alert_notification(

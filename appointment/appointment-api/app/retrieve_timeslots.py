@@ -6,7 +6,7 @@ from json import dumps, loads
 from uuid import uuid4
 from datetime import datetime
 from utils import (invoke_vendor_lambda, IntegrationError, send_alert_notification,
-                   get_dealer_info, get_vendor_op_code, ValidationError)
+                   get_dealer_info, get_vendor_op_code, ValidationError, is_valid_timezone)
 
 from appt_orm.session_config import DBSession
 
@@ -58,22 +58,25 @@ def lambda_handler(event, context):
     logger.info(f"Request ID: {request_id}")
 
     try:
+        request_product = event["requestContext"]["authorizer"]["request_product"]
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         start_time = params["start_time"]
         end_time = params["end_time"]
-        op_code = params["op_code"]
+        service_type = params["op_code"]
 
         vin = params.get("vin")
         year = params.get("year")
         make = params.get("make")
         model = params.get("model")
         if not vin and not (year and make and model):
+            logger.error("VIN or Year, Make, Model must be provided")
             raise ValidationError("VIN or Year, Make, Model must be provided")
 
         start_time_dt = datetime.fromisoformat(start_time)
         end_time_dt = datetime.fromisoformat(end_time)
         if start_time_dt >= end_time_dt:
+            logger.error("Start time must be before end time")
             return {
                 "statusCode": 400,
                 "body": dumps({
@@ -82,6 +85,7 @@ def lambda_handler(event, context):
                 })
             }
         elif (end_time_dt.date() - start_time_dt.date()).days > 6:
+            logger.error("Query date ranges must not exceed 6 days.")
             return {
                 "statusCode": 400,
                 "body": dumps({
@@ -92,33 +96,43 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
             # Get dealer info
-            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
+            dealer_partner = get_dealer_info(
+                session,
+                dealer_integration_partner_id,
+                request_product
+            )
             if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
-                        "error": f"No active dealer found with id {dealer_integration_partner_id}",
+                        "error": f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}",
                         "request_id": request_id,
                     })
                 }
 
             logger.info(f"Dealer integration partner: {dealer_partner}")
             dealer_timezone = dealer_partner.timezone
+
+            if not is_valid_timezone(dealer_timezone):
+                raise ValidationError("Invalid dealer timezone provided")
+        
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
 
             # Get vendor op code
-            op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, op_code, dealer_partner.product_id)
+            op_code_result = get_vendor_op_code(session, dealer_integration_partner_id, service_type)
             vendor_op_code = op_code_result.op_code if op_code_result else None
             if not vendor_op_code:
+                logger.error(f"No integration op code mapping found for service type: {service_type}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
-                        "error": f"No integration op code mapping found for product op code: {op_code}",
+                        "error": f"No integration op code mapping found for service type: {service_type}",
                         "request_id": request_id,
                     })
                 }
-            logger.info(f"Product op code {op_code} mapped to vendor op code {vendor_op_code}")
+            logger.info(f"Service type {service_type} mapped to vendor op code {vendor_op_code}")
 
         timeslots_arn = partner_metadata.get("timeslots_arn", "")
         if not timeslots_arn:

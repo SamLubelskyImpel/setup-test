@@ -16,10 +16,6 @@ CREATE TABLE prod.inv_dealer (
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
 	full_name varchar(255) NULL,
-	merch_dealer_id varchar(255) NULL,			-- deprecated
-	salesai_dealer_id varchar(255) NULL,		-- deprecated
-	merch_is_active bool DEFAULT false NULL,	-- deprecated
-	salesai_is_active bool DEFAULT false NULL,	-- deprecated
 	CONSTRAINT inv_dealer_pkey PRIMARY KEY (id),
 	CONSTRAINT unique_inv_impel_id UNIQUE (impel_dealer_id)
 );
@@ -34,34 +30,6 @@ create trigger tr_update_db_update_date_and_role before
 update
     on
     prod.inv_dealer for each row execute function public.update_db_update_date_and_role();
-
-
--- prod.inv_equipment definition
-
--- Drop table
-
--- DROP TABLE prod.inv_equipment;
-
-CREATE TABLE prod.inv_equipment (
-	id serial4 NOT NULL,
-	db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	db_update_date timestamptz NULL,
-	db_update_role varchar(255) NULL,
-	equipment_description varchar(255) NULL,
-	is_optional bool NULL,
-	CONSTRAINT inv_equipment_pkey PRIMARY KEY (id)
-);
-
--- Table Triggers
-
-create trigger tr_create_db_creation_date_and_role_and_update before
-insert
-    on
-    prod.inv_equipment for each row execute function public.create_db_creation_date_and_role_and_update();
-create trigger tr_update_db_update_date_and_role before
-update
-    on
-    prod.inv_equipment for each row execute function public.update_db_update_date_and_role();
 
 
 -- prod.inv_integration_partner definition
@@ -91,34 +59,6 @@ create trigger tr_update_db_update_date_and_role before
 update
     on
     prod.inv_integration_partner for each row execute function public.update_db_update_date_and_role();
-
-
--- prod.inv_option definition
-
--- Drop table
-
--- DROP TABLE prod.inv_option;
-
-CREATE TABLE prod.inv_option (
-	id serial4 NOT NULL,
-	db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	db_update_date timestamptz NULL,
-	db_update_role varchar(255) NULL,
-	option_description varchar(255) NULL,
-	is_priority bool NULL,
-	CONSTRAINT inv_option_pkey PRIMARY KEY (id)
-);
-
--- Table Triggers
-
-create trigger tr_create_db_creation_date_and_role_and_update before
-insert
-    on
-    prod.inv_option for each row execute function public.create_db_creation_date_and_role_and_update();
-create trigger tr_update_db_update_date_and_role before
-update
-    on
-    prod.inv_option for each row execute function public.update_db_update_date_and_role();
 
 
 -- prod.inv_dealer_integration_partner definition
@@ -241,9 +181,12 @@ CREATE TABLE prod.inv_inventory (
 	factory_certified bool NULL,
 	metadata jsonb NULL,
 	received_datetime timestamptz NULL,
+	"options" _text NULL,
+	priority_options _text NULL,
 	CONSTRAINT inv_inventory_pkey PRIMARY KEY (id),
 	CONSTRAINT inv_inventory_dealer_integration_partner_id_fkey FOREIGN KEY (dealer_integration_partner_id) REFERENCES prod.inv_dealer_integration_partner(id),
-	CONSTRAINT inv_inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES prod.inv_vehicle(id)
+	CONSTRAINT inv_inventory_vehicle_id_fkey FOREIGN KEY (vehicle_id) REFERENCES prod.inv_vehicle(id),
+	CONSTRAINT unique_inventory_vehicle UNIQUE (vehicle_id, dealer_integration_partner_id)
 );
 
 -- Table Triggers
@@ -256,37 +199,3 @@ create trigger tr_update_db_update_date_and_role before
 update
     on
     prod.inv_inventory for each row execute function public.update_db_update_date_and_role();
-
-
--- prod.inv_option_inventory definition
-
--- Drop table
-
--- DROP TABLE prod.inv_option_inventory;
-
-CREATE TABLE prod.inv_option_inventory (
-	id serial4 NOT NULL,
-	inv_option_id int4 NOT NULL,
-	inv_inventory_id int4 NOT NULL,
-	CONSTRAINT inv_option_inventory_pkey PRIMARY KEY (id),
-	CONSTRAINT unique_inv_option_inventory UNIQUE (inv_option_id, inv_inventory_id),
-	CONSTRAINT inv_option_inventory_inv_inventory_id_fkey FOREIGN KEY (inv_inventory_id) REFERENCES prod.inv_inventory(id),
-	CONSTRAINT inv_option_inventory_inv_option_id_fkey FOREIGN KEY (inv_option_id) REFERENCES prod.inv_option(id)
-);
-
-
--- prod.inv_equipment_inventory definition
-
--- Drop table
-
--- DROP TABLE prod.inv_equipment_inventory;
-
-CREATE TABLE prod.inv_equipment_inventory (
-	id serial4 NOT NULL,
-	inv_equipment_id int4 NOT NULL,
-	inv_inventory_id int4 NOT NULL,
-	CONSTRAINT inv_equipment_inventory_pkey PRIMARY KEY (id),
-	CONSTRAINT unique_inv_equipment_inventory UNIQUE (inv_equipment_id, inv_inventory_id),
-	CONSTRAINT inv_equipment_inventory_inv_equipment_id_fkey FOREIGN KEY (inv_equipment_id) REFERENCES prod.inv_equipment(id),
-	CONSTRAINT inv_equipment_inventory_inv_inventory_id_fkey FOREIGN KEY (inv_inventory_id) REFERENCES prod.inv_inventory(id)
-);

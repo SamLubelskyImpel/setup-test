@@ -3,6 +3,7 @@ import logging
 from json import loads, dumps
 from os import environ
 from typing import Any
+from utils import send_alert_notification
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.consumer import Consumer
@@ -150,7 +151,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             db_query = session.query(
-                Lead, Consumer
+                Lead, Consumer, DealerIntegrationPartner
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -172,7 +173,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
 
-            lead_db, consumer_db = db_results
+            lead_db, consumer_db, dip_db = db_results
+
+            if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
+                error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be updated."
+                logger.error(error_msg)
+                send_alert_notification(subject=f'CRM API: Lead update failure', message=error_msg)
+
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."})
+                }
 
             dealer_partner_id = consumer_db.dealer_integration_partner_id
             if consumer_id and lead_db.consumer_id != consumer_id:

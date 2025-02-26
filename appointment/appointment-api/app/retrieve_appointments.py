@@ -9,12 +9,11 @@ from datetime import datetime, timezone
 from typing import Any
 from sqlalchemy import func
 from utils import (invoke_vendor_lambda, IntegrationError, convert_utc_to_timezone,
-                   send_alert_notification, get_dealer_info)
+                   send_alert_notification, get_dealer_info, is_valid_timezone, ValidationError)
 
 from appt_orm.session_config import DBSession
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_product import OpCodeProduct
-from appt_orm.models.op_code_appointment import OpCodeAppointment
+from appt_orm.models.service_type import ServiceType
 from appt_orm.models.appointment import Appointment
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
@@ -42,29 +41,26 @@ def update_appointment_status(appointment_id, session, new_status):
     session.query(Appointment).filter(Appointment.id == appointment_id).update({"status": new_status})
 
 
-def get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code):
-    """Retrieve product op code from database."""
+def get_service_type(dealer_integration_partner_id, integration_op_code):
+    """Retrieve service type from database."""
     with DBSession() as session:
-        product_op_code = session.query(
-            OpCodeProduct
+        service_type = session.query(
+            ServiceType
         ).join(
-            OpCodeAppointment, OpCodeAppointment.op_code_product_id == OpCodeProduct.id
-        ).join(
-            OpCode, OpCode.id == OpCodeAppointment.id
+            OpCode, OpCode.service_type_id == ServiceType.id
         ).filter(
-            OpCodeProduct.product_id == product_id,
             OpCode.dealer_integration_partner_id == dealer_integration_partner_id,
             OpCode.op_code == integration_op_code
         ).first()
 
-    return product_op_code.op_code if product_op_code else None
+    return service_type.service_type if service_type else None
 
 
 def extract_appt_data(db_appt, dealer_timezone, dealer_integration_partner_id):
     """Extract appointment data from db object."""
     return {
         "id": db_appt.Appointment.id,
-        "op_code": db_appt.op_code,
+        "op_code": db_appt.ServiceType.service_type,
         "timeslot": convert_utc_to_timezone(db_appt.Appointment.timeslot_ts, dealer_timezone, dealer_integration_partner_id),
         "timeslot_duration": db_appt.Appointment.timeslot_duration,
         "created_date_ts": db_appt.Appointment.created_date_ts,
@@ -103,6 +99,7 @@ def lambda_handler(event, context):
     logger.info(f"Request ID: {request_id}")
 
     try:
+        request_product = event["requestContext"]["authorizer"]["request_product"]
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
         vin = params["vin"]
@@ -114,18 +111,27 @@ def lambda_handler(event, context):
 
         with DBSession() as session:
             # Get dealer info
-            dealer_partner = get_dealer_info(session, dealer_integration_partner_id)
+            dealer_partner = get_dealer_info(
+                session,
+                dealer_integration_partner_id,
+                request_product
+            )
             if not dealer_partner:
+                logger.error(f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}")
                 return {
                     "statusCode": 404,
                     "body": dumps({
-                        "error": f"No active dealer found with id {dealer_integration_partner_id}",
+                        "error": f"No active dealer found with id {dealer_integration_partner_id} assigned to product {request_product}",
                         "request_id": request_id,
                     })
                 }
 
             logger.info(f"Dealer integration partner: {dealer_partner}")
             dealer_timezone = dealer_partner.timezone
+
+            if not is_valid_timezone(dealer_timezone):
+                raise ValidationError("Invalid dealer timezone provided")
+            
             integration_dealer_id = dealer_partner.integration_dealer_id
             partner_metadata = dealer_partner.metadata_
             product_id = dealer_partner.product_id
@@ -139,15 +145,15 @@ def lambda_handler(event, context):
             }
 
             appointments_query = session.query(
-                Appointment, Consumer, Vehicle, OpCodeProduct.op_code
+                Appointment, Consumer, Vehicle, ServiceType
             ).join(
                 Consumer, Consumer.id == Appointment.consumer_id
             ).join(
                 Vehicle, Vehicle.id == Appointment.vehicle_id
             ).join(
-                OpCodeAppointment, OpCodeAppointment.id == Appointment.op_code_appointment_id
+                OpCode, OpCode.id == Appointment.op_code_id
             ).join(
-                OpCodeProduct, OpCodeProduct.id == OpCodeAppointment.op_code_product_id
+                ServiceType, ServiceType.id == OpCode.service_type_id
             ).filter(
                 Consumer.dealer_integration_partner_id == dealer_integration_partner_id,
                 Vehicle.vin == vin
@@ -241,7 +247,7 @@ def lambda_handler(event, context):
             else:
                 integration_op_code = appt["services"][0].get("op_code") if appt.get("services") else None
                 appointment = {
-                    "op_code": get_product_op_code(dealer_integration_partner_id, product_id, integration_op_code),
+                    "op_code": get_service_type(dealer_integration_partner_id, integration_op_code),
                     "timeslot": appt["timeslot"],
                     "timeslot_duration": appt.get("timeslot_duration"),
                     "comment": appt.get("comment"),
@@ -281,6 +287,15 @@ def lambda_handler(event, context):
                     "code": "I002",
                     "message": "Unexpected response from vendor integration. Please contact Impel support."
                 },
+                "request_id": request_id,
+            })
+        }
+    except ValidationError as e:
+        logger.error(f"Validation error: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({
+                "error": str(e),
                 "request_id": request_id,
             })
         }

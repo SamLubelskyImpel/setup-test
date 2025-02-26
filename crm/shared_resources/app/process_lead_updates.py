@@ -79,7 +79,7 @@ def record_handler(record: SQSRecord):
                 "email": person.get("email", ""),
                 "phone": person.get("phone", ""),
                 "position_name": person.get("position_name", ""),
-                "is_primary": person.get("is_primary", "")
+                "is_primary": person.get("is_primary") if isinstance(person.get("is_primary"), bool) else False
             })
         if lead_salespersons:
             request_body.update({"salespersons": lead_salespersons})
