@@ -76,14 +76,6 @@ def call_tekion_api(endpoint: str, dealer_id: str, params: Optional[Dict[str, An
     response.raise_for_status()
 
     response_json = response.json()
-    if response_json.get("meta", {}).get("status", "").lower() != "success":
-        logger.warning(
-            f"Tekion API failed. "
-            f"dealer_id={dealer_id}, "
-            f"endpoint={endpoint}, "
-            f"response={response_json}",
-        )
-        return False
 
     return response_json
 
@@ -114,7 +106,11 @@ def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_
         dealer_id=crm_dealer_id,
     )
 
-    if not tekion_res:
+    if tekion_res.get("meta", {}).get("status", "").lower() != "success":
+        logger.info(f"Lead not found. "
+                    f"lead_id={lead_id}, "
+                    f"crm_lead_id={crm_lead_id}")
+        
         body = {"error": f"Lead not found. lead_id={lead_id}, crm_lead_id={crm_lead_id}"}
         return ApiResponse(404, body)
 

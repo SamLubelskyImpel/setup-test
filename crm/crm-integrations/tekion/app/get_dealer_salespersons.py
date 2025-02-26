@@ -60,7 +60,7 @@ def get_dealer_salespersons(crm_dealer_id):
             response = hit_tekion_api("openapi/v4.0.0/users", params, crm_dealer_id)
 
             if response.get("meta", {}).get("status", "").lower() != "success":
-                logger.error(f"Error fetching salespersons for {role}: {response}")
+                logger.error(f"Error fetching salespersons for {role}: {response.get('meta', {})}")
                 break  # Stop fetching for this role
 
             for user in response.get("data", []):
