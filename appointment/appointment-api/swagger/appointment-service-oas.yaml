@@ -175,11 +175,12 @@ paths:
       #{{UPDATE_APPOINTMENT_INFO}}
       tags:
         - Appointments
-      description: Update an appointment in shared layer. For XTime Integrations, only the fields timeslot and timeslot_duration will be updated.
+      description: Update an appointment in shared layer. For XTime Integrations, only the field timeslot will be updated.
       operationId: putAppointment
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/dealer_integration_partner_id"
         - "$ref": "#/components/parameters/appointment_id"
       requestBody:
         description: Appointment information
