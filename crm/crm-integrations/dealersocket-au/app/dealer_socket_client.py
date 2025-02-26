@@ -20,6 +20,17 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 sm_client = boto3.client("secretsmanager")
 
+DS_LEAD_STATUS_MAPPINGS = {
+    220: "Unqualified",
+    221: "Up/Contacted",
+    227: "Store Visit",
+    222: "Demo Vehicle",
+    223: "Write Up",
+    224: "Pending F&I",
+    225: "Sold",
+    226: "Lost"
+}
+
 
 class DealerSocketClient:
     """The DealerSocket client class has functions to query the dealersocket APIs."""
