@@ -113,7 +113,6 @@ def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_
         endpoint=f"openapi/v4.0.0/leads/{crm_lead_id}",
         dealer_id=crm_dealer_id,
     )
-    logger.info(f"Tekion responded with: \n\n{tekion_res}\n\n")
 
     if not tekion_res:
         body = {"error": f"Lead not found. lead_id={lead_id}, crm_lead_id={crm_lead_id}"}
@@ -121,45 +120,21 @@ def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_
 
     status = tekion_res['data'].get("status", "")
 
-    assignees = call_tekion_api(
-        endpoint=f"openapi/v4.0.0/leads/{crm_lead_id}/assignees",
-        dealer_id=crm_dealer_id,
-    )
-    salespersons = []
-    if assignees:
-        salesperson = next((item for item in assignees["data"] if item["role"] == "SALES_PERSON"), assignees["data"][0])
-        salesperson_user = call_tekion_api(
-            endpoint=f"openapi/v4.0.0/users/{salesperson['id']}",
-            dealer_id=crm_dealer_id,
-        )
-        if salesperson_user:
-            salespersons = [
-                {
-                    "crm_salesperson_id": salesperson_user['data']["id"],
-                    "is_primary": salesperson.get("isPrimary", False),
-                    "position_name": salesperson.get("role", ""),
-                    "first_name": salesperson_user['data'].get("userNameDetails", {}).get("firstName", ""),
-                    "last_name": salesperson_user['data'].get("userNameDetails", {}).get("lastName", ""),
-                    "email": salesperson_user['data'].get("email", ""),
-                }
-            ]
 
     logger.info(
         f"Found lead_id={lead_id}, "
         f"dealer_integration_partner={dealer_partner_id}, "
-        f"status={status}",
-        f"salespersons={salespersons}",
+        f"status={status}"
     )
 
     send_sqs_message(
         {
             "lead_id": lead_id,
             "dealer_integration_partner_id": dealer_partner_id,
-            "status": status,
-            "salespersons": salespersons,
+            "status": status
         }
     )
-    body = {"status": status, "salespersons": salespersons}
+    body = {"status": status}
     return ApiResponse(200, body)
 
 

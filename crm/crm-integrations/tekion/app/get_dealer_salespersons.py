@@ -48,34 +48,41 @@ def hit_tekion_api(endpoint, params, dealer_id):
 
 
 def get_dealer_salespersons(crm_dealer_id):
-    """Get dealer's salespersons list from Tekion."""
-
+    """Fetch and return the dealer's salespersons list from Tekion."""
+    
     salespersons = []
     roles = ["SALES_PERSON", "SALES_MANAGER", "BDC_MANAGER"]
 
     for role in roles:
         params = {"persona": role}
-        response = hit_tekion_api("openapi/v4.0.0/users", params, crm_dealer_id)
 
-        if response['meta'].get('status') != 'success':
-            print(f"Error: {response['meta']['message']}")
-            continue
+        while True:
+            response = hit_tekion_api("openapi/v4.0.0/users", params, crm_dealer_id)
 
-        for user in response["data"]:
-            if user.get("active") == True:
-                salesperson = {
-                    "crm_salesperson_id": user["id"],
-                    "first_name": user.get("userNameDetails", {}).get("firstName"),
-                    "last_name": user.get("userNameDetails", {}).get("lastName"),
-                    "email": user["email"],
-                    "phone": None,
-                    "position_name": user.get("userRoleDetails", {})
-                    .get("primaryRoleDetails", {})
-                    .get("roleName", role),
-                }
-                salespersons.append(salesperson)
+            if response.get("meta", {}).get("status", "").lower() != "success":
+                logger.error(f"Error fetching salespersons for {role}: {response}")
+                break  # Stop fetching for this role
 
-    logger.info(f"Found {len(salespersons)} salespersons: {salespersons}")
+            for user in response.get("data", []):
+                if user.get("active"):
+                    salespersons.append({
+                        "crm_salesperson_id": user["id"],
+                        "first_name": user.get("userNameDetails", {}).get("firstName"),
+                        "last_name": user.get("userNameDetails", {}).get("lastName"),
+                        "email": user.get("email"),
+                        "phone": None,  # Phone number is not provided in the response
+                        "position_name": user.get("userRoleDetails", {})
+                                         .get("primaryRoleDetails", {})
+                                         .get("roleName", role),
+                    })
+
+            next_fetch_key = response.get("meta", {}).get("nextFetchKey")
+            if not next_fetch_key:
+                break  # No more pages to fetch
+
+            params["nextFetchKey"] = next_fetch_key  # Update params for next API call
+
+    logger.info(f"Found {len(salespersons)} salespersons.")
     return salespersons
 
 
