@@ -30,9 +30,8 @@ class ADFAssemblerError(Exception):
 def load_adf_config() -> Dict[str, str]:
     """Load ADF Assembler configuration from S3 and cache it."""
     try:
-        config_data = s3_client.get_object(
-            Bucket=BUCKET, Key=f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
-        )["Body"].read().decode("utf-8")
+        s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_ADF_ASSEMBLER.json"
+        config_data = s3_client.get_object(Bucket=BUCKET, Key=s3_key)["Body"].read().decode("utf-8")
         logger.info("Successfully loaded ADF Assembler configuration.")
         return loads(config_data)
     except Boto3Error as e:
@@ -44,13 +43,19 @@ def load_adf_config() -> Dict[str, str]:
 # Load configuration at module load time to avoid multiple S3 calls
 adf_config = load_adf_config()
 
-def send_to_adf_assembler(event: Dict[str, Any]) -> None:
+def send_to_adf_assembler(record: Dict[str, Any]) -> None:
     """Send event to ADF Assembler based on event type."""
     try:
+        event = record.json_body
+        attributes = record.get("attributes", {})
         queue_key = "OEM_PARTNER_ADF_QUEUE" if event.get("oem_partner") else "STANDARD_ADF_QUEUE"
         sqs_url = adf_config.get(queue_key)
         if not sqs_url:
             raise ValueError(f"No SQS URL configured for key '{queue_key}'")
+
+        if queue_key == "OEM_PARTNER_ADF_QUEUE" and 'CreateActivity' in attributes.get('SenderId'):
+            logger.info(f"Skipping OEM Partner ADF Assembler for CreateActivity event.")
+            return
 
         logger.info(f"Sending message to {queue_key}\nThis is event: {event}")
         sqs_client.send_message(QueueUrl=sqs_url, MessageBody=dumps(event))
@@ -64,7 +69,7 @@ def send_to_adf_assembler(event: Dict[str, Any]) -> None:
 def record_handler(record: SQSRecord) -> None:
     """Process each SQS record."""
     logger.info(f"Processing record with message ID: {record.message_id}")
-    send_to_adf_assembler(record.json_body)
+    send_to_adf_assembler(record)
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda entry point to process events."""
