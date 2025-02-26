@@ -81,6 +81,7 @@ class CrmApiWrapper:
         response_json = self.__run_get(f"leads/{lead_id}/activities")
         return [activity for activity in response_json if activity["activity_type"] == "appointment"]
 
+
 class DealersocketAUApiWrapper:
     """Improved Dealersocket AU API Wrapper with Appointment Update Handling."""
 
@@ -127,7 +128,6 @@ class DealersocketAUApiWrapper:
         #         <Success>true</Success>
         #     </Response>
         # """
-
 
     def _build_xml(self, root_tag: str, elements: dict) -> str:
         """Build XML payload dynamically."""

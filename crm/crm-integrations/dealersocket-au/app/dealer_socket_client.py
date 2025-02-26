@@ -137,7 +137,7 @@ class DealerSocketClient:
             )
             response.raise_for_status()
             return response.text
-        except Exception as e:
+        except Exception:
             logger.error(f"Error sending post request to {DEALERSOCKET_ENTITY_URL}")
             raise
 
@@ -163,22 +163,6 @@ class DealerSocketClient:
             )
             response.raise_for_status()
             return response.json()
-        except Exception as e:
+        except Exception:
             logger.error(f"Error sending post request to {DEALERSOCKET_EVENT_URL}")
             raise
-
-# # Load JSON data
-# with open('00_123abc.json') as f:
-#     data = json.load(f)
-
-# # Extract prospect data
-# prospect = data['Prospect']
-
-# # Initialize DealerSocket client
-# public_key = "your_public_key"
-# private_key = "your_private_key"
-# client = DealerSocketClient
-
-# # Query customer
-# response = client.query_customer(prospect)
-# print(response)

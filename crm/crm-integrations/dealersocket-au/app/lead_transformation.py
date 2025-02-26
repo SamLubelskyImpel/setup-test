@@ -3,21 +3,19 @@ Transform the lead, and upload to CRM Shared Layer
 """
 
 import logging
-from datetime import datetime
-from json import dumps, loads
+from json import loads
 from os import environ
 from typing import Any
-from uuid import uuid4
 
 import boto3
 import requests
-from requests.auth import HTTPBasicAuth
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from dealer_socket_client import DS_LEAD_STATUS_MAPPINGS
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
@@ -140,26 +138,15 @@ def parse_lead(event, carsales_data) -> dict:
     Parse event data to create a lead based on the provided schema and mapping.
     """
     try:
-        lead_status_mapping = {
-            220: "Unqualified",
-            221: "Up/Contacted",
-            227: "Store Visit",
-            222: "Demo Vehicle",
-            223: "Write Up",
-            224: "Pending F&I",
-            225: "Sold",
-            226: "Lost"
-        }
-
         # If status does not match the mapping, then error is raised
         status = event.get('status')
-        if status not in lead_status_mapping:
+        if status not in DS_LEAD_STATUS_MAPPINGS:
             raise ValueError(f"Lead status '{status}' is not recognized.")
 
         lead = {
             "crm_lead_id": event.get("eventId"),
             "lead_ts": event.get("insertDate"),
-            "lead_status": lead_status_mapping.get(status),
+            "lead_status": DS_LEAD_STATUS_MAPPINGS.get(status),
             "lead_comment": carsales_data.get("Comments", ''),
             "lead_origin": "INTERNET",  # Hardcoded as per the mapping
             "lead_source": "CarSales",  # Hardcoded as per the mapping
