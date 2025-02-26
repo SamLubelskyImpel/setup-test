@@ -136,3 +136,6 @@ dmypy.json
 
 .idea
 .vscode
+
+# Sript files
+inventory/scripts/inserted_inventory_records

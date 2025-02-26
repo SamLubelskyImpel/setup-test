@@ -21,6 +21,7 @@ class Dealer(BaseForModels):
     city = Column(String)
     zip_code = Column(String)
     db_creation_date = Column(DateTime)
+    full_name = Column(String)
     __table_args__ = (
         UniqueConstraint("impel_dealer_id", name="unique_impel_dealer_id"),
     )

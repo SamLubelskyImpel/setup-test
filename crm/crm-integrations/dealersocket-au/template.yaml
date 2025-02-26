@@ -24,7 +24,8 @@ Globals:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !If [ IsProd, "crm-integrations-prod", "crm-integrations-test" ]
+        INTEGRATIONS_BUCKET: !If [IsProd, "crm-integrations-prod", "crm-integrations-test"]
+        SECRET_KEY: "DEALERSOCKET_AU"
         UPLOAD_SECRET_KEY: "impel"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
@@ -33,7 +34,6 @@ Globals:
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test'
           ]
-        # LEAD_TRANSFORMATION_QUEUE_URL: !Ref LeadTransformationQueue
         DEALERSOCKET_ENTITY_URL: "https://api.dealersocket.com/api/DealerSocket/SearchEntity"
         DEALERSOCKET_EVENT_URL: "https://api.dealersocket.com/api/DealerSocket/Event"
         DEALERSOCKET_VENDOR: "random_value"
@@ -62,14 +62,14 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
-                  ]
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -92,7 +92,6 @@ Resources:
                   - "s3:GetObject"
                   - "s3:ListBucket"
                 Resource:
-                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
                 - !If [
                     IsProd,
                     !Sub "arn:aws:s3:::crm-integrations-prod*",
@@ -110,6 +109,7 @@ Resources:
                 Resource:
                   - !GetAtt LeadSearchQueue.Arn
                   - !GetAtt LeadTransformationQueue.Arn
+                  - !GetAtt SendActivityQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -327,3 +327,63 @@ Resources:
       Statistic: Sum
       Threshold: 1
       TreatMissingData: notBreaching
+
+  SendActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-SendActivityQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SendActivityDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SendActivityDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "dealersocket-au-${Environment}-SendActivityDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  SendActivityEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 2
+      EventSourceArn: !GetAtt SendActivityQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SendActivity.Arn
+
+  SendActivity:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealersocket-au-${Environment}-SendActivity
+      CodeUri: app/
+      Handler: send_activity.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+  
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-SendActivity"
+
+  SendActivityDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub dealersocket-au-${Environment}-SendActivityDLQ
+      AlarmDescription: There are over 1 unprocessed messages in the dealersocket-au SendActivity DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendActivityDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
