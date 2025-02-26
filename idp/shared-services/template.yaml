@@ -92,6 +92,21 @@ Resources:
                     'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Prod1-Unified-Event-Data-Requests-v1',
                     'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Dev1-Unified-Event-Data-Requests-v1'
                   ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-staging'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-staging'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
+                  ]
 
   EnterpriseBusQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -110,11 +125,17 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBus.Arn
 
-  ServiceAIEventRule:
+  ServiceAIConsumerUnsubEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub idp-shared-services-${Environment}-ServiceAIEventRule
-      EventPattern: !If [IsProd, '{"source":[{"prefix":"IDP"}]}', '{"source":[{"prefix":"IDP"}]}']
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIConsumerUnsubEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["consumer_unsubscribed"]
+          }
+        }
       State: ENABLED
       EventBusName: !GetAtt EventBus.Name
       Targets:
@@ -127,6 +148,21 @@ Resources:
           RoleArn: !GetAtt EnterpriseBusRole.Arn
           DeadLetterConfig:
             Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIVinDispoEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIVinDispoEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["vin_disposed"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
         - Id: vinDisposedSQS
           Arn: !If [
             IsProd,
@@ -136,6 +172,21 @@ Resources:
           RoleArn: !GetAtt EnterpriseBusRole.Arn
           DeadLetterConfig:
             Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIApptSchdleEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIApptSchdleEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["service_appointment_scheduled"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
         - Id: appointmentScheduledSQS
           Arn: !If [
             IsProd,
@@ -145,6 +196,21 @@ Resources:
           RoleArn: !GetAtt EnterpriseBusRole.Arn
           DeadLetterConfig:
             Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIROSchdleEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIROSchdleEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["repair_order_completed"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
         - Id: roScheduledSQS
           Arn: !If [
             IsProd,
