@@ -140,9 +140,17 @@ Resources:
           ResponseTemplates:
             application/json: '{"message": "$context.authorizer.key"}'
           StatusCode: '403'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "Dealer with impel_dealer_id already exists."}'
+          StatusCode: '409'
         DEFAULT_5xx:
           ResponseTemplates:
-            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+            application/json: |
+              {
+                "message": "Internal Server Error. Please contact Impel support.",
+                "errorDetails": "$context.error.message"
+              }
 
   APILogGroup:
     Type: AWS::Logs::LogGroup
@@ -200,6 +208,31 @@ Resources:
             RestApiId: !Ref DmsDataServiceGateway
             Path: /repair-order/v1
             Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !If [ IsProd,
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DMSDB*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DMSDB*"
+                      ]
+  CreateDealer:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: create_dealer_inbound.lambda_handler
+      Timeout: 30
+      Events:
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /create-dealer/v1
+            Method: POST
       Policies:
         - Id: DBAuthorizerPermissions
           Version: '2012-10-17'

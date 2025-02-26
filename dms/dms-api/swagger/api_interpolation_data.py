@@ -13,6 +13,14 @@ x-amazon-apigateway-request-validator: full
 """
 
 # httpMethod should always be POST even for other endpoint types
+CREATE_DEALER_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateDealer.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
 REPAIR_ORDER_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -54,5 +62,6 @@ DMS_DATA_SERVICE_INTERPOLATION_DATA = {
     "REPAIR_ORDER_LAMBDA_INFO": REPAIR_ORDER_LAMBDA_INFO,
     "VEHICLE_SALE_LAMBDA_INFO": VEHICLE_SALE_LAMBDA_INFO,
     "DEALER_LAMBDA_INFO": DEALER_LAMBDA_INFO,
-    "APPOINTMENT_LAMBDA_INFO": APPOINTMENT_LAMBDA_INFO
+    "APPOINTMENT_LAMBDA_INFO": APPOINTMENT_LAMBDA_INFO,
+    "CREATE_DEALER_LAMBDA_INFO" : CREATE_DEALER_LAMBDA_INFO
 }
