@@ -19,6 +19,9 @@ SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 class MissingSellerDataError(Exception):
     pass
 
+class MissingDealerError(Exception):
+    pass
+
 def is_dealer_active(vehicle: dict):
 
     seller = vehicle.get("Seller", None)
@@ -35,9 +38,7 @@ def is_dealer_active(vehicle: dict):
                 impel_dealer_id = results[0][0]
                 return True, impel_dealer_id
 
-            logger.warning("Impel Dealer Id not found.")
-            raise Exception(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
-
+            raise MissingDealerError(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
         else:
             logger.warning("No Seller Identifier provided.")
             raise MissingSellerDataError("Bad Request: Vehicle missing Seller Identifier")
@@ -80,6 +81,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except MissingSellerDataError as e:
         logger.error(f"Error on CarSales ingest vehicle: {str(e)}")
         notify_client_engineering("[SUPPORT ALERT]: Error Occured During CarSales Inventory Ingestion", e)
+        return {
+            "statusCode": 400,
+            "body": dumps({"error": "Bad Request."}),
+        }
+    except MissingDealerError as e:
+        logger.error(f"Error on CarSales ingest vehicle: {str(e)}")
         return {
             "statusCode": 400,
             "body": dumps({"error": "Bad Request."}),
