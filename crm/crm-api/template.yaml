@@ -761,7 +761,7 @@ Resources:
       Timeout: 30
       MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
-
+  
   NotifyADFAssemblerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
