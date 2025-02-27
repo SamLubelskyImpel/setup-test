@@ -49,28 +49,36 @@ def send_to_adf_assembler(event: Dict[str, Any]) -> None:
     try:
         queue_url = None
         oem_partner = event.get("oem_partner", {}).get("name", "").upper()
-        if oem_partner:
-            # Iterate through OEM_PARTNER_QUEUES to find the correct queue
-            for queue_key, queue_details in adf_config.get("OEM_PARTNER_QUEUES", {}).items():
-                if oem_partner in queue_details.get("partners", []):
-                    queue_url = queue_details.get("queue_url")
-                    logger.info(f"OEM Partner '{oem_partner}' matched with queue: {queue_url}")
-                    break
 
-        # If no specific queue is found, fall back to the STANDARD_ADF_QUEUE
+        # Check if OEM partner exists in OEM_PARTNER_QUEUES (new structure)
+        if oem_partner:
+            queue_details = adf_config.get("OEM_PARTNER_QUEUES", {}).get(oem_partner)
+            if queue_details:
+                queue_url = queue_details.get("queue_url")
+                logger.info(f"OEM Partner '{oem_partner}' matched with queue: {queue_url}")
+
+        # If no queue was found in OEM_PARTNER_QUEUES, use the fallback OEM_PARTNER_ADF_QUEUE
+        if not queue_url:
+            queue_url = adf_config.get("OEM_PARTNER_ADF_QUEUE")
+
+        # If still no queue is found, fallback to the STANDARD_ADF_QUEUE
         if not queue_url:
             queue_url = adf_config.get("STANDARD_ADF_QUEUE")
+
+        # If no queue is configured at all, raise an error
         if not queue_url:
             raise ValueError("No SQS URL configured for the event.")
 
         logger.info(f"Sending message to queue URL: {queue_url}")
         sqs_client.send_message(QueueUrl=queue_url, MessageBody=dumps(event))
         logger.info("Message successfully sent to ADF Assembler.")
+
     except (Boto3Error, ValueError) as e:
         error_message = f"Error sending event to ADF Assembler: {e}"
         logger.error(error_message)
         send_email_notification(error_message, subject="ADF Assembler Failure Alert")
         raise ADFAssemblerError(error_message)
+
 
 
 def record_handler(record: SQSRecord) -> None:
@@ -93,3 +101,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Critical error processing batch: {e}")
         raise
+
+
+{
+  "STANDARD_ADF_QUEUE": "https://sqs.us-east-1.amazonaws.com/143813444726/adf-assembler-test-AdfAssemblerQueue",
+  "OEM_PARTNER_ADF_QUEUE": "https://sqs.us-east-1.amazonaws.com/143813444726/honda-acura-adf-assembler-test-HondaAcuraAdfAssemblerQueue",
+  "OEM_PARTNER_QUEUES": {
+    "STELLANTIS": {
+      "partners": [
+        "STELLANTIS"
+      ],
+      "queue_url": "https://sqs.us-east-1.amazonaws.com/143813444726/shift-digital-test-PostLeadQueue"
+    }
+  }
+}
