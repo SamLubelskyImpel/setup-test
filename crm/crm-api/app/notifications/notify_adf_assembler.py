@@ -33,15 +33,13 @@ def load_adf_config() -> Dict[str, str]:
     """Load ADF Assembler configuration from S3 and cache it."""
     try:
         s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_ADF_ASSEMBLER.json"
-        config_data = s3_client.get_object(Bucket=BUCKET, Key=s3_key)[
-            "Body"].read().decode("utf-8")
+        config_data = s3_client.get_object(Bucket=BUCKET, Key=s3_key)["Body"].read().decode("utf-8")
         logger.info("Successfully loaded ADF Assembler configuration.")
         return loads(config_data)
     except Boto3Error as e:
         error_message = f"Failed to load ADF configuration: {e}"
         logger.error(error_message)
-        send_email_notification(
-            error_message, subject="ADF Configuration Load Failure")
+        send_email_notification(error_message, subject="ADF Configuration Load Failure")
         raise ADFAssemblerError(error_message)
 
 
