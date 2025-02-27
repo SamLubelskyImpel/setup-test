@@ -156,7 +156,7 @@ class ShiftDigitalAPIWrapper:
                 "sourceId": sourceId,
                 "dealerCode": dealer_code,
                 "timestamp": lead.get("lead_ts", ""),
-                "url": lead.get("lead_url", "")
+                "url": lead.get("metadata", {}).get("impel_chat_ai_lead_ingestion", {}).get("url", "")
             },
             "customer": {
                 "firstName": customer_data.get("first_name", ""),
