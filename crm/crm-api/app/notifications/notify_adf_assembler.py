@@ -70,12 +70,10 @@ def send_to_adf_assembler(record: Dict[str, Any]) -> None:
                     logger.info(f"OEM Partner '{oem_partner_name}' matched with queue: {queue_url}")
                     break
 
-        if not queue_url and oem_partner:
-            queue_url = adf_config.get("OEM_PARTNER_ADF_QUEUE")
-            if queue_url:
-                queue_key = "OEM_PARTNER_ADF_QUEUE"
-                is_oem_partner_event = True
-                logger.info(f"Using fallback OEM_PARTNER_ADF_QUEUE for '{oem_partner_name}': {queue_url}")
+            if not queue_url:
+                error_message = f"No queue configured for OEM Partner '{oem_partner_name}'."
+                logger.error(error_message)
+                raise ValueError(error_message)
 
         if not queue_url:
             queue_url = adf_config.get("STANDARD_ADF_QUEUE")
