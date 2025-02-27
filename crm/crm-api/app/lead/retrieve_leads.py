@@ -62,7 +62,8 @@ def retrieve_leads_from_db(
     page: int,
     max_results: int,
     integration_partner: str,
-    dealer_partner_id: Optional[int] = None
+    dealer_partner_id: Optional[int] = None,
+    consumer_id: Optional[int] = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
@@ -76,7 +77,10 @@ def retrieve_leads_from_db(
         )
     )
 
-    if dealer_partner_id:
+    if consumer_id:
+        leads_query = leads_query.filter(Consumer.id == consumer_id)
+    
+    if dealer_partner_id and not consumer_id:
         leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
 
     leads_page = (
@@ -180,6 +184,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         page = int(filters.get("page", 1))
         max_results = min(1000, int(filters.get("result_count", 1000)))
         product_dealer_id = filters.get("dealer_id", None)
+        consumer_id = int(filters["consumer_id"]) if filters.get("consumer_id") is not None else None
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
 
@@ -208,7 +213,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 page,
                 max_results,
                 integration_partner,
-                dealer_partner_id
+                dealer_partner_id,
+                consumer_id
             )
 
         return {
