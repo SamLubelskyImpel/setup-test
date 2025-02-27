@@ -39,24 +39,22 @@ def send_alert_notification(alert_title: str, alert_body: str):
         logger.error(f"Failed to send alert notification: {e}")
 
 
-class CRMAPIWrapper(BaseClass):
-    """Handles calls to the CRM API by extending BaseClass."""
+class CRMAPIWrapper:
+    """Handles calls to the CRM API."""
 
     def __init__(self):
-        """Initialize the wrapper using BaseClass."""
-        super().__init__()
+        """Initialize the CRM API Wrapper."""
+        self.base_helper = BaseClass()
+        self.partner_id = self.base_helper.partner_id
+        self.api_key = self.base_helper.api_key
 
     def get_vehicle_lead_data(self, lead_id: int):
         """Fetch lead details from CRM API."""
-        return self.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
+        return self.base_helper.call_crm_api(f"https://{CRM_API_DOMAIN}/leads/{lead_id}")
 
     def get_consumer(self, consumer_id: int):
         """Fetch consumer details from CRM API."""
-        return self.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{consumer_id}")
-
-    def get_vehicles(self, lead_id: int):
-        """Fetch associated vehicles from CRM API."""
-        return self.call_crm_api(f"leads/{lead_id}/vehicles")
+        return self.base_helper.call_crm_api(f"https://{CRM_API_DOMAIN}/consumers/{consumer_id}")
 
     def update_lead(self, lead_id: int, update_data: dict):
         """Update lead in CRM API."""
@@ -126,10 +124,17 @@ class ShiftDigitalAPIWrapper:
         logger.info(f"Formatting lead data for Shift Digital submission: lead_id={lead_id}, dealer_code={dealer_code}")
 
         try:
-            lead = self.crm_api.get_vehicle_lead_data(lead_id) or {}
+            lead = self.crm_api.get_vehicle_lead_data(lead_id)
+
+            if lead is None:
+                logger.error(f"Failed to retrieve lead data for lead_id {lead_id}.")
+                raise APIError(f"Lead data not found for lead_id {lead_id}")
+
             vehicle_of_interest = lead["vehicles_of_interest"][0] if lead.get("vehicles_of_interest", []) else {}
 
-            is_vehicle_of_interest = any(vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model'])
+            is_vehicle_of_interest = any(
+                vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model']
+            )
 
             customer_data = self.crm_api.get_consumer(lead.get("consumer_id", {}))
 
@@ -238,7 +243,7 @@ class ShiftDigitalAPIWrapper:
             status_response = self.check_lead_status(shift_digital_lead_id)
             logger.info(f"Lead status response: {status_response}")
 
-            lead_status = status_response.get("Status")
+            lead_status = status_response.get("Status", "")
 
             if lead_status == "Pending Min Requirements":
                 warning_message = f"Shift Digital Lead {shift_digital_lead_id} is in 'Pending Min Requirements' state."

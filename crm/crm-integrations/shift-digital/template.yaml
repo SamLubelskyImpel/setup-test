@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: adf assembler
+Description: Shift Digital Integration
 
 Parameters:
     Environment:
@@ -119,7 +119,6 @@ Resources:
                                 - "s3:PutObject"
                             Resource:
                                 - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
-                                - !Sub "arn:aws:s3:::email-service-store-${Environment}*"
                 - PolicyName: SNSPolicy
                   PolicyDocument:
                       Version: "2012-10-17"
@@ -145,7 +144,6 @@ Resources:
                         - !GetAtt ShiftDigitalCallbackQueue.Arn
                         - !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
                         - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerQueue"
-                        - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerDeadLetterQueue"
 
     ShiftDigitalPostLead:
         Type: AWS::Serverless::Function
@@ -154,7 +152,7 @@ Resources:
             Description: Sends lead/customer/vehicle data to Shift Digital API.
             CodeUri: app/
             Handler: shift_digital_post_lead.lambda_handler
-            Timeout: 30
+            Timeout: 60
             Role: !GetAtt LambdaRole.Arn
 
     ShiftDigitalPostLeadQueue:
@@ -208,7 +206,7 @@ Resources:
             Description: Retrieves the CRM Lead ID from Shift Digital after a delay.
             CodeUri: app/
             Handler: shift_digital_callback.lambda_handler
-            Timeout: 30
+            Timeout: 60
             Role: !GetAtt LambdaRole.Arn
 
     ShiftDigitalCallbackQueue:
@@ -217,7 +215,7 @@ Resources:
             QueueName: !Sub "shift-digital-${Environment}-CallbackQueue"
             VisibilityTimeout: 60
             MessageRetentionPeriod: 604800  
-            DelaySeconds: 900
+            # DelaySeconds: 900
             RedrivePolicy:
                 deadLetterTargetArn: !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
                 maxReceiveCount: 3
