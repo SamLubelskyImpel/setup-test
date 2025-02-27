@@ -49,6 +49,10 @@ def send_to_adf_assembler(record: Dict[str, Any]) -> None:
         event = record.json_body
         attributes = record.get("attributes", {})
         queue_key = "OEM_PARTNER_ADF_QUEUE" if event.get("oem_partner") else "STANDARD_ADF_QUEUE"
+
+        logger.info(f"adf_config: {adf_config}")
+        logger.info(f"queue_key: {queue_key}")
+
         sqs_url = adf_config.get(queue_key)
         if not sqs_url:
             raise ValueError(f"No SQS URL configured for key '{queue_key}'")
