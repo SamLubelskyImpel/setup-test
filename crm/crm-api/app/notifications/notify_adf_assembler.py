@@ -124,17 +124,3 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Critical error processing batch: {e}")
         raise
-
-
-{
-    "STANDARD_ADF_QUEUE": "https://sqs.us-east-1.amazonaws.com/143813444726/adf-assembler-test-AdfAssemblerQueue",
-    "OEM_PARTNER_ADF_QUEUE": "https://sqs.us-east-1.amazonaws.com/143813444726/honda-acura-adf-assembler-test-HondaAcuraAdfAssemblerQueue",
-    "OEM_PARTNER_QUEUES": {
-        "STELLANTIS": {
-            "partners": [
-                "STELLANTIS"
-            ],
-            "queue_url": "https://sqs.us-east-1.amazonaws.com/143813444726/shift-digital-test-PostLeadQueue"
-        }
-    }
-}
