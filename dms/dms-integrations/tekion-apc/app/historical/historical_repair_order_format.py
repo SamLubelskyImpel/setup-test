@@ -86,7 +86,6 @@ def parse_csv_to_entries(csv_data, s3_uri):
             db_vehicle["model"] = normalized_row.get("model")
             db_vehicle["oem_name"] = normalized_row.get("make")
             db_vehicle["stock_num"] = normalized_row.get("stock number")
-            #db_vehicle["type"] = normalized_row.get("bodytype")
             db_vehicle["vehicle_class"] = normalized_row.get("trim")
             db_vehicle["trim"] = normalized_row.get("trim")
             db_vehicle["exterior_color"] = normalized_row.get("exterior color")

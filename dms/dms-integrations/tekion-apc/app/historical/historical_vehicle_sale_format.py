@@ -70,11 +70,11 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale["residual_value"] = convert_to_float(normalized_row.get("residual amount"))
         db_vehicle_sale["monthly_payment_amount"] = convert_to_float(normalized_row.get("monthly payment"))
         db_vehicle_sale["lease_mileage_limit"] = convert_to_float(normalized_row.get("mileage"))
-        #db_vehicle_sale["cost"] = convert_to_float(normalized_row.get("cost"))
+        db_vehicle_sale["cost"] = convert_to_float(normalized_row.get("cost"))
         #db_vehicle_sale["expiration_months"] = normalized_row.get("service_contract_term_in_months")
         #db_vehicle_sale["expiration_miles"] = normalized_row.get("service_contract_term_in_miles")
-        #db_vehicle_sale["assignee_name"] = normalized_row["salesman 1 name"]
-        #db_vehicle_sale["assignee_dms_id"] = normalized_row["salesman 1 number"]
+        db_vehicle_sale["assignee_name"] = normalized_row["salesman 1 name"]
+        db_vehicle_sale["assignee_dms_id"] = normalized_row["salesman 1 number"]
         #db_vehicle_sale["trade_in_value"] = convert_to_float(normalized_row.get("total_trades_allowance_amount"))
         #db_vehicle_sale["has_service_contract"] = true if normalized_row.get("service_contract_cost") else false
         db_vehicle_sale["payoff_on_trade"] = convert_to_float(normalized_row.get("trade 1 payoff"))
@@ -87,6 +87,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle_sale["adjustment_on_price"] = convert_to_float(normalized_row.get("adjusted cost"))
         db_vehicle_sale["vin"] = normalized_row.get("vin")
         db_vehicle_sale["finance_rate"] = normalized_row.get("apr")
+        db_vehicle_sale["sale_type"] = normalized_row.get("sale type")
 
         db_vehicle["vin"] = normalized_row.get("vin")
         db_vehicle["year"] = convert_to_int(normalized_row.get("year"))
@@ -95,9 +96,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
         db_vehicle["type"] = normalized_row.get("description")
         db_vehicle["trim"] = normalized_row.get("trim")
         db_vehicle["stock_num"] = normalized_row.get("stock number")
-        #db_vehicle["oem_name"] = normalized_row["make"]
-        #db_vehicle["sale_type"] = normalized_row.get("sale type")
-        #db_vehicle["vehicle_class"] = normalized_row["bodyclass"]
+        db_vehicle["vehicle_class"] = normalized_row["bodyclass"]
         db_vehicle["exterior_color"] = normalized_row.get("exterior color")
         db_vehicle["mileage"] = convert_to_int(normalized_row.get("trade 1 odometer"))
         db_vehicle["new_or_used"] = "N" if normalized_row.get("new/used") == "NEW" else "U" if normalized_row.get("new/used") == "USED" else None

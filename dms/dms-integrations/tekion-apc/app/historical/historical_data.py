@@ -62,11 +62,14 @@ def upload_file_to_s3(local_file, s3_key):
         logger.error(f"Error uploading file {local_file} to S3: {e}")
         raise
 
+def process_dealer_id(dealer_id:str):
+    """"process dealer id, which is a string that comes in the following format:
+    fm_motors_ltd-westwind_honda, and we need to returnwhat is after the dash """
+    return dealer_id.split("-")[1].replace("_", " ").lower()
 
-def process_file(file, ftp: FTP, dealer_id, s3_date_path):
+def process_file(file: str, ftp: FTP, dealer_id, s3_date_path):
     try:
-        if file.startswith(f"{dealer_id}_"):
-
+        if file.lower().startswith(process_dealer_id(dealer_id)):
             local_file = f"/tmp/{file}"
             ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
             
@@ -74,8 +77,6 @@ def process_file(file, ftp: FTP, dealer_id, s3_date_path):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
             elif any(keyword in file for keyword in ["SL"]):
                 s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["SV_APPT"]):
-                s3_key = f"tekion-apc/historical/service_appointment/{dealer_id}/{s3_date_path}/{file}"
             else:
                 raise ValueError(f"Unknown file type for file {file}")
 
