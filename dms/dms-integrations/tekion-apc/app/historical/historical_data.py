@@ -49,7 +49,7 @@ def list_new_files(ftp: FTP):
         except ValueError:
             file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
 
-        if file_modified_time > last_24_hours: # FTP contain both daily files and historical, historical are greater than 1MB
+        if file_modified_time > last_24_hours and file_size > 1_048_576: # FTP contain both daily files and historical, historical are greater than 1MB
             new_files.append(file)
     return new_files
 
