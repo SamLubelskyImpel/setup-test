@@ -4,7 +4,7 @@ from json import loads
 from os import environ
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -18,7 +18,6 @@ logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-SECRET_KEY = environ.get("SECRET_KEY", "")
 
 sm_client = boto3.client('secretsmanager')
 s3_client = boto3.client("s3")
@@ -55,23 +54,60 @@ def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
         logger.error(f"Error getting existing lead from CRM API: {e}")
         raise
 
-def get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key):
+def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
     """Get existing consumer by CRM Consumer ID through CRM API."""
-    url = f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}?crm_dealer_id={crm_dealer_id}&integration_partner_name={SECRET_KEY}"
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
+        )
 
-    response = make_crm_api_request(url, "GET", crm_api_key)
+        if response.status_code == 404:
+            logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} not found. {response.text}")
+            return None
 
-    if response.status_code == 404:
-        logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} not found. {response.text}")
-        return None
+        response.raise_for_status()
 
-    response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Existing consumer with CRM Consumer ID {response_json}")
+        return response_json["consumer_id"]
 
-    response_json = response.json()
-    logger.info(f"Existing consumer with CRM Consumer ID {response_json}")
-    consumer_id = response_json["consumer_id"]
+    except Exception as e:
+        logger.error(f"Error getting existing lead from CRM API: {e}")
+        raise
 
-    return consumer_id
+def get_recent_leads(consumer_id, vin, crm_api_key):
+    """Check if a lead exists for a Consumer and VIN created in the last 30 days from CRM API."""
+    params = {
+        "consumer_id": consumer_id,
+        "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    
+    try: 
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params=params,
+        )
+
+        status_code = response.status_code
+        if status_code == 404:
+            return None
+        
+        response.raise_for_status()
+
+        leads = response.json().get("leads", [])
+        for lead in leads:
+            for vehicle in lead.get("vehicles_of_interest", []):
+                if vehicle.get("vin") == vin:
+                    return True
+        return False
+
+    except Exception as e:
+        logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
+        raise
 
 def create_consumer(parsed_lead, crm_api_key) -> dict:
     """Create consumer in db."""
@@ -236,18 +272,21 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
+        logger.info(f"Message: {message}")
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split('/')[2]
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
+        logger.info(f"Content: {content}")
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
         crm_lead_id = json_data["id"]
         crm_dealer_id = json_data["dealerID"]
         crm_consumer_id = json_data["personApiID"]
+        vin = json_data["vin"]
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
@@ -256,15 +295,21 @@ def record_handler(record: SQSRecord) -> None:
             return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
-        existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key) # Checks that the crm_lead_id already exists
+        existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
         if existing_lead:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
         
         # Add logic: get consumer_id based on dealer ID and crm_consumer_id
-        existing_consumer_id = get_existing_consumer_by_id(crm_consumer_id, crm_dealer_id, crm_api_key)
-        # Add logic: get leads based on the consumer_id from above
-        # Add error handling
+        existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
+        # Add logic: Call function that queries for leads in the past 30 days with existing_consumer_id and vin
+        consumer_recent_leads_exist = get_recent_leads(existing_consumer_id, vin, crm_api_key)
+        if consumer_recent_leads_exist:
+            logger.warning(
+                f"Duplicate lead detected {crm_lead_id} for customer {crm_consumer_id}. "
+                f"Pre-existing lead {lead_id} was created in the last 30 days for the same consumer and VIN {vin}."
+            )
+            return
 
         consumer = parsed_lead["consumer"]
         if consumer.get("email") is None and consumer.get("phone") is None:
