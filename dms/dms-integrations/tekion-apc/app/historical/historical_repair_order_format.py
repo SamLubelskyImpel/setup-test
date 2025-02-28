@@ -76,7 +76,7 @@ def parse_csv_to_entries(csv_data, s3_uri):
             db_service_repair_order["total_internal_parts_amount"] = convert_to_float(normalized_row.get("internal parts sale"))
             db_service_repair_order["internal_total_amount"] = convert_to_float(normalized_row.get("internal total sale"))
             db_service_repair_order["total_amount"] = convert_to_float(normalized_row.get("total sale"))
-            #db_service_repair_order["comment"] = normalized_row.get("customer_comment ")
+            db_service_repair_order["comment"] = normalized_row.get("labor comments")
             db_service_repair_order["service_order_status"] = normalized_row.get("ro status")
 
             # add new vehicle
