@@ -182,6 +182,7 @@ Resources:
             Enabled: !If [ IsProd, true, false ]
             Schedule: cron(0 0 * * ? *)
             Input: '{"frequency": "daily"}'
+      VpcConfig: !Ref AWS::NoValue
 
   RepairOrderFunction:
     Type: AWS::Serverless::Function

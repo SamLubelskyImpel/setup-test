@@ -56,80 +56,81 @@ def parse_csv_to_entries(csv_data, s3_uri):
             'dms_id': dms_id
         }
 
-        db_vehicle_sale["sale_date"] = normalized_row.get("contract_date")
-        db_vehicle_sale["listed_price"] = convert_to_float(normalized_row.get("vehicle_sale_price"))
-        db_vehicle_sale["mileage_on_vehicle"] = convert_to_int(normalized_row.get("delivery_odometer"))
-        db_vehicle_sale["deal_type"] = normalized_row.get("contract_type")
+        db_vehicle_sale["sale_date"] = None if normalized_row.get("contract date") == "" else normalized_row.get("contract date")
+        db_vehicle_sale["listed_price"] = convert_to_float(normalized_row.get("list price"))
+        db_vehicle_sale["mileage_on_vehicle"] = convert_to_int(normalized_row.get("delivery mileage"))
+        db_vehicle_sale["deal_type"] = normalized_row.get("deal type")
         db_vehicle_sale["cost_of_vehicle"] = convert_to_float(normalized_row.get("cost"))
         db_vehicle_sale["oem_msrp"] = convert_to_float(normalized_row.get("msrp"))
-        db_vehicle_sale["transaction_id"] = normalized_row.get("deal_number")
-        db_vehicle_sale["finance_term"] = normalized_row.get("contract_term")
-        db_vehicle_sale["first_payment"] = normalized_row.get("first_payment_date")
-        db_vehicle_sale["expected_payoff_date"] = normalized_row.get("expected_vehicle_payoff_date") if normalized_row.get("expected_vehicle_payoff_date") else None
-        db_vehicle_sale["finance_amount"] = normalized_row.get("total_finance_amount")
-        db_vehicle_sale["residual_value"] = convert_to_float(normalized_row.get("residual_amount"))
-        db_vehicle_sale["monthly_payment_amount"] = convert_to_float(normalized_row.get("monthly_payment"))
-        db_vehicle_sale["lease_mileage_limit"] = convert_to_float(normalized_row.get("total_mileage_limit"))
-        #db_vehicle_sale["cost"] = normalized_row.get("service_contract_cost")
+        db_vehicle_sale["transaction_id"] = normalized_row.get("deal number")
+        db_vehicle_sale["finance_term"] = normalized_row.get("term")
+        db_vehicle_sale["first_payment"] = None if normalized_row.get("first pay date") == "" else normalized_row.get("first pay date")
+        #db_vehicle_sale["expected_payoff_date"] = normalized_row.get("expected_vehicle_payoff_date") if normalized_row.get("expected_vehicle_payoff_date") else none
+        db_vehicle_sale["finance_amount"] = normalized_row.get("amount financed")
+        db_vehicle_sale["residual_value"] = convert_to_float(normalized_row.get("residual amount"))
+        db_vehicle_sale["monthly_payment_amount"] = convert_to_float(normalized_row.get("monthly payment"))
+        db_vehicle_sale["lease_mileage_limit"] = convert_to_float(normalized_row.get("mileage"))
+        #db_vehicle_sale["cost"] = convert_to_float(normalized_row.get("cost"))
         #db_vehicle_sale["expiration_months"] = normalized_row.get("service_contract_term_in_months")
         #db_vehicle_sale["expiration_miles"] = normalized_row.get("service_contract_term_in_miles")
         #db_vehicle_sale["assignee_name"] = normalized_row["salesman 1 name"]
         #db_vehicle_sale["assignee_dms_id"] = normalized_row["salesman 1 number"]
-        db_vehicle_sale["trade_in_value"] = convert_to_float(normalized_row.get("total_trades_allowance_amount"))
-        db_vehicle_sale["adjustment_on_price"] = convert_to_float(normalized_row.get("adjusted cost"))
-        db_vehicle_sale["has_service_contract"] = True if normalized_row.get("service_contract_cost") else False
-        db_vehicle_sale["payoff_on_trade"] = convert_to_float(normalized_row.get("total_trades_payoff"))
-        db_vehicle_sale["miles_per_year"] = convert_to_int(normalized_row.get("total_mileage_limit"))
-        db_vehicle_sale["profit_on_sale"] = convert_to_float(normalized_row.get("total_gross_profit"))
-        db_vehicle_sale["vehicle_gross"] = convert_to_float(normalized_row.get("vehicle_sale_price"))
-        db_vehicle_sale["delivery_date"] = normalized_row.get("delivery_date")
+        #db_vehicle_sale["trade_in_value"] = convert_to_float(normalized_row.get("total_trades_allowance_amount"))
+        #db_vehicle_sale["has_service_contract"] = true if normalized_row.get("service_contract_cost") else false
+        db_vehicle_sale["payoff_on_trade"] = convert_to_float(normalized_row.get("trade 1 payoff"))
+        db_vehicle_sale["miles_per_year"] = convert_to_int(normalized_row.get("mileage"))
+        db_vehicle_sale["profit_on_sale"] = convert_to_float(normalized_row.get("gross profit"))
+        db_vehicle_sale["vehicle_gross"] = convert_to_float(normalized_row.get("sales price"))
+        db_vehicle_sale["delivery_date"] = None if normalized_row.get("delivery date") == "" else normalized_row.get("delivery date")
         db_vehicle_sale["value_at_end_of_lease"] = convert_to_float(normalized_row.get("lease deprecation value"))
-        db_vehicle_sale["sales_tax"] = convert_to_float(normalized_row.get("total_taxes"))
+        db_vehicle_sale["sales_tax"] = convert_to_float(normalized_row.get("total tax"))
         db_vehicle_sale["adjustment_on_price"] = convert_to_float(normalized_row.get("adjusted cost"))
         db_vehicle_sale["vin"] = normalized_row.get("vin")
         db_vehicle_sale["finance_rate"] = normalized_row.get("apr")
 
         db_vehicle["vin"] = normalized_row.get("vin")
-        db_vehicle["year"] = convert_to_int(normalized_row.get("model_year"))
+        db_vehicle["year"] = convert_to_int(normalized_row.get("year"))
         db_vehicle["make"] = normalized_row.get("make")
         db_vehicle["model"] = normalized_row.get("model")
-        db_vehicle["type"] = normalized_row.get("body_description")
-        db_vehicle["trim"] = normalized_row.get("trim_level")
-        db_vehicle["stock_num"] = normalized_row.get("stock_number")
+        db_vehicle["type"] = normalized_row.get("description")
+        db_vehicle["trim"] = normalized_row.get("trim")
+        db_vehicle["stock_num"] = normalized_row.get("stock number")
         #db_vehicle["oem_name"] = normalized_row["make"]
-        #db_vehicle["sale_type"] = normalized_row["Sale Type"]
+        #db_vehicle["sale_type"] = normalized_row.get("sale type")
         #db_vehicle["vehicle_class"] = normalized_row["bodyclass"]
-        db_vehicle["exterior_color"] = normalized_row.get("exterior_color_description")
+        db_vehicle["exterior_color"] = normalized_row.get("exterior color")
         db_vehicle["mileage"] = convert_to_int(normalized_row.get("trade 1 odometer"))
-        db_vehicle["new_or_used"] = "N" if normalized_row.get("inventory_type_new_used_flag") == "NEW" else "U" if normalized_row.get("inventory_type_new_used_flag") == "USED" else None
+        db_vehicle["new_or_used"] = "N" if normalized_row.get("new/used") == "NEW" else "U" if normalized_row.get("new/used") == "USED" else None
 
-        db_consumer["dealer_customer_no"] = normalized_row.get("buyer_id")
-        db_consumer["first_name"] = normalized_row.get("buyer_first_name")
-        db_consumer["last_name"] = normalized_row.get("buyer_last_name")
-        db_consumer["email"] = normalized_row.get("buyer_personal_email_address")
+        db_consumer["dealer_customer_no"] = normalized_row.get("customer number")
+        db_consumer["first_name"] = normalized_row.get("first name ")
+        db_consumer["last_name"] = normalized_row.get("last name")
+        db_consumer["email"] = normalized_row.get("email 1")
         db_consumer["cell_phone"] = normalized_row.get("cell phone")
-        db_consumer["home_phone"] = normalized_row.get("buyer_home_phone_number")
-        db_consumer["state"] = normalized_row.get("buyer_home_address_region")
-        db_consumer["postal_code"] = normalized_row.get("buyer_home_address_postal_code")
-        db_consumer["address"] = normalized_row.get("buyer_home_address")
+        db_consumer["home_phone"] = normalized_row.get("home phone")
+        db_consumer["state"] = normalized_row.get("state")
+        db_consumer["city"] = normalized_row.get("city")
+        db_consumer["postal_code"] = normalized_row.get("zip")
+        db_consumer["address"] = normalized_row.get("address line 1")
         db_consumer["email_optin_flag"] = True if normalized_row.get("block mail") == 'Y' else False
         db_consumer["phone_optin_flag"] = True if normalized_row.get("block phone") == 'Y' else False
         db_consumer["postal_mail_optin_flag"] = True if normalized_row.get("block mail") == 'Y' else False
         db_consumer["sms_optin_flag"] = True if normalized_row.get("block phone") == 'Y' else False
 
-        db_cobuyer_consumer["dealer_customer_no"] = normalized_row.get("co_buyer_id")
-        db_cobuyer_consumer["first_name"] = normalized_row.get("co_buyer_first_name")
-        db_cobuyer_consumer["last_name"] = normalized_row.get("co_buyer_last_name")
-        db_cobuyer_consumer["email"] = normalized_row.get("co_buyer_personal_email_address")
+        db_cobuyer_consumer["dealer_customer_no"] = normalized_row.get("co-buyer customer number")
+        db_cobuyer_consumer["first_name"] = normalized_row.get("co-buyer first name")
+        db_cobuyer_consumer["last_name"] = normalized_row.get("co-buyer last name")
+        db_cobuyer_consumer["email"] = normalized_row.get("co-buyer email 1")
         db_cobuyer_consumer["cell_phone"] = normalized_row.get("co-buyer cell phone")
-        db_cobuyer_consumer["home_phone"] = normalized_row.get("co-buyer Home")
-        db_cobuyer_consumer["state"] = normalized_row.get("co_buyer_home_address_region")
-        db_cobuyer_consumer["postal_code"] = normalized_row.get("co_buyer_home_address_postal_code")
-        db_cobuyer_consumer["address"] = normalized_row.get("co_buyer_home_address")
+        db_cobuyer_consumer["home_phone"] = normalized_row.get("co-buyer home phone")
+        db_cobuyer_consumer["city"] = normalized_row.get("co-buyer city")
+        db_cobuyer_consumer["state"] = normalized_row.get("co-buyer state")
+        db_cobuyer_consumer["postal_code"] = normalized_row.get("co-buyer zip")
+        db_cobuyer_consumer["address"] = normalized_row.get("co-buyer address line 1")
         db_cobuyer_consumer["email_optin_flag"] = True if normalized_row.get("co buyer block mail") == 'Y' else False
         db_cobuyer_consumer["phone_optin_flag"] = True if normalized_row.get("co buyer block phone") == 'Y' else False
-        db_cobuyer_consumer["postal_mail_optin_flag"] = True if normalized_row.get("co buyer block Mail") == 'Y' else False
-        db_cobuyer_consumer["sms_optin_flag"] = True if normalized_row.get("co Buyer block phone") == 'Y' else False
+        db_cobuyer_consumer["postal_mail_optin_flag"] = True if normalized_row.get("co buyer block mail") == 'Y' else False
+        db_cobuyer_consumer["sms_optin_flag"] = True if normalized_row.get("co buyer block phone") == 'Y' else False
 
         db_trade_in_vehicle["vin"] = normalized_row.get("trade 1 vin")
         db_trade_in_vehicle["make"] = normalized_row.get("trade 1 make")

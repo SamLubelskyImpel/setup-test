@@ -5,6 +5,7 @@ from os import environ
 from json import loads
 from datetime import datetime, timedelta, timezone
 from ftp_wrapper import FtpToS3
+from ftplib import FTP
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -32,7 +33,7 @@ def get_ftp_credentials():
         raise
 
 
-def list_new_files(ftp):
+def list_new_files(ftp: FTP):
     # Get current time and time 24 hours ago
     now = datetime.now(timezone.utc)
     last_24_hours = now - timedelta(days=1)
@@ -42,15 +43,15 @@ def list_new_files(ftp):
     new_files = []
     for file in ftp.nlst():
         file_modified_time_str = ftp.voidcmd(f"MDTM {file}")[4:].strip()
+        file_size = ftp.size(file)
         try:
             file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S.%f").replace(tzinfo=timezone.utc)
         except ValueError:
             file_modified_time = datetime.strptime(file_modified_time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
 
-        if file_modified_time > last_24_hours:
+        if file_modified_time > last_24_hours: # FTP contain both daily files and historical, historical are greater than 1MB
             new_files.append(file)
     return new_files
-
 
 def upload_file_to_s3(local_file, s3_key):
     try:
@@ -62,18 +63,18 @@ def upload_file_to_s3(local_file, s3_key):
         raise
 
 
-def process_file(file, ftp, dealer_id, s3_date_path):
+def process_file(file, ftp: FTP, dealer_id, s3_date_path):
     try:
         if file.startswith(f"{dealer_id}_"):
 
             local_file = f"/tmp/{file}"
             ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
             
-            if any(keyword in file for keyword in ["RO"]):
+            if any(keyword in file for keyword in ["SV"]):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["VS"]):
+            elif any(keyword in file for keyword in ["SL"]):
                 s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["SA"]):
+            elif any(keyword in file for keyword in ["SV_APPT"]):
                 s3_key = f"tekion-apc/historical/service_appointment/{dealer_id}/{s3_date_path}/{file}"
             else:
                 raise ValueError(f"Unknown file type for file {file}")
