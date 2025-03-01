@@ -51,6 +51,10 @@ Globals:
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         DOWNLOAD_QUEUE: !Ref DownloadQueue
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        EVENTS_API_URL:
+          !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
+
     VpcConfig:
         SecurityGroupIds:
           - !Ref SecurityGroup
@@ -116,6 +120,11 @@ Resources:
                    IsProd,
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-PKEY*",
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-PKEY*",
+                ]
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/event-publishing-api*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/event-publishing-api*",
                 ]
           - Effect: Allow
             Action:
@@ -873,6 +882,12 @@ Resources:
             Method: POST
       Policies:
         - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
 
   DsrOptoutLogGroup:
     Type: AWS::Logs::LogGroup
@@ -896,6 +911,12 @@ Resources:
             Method: POST
       Policies:
         - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+          ]
 
   DsrDeleteLogGroup:
     Type: AWS::Logs::LogGroup
