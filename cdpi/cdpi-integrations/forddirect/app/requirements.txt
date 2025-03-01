@@ -2,3 +2,4 @@ sqlalchemy==2.0.22
 psycopg2-binary==2.9.9
 aws_lambda_powertools==3.0.0
 paramiko==3.4.1
+requests==2.29.0
