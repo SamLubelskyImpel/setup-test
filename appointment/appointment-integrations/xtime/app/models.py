@@ -59,7 +59,7 @@ class UpdateAppointment:
     appointment_id: str
     timeslot: str
     dealer_timezone: str
-    vin: str
+    vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None
     model: Optional[str] = None
