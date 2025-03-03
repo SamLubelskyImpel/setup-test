@@ -67,9 +67,9 @@ def get_dealer_salespersons(crm_dealer_id):
                 if user.get("active"):
                     salespersons.append({
                         "crm_salesperson_id": user["id"],
-                        "first_name": user.get("userNameDetails", {}).get("firstName"),
-                        "last_name": user.get("userNameDetails", {}).get("lastName"),
-                        "email": user.get("email"),
+                        "first_name": user.get("userNameDetails", {}).get("firstName", ""),
+                        "last_name": user.get("userNameDetails", {}).get("lastName", ""),
+                        "email": user.get("email", ""),
                         "phone": None,  # Phone number is not provided in the response
                         "position_name": user.get("userRoleDetails", {})
                                          .get("primaryRoleDetails", {})
