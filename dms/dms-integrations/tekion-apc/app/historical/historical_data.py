@@ -6,6 +6,7 @@ from json import loads
 from datetime import datetime, timedelta, timezone
 from ftp_wrapper import FtpToS3
 from ftplib import FTP
+import csv
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "stage")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -16,6 +17,9 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client('s3')
 
+class NoDealerIdFound(Exception):
+    def __init__(self, message=""):
+        super().__init__(message)
 
 def get_ftp_credentials():
     """Get FTP credentials from Secrets Manager."""
@@ -62,25 +66,34 @@ def upload_file_to_s3(local_file, s3_key):
         logger.error(f"Error uploading file {local_file} to S3: {e}")
         raise
 
-def process_dealer_id(dealer_id:str):
-    """"process dealer id, which is a string that comes in the following format:
-    fm_motors_ltd-westwind_honda, and we need to returnwhat is after the dash """
-    return dealer_id.split("-")[1].replace("_", " ").lower()
-
 def process_file(file: str, ftp: FTP, dealer_id, s3_date_path):
     try:
-        if file.lower().startswith(process_dealer_id(dealer_id)):
-            local_file = f"/tmp/{file}"
-            ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
-            
-            if any(keyword in file for keyword in ["SV"]):
-                s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
-            elif any(keyword in file for keyword in ["SL"]):
-                s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
-            else:
-                raise ValueError(f"Unknown file type for file {file}")
+        local_file = f"/tmp/{file}"
+        ftp.retrbinary(f"RETR {file}", open(local_file, 'wb').write)
 
-            upload_file_to_s3(local_file, s3_key)
+        with open(local_file, 'rb') as data:
+            csv_data = data.read().decode('utf-8')
+            reader = csv.DictReader(csv_data.splitlines())
+            for row in reader:
+                normalized_row = {k.lower(): v for k, v in row.items()}
+                file_dealer_id = normalized_row.get("vendor dealer id")
+                if file_dealer_id:
+                    break
+        
+        if not file_dealer_id:
+            raise NoDealerIdFound(f"No dealer ID found in file {file}")
+        
+        if file_dealer_id != dealer_id:
+            raise ValueError(f"Dealer ID {dealer_id} does not match the Vendor Dealer ID on the file {file_dealer_id}")
+        
+        if any(keyword in file for keyword in ["SV"]):
+            s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
+        elif any(keyword in file for keyword in ["SL"]):
+            s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
+        else:
+            raise ValueError(f"Unknown file type for file {file}")
+
+        upload_file_to_s3(local_file, s3_key)
     except Exception as e:
         logger.error(f"Error processing file {file}: {e}")
         raise
@@ -107,7 +120,6 @@ def parse_data(data):
                         process_file(file, ftp, dealer_id, s3_date_path)
                     except Exception as e:
                         logger.error(f"Error processing file {file}: {e}")
-                        raise
             else:
                 logger.info(f"No new files found in the last 24 hours for dealer {dealer_id}.")
         else:
