@@ -58,7 +58,7 @@ Globals:
                         !Sub "integrations-${AWS::Region}-prod",
                         !Sub "integrations-${AWS::Region}-test"
                       ]
-        FTP_FOLDER: !If [ IsProd, "prod_tekion_dms", "test_tekion_dms"]
+        FTP_FOLDER: !If [ IsProd, "", ""]
     VpcConfig:
       SecurityGroupIds:
         - !Ref TekionSecurityGroup
@@ -182,6 +182,7 @@ Resources:
             Enabled: !If [ IsProd, true, false ]
             Schedule: cron(0 0 * * ? *)
             Input: '{"frequency": "daily"}'
+      VpcConfig: !Ref AWS::NoValue
 
   RepairOrderFunction:
     Type: AWS::Serverless::Function
@@ -260,6 +261,10 @@ Resources:
                 - !If [ IsProd,
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/TekionFTP*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/TekionFTP*",
+                  ]
+                - !If [ IsProd,
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DealerVaultFTP*",
+                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DealerVaultFTP*",
                   ]
             - Sid: AllowS3
               Effect: Allow

@@ -105,7 +105,7 @@ def upload_to_s3(data, bucket_name, object_name):
 def get_ftp_credentials():
     """Get FTP credentials from secretsmanager."""
     secret = boto3.client("secretsmanager").get_secret_value(
-        SecretId=f"{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}/TekionFTP"
+        SecretId=f"{'prod' if AWS_PROFILE in ('unified-prod','unified-admin') else 'test'}/DealerVaultFTP"
     )
     secret = json.loads(secret["SecretString"])
     return secret
