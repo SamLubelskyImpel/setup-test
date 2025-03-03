@@ -62,30 +62,27 @@ def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
             headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
             params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
         )
-
-        if response.status_code == 404:
-            logger.info(f"Existing consumer with CRM Consumer ID {crm_consumer_id} not found. {response.text}")
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()["consumer_id"]
+        elif status_code == 404:
             return None
-
-        response.raise_for_status()
-
-        response_json = response.json()
-        logger.info(f"Existing consumer with CRM Consumer ID {response_json}")
-        return response_json["consumer_id"]
+        else:
+            raise Exception(f"Error getting existing consumer from CRM API: {e}")
 
     except Exception as e:
-        logger.error(f"Error getting existing lead from CRM API: {e}")
+        logger.error(f"Error getting existing consumer from CRM API: {e}")
         raise
 
 def get_recent_leads(consumer_id, vin, crm_api_key):
-    """Check if a lead exists for a Consumer and VIN created in the last 30 days from CRM API."""
+    """Check if a lead exists for a Consumer created in the last 30 days from CRM API."""
     params = {
         "consumer_id": consumer_id,
         "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
         "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    
-    try: 
+
+    try:
         response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/leads",
             headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
@@ -95,15 +92,23 @@ def get_recent_leads(consumer_id, vin, crm_api_key):
         status_code = response.status_code
         if status_code == 404:
             return None
-        
-        response.raise_for_status()
 
-        leads = response.json().get("leads", [])
-        for lead in leads:
-            for vehicle in lead.get("vehicles_of_interest", []):
-                if vehicle.get("vin") == vin:
-                    return True
-        return False
+        response.raise_for_status()
+        response_json = response.json()
+
+        leads = response_json.get("leads", [])
+        lead_id = leads[0].get("lead_id") if leads else None
+        found_vin = False
+        if leads:
+            for lead in leads:
+                vehicles_of_interest = lead.get("vehicles_of_interest", [])
+                for vehicle in vehicles_of_interest:
+                    if vin and vehicle.get("vin") == vin:
+                        lead_id = lead.get("lead_id")
+                        found_vin = True
+                        return lead_id, found_vin
+
+        return lead_id, found_vin
 
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
@@ -197,12 +202,11 @@ def parse_lead(product_dealer_id, data):
     parsed_data = {}
     try:
         crm_lead_id = data["id"]
-        crm_consumer_id = data["personApiID"]
 
         db_consumer = {
             "first_name": data.get("firstName"),
             "last_name": data.get("lastName"),
-            "crm_consumer_id": crm_consumer_id,
+            "crm_consumer_id": data.get("personApiID"),
             "phone": parse_phone_number(data),
             "email": data.get("email"),
             "address": parse_address(data),
@@ -272,21 +276,17 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        logger.info(f"Message: {message}")
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split('/')[2]
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
-        logger.info(f"Content: {content}")
         json_data = loads(content)
         logger.info(f"Raw data: {json_data}")
 
         crm_lead_id = json_data["id"]
         crm_dealer_id = json_data["dealerID"]
-        crm_consumer_id = json_data["personApiID"]
-        vin = json_data["vin"]
 
         parsed_lead = parse_lead(product_dealer_id, json_data)
         logger.info(f"Transformed record body: {parsed_lead}")
@@ -299,17 +299,22 @@ def record_handler(record: SQSRecord) -> None:
         if existing_lead:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
-        
+
         # Add logic: get consumer_id based on dealer ID and crm_consumer_id
+        crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
-        # Add logic: Call function that queries for leads in the past 30 days with existing_consumer_id and vin
-        consumer_recent_leads_exist = get_recent_leads(existing_consumer_id, vin, crm_api_key)
-        if consumer_recent_leads_exist:
-            logger.warning(
-                f"Duplicate lead detected {crm_lead_id} for customer {crm_consumer_id}. "
-                f"Pre-existing lead {lead_id} was created in the last 30 days for the same consumer and VIN {vin}."
-            )
-            return
+        # Add logic: Call function that queries for leads in the past 30 days with existing_consumer_id
+        if existing_consumer_id:
+            vin = parsed_lead["vehicle"]["vin"]
+            consumer_recent_lead_id, found_vin = get_recent_leads(existing_consumer_id, vin, crm_api_key)
+            if consumer_recent_lead_id:
+                duplicate_vin_message = f" and the same VIN {vin}." if vin and found_vin else ""
+                logger.warning(
+                    f"Duplicate lead detected for {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
+                    f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer"
+                    f"{duplicate_vin_message}"
+                )
+                return
 
         consumer = parsed_lead["consumer"]
         if consumer.get("email") is None and consumer.get("phone") is None:
