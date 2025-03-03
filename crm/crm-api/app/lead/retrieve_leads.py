@@ -184,7 +184,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         page = int(filters.get("page", 1))
         max_results = min(1000, int(filters.get("result_count", 1000)))
         product_dealer_id = filters.get("dealer_id", None)
-        consumer_id = int(filters["consumer_id"]) if filters.get("consumer_id") is not None else None
+        consumer_id = int(filters.get("consumer_id", None))
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
 
