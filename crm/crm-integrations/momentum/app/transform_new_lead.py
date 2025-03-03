@@ -300,10 +300,8 @@ def record_handler(record: SQSRecord) -> None:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
 
-        # Add logic: get consumer_id based on dealer ID and crm_consumer_id
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
-        # Add logic: Call function that queries for leads in the past 30 days with existing_consumer_id
         if existing_consumer_id:
             vin = parsed_lead["vehicle"]["vin"]
             consumer_recent_lead_id, found_vin = get_recent_leads(existing_consumer_id, vin, crm_api_key)
