@@ -83,17 +83,16 @@ def process_file(file: str, ftp: FTP, dealer_id, s3_date_path):
         if not file_dealer_id:
             raise NoDealerIdFound(f"No dealer ID found in file {file}")
         
-        if file_dealer_id != dealer_id:
-            raise ValueError(f"Dealer ID {dealer_id} does not match the Vendor Dealer ID on the file {file_dealer_id}")
-        
-        if any(keyword in file for keyword in ["SV"]):
-            s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
-        elif any(keyword in file for keyword in ["SL"]):
-            s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
-        else:
-            raise ValueError(f"Unknown file type for file {file}")
+        if file_dealer_id == dealer_id:    
+            if any(keyword in file for keyword in ["SV"]):
+                s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
+            elif any(keyword in file for keyword in ["SL"]):
+                s3_key = f"tekion-apc/historical/fi_closed_deal/{dealer_id}/{s3_date_path}/{file}"
+            else:
+                raise ValueError(f"Unknown file type for file {file}")
 
-        upload_file_to_s3(local_file, s3_key)
+            upload_file_to_s3(local_file, s3_key)
+            
     except Exception as e:
         logger.error(f"Error processing file {file}: {e}")
         raise
