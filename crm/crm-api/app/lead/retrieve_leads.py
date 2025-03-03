@@ -191,7 +191,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
         sort_order = filters["sort_order"]
-        logger.info(f"sort order: {sort_order}")
 
         # Validate that end date is after start date
         if db_creation_date_end <= db_creation_date_start:
