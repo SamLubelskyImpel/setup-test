@@ -78,10 +78,17 @@ def retrieve_leads_from_db(
         )
     )
 
-    if consumer_id:
-        leads_query = leads_query.filter(Consumer.id == consumer_id)
+    if dealer_partner_id and consumer_id:
+        leads_query = leads_query.filter(
+            Consumer.dealer_integration_partner_id == dealer_partner_id,
+            Consumer.id == consumer_id
+        )
     elif dealer_partner_id:
         leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
+    elif consumer_id:
+        error_message = "A dealer_partner_id is required to filter by consumer_id"
+        logger.error(error_message)
+        raise ValueError(error_message)
 
     sort_column = desc(Lead.db_creation_date) if sort_order.lower() == "desc" else asc(Lead.db_creation_date)
 
@@ -225,7 +232,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "statusCode": 200,
             "body": dumps(leads, cls=CustomEncoder)
         }
-
+    except ValueError as e:
+        logger.warning(f"Bad Request: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({"error": str(e)})
+        }
     except Exception as e:
         logger.exception(f"Error retrieving leads: {e}.")
         return {
