@@ -405,6 +405,7 @@ CREATE TABLE prod.op_code_appointment (
 	CONSTRAINT op_code_appointment_appointment_id_fkey FOREIGN KEY (appointment_id) REFERENCES prod.appointment(id) ON DELETE CASCADE,
 	CONSTRAINT op_code_appointment_op_code_id_fkey FOREIGN KEY (op_code_id) REFERENCES prod.op_code(id)
 );
+CREATE INDEX idx_op_code_appointment_appointment_id ON prod.op_code_appointment (appointment_id);
 
 
 -- prod.op_code_repair_order definition
@@ -422,6 +423,7 @@ CREATE TABLE prod.op_code_repair_order (
 	CONSTRAINT op_code_repair_order_op_code_id_fkey FOREIGN KEY (op_code_id) REFERENCES prod.op_code(id),
 	CONSTRAINT op_code_repair_order_repair_order_id_fkey FOREIGN KEY (repair_order_id) REFERENCES prod.service_repair_order(id) ON DELETE CASCADE
 );
+CREATE INDEX idx_op_code_repair_order_repair_order_id ON prod.op_code_repair_order USING btree (repair_order_id);
 
 
 -- prod.service_contracts definition
