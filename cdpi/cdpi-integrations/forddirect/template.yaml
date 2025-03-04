@@ -855,3 +855,67 @@ Resources:
             Queue: !GetAtt DownloadQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
+
+  # EVENT Processing
+
+  EventProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-EventProcessingQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EventProcessingQueueDLQ.Arn
+        maxReceiveCount: 3
+  
+  EventProcessingQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-EventProcessingQueueDLQ
+      MessageRetentionPeriod: 1209600
+
+  EventProcessingDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-EventProcessingDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the EventProcessingDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventProcessingQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  EventProcessingLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-EventProcessingLambda
+      CodeUri: app/
+      Handler: event_processing.lambda_handler
+      Timeout: 300
+      MemorySize: 1024
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt EventProcessingQueue.Arn
+      Policies:
+        - !Ref LambdaExecutionPolicy
+
+
+
+
+
+
+
+
+
