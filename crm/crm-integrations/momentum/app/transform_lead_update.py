@@ -7,6 +7,7 @@ import boto3
 from os import environ
 from typing import Any
 import requests
+from datetime import datetime, timedelta
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -133,6 +134,66 @@ def update_lead_salespersons(contact_id: str, contact_name: str, lead_id: str, c
     return salespersons
 
 
+def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
+    """Get existing consumer by CRM Consumer ID through CRM API."""
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
+        )
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()["consumer_id"]
+        elif status_code == 404:
+            return None
+        else:
+            raise Exception(f"Error getting existing consumer from CRM API: {e}")
+
+    except Exception as e:
+        logger.error(f"Error getting existing consumer from CRM API: {e}")
+        raise
+
+
+def get_recent_leads(consumer_id, vin, crm_api_key):
+    """Check if a lead exists for a Consumer created in the last 30 days from CRM API."""
+    params = {
+        "consumer_id": consumer_id,
+        "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params=params,
+        )
+
+        status_code = response.status_code
+        if status_code == 404:
+            return None
+
+        response.raise_for_status()
+        response_json = response.json()
+
+        leads = response_json.get("leads", [])
+        lead_id = leads[0].get("lead_id") if leads else None
+        if leads:
+            for lead in leads:
+                vehicles_of_interest = lead.get("vehicles_of_interest", [])
+                for vehicle in vehicles_of_interest:
+                    if vin and vehicle.get("vin") == vin:
+                        lead_id = lead.get("lead_id")
+                        return lead_id
+
+        return lead_id
+
+    except Exception as e:
+        logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
+        raise
+
+
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
@@ -153,13 +214,22 @@ def record_handler(record: SQSRecord) -> None:
         crm_dealer_id = json_data["dealerID"]
         lead_status = json_data.get("leadStatus", "")
         lead_status_timestamp = json_data.get("leadStatusTimestamp", "")
+        crm_consumer_id = json_data["personApiID"]
+        vin = json_data.get("vin", None)
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         lead_id = get_lead(crm_lead_id, crm_dealer_id, crm_api_key)
 
         if not lead_id:
-            logger.warning(f"Lead ID is not found in the CRM Shared layer: {crm_lead_id}. No update will be performed for this lead.")
-            return
+            existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
+            
+            if existing_consumer_id:
+                consumer_recent_lead_id = get_recent_leads(existing_consumer_id, vin, crm_api_key)
+                if not consumer_recent_lead_id:
+                    logger.warning(f"No existing lead found in the CRM Shared layer. No update will be performed for this Lead ID, {crm_lead_id}")
+                    return
+                
+                lead_id = consumer_recent_lead_id
 
         data = {'metadata': {}}
 

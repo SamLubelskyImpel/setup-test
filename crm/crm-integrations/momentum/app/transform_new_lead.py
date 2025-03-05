@@ -54,6 +54,7 @@ def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
         logger.error(f"Error getting existing lead from CRM API: {e}")
         raise
 
+
 def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
     """Get existing consumer by CRM Consumer ID through CRM API."""
     try:
@@ -73,6 +74,7 @@ def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
     except Exception as e:
         logger.error(f"Error getting existing consumer from CRM API: {e}")
         raise
+
 
 def get_recent_leads(consumer_id, vin, crm_api_key):
     """Check if a lead exists for a Consumer created in the last 30 days from CRM API."""
@@ -113,6 +115,7 @@ def get_recent_leads(consumer_id, vin, crm_api_key):
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
         raise
+
 
 def create_consumer(parsed_lead, crm_api_key) -> dict:
     """Create consumer in db."""
