@@ -86,7 +86,7 @@ def retrieve_leads_from_db(
     elif dealer_partner_id:
         leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
     elif consumer_id:
-        error_message = "A dealer_partner_id is required to filter by consumer_id"
+        error_message = "A dealer_id is required to filter by consumer_id"
         logger.error(error_message)
         raise ValueError(error_message)
 
@@ -196,7 +196,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         consumer_id = int(filters.get("consumer_id")) if filters.get("consumer_id") is not None else None
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
-        sort_order = filters["sort_order"]
+        sort_order = filters.get("sort_order", "desc")
 
         # Validate that end date is after start date
         if db_creation_date_end <= db_creation_date_start:
