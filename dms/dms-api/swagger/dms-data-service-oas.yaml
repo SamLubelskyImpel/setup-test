@@ -40,6 +40,7 @@ paths:
                 dms_id:
                   type: string
                   description: The DMS ID assigned to the dealer.
+                  example: "string"
                   minimum: 1
                 impel_dealer_id:
                   type: string
@@ -47,23 +48,27 @@ paths:
                 location_name:
                   type: string
                   description: The name of dealer's location.
-                  example: 3371 Fort Meade Rd
+                  example: "3371 Fort Meade Rd"
                 state:
                   type: string
                   description: The state where the dealer is located.
-                  example: Maryland
+                  example: "Maryland"
                 city:
                   type: string
                   description: The city where the dealer is located.
-                  example: Laurel
-                zipcode:
+                  example: "Laurel"
+                zip_code:
                   type: integer
                   description: The zipcode where the dealer being created is located.
                   example: 20724
+                impel_integration_partner_id:
+                  type: string
+                  description: The integration partner ID.
+                  example: "reyrey"
                 full_name:
                   type: string
                   description: The full name of the dealer.
-                  example: Ourisman Honda VW of Laurel
+                  example: "Ourisman Honda VW of Laurel"
       responses:
         '200':
           description: Success
@@ -72,23 +77,17 @@ paths:
               schema:
                 type: object
                 properties:
-                  next_fetch_key:
+                  message:
                     type: string
-                  repair_orders:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/RepairOrderResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                    example: "Dealer created successfully."
         '400':
           description: Bad Request.
         '401':
           description: This request is unauthorized.
         '500':
           description: Internal Server Error. Please contact Impel support.
+        '409':
+          description: Dealer with the provided impel_dealer_id already exists.
       #{{CREATE_DEALER_LAMBDA_INFO}}
   /repair-order/v1:
     get:
