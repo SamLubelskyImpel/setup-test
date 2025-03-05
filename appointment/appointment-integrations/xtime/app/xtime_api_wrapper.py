@@ -202,15 +202,34 @@ class XTimeApiWrapper:
 
         params = {
 
-        "dealerCode": create_appt_data.integration_dealer_id
+        "dealerCode": update_appt_data.integration_dealer_id
 
         }
         self._add_optional_params(params=params, data_instance=update_appt_data)
         logger.info(f"Params for XTime: \n {params}")
 
+        email_address = update_appt_data.email_address
+        phone_number = update_appt_data.phone_number
+
+        if not email_address:
+            email_address = "not-available@noemail.com"  # Default email address
+        elif not phone_number:
+            phone_number = "5550000000"  # Default phone number
+        elif not email_address and not phone_number:
+            raise ValueError("Email address or phone number is required.")
+
         payload = {
-            "appointmentId": update_appt_data.appointment_id,
-            "appointmentDateTimeLocal":  self.__localize_time(update_appt_data.timeslot, update_appt_data.dealer_timezone)
+            "appointmentId": update_appt_data.integration_appointment_id,
+            "appointmentDateTimeLocal": self.__localize_time(update_appt_data.timeslot, update_appt_data.dealer_timezone),
+            "firstName": update_appt_data.first_name,
+            "lastName": update_appt_data.last_name,
+            "emailAddress":email_address,
+            "phoneNumber": phone_number.replace("-", ""),
+            "services":[
+                {
+                    "opcode": update_appt_data.op_code
+                }
+            ]
         }
 
         payload = {key: value for key, value in payload.items() if value}

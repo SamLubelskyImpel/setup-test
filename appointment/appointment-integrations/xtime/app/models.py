@@ -56,9 +56,18 @@ class GetAppointments:
 @dataclass
 class UpdateAppointment:
     request_id: str
-    appointment_id: str
-    timeslot: str
+    source_product: str
+    integration_dealer_id: str
     dealer_timezone: str
+    integration_appointment_id: str
+    op_code: str
+    timeslot: str
+    duration: int
+    comment: str
+    first_name: str
+    last_name: str
+    email_address: str
+    phone_number: str
     vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None
