@@ -220,7 +220,7 @@ paths:
             type: string
         - name: consumer_id
           in: query
-          description: The ID of the consumer
+          description: The ID of the consumer. Requires `dealer_id` to be provided when querying by `consumer_id`.
           required: false
           schema:
             type: integer
