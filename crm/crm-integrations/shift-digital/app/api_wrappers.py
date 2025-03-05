@@ -94,8 +94,7 @@ class ShiftDigitalAPIWrapper:
 
         self.provider_source_ids = {
             "STELLANTIS": {
-                "sales": "5320",
-                "contact": "5322"
+                "sales": "5320"
             }
         }
 
@@ -131,10 +130,14 @@ class ShiftDigitalAPIWrapper:
                 raise APIError(f"Lead data not found for lead_id {lead_id}")
 
             vehicle_of_interest = lead["vehicles_of_interest"][0] if lead.get("vehicles_of_interest", []) else {}
-
             is_vehicle_of_interest = any(
                 vehicle_of_interest.get(field) not in [None, ""] for field in ['vin', 'year', 'make', 'model']
             )
+
+            # If the lead is not a vehicle of interest, short-circuit and return early.
+            if not is_vehicle_of_interest:
+                logger.info(f"Lead {lead_id} is not a vehicle of interest. Skipping lead formatting.")
+                return {}, is_vehicle_of_interest
 
             customer_data = self.crm_api.get_consumer(lead.get("consumer_id", {}))
 
@@ -144,9 +147,8 @@ class ShiftDigitalAPIWrapper:
 
         preferred_contact = "email" if customer_data.get("email_optin_flag") else "sms" if customer_data.get("sms_optin_flag") else "phone"
 
-        sourceId = self.provider_source_ids.get(self.oem_name, {}).get(
-            "sales" if is_vehicle_of_interest else "contact", "UNKNOWN"
-        )
+        # Shift digital only accepts VOI so fetch that from the source ids
+        sourceId = self.provider_source_ids.get(self.oem_name, {}).get("sales", "UNKNOWN")
 
         lead_uuid = str(uuid.uuid4())
 
@@ -155,8 +157,7 @@ class ShiftDigitalAPIWrapper:
                 "id": lead_uuid,
                 "sourceId": sourceId,
                 "dealerCode": dealer_code,
-                "timestamp": lead.get("lead_ts", ""),
-                "url": lead.get("metadata", {}).get("impel_chat_ai_lead_ingestion", {}).get("url", "")
+                "timestamp": lead.get("lead_ts", "")
             },
             "customer": {
                 "firstName": customer_data.get("first_name", ""),
@@ -171,9 +172,7 @@ class ShiftDigitalAPIWrapper:
                 "preferredContactMethod": preferred_contact,
                 "comments": lead.get("lead_comment", "")
             },
-        }
-        if is_vehicle_of_interest:
-            formatted_data["vehicles"] = [
+            "vehicles": [
                 {
                     "status": vehicle_of_interest.get("condition", "").lower(),
                     "type": "VehicleOfInterest",
@@ -186,12 +185,18 @@ class ShiftDigitalAPIWrapper:
                     "interiorColor": vehicle_of_interest.get("interior_color", "")
                 }
             ]
-
+        }
         return formatted_data, is_vehicle_of_interest
 
     def submit_lead(self, lead_id: int, dealer_code: str) -> str:
         """Formats data and submits a lead to Shift Digital API."""
         payload, is_vehicle_of_interest = self.format_lead_data(lead_id, dealer_code)
+
+        # If not a vehicle of interest, return and get ready to send contact ADF
+        if not is_vehicle_of_interest:
+            logger.info(f"Lead {lead_id} is not a Vehicle of Interest. Skipping Shift Digital submission.")
+            return None, is_vehicle_of_interest
+
         shift_digital_lead_id = payload["lead"]["id"]
 
         try:

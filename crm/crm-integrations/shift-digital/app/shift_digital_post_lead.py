@@ -71,26 +71,26 @@ def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
     try:
         shift_digital_lead_id, is_vehicle_of_interest = shift_api.submit_lead(lead_id, dealer_code)
 
-        if not shift_digital_lead_id:
-            logger.error("Shift Digital API did not return a lead ID.")
-            raise ValueError("Shift Digital API did not return a lead ID.")
+        if is_vehicle_of_interest:
+            # Only process the callback when it's a Vehicle of Interest
+            if not shift_digital_lead_id:
+                logger.error("Shift Digital API did not return a lead ID for a Vehicle of Interest.")
+                raise ValueError("Shift Digital API did not return a lead ID.")
 
-        logger.info(f"Successfully posted lead {lead_id} to Shift Digital. Shift Digital Lead ID: {shift_digital_lead_id}")
+            logger.info(f"Successfully posted lead {lead_id} to Shift Digital. Shift Digital Lead ID: {shift_digital_lead_id}")
 
-        # Send message to callback queue for further processing
-        sqs_payload = {
-            "shift_digital_lead_id": shift_digital_lead_id,
-            "lead_id": lead_id,
-        }
-        sqs_client.send_message(
-            QueueUrl=CALLBACK_QUEUE_URL,
-            MessageBody=json.dumps(sqs_payload),
-        )
+            sqs_payload = {
+                "shift_digital_lead_id": shift_digital_lead_id,
+                "lead_id": lead_id,
+            }
+            sqs_client.send_message(
+                QueueUrl=CALLBACK_QUEUE_URL,
+                MessageBody=json.dumps(sqs_payload),
+            )
+            logger.info(f"Queued Shift Digital Lead ID {shift_digital_lead_id} for callback processing.")
 
-        logger.info(f"Queued Shift Digital Lead ID {shift_digital_lead_id} for callback processing.")
-
-        # If NOT a Vehicle of Interest, send to STANDARD_ADF_QUEUE
-        if not is_vehicle_of_interest:
+        else:
+            # If NOT a Vehicle of Interest, send to STANDARD_ADF_QUEUE
             config_key = f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
             config_data = get_configuration(BUCKET, config_key)
             queue_url = config_data.get("STANDARD_ADF_QUEUE")
@@ -104,6 +104,7 @@ def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.exception(f"Error posting lead to Shift Digital: {e}")
         raise
+
 
 
 def record_handler(record: SQSRecord) -> None:
