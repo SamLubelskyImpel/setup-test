@@ -35,9 +35,9 @@ def get_secret(secret_id: str) -> Optional[Dict]:
         secret = secret_client.get_secret_value(SecretId=secret_id)
         return loads(secret["SecretString"])
     except secret_client.exceptions.ResourceNotFoundException:
-        logger.error(f"Secret not found: {secret_id}")
-    except Exception as e:
-        logger.exception(f"Failed to retrieve secret {secret_id}: {e}")
+        logger.error("Secret not found")
+    except Exception:
+        logger.error("Failed to retrieve secret.")
     return None
 
 def get_api_version_config():
@@ -97,7 +97,7 @@ def hit_tekion_api(endpoint, params, dealer_id):
         headers=headers,
         params=params
     )
-    logger.info(f"Tekion responded with: {response.status_code}, {response.text}")
+    logger.info(f"Tekion responded with status code: {response.status_code}")
     response.raise_for_status()
     return response.json()
 
@@ -143,7 +143,7 @@ def get_dealer_salespersons(crm_dealer_id):
                         })
             else:
                 if response.get("status") == "Failed":
-                    logger.error(response["message"]["reasons"])
+                    logger.error("Failed to fetch salespersons for role: %s. Check the response for more details.", role)
                     break
                 # Parse the response and filter for active users with the current role
                 for user in response["data"]:

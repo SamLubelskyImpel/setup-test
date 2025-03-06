@@ -9,12 +9,12 @@ import boto3
 from dataclasses import dataclass, asdict
 from requests import get, RequestException
 
-ENVIRONMENT = "test" #environ.get("ENVIRONMENT", "test")
-SECRET_KEY = "TEKION_V3" #environ.get("SECRET_KEY")
-BUCKET = "crm-integrations-test" #environ.get("INTEGRATIONS_BUCKET")
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+SECRET_KEY = environ.get("SECRET_KEY")
+BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CONFIG_FILE_KEY = "configurations/tekion_api_version_config.json"
-CRM_API_DOMAIN = "crm-api-test.testenv.impel.io" #environ.get("CRM_API_DOMAIN", "crm-api-test.testenv.impel.io")
-CRM_API_SECRET_KEY = "impel" #environ.get("UPLOAD_SECRET_KEY", "impel")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN", "crm-api-test.testenv.impel.io")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "impel")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -36,13 +36,22 @@ class ApiResponse:
         return res
 
 
+def get_secret(secret_id: str) -> Optional[Dict]:
+    """Fetch and parse secret from AWS Secrets Manager."""
+    try:
+        secret = secret_client.get_secret_value(SecretId=secret_id)
+        return loads(secret["SecretString"])
+    except secret_client.exceptions.ResourceNotFoundException:
+        logger.error("Secret not found")
+    except Exception:
+        logger.exception("Failed to retrieve secret")
+    return None
+
+
 def get_tekion_secrets():
     """Get Tekion API secrets."""
-    secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
-    )
-    secret = loads(secret["SecretString"])[str(SECRET_KEY)]
-    secret_data = loads(secret)
+    secret_response = get_secret(f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner")
+    secret_data = loads(secret_response[str(SECRET_KEY)])
     token = loads(
         s3_client.get_object(Bucket=BUCKET, Key=f"tekion_crm/token.json")["Body"]
         .read()
@@ -101,16 +110,6 @@ def send_sqs_message(message_body: Dict[str, Any]) -> None:
     except Exception:
         logger.exception("Error sending SQS message")
 
-def get_secret(secret_id: str) -> Optional[Dict]:
-    """Fetch and parse secret from AWS Secrets Manager."""
-    try:
-        secret = secret_client.get_secret_value(SecretId=secret_id)
-        return loads(secret["SecretString"])
-    except secret_client.exceptions.ResourceNotFoundException:
-        logger.error(f"Secret not found: {secret_id}")
-    except Exception as e:
-        logger.exception(f"Failed to retrieve secret {secret_id}: {e}")
-    return None
 
 def get_product_dealer_id(crm_dealer_id: str) -> Optional[str]:
     """Fetch product dealer ID from CRM API."""
@@ -131,6 +130,7 @@ def get_product_dealer_id(crm_dealer_id: str) -> Optional[str]:
         logger.exception(f"Failed to get product dealer ID: {e}")
     return None
 
+
 def get_api_version_config():
     """Retrieve API version configuration from S3."""
     try:
@@ -141,12 +141,13 @@ def get_api_version_config():
         logger.error(f"Failed to fetch API version config: {e}")
         return {}
 
+
 def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_partner_id) -> ApiResponse:
     """Get lead from Tekion."""
     
-    # version_config = get_api_version_config()
-    # product_dealer_id = get_product_dealer_id(crm_dealer_id)
-    api_version = "v3" #version_config.get(product_dealer_id, "v3")
+    version_config = get_api_version_config()
+    product_dealer_id = get_product_dealer_id(crm_dealer_id)
+    api_version = version_config.get(product_dealer_id, "v3")
 
     tekion_res = call_tekion_api(
         endpoint=(
@@ -222,12 +223,3 @@ def lambda_handler(event: Dict[str, Any], _: Any) -> Dict[str, Any]:
         )
         raise
 
-if __name__ == "__main__":
-    print(lambda_handler(
-        {
-            "lead_id": "456473",
-            "crm_lead_id": "6272afe78fdb5c12b2514ffd",
-            "crm_dealer_id": "techmotors_4_0",
-        },
-        None,
-    ))
