@@ -149,6 +149,11 @@ class ShiftDigitalAPIWrapper:
 
         # Shift digital only accepts VOI so fetch that from the source ids
         sourceId = self.provider_source_ids.get(self.oem_name, {}).get("sales", "UNKNOWN")
+        sessionid = (
+            lead.get("metadata", {})
+            .get("impel_chat_ai_lead_ingestion", {})
+            .get("sessionid", "")
+            )
 
         lead_uuid = str(uuid.uuid4())
 
@@ -186,6 +191,14 @@ class ShiftDigitalAPIWrapper:
                 }
             ]
         }
+
+        if sessionid:
+            formatted_data["lead"]["codes"] = [{
+                "source": "SD",
+                "key": "sdSessionId",
+                "value": sessionid
+            }]
+
         return formatted_data, is_vehicle_of_interest
 
     def submit_lead(self, lead_id: int, dealer_code: str) -> str:
