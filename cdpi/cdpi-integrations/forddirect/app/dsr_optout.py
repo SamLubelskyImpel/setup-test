@@ -50,6 +50,8 @@ def lambda_handler(event, context):
         dealer_id = event["dealer_identifier"]
         event_type = "cdp.dsr.optout"
 
+        logger.info(f"consumer_id: {consumer_id}, dealer_id: {dealer_id}")
+
         with DBSession() as session:
             consumer_db = session.query(
                     ConsumerProfile, Consumer, Dealer, Product, IntegrationPartner
