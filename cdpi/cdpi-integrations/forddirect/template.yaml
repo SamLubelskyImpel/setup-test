@@ -53,8 +53,7 @@ Globals:
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
-        EVENTS_LAMBDA_ARN:
-          !If [IsProd, "arn:aws:lambda:us-east-1:143813444726:function:cdpi-lucas2-ford-direct-call-events-api", "arn:aws:lambda:us-east-1:143813444726:function:cdpi-lucas2-ford-direct-call-events-api"]
+        EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
 
     VpcConfig:
         SecurityGroupIds:
