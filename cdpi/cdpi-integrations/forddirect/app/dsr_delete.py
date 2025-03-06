@@ -88,8 +88,8 @@ def lambda_handler(event, context):
             session.add(audit_dsr)
             session.commit()
 
-            call_events_api(event_type, integration_partner.id, consumer_id, consumer.source_consumer_id, dealer_id,
-                           dealer.salesai_dealer_id, dealer.serviceai_dealer_id, product.product_name)
+        call_events_api(event_type, integration_partner.id, consumer_id, consumer.source_consumer_id, dealer_id,
+                        dealer.salesai_dealer_id, dealer.serviceai_dealer_id, product.product_name)
             
         logger.info("dsr_delete completed")
         return {
