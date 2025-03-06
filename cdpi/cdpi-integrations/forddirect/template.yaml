@@ -51,9 +51,10 @@ Globals:
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         DOWNLOAD_QUEUE: !Ref DownloadQueue
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
+        EVENTS_LAMBDA_ARN:
+          !If [IsProd, "arn:aws:lambda:us-east-1:143813444726:function:cdpi-lucas2-ford-direct-call-events-api", "arn:aws:lambda:us-east-1:143813444726:function:cdpi-lucas2-ford-direct-call-events-api"]
 
     VpcConfig:
         SecurityGroupIds:
@@ -153,6 +154,11 @@ Resources:
               - "sqs:GetQueueAttributes"
             Resource:
               - !GetAtt DownloadQueue.Arn
+          - Effect: "Allow"
+            Action:
+              - "lambda:InvokeFunction"
+            Resource:
+              - "*"
 
   InvokePIIOutbound:
     Type: AWS::Serverless::Function
@@ -922,3 +928,20 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-delete"
+
+  CallEventsAPI:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: call_events_api.lambda_handler
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-call-events-api
+      MemorySize: 128
+      Timeout: 30
+      VpcConfig: !Ref "AWS::NoValue"
+      Policies:
+        - !Ref LambdaExecutionPolicy
+  
+  CallEventsAPILogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
