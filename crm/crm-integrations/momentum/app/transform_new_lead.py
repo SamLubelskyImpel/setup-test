@@ -76,9 +76,10 @@ def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
         raise
 
 
-def get_recent_leads(consumer_id, vin, crm_api_key):
+def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
     """Check if a lead exists for a Consumer created in the last 30 days from CRM API."""
     params = {
+        "dealer_id": product_dealer_id,
         "consumer_id": consumer_id,
         "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
         "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -306,8 +307,10 @@ def record_handler(record: SQSRecord) -> None:
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
         if existing_consumer_id:
-            vin = parsed_lead["vehicle"]["vin"]
-            consumer_recent_lead_id, found_vin = get_recent_leads(existing_consumer_id, vin, crm_api_key)
+            vin = parsed_lead["vehicle"].get("vin")
+            consumer_recent_lead_id, found_vin = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
+            logger.info(f"Retrieved recent lead ID: {consumer_recent_lead_id} for consumer ID: {existing_consumer_id} and dealer ID: {product_dealer_id}")
+
             if consumer_recent_lead_id:
                 duplicate_vin_message = f" and the same VIN {vin}." if vin and found_vin else ""
                 logger.warning(
