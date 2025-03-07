@@ -100,18 +100,15 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        lead_id = leads[0].get("lead_id") if leads else None
-        found_vin = False
-        if leads:
+        lead_id = None
+        if leads and vin:
             for lead in leads:
                 vehicles_of_interest = lead.get("vehicles_of_interest", [])
                 for vehicle in vehicles_of_interest:
-                    if vin and vehicle.get("vin") == vin:
-                        lead_id = lead.get("lead_id")
-                        found_vin = True
-                        return lead_id, found_vin
+                    if vehicle.get("vin") == vin:
+                        return lead.get("lead_id")
 
-        return lead_id, found_vin
+        return lead_id
 
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
@@ -308,15 +305,13 @@ def record_handler(record: SQSRecord) -> None:
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
         if existing_consumer_id:
             vin = parsed_lead["vehicle"].get("vin")
-            consumer_recent_lead_id, found_vin = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
+            consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
             logger.info(f"Retrieved recent lead ID: {consumer_recent_lead_id} for consumer ID: {existing_consumer_id} and dealer ID: {product_dealer_id}")
 
             if consumer_recent_lead_id:
-                duplicate_vin_message = f" and the same VIN {vin}." if vin and found_vin else ""
                 logger.warning(
-                    f"Duplicate lead detected for {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
-                    f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer"
-                    f"{duplicate_vin_message}"
+                    f"Duplicate lead detected for CRM Lead ID {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
+                    f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer and vin."
                 )
                 return
 
