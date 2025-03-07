@@ -179,14 +179,13 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        lead_id = leads[0].get("lead_id") if leads else None
-        if leads:
+        lead_id = None
+        if leads and vin:
             for lead in leads:
                 vehicles_of_interest = lead.get("vehicles_of_interest", [])
                 for vehicle in vehicles_of_interest:
-                    if vin and vehicle.get("vin") == vin:
-                        lead_id = lead.get("lead_id")
-                        return lead_id
+                    if vehicle.get("vin") == vin:
+                        return lead.get("lead_id")
 
         return lead_id
 
@@ -233,6 +232,9 @@ def record_handler(record: SQSRecord) -> None:
                     return
                 
                 lead_id = consumer_recent_lead_id
+            else:
+                logger.warning(f"No existing consumer found for CRM Consumer ID: {crm_consumer_id} and CRM Dealer ID: {crm_dealer_id}. No update will be performed.")
+                return
 
         data = {'metadata': {}}
 
