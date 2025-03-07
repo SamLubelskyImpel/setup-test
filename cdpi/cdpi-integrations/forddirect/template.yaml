@@ -53,7 +53,6 @@ Globals:
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
-        EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
 
     VpcConfig:
         SecurityGroupIds:
@@ -885,6 +884,9 @@ Resources:
             RestApiId: !Ref FordDirectWebhookAPI
             Path: /v1/dsr-optout
             Method: POST
+      Environment:
+        Variables:
+          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
@@ -914,6 +916,9 @@ Resources:
             RestApiId: !Ref FordDirectWebhookAPI
             Path: /v1/dsr-delete
             Method: POST
+      Environment:
+        Variables:
+          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
