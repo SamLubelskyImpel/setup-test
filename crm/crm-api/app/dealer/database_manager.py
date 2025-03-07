@@ -117,7 +117,7 @@ class DatabaseManager:
                     "statusCode": 404,
                     "body": dumps({"error": f"Integration Partner '{dealer_info.integration_partner_name}' not found"}),
                 }
-            
+
             if not isinstance(dealer_info.metadata, dict):
                 dealer_metadata = dealer_info.metadata.to_dict()
             else:
@@ -152,7 +152,12 @@ class DatabaseManager:
 
                 return {
                     "statusCode": 201,
-                    "body": dumps({"message": f"Dealer configuration created successfully dealer_id {dealer.id}"}),
+                    "body": dumps({
+                        "message": (
+                            f"Dealer configuration created successfully "
+                            f"dealer_integration_partner_id {dealer_integration_partner.id}"
+                        )
+                    }),
                 }
 
             except Exception as e:
@@ -182,20 +187,20 @@ class DatabaseManager:
 
                 if not dip:
                     return {
-                        "statusCode": 404, 
+                        "statusCode": 404,
                         "body": dumps({"message": "Dealer configuration not found"})
                     }
-                
+
                 if len(dip) > 1:
                     return {
-                        "statusCode": 409, 
+                        "statusCode": 409,
                         "body": dumps({
                             "message": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."
                         })
                     }
 
                 dip = dip[0]
-                
+
                 if dealer_status.is_active_salesai is not None:
                     dip.is_active_salesai = dealer_status.is_active_salesai
 
@@ -221,7 +226,7 @@ class DatabaseManager:
                     "statusCode": 200,
                     "body": dumps({"message": "Information updated"})
                 }
-            
+
         except SQLAlchemyError as e:
             session.rollback()
             return {"statusCode": 500, "body": dumps({"error": f"Database error: {str(e)}"})}
