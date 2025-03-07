@@ -77,7 +77,7 @@ def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
 
 
 def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
-    """Check if a lead exists for a Consumer created in the last 30 days from CRM API."""
+    """Check if a lead exists for a Consumer and VIN created in the last 30 days from CRM API."""
     params = {
         "dealer_id": product_dealer_id,
         "consumer_id": consumer_id,
@@ -100,7 +100,6 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        lead_id = None
         if leads and vin:
             for lead in leads:
                 vehicles_of_interest = lead.get("vehicles_of_interest", [])
@@ -108,7 +107,7 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
                     if vehicle.get("vin") == vin:
                         return lead.get("lead_id")
 
-        return lead_id
+        return None
 
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
