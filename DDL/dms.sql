@@ -454,3 +454,4 @@ CREATE TABLE prod.service_contracts (
 	CONSTRAINT service_contracts_dealer_integration_partner_id_fkey FOREIGN KEY (dealer_integration_partner_id) REFERENCES prod.dealer_integration_partner(id),
 	CONSTRAINT service_contracts_vehicle_sale_id_fkey FOREIGN KEY (vehicle_sale_id) REFERENCES prod.vehicle_sale(id)
 );
+CREATE INDEX idx_service_contracts_vehicle_sale_id ON prod.service_contracts USING btree (vehicle_sale_id);
