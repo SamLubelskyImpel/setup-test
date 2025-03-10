@@ -1,4 +1,4 @@
-import logging
+import logging  
 from os import environ
 from json import dumps
 import boto3

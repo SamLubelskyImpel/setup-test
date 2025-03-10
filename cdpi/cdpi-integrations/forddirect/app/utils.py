@@ -18,8 +18,20 @@ IS_PROD = True if ENVIRONMENT == "prod" else False
 secret_client = boto3.client("secretsmanager")
 lambda_client = boto3.client("lambda")
 
-def create_audit_dsr(integration_partner_id, consumer_id, event_type, complete_date=None, complete_flag=False):
+def create_audit_dsr(integration_partner_id, consumer_id, event_type, complete_date=None, complete_flag=False, update_audit_dsr=False):
+    '''Method to create audit_dsr object'''
     datetime_now = datetime.now(timezone.utc)
+
+    if update_audit_dsr:
+        audit_dsr = AuditDsr(
+            consumer_id=consumer_id,
+            integration_partner_id=integration_partner_id,
+            dsr_request_type=event_type,
+            complete_flag=complete_flag,
+            complete_date=datetime_now,
+        )
+        logger.info(f"Updated audit_dsr: {audit_dsr.as_dict()}.")
+        return audit_dsr
     
     audit_dsr = AuditDsr(
         consumer_id=consumer_id,
