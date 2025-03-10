@@ -20,10 +20,11 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 def get_active_dealer_integrations(cursor):
     """Return all active dealer integrations."""
     cursor.execute(f"SELECT id FROM {schema}.dealer_integration_partner WHERE is_active = true")
-    
+
     rows = cursor.fetchall()
 
     return [row[0] for row in rows]
+
 
 def get_service_repair_order_data(cursor):
     """Return service repair order data from yesterday."""
@@ -34,8 +35,9 @@ def get_service_repair_order_data(cursor):
     """
     cursor.execute(query)
     rows = cursor.fetchall()
-    
+
     return [row[0] for row in rows]
+
 
 def get_vehicle_sales_data(cursor):
     """Return vehicle sale data from yesterday."""
@@ -46,7 +48,7 @@ def get_vehicle_sales_data(cursor):
     """
     cursor.execute(query)
     rows = cursor.fetchall()
-    
+
     return [row[0] for row in rows]
 
 
@@ -77,6 +79,7 @@ def get_yesterday_date():
     yesterday = today - timedelta(days=1)
     return yesterday
 
+
 def alert_topic(dealerlist, data_type):
     """Notify Topic of missing S3 files."""
     yesterday = get_yesterday_date()
@@ -85,7 +88,8 @@ def alert_topic(dealerlist, data_type):
             TopicArn=SNS_TOPIC_ARN,
             Message=message
         )
-    
+
+
 def get_missing_dealer_integrations(cursor, active_dealers, previous_data_dealers):
     """Return missing list of dealers with missing data."""
 
@@ -101,7 +105,7 @@ def get_dealer_information():
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        
+
         active_dealers = get_active_dealer_integrations(cursor)
         dealers_with_sro = get_service_repair_order_data(cursor)
         dealers_with_vs = get_vehicle_sales_data(cursor)
@@ -120,18 +124,16 @@ def get_dealer_information():
             conn.close()
 
     return dealer_data
-    
-      
+
+
 def lambda_handler(event, context):
     """Daily check for missing service repair order or vehicle sale data."""
     dealer_data = get_dealer_information()
 
     active_dealers_with_missing_sro = dealer_data['active_dealers_with_missing_sro']
     active_dealers_with_missing_vs = dealer_data['active_dealers_with_missing_vs']
-    
+
     if active_dealers_with_missing_sro:
-        # alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
-        pass
+        alert_topic(active_dealers_with_missing_sro, 'service_repair_order')
     if active_dealers_with_missing_vs:
-        # alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')
-        pass
+        alert_topic(active_dealers_with_missing_vs, 'vehicle_sale')
