@@ -946,34 +946,33 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
 
   # EVENT Processing
-
-  EventProcessingQueue:
+  DsrEventProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-${Environment}-ford-direct-EventProcessingQueue
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt EventProcessingQueueDLQ.Arn
+        deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
         maxReceiveCount: 3
   
-  EventProcessingQueueDLQ:
+  DsrEventProcessingQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-${Environment}-ford-direct-EventProcessingQueueDLQ
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueueDLQ
       MessageRetentionPeriod: 1209600
 
-  EventProcessingDLQAlarm:
+  DsrEventProcessingDLQAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub cdpi-${Environment}-ford-direct-EventProcessingDLQAlarm
-      AlarmDescription: There are over 1 unprocessed messages in the EventProcessingDLQ
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DsrEventProcessingDLQ
       ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
         - Name: QueueName
-          Value: !GetAtt EventProcessingQueueDLQ.QueueName
+          Value: !GetAtt DsrEventProcessingQueueDLQ.QueueName
       EvaluationPeriods: 1
       MetricName: ApproximateNumberOfMessagesVisible
       Namespace: AWS/SQS
@@ -983,10 +982,10 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  EventProcessingLambda:
+  DsrEventProcessingLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub cdpi-${Environment}-ford-direct-EventProcessingLambda
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingLambda
       CodeUri: app/
       Handler: event_processing.lambda_handler
       Timeout: 300
@@ -996,7 +995,7 @@ Resources:
           Type: SQS
           Properties:
             Enabled: True
-            Queue: !GetAtt EventProcessingQueue.Arn
+            Queue: !GetAtt DsrEventProcessingQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
 
