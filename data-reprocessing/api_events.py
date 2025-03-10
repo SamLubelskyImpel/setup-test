@@ -85,9 +85,12 @@ for execution_id in error_execution_ids:
         continue
 
     event_message = response['events'][0]['message']
-    event = ''.join(event_message.split()[4:]).replace("\'", "\"").replace('None', 'null').replace('False', 'false').replace('True', 'true').replace("\"{", "{").replace("}\"", "}")
-    event_dict = loads(event)
-    events.append((execution_id, event_dict))
+    try:
+        event = ''.join(event_message.split()[4:]).replace("\'", "\"").replace('None', 'null').replace('False', 'false').replace('True', 'true').replace("\"{", "{").replace("}\"", "}")
+        event_dict = loads(event)
+        events.append((execution_id, event_dict))
+    except:
+        print(f'Failed to parse event {execution_id}')
 
 print(f'Found {len(events)} events to reprocess')
 
