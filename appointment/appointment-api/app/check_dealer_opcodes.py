@@ -26,6 +26,12 @@ def send_opcode_report(report: str) -> None:
             TopicArn=SNS_TOPIC_ARN,
             Message=message,
             Subject='Appointment Service: Dealer OpCode Report',
+            MessageAttributes={
+                "alert_type": {
+                    "DataType": "String",
+                    "StringValue": "support_report"
+                }
+            }
         )
         logger.info("OpCode report sent successfully")
     except Exception as e:
