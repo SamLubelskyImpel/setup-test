@@ -62,12 +62,12 @@ class UpdateAppointment:
     integration_appointment_id: str
     op_code: str
     timeslot: str
-    duration: int
-    comment: str
     first_name: str
     last_name: str
-    email_address: str
-    phone_number: str
+    duration: Optional[int] = 15
+    comment: Optional[str] = None
+    email_address: Optional[str] = 'not-available@noemail.com'
+    phone_number: Optional[str] = '5550000000'
     vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None

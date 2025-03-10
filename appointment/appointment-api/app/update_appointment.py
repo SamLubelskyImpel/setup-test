@@ -14,19 +14,28 @@ from appt_orm.session_config import DBSession
 from appt_orm.models.consumer import Consumer
 from appt_orm.models.vehicle import Vehicle
 from appt_orm.models.appointment import Appointment
+from appt_orm.models.op_code import OpCode
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-required_params = ["appointment_id", "timeslot"]
+consumer_attrs = ['dealer_integration_partner_id', 'first_name', 'last_name', 'email_address', 'phone_number']
+required_params = ["timeslot"]
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
-# def update_attrs(db_object: Any, data: Any, allowed_attrs: List[str]) -> None:
-#     """Update attributes of a database object."""
-#     for attr in allowed_attrs:
-#         if attr in data:
-#             setattr(db_object, attr, data.get(attr, None))
+# def get_field(current, incoming, field_name):
+#     try:
+#         new_value = incoming.get(field_name, None)
+
+#         if not new_value:
+#             return current.get(field_name)
+        
+#         return new_value
+
+#     except Exception:
+#         raise Exception(f"Unexpected field name: {field_name}")
+
 
 def lambda_handler(event, context):
     """Update an appointment in the vendor for a service."""
@@ -46,8 +55,6 @@ def lambda_handler(event, context):
         appointment_id = params["appointment_id"]
 
         timeslot = body["timeslot"]
-
-        vehicle = body.get('vehicle', {})
 
         update_appointment = {}
 
@@ -76,25 +83,54 @@ def lambda_handler(event, context):
             if not is_valid_timezone(dealer_timezone):
                 raise ValidationError("Invalid dealer timezone provided")
 
-            update_appointment = session.query(Appointment).filter(Appointment.id == appointment_id).first()
-        
+            update_appointment = session.query(
+                Appointment.integration_appointment_id, 
+                Vehicle.vin, 
+                Vehicle.make, 
+                Vehicle.model, 
+                Vehicle.manufactured_year, 
+                Consumer.first_name, 
+                Consumer.last_name, 
+                Consumer.email_address, 
+                Consumer.phone_number, 
+                OpCode.op_code
+                ).join(
+                Consumer, Consumer.id == Appointment.consumer_id
+                ).join(
+                    Vehicle, Vehicle.id == Appointment.vehicle_id
+                ).join(
+                    OpCode,
+                    OpCode.id == Appointment.op_code_id
+                ).filter(
+                    Appointment.id == appointment_id
+                ).first()
+
         if not update_appointment:
             raise Exception(f"Appointment with ID {appointment_id} could not be found.")
 
+        logger.info(f"UpdateAppointment: {update_appointment}")
+        logger.info(f"Dealer metadata: {partner_metadata}")
         update_appt_arn = partner_metadata.get("update_appt_arn", "")
         if not update_appt_arn:
             raise Exception(f"UpdateAppt ARN not found in metadata for dealer integration partner {dealer_integration_partner_id}")
 
         payload = {
             "request_id": request_id,
-            "appointment_id": update_appointment.integration_appointment_id,
+            "integration_appointment_id": update_appointment.integration_appointment_id,
             "source_product": source_product,
             "integration_dealer_id": integration_dealer_id,
             "timeslot": timeslot,
-            "vin": vehicle.get("vin", None),
-            "year": vehicle.get("year", None),
-            "make": vehicle.get("make", None),
-            "model": vehicle.get("model", None)
+            "duration": body.get("duration", 15),
+            "first_name": update_appointment.first_name,
+            "last_name": update_appointment.last_name,
+            "email_address": update_appointment.email_address,
+            "phone_number": update_appointment.phone_number,
+            "op_code": update_appointment.op_code,
+            "dealer_timezone": dealer_timezone,
+            "vin": update_appointment.vin,
+            "year": update_appointment.manufactured_year,
+            "make": update_appointment.make,
+            "model": update_appointment.model
         }
         payload = {key: value for key, value in payload.items() if value}
         logger.info(f"Payload to integration: {payload}")
@@ -116,16 +152,17 @@ def lambda_handler(event, context):
         elif response["statusCode"] not in [200, 204]:
             raise IntegrationError(f"Vendor integration responded with status code {response['statusCode']}")
 
-        # Parse response
+        # # Parse response
         integration_appointment_id = update_appointment.integration_appointment_id
+
+        with DBSession() as session:
+            session.query(Appointment).filter(Appointment.id == appointment_id).update({"timeslot_ts": format_timestamp(timeslot, dealer_timezone)})
+            session.commit()
 
         return {
             "statusCode": 204,
             "body": dumps({
-                "appointment_id": int(appointment_id),
-                "integration_appointment_id": str(integration_appointment_id) if integration_appointment_id else None,
-                "consumer_id": int(appointment_db.consumer_id),
-                "request_id": request_id,
+                "message": "success"
             })
         }
 
