@@ -761,11 +761,6 @@ Resources:
       Timeout: 30
       MemorySize: 512
       Role: !GetAtt LambdaRole.Arn
-  
-  NotifyADFAssemblerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/crm-api-${Environment}-NotifyADFAssembler"
 
   NotifyADFAssemblerEventMapping:
     Type: AWS::Lambda::EventSourceMapping
