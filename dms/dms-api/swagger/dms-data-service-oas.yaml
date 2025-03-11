@@ -532,6 +532,64 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{APPOINTMENT_LAMBDA_INFO}}
+  /customer/v1:
+    get:
+      summary: Get DMS customer data.
+      operationId: get-customer
+      description: |-
+        This API endpoint enables the retrieval of DMS customer data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: integer
+          minimum: 1
+        in: query
+        name: page
+        required: false
+        description: The results page to retrieve, starts at 1.
+      - schema:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        in: query
+        name: result_count
+        required: false
+        description: The number of results per page to return.
+      - schema:
+          type: integer
+        in: query
+        name: customer_id
+        description: The DMS ID assigned to the customer.
+      - schema:
+          type: string
+        in: query
+        name: dealer_customer_no
+        description: The dealer's identifier for the customer of the vehicle sale to query for.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CustomerResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{CUSTOMER_LAMBDA_INFO}}
 components:
   schemas:
     AppointmentResponse:
@@ -666,6 +724,30 @@ components:
                 properties:
                   integration_partner:
                     $ref: '#/components/schemas/IntegrationPartner'
+        has_next_page:
+          type: boolean
+    CustomerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Consumer'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
         has_next_page:
           type: boolean
     IntegrationPartner:
