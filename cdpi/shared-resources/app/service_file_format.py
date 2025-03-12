@@ -47,10 +47,7 @@ def make_dms_api_request(url: str, method: str, dms_api_key: str, data=None):
         'client_id': SECRET_KEY,
         'x_api_key': dms_api_key
     }
-    logger.info(f'requesting {url} with headers: {headers}')
     response = requests.request(method, url, headers=headers, json=data)
-    logger.info(f"DMS API responded: {response.json()}")
-    logger.info(f"DMS API responded with: {response.status_code}")
     return response
 
 def parse(csv_object):
