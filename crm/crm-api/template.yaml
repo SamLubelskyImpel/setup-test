@@ -663,7 +663,7 @@ Resources:
   RetrieveSalespersonsByDealerId:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "crm-api-${Environment}-RetrieveSalespersonsByDealerId"
+      FunctionName: !Sub "crm-api-elena-RetrieveSalespersonsByDealerId"
       CodeUri: app/dealer/
       Handler: retrieve_salespersons_by_dealer_id.lambda_handler
       Timeout: 30

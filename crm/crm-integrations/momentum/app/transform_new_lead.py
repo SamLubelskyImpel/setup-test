@@ -84,6 +84,7 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
         "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
+    logger.info(f"Params: {params}")
 
     try:
         response = requests.get(
@@ -100,14 +101,19 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        if leads and vin:
-            for lead in leads:
-                vehicles_of_interest = lead.get("vehicles_of_interest", [])
-                for vehicle in vehicles_of_interest:
-                    if vehicle.get("vin") == vin:
-                        return lead.get("lead_id")
+        logger.info(f"Leads: {leads}")
 
-        return None
+        if not leads:
+            return None
+
+        for lead in leads:
+            vehicles_of_interest = lead.get("vehicles_of_interest", [])
+            for vehicle in vehicles_of_interest:
+                if vehicle.get("vin") == vin:
+                    return lead.get("lead_id")
+
+        # If no vehicle with the given VIN is found, return the lead_id of the first lead
+        return leads[0].get("lead_id")
 
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
@@ -276,9 +282,9 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        bucket = message["detail"]["bucket"]["name"]
-        key = message["detail"]["object"]["key"]
-        product_dealer_id = key.split('/')[2]
+        bucket = message["bucket"]
+        key = message["key"]
+        product_dealer_id = message["product_dealer_id"]
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
@@ -302,6 +308,7 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
+        logger.info(f"Existing consumer ID: {existing_consumer_id}")
         if existing_consumer_id:
             vin = parsed_lead["vehicle"].get("vin")
             consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
