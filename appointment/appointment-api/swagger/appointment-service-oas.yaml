@@ -180,8 +180,8 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/dealer_integration_partner_id"
-        - "$ref": "#/components/parameters/appointment_id"
+        - "$ref": "#/components/parameters/dealerIntegrationPartnerId"
+        - "$ref": "#/components/parameters/appointmentId"
       requestBody:
         description: Appointment information
         required: false
@@ -206,7 +206,7 @@ paths:
         '401':
           "$ref": "#/components/responses/401"
         '404':
-          description: Not found. The appointment_id included in the request didn't match any existing records on Impel.
+          description: Not found. The appointmentId included in the request didn't match any existing records on Impel.
         '500':
           "$ref": "#/components/responses/500"
   /appointments/v1/timeslots:
@@ -708,8 +708,8 @@ components:
       required: true
       schema:
         type: string
-    appointment_id:
-      name: appointment_id
+    appointmentId:
+      name: appointmentId
       in: query
       description: ID of the appointment in the shared layer
       required: true

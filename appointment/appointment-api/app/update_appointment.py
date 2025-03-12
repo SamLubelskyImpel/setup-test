@@ -24,19 +24,6 @@ required_params = ["timeslot"]
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
-# def get_field(current, incoming, field_name):
-#     try:
-#         new_value = incoming.get(field_name, None)
-
-#         if not new_value:
-#             return current.get(field_name)
-        
-#         return new_value
-
-#     except Exception:
-#         raise Exception(f"Unexpected field name: {field_name}")
-
-
 def lambda_handler(event, context):
     """Update an appointment in the vendor for a service."""
     logger.info(f"Event: {event}")
@@ -49,10 +36,9 @@ def lambda_handler(event, context):
         body = loads(event["body"])
         params = event["queryStringParameters"]
         dealer_integration_partner_id = params["dealer_integration_partner_id"]
+        appointment_id = params["appointment_id"]
 
         validate_request_body(body, required_params)
-
-        appointment_id = params["appointment_id"]
 
         timeslot = body["timeslot"]
 
