@@ -656,6 +656,7 @@ components:
       required:
         - id
         - dealerID
+        - personApiID
       properties:
         id:
           type: string
@@ -666,6 +667,12 @@ components:
         dealerID:
           type: string
           description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        personApiID:
+          type: string
+          description: ID of the consumer
           minLength: 1
           maxLength: 50
           example: "012345"
@@ -715,6 +722,7 @@ components:
       required:
         - id
         - dealerID
+        - personApiID
         - firstName
         - lastName
         - leadStatus
@@ -729,6 +737,12 @@ components:
         dealerID:
           type: string
           description: ID of the dealer
+          minLength: 1
+          maxLength: 50
+          example: "012345"
+        personApiID:
+          type: string
+          description: ID of the consumer
           minLength: 1
           maxLength: 50
           example: "012345"
