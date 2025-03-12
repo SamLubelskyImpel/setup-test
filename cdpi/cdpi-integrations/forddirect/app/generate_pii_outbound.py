@@ -75,6 +75,22 @@ def make_pii_rows(consumer_dict: dict, dealer_id: int) -> list:
     if address_updates:
         pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{address_updates}|^|address|^|{record_date}\n')
 
+    if consumer_dict["crm_lead_id"] and not consumer_dict["dms_consumer_id"]:
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["crm_lead_id"]}|^|crm_lead_id|^|{record_date}\n')
+
+        if 'vendor_name' in consumer_dict:
+            pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["vendor_name"]}|^|vendor_name|^|{record_date}\n')
+
+        pii_rows.append(f"{consumer_dict['id']}|^|{dealer_id}|^|Sales AI|^|impel_application_name|^|{record_date}\n")
+    elif consumer_dict["dms_consumer_id"] and not consumer_dict["crm_lead_id"]:
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["dms_consumer_id"]}|^|dms_contact_id|^|{record_date}\n')
+
+        if 'vendor_name' in consumer_dict:
+            pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|{consumer_dict["vendor_name"]}|^|vendor_name|^|{record_date}\n')
+
+        pii_rows.append(f'{consumer_dict["id"]}|^|{dealer_id}|^|Service AI|^|impel_application_name|^|{record_date}\n')
+
+
     return pii_rows
 
 
