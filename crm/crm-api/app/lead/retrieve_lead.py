@@ -39,7 +39,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         lead_id = event["pathParameters"]["lead_id"]
 
         with DBSession() as session:
-            lead_db, impel_integration_partner_name = (
+            lead_db = (
                 get_restricted_query(session, integration_partner)
                 .filter(Lead.id == lead_id)
                 .first()
@@ -95,8 +95,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         lead_record = {
             "consumer_id": lead_db.consumer_id,
-            "crm_lead_id": lead_db.crm_lead_id,
-            "crm_vendor_name": impel_integration_partner_name if not integration_partner else integration_partner,
             "lead_status": lead_db.status,
             "lead_substatus": lead_db.substatus,
             "lead_comment": lead_db.comment,
