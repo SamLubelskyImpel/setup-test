@@ -69,7 +69,7 @@ def parse(csv_object):
             lead_id = row["crm_lead_id"]
             logger.info(f"Updating vendor name for lead with CRM Lead ID {lead_id}")
             
-            url = f'https://{CRM_API_DOMAIN}/leads/{lead_id}'
+            url = f'https://{CRM_API_DOMAIN}/internal/leads/{lead_id}'
 
             crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"] # TODO: Confirm which credentials to use
             response = make_crm_api_request(url, "GET", crm_api_key)
