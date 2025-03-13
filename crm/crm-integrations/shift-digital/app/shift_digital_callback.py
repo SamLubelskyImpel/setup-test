@@ -23,6 +23,7 @@ def process_callback(record: SQSRecord) -> None:
 
     try:
         message_body = json.loads(record.body)
+        logger.info(f" Processing body: {message_body}")
         shift_digital_lead_id = message_body["shift_digital_lead_id"]
         lead_id = message_body["lead_id"]
 
