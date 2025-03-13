@@ -158,8 +158,8 @@ Resources:
             Resource:
               - !If [
                    IsProd,
-                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/prod/SendEventToFordDirectUrl*",
-                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/test/SendEventToFordDirectUrl*",
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/prod/*",
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/test/*",
                 ]
           - Effect: "Allow"
             Action:
