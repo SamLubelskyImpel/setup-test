@@ -84,7 +84,6 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
         "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    logger.info(f"Params: {params}")
 
     try:
         response = requests.get(
@@ -307,7 +306,6 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
-        logger.info(f"Existing consumer ID: {existing_consumer_id}")
         if existing_consumer_id:
             vin = parsed_lead["vehicle"].get("vin")
             consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
