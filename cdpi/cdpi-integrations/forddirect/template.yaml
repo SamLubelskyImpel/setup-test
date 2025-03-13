@@ -124,6 +124,11 @@ Resources:
                    IsProd,
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/event-publishing-api*",
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/event-publishing-api*",
+                ]  
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-DSR*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-DSR*",
                 ]             
           - Effect: Allow
             Action:
@@ -152,6 +157,7 @@ Resources:
               - "sqs:GetQueueAttributes"
             Resource:
               - !GetAtt DownloadQueue.Arn
+              - !GetAtt SendEventToFordDirectQueue.Arn
           - Effect: "Allow"
             Action:
               - "ssm:GetParameter"
