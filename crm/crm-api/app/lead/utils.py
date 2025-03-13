@@ -20,6 +20,15 @@ def get_restricted_query(session, integration_partner):
 
     return query
 
+def get_internal_restricted_query(session, integration_partner):
+    query = session.query(Lead, IntegrationPartner.impel_integration_partner_name).join(Lead.consumer).join(Consumer.dealer_integration_partner).join(DealerIntegrationPartner.integration_partner)
+
+    if integration_partner:
+        query = (
+            query.filter(IntegrationPartner.impel_integration_partner_name == integration_partner)
+        )
+
+    return query
 
 def send_alert_notification(message, subject) -> None:
     """Send alert notification to CE team."""
