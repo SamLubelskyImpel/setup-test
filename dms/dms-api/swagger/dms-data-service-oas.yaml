@@ -555,6 +555,7 @@ paths:
           type: integer
         in: query
         name: customer_id
+        required: true
         description: The DMS or dealer's ID assigned to the customer.
       responses:
         '200':
