@@ -552,7 +552,7 @@ paths:
         required: true
         description: API Key provided by Impel
       - schema:
-          type: integer
+          type: string
         in: query
         name: customer_id
         required: true
