@@ -47,14 +47,9 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
     try:
         data = json.loads(record.body)
 
-        source_consumer_id = data.get("source_consumer_id")
-        integration_partner_id = data.get("integration_partner_id")
-        event_type = data.get("event_type")
-
-        if not source_consumer_id or not integration_partner_id or not event_type:
-            logger.warning("Missing required fields in SQS message")
-            return {"statusCode": 400, "body": {"error": "Missing required fields"}}
-
+        source_consumer_id = data["source_consumer_id"]
+        source_dealer_id = data["source_dealer_id"]
+        event_type = data["event_type"]
         request_id = str(uuid4())
 
         # ✅ Retrieve secret values
@@ -69,7 +64,7 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
             "record_timestamp": datetime.now(timezone.utc).isoformat(),
             "is_enterprise": "0",  # '0' means DSR request is on dealer level
             "ext_consumer_id": source_consumer_id,
-            "dealer_identifier": integration_partner_id,
+            "dealer_identifier": source_dealer_id,
             "response": "1",
         }
 
