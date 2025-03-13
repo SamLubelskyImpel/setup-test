@@ -553,29 +553,9 @@ paths:
         description: API Key provided by Impel
       - schema:
           type: integer
-          minimum: 1
-        in: query
-        name: page
-        required: false
-        description: The results page to retrieve, starts at 1.
-      - schema:
-          type: integer
-          minimum: 1
-          maximum: 1000
-        in: query
-        name: result_count
-        required: false
-        description: The number of results per page to return.
-      - schema:
-          type: integer
         in: query
         name: customer_id
-        description: The DMS ID assigned to the customer.
-      - schema:
-          type: string
-        in: query
-        name: dealer_customer_no
-        description: The dealer's identifier for the customer of the vehicle sale to query for.
+        description: The DMS or dealer's ID assigned to the customer.
       responses:
         '200':
           description: Success
@@ -744,12 +724,6 @@ components:
                 properties:
                   integration_partner:
                     $ref: '#/components/schemas/IntegrationPartner'
-              - type: object
-                properties:
-                  dealer_integration_partner:
-                    $ref: '#/components/schemas/DealerIntegrationPartner'
-        has_next_page:
-          type: boolean
     IntegrationPartner:
       type: object
       properties:
