@@ -101,10 +101,6 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        logger.info(f"Leads: {leads}")
-
-        if not leads:
-            return None
 
         if not vin:
             # If no vin, return the lead_id of the first lead

@@ -509,3 +509,14 @@ Resources:
       LogGroupName: !Ref TransformLeadUpdateLogGroup
       DestinationArn: !GetAtt MonitoringMomentum.Arn
       FilterPattern: "SUPPORT ALERT"
+
+  MonitoringDeduplicateNewLeadsSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - DeduplicateNewLeadsLogGroup
+    Properties:
+      LogGroupName: !Ref DeduplicateNewLeadsLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"
