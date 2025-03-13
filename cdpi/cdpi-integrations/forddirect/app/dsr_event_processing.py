@@ -23,7 +23,8 @@ sqs = boto3.client("sqs")
 def get_sqs_url() -> str:
     """Retrieve the SQS URL from AWS SSM Parameter Store."""
     try:
-        response = ssm.get_parameter(Name=f"/sqs/{environ['ENVIRONMENT']}/SendEventToFordDirectUrl")
+        response = ssm.get_parameter(Name=f"/sqs/{environ['ENVIRONMENT']}/queue_url")
+        logger.info(f"SQS URL retrieved from SSM: {response['Parameter']['Value']}")
         return response["Parameter"]["Value"]
     except Exception as e:
         logger.error(f"Failed to retrieve SQS URL from SSM: {str(e)}")
@@ -53,7 +54,6 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
         event_type = data.get("event_type")
         completed_flag = data.get("completed_flag", False)
 
-        # ✅ Database Transaction
         with DBSession() as session:
             audit_dsr = session.query(AuditDsr).filter(
                 AuditDsr.consumer_id == consumer_id,
@@ -67,15 +67,12 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
 
                 session.commit()
                 logger.info(f"AuditDsr updated for consumer_id {consumer_id}")
-
-                # ✅ Send processed data to SQS queue
-                sqs_url = get_sqs_url()
-                send_message_to_sqs(sqs_url, data)
-
-                return {"statusCode": 200, "body": {"message": "AuditDsr updated and sent to SQS"}}
             else:
                 logger.warning(f"No existing AuditDsr found for consumer_id {consumer_id}")
-                return {"statusCode": 404, "body": {"message": "No existing AuditDsr found"}}
+                raise Exception(f"No existing AuditDsr found for consumer_id {consumer_id}")
+
+        sqs_url = get_sqs_url()
+        send_message_to_sqs(sqs_url, data)
     
     except Exception as e:
         logger.error(f"Error processing record: {str(e)}")

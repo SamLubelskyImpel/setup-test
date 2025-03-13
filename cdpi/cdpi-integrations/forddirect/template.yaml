@@ -124,7 +124,7 @@ Resources:
                    IsProd,
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/event-publishing-api*",
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/event-publishing-api*",
-                ]
+                ]             
           - Effect: Allow
             Action:
               - ec2:CreateNetworkInterface
@@ -152,6 +152,15 @@ Resources:
               - "sqs:GetQueueAttributes"
             Resource:
               - !GetAtt DownloadQueue.Arn
+          - Effect: "Allow"
+            Action:
+              - "ssm:GetParameter"
+            Resource:
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/prod/SendEventToFordDirectUrl*",
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/test/SendEventToFordDirectUrl*",
+                ]
           - Effect: "Allow"
             Action:
               - "lambda:InvokeFunction"
@@ -956,7 +965,7 @@ Resources:
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueue
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 300
+      VisibilityTimeout: 30
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
           maxReceiveCount: 3
@@ -973,8 +982,8 @@ Resources:
       FunctionName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingLambda
       CodeUri: app/
       Handler: dsr_event_processing.lambda_handler
-      Timeout: 300
-      MemorySize: 1024
+      Timeout: 30
+      MemorySize: 128
       Events:
         SQSEvent:
           Type: SQS
@@ -983,6 +992,17 @@ Resources:
             Queue: !GetAtt DsrEventProcessingQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+          ]
+  
+  DsrEventProcessingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-DsrEventProcessingLambda"
 
   DsrEventProcessingQueueDLQAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1004,16 +1024,13 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  
-
-
   # 🚀 Send Event To Ford Direct SQS and Lambda
   SendEventToFordDirectQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectQueue
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 300
+      VisibilityTimeout: 30
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt SendEventToFordDirectDLQ.Arn
           maxReceiveCount: 3
@@ -1030,8 +1047,8 @@ Resources:
       FunctionName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectLambda
       CodeUri: app/
       Handler: send_event_to_fd.lambda_handler
-      Timeout: 300
-      MemorySize: 1024
+      Timeout: 30
+      MemorySize: 128
       Events:
         SQSEvent:
           Type: SQS
@@ -1040,6 +1057,17 @@ Resources:
             Queue: !GetAtt SendEventToFordDirectQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+          ]
+
+  SendEventToFordDirectLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-SendEventToFordDirectLambda"
 
   SendEventToFordDirectDLQAlarm:
     Type: AWS::CloudWatch::Alarm
