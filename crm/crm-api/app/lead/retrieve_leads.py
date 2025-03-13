@@ -9,7 +9,7 @@ from datetime import datetime
 from collections import defaultdict
 from sqlalchemy.orm import joinedload
 from typing import Any, Optional, List, Dict
-from sqlalchemy import or_
+from sqlalchemy import or_, desc, asc
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -62,7 +62,9 @@ def retrieve_leads_from_db(
     page: int,
     max_results: int,
     integration_partner: str,
-    dealer_partner_id: Optional[int] = None
+    sort_order: str,
+    dealer_partner_id: Optional[int] = None,
+    consumer_id: Optional[int] = None
 ) -> Any:
     """Retrieve leads from the database."""
     leads = []
@@ -76,11 +78,22 @@ def retrieve_leads_from_db(
         )
     )
 
-    if dealer_partner_id:
+    if dealer_partner_id and consumer_id:
+        leads_query = leads_query.filter(
+            Consumer.dealer_integration_partner_id == dealer_partner_id,
+            Consumer.id == consumer_id
+        )
+    elif dealer_partner_id:
         leads_query = leads_query.filter(Consumer.dealer_integration_partner_id == dealer_partner_id)
+    elif consumer_id:
+        error_message = "A dealer_id is required to filter by consumer_id"
+        logger.error(error_message)
+        raise ValueError(error_message)
+
+    sort_column = desc(Lead.db_creation_date) if sort_order.lower() == "desc" else asc(Lead.db_creation_date)
 
     leads_page = (
-        leads_query.order_by(Lead.db_creation_date)
+        leads_query.order_by(sort_column)
         .limit(max_results)
         .offset((page - 1) * max_results)
         .all()
@@ -180,8 +193,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
         page = int(filters.get("page", 1))
         max_results = min(1000, int(filters.get("result_count", 1000)))
         product_dealer_id = filters.get("dealer_id", None)
+        consumer_id = int(filters.get("consumer_id")) if filters.get("consumer_id") is not None else None
         db_creation_date_start = filters["db_creation_date_start"]
         db_creation_date_end = filters["db_creation_date_end"]
+        sort_order = filters.get("sort_order", "desc")
 
         # Validate that end date is after start date
         if db_creation_date_end <= db_creation_date_start:
@@ -208,14 +223,21 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 page,
                 max_results,
                 integration_partner,
-                dealer_partner_id
+                sort_order,
+                dealer_partner_id,
+                consumer_id
             )
 
         return {
             "statusCode": 200,
             "body": dumps(leads, cls=CustomEncoder)
         }
-
+    except ValueError as e:
+        logger.warning(f"Bad Request: {e}")
+        return {
+            "statusCode": 400,
+            "body": dumps({"error": str(e)})
+        }
     except Exception as e:
         logger.exception(f"Error retrieving leads: {e}.")
         return {
