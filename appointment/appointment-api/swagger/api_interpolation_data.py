@@ -40,9 +40,19 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+DEALER_ONBOARDING_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerOnboarding.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 APPOINTMENT_SERVICE_API_INTERPOLATION_DATA = {
     "APPOINTMENT_SERVICE_API_VALIDATION": APPOINTMENT_SERVICE_API_VALIDATION,
     "CREATE_APPOINTMENT_INFO": CREATE_APPOINTMENT_INFO,
     "RETRIEVE_APPOINTMENTS_INFO": RETRIEVE_APPOINTMENTS_INFO,
-    "RETRIEVE_TIMESLOTS_INFO": RETRIEVE_TIMESLOTS_INFO
+    "RETRIEVE_TIMESLOTS_INFO": RETRIEVE_TIMESLOTS_INFO,
+    "DEALER_ONBOARDING_LAMBDA_INFO": DEALER_ONBOARDING_LAMBDA_INFO,
 }

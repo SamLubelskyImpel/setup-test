@@ -430,3 +430,33 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt CheckOpCodesScheduledEvent.Arn
+
+  DealerOnboarding:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: !Sub "appointment-service-${Environment}-DealerOnboarding"
+        CodeUri: app/
+        Handler: dealer_onboarding_handler.lambda_handler
+        Timeout: 30
+        MemorySize: 1536
+        Role: !GetAtt LambdaRole.Arn
+        Events:
+          Get:
+            Type: Api
+            Properties:
+              RestApiId: !Ref AppointmentServiceApiGateway
+              Path: /appointments/v1/dealer/onboarding
+              Method: GET
+          Post:
+            Type: Api
+            Properties:
+              RestApiId: !Ref AppointmentServiceApiGateway
+              Path: /appointments/v1/dealer/onboarding
+              Method: POST
+        Layers:
+          - !Ref ApptOrmLayer
+
+  DealerOnboardingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-DealerOnboarding"
