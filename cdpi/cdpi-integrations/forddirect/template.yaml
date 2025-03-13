@@ -944,8 +944,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
-
-  # EVENT Processing
+      
+# 🚀 EVENT Processing SQS and Lambda
   DsrEventProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -961,26 +961,6 @@ Resources:
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueueDLQ
       MessageRetentionPeriod: 1209600
-
-  DsrEventProcessingDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingDLQAlarm
-      AlarmDescription: There are over 1 unprocessed messages in the DsrEventProcessingDLQ
-      ActionsEnabled: !If [ IsProd, true, false ]
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt DsrEventProcessingQueueDLQ.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
 
   DsrEventProcessingLambda:
     Type: AWS::Serverless::Function
@@ -999,7 +979,7 @@ Resources:
       Policies:
         - !Ref LambdaExecutionPolicy
 
-  # RequestToFordDirect
+  # 🚀 Send Event To Ford Direct SQS and Lambda
   SendEventToFordDirect:
     Type: AWS::SQS::Queue
     Properties:
@@ -1009,32 +989,12 @@ Resources:
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SendEventToFordDirectDLQ.Arn
         maxReceiveCount: 3
-  
+
   SendEventToFordDirectDLQ:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectDLQ
       MessageRetentionPeriod: 1209600
-
-  SendEventToFordDirectDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectDLQAlarm
-      AlarmDescription: There are over 1 unprocessed messages in the SendEventToFordDirectDLQ
-      ActionsEnabled: !If [ IsProd, true, false ]
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt SendEventToFordDirectDLQ.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
 
   SendEventToFordDirectLambda:
     Type: AWS::Serverless::Function
@@ -1053,6 +1013,13 @@ Resources:
       Policies:
         - !Ref LambdaExecutionPolicy
 
+# ✅ **Output the SQS URL so it can be retrieved by the deploy script**
+Outputs:
+  SendEventToFordDirectUrl:
+    Description: "SQS Queue URL for SendEventToFordDirect"
+    Value: !Ref SendEventToFordDirect
+    Export:
+      Name: !Sub "${AWS::StackName}-SendEventToFordDirectUrl"
 
 
 

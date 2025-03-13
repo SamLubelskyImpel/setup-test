@@ -9,7 +9,7 @@ function help() {
      ./deploy.sh <parameters>
     Options:
      -e       REQUIRED: environment to deploy to, e.g. dev, test, prod
-     -r       an an Impel region, e.g. us, eu
+     -r       an Impel region, e.g. us, eu
      -h       display this help
     "
   exit 2
@@ -42,12 +42,14 @@ commit_id=$(git log -1 --format=%H)
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
+  stack_name="forddirect-cdpi-prod"
   sam deploy --config-env "prod" \
     --tags "Commit=\"$commit_id\" Environment=\"prod\" UserLastModified=\"$user\"" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"prod\""
 elif [[ $config_env == "test" ]]; then
+  stack_name="forddirect-cdpi-test"
   sam deploy --config-env "test" \
     --tags "Commit=\"$commit_id\" Environment=\"test\" UserLastModified=\"$user\"" \
     --region "$region" \
@@ -55,10 +57,38 @@ elif [[ $config_env == "test" ]]; then
     --parameter-overrides "Environment=\"test\""
 else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
+  stack_name="forddirect-cdpi-$env"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "forddirect-cdpi-$env" \
+    --stack-name "$stack_name" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""
 fi
+
+# ✅ **Retrieve SQS URL after deployment**
+echo "Fetching SQS URL from CloudFormation stack: $stack_name..."
+sqs_url=$(aws cloudformation describe-stacks \
+  --stack-name "$stack_name" \
+  --region "$region" \
+  --query "Stacks[0].Outputs[?OutputKey=='MyQueue1Url'].OutputValue" \
+  --output text)
+
+if [[ -z "$sqs_url" || "$sqs_url" == "None" ]]; then
+  echo "Error: SQS URL not found in CloudFormation outputs!"
+  exit 1
+fi
+
+echo "SQS URL retrieved: $sqs_url"
+
+# ✅ **Store SQS URL in SSM Parameter Store**
+ssm_param="/sqs/$config_env/queue_url"
+echo "Storing SQS URL in SSM Parameter Store at $ssm_param..."
+aws ssm put-parameter \
+  --name "$ssm_param" \
+  --value "$sqs_url" \
+  --type "String" \
+  --overwrite \
+  --region "$region"
+
+echo "✅ SQS URL successfully stored in SSM: $ssm_param"
