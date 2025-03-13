@@ -23,12 +23,8 @@ sqs = boto3.client("sqs")
 def get_sqs_url() -> str:
     """Retrieve the SQS URL from AWS SSM Parameter Store."""
     try:
-        response = ssm.get_parameter(
-            Name="/sqs/prod/SendEventToFordDirectUrl", WithDecryption=True
-        )
-        sqs_url = response["Parameter"]["Value"]
-        logger.info(f"Retrieved SQS URL: {sqs_url}")
-        return sqs_url
+        response = ssm.get_parameter(Name=f"/sqs/{environ['ENVIRONMENT']}/SendEventToFordDirectUrl")
+        return response["Parameter"]["Value"]
     except Exception as e:
         logger.error(f"Failed to retrieve SQS URL from SSM: {str(e)}")
         raise
@@ -56,9 +52,6 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
         consumer_id = data.get("consumer_id")
         event_type = data.get("event_type")
         completed_flag = data.get("completed_flag", False)
-
-        source_consumer_id = data.get("source_consumer_id")
-        integration_partner_id = data.get("integration_partner_id")
 
         # ✅ Database Transaction
         with DBSession() as session:

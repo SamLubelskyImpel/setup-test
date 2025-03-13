@@ -53,7 +53,6 @@ Globals:
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
-        EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
 
     VpcConfig:
         SecurityGroupIds:
@@ -885,6 +884,9 @@ Resources:
             RestApiId: !Ref FordDirectWebhookAPI
             Path: /v1/dsr-optout
             Method: POST
+      Environment:
+        Variables:
+          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
@@ -914,6 +916,9 @@ Resources:
             RestApiId: !Ref FordDirectWebhookAPI
             Path: /v1/dsr-delete
             Method: POST
+      Environment:
+        Variables:
+          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
@@ -944,8 +949,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
-      
-# 🚀 EVENT Processing SQS and Lambda
+
+  # 🚀 EVENT Processing SQS and Lambda
   DsrEventProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -953,9 +958,9 @@ Resources:
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
-        maxReceiveCount: 3
-  
+          deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
+          maxReceiveCount: 3
+
   DsrEventProcessingQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
@@ -979,16 +984,39 @@ Resources:
       Policies:
         - !Ref LambdaExecutionPolicy
 
+  DsrEventProcessingQueueDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueueDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DsrEventProcessingQueueDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DsrEventProcessingQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  
+
+
   # 🚀 Send Event To Ford Direct SQS and Lambda
-  SendEventToFordDirect:
+  SendEventToFordDirectQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirect
+      QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectQueue
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt SendEventToFordDirectDLQ.Arn
-        maxReceiveCount: 3
+          deadLetterTargetArn: !GetAtt SendEventToFordDirectDLQ.Arn
+          maxReceiveCount: 3
 
   SendEventToFordDirectDLQ:
     Type: AWS::SQS::Queue
@@ -1009,19 +1037,31 @@ Resources:
           Type: SQS
           Properties:
             Enabled: True
-            Queue: !GetAtt SendEventToFordDirect.Arn
+            Queue: !GetAtt SendEventToFordDirectQueue.Arn
       Policies:
         - !Ref LambdaExecutionPolicy
 
-# ✅ **Output the SQS URL so it can be retrieved by the deploy script**
+  SendEventToFordDirectDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the SendEventToFordDirectDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendEventToFordDirectDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
 Outputs:
-  SendEventToFordDirectUrl:
-    Description: "SQS Queue URL for SendEventToFordDirect"
-    Value: !Ref SendEventToFordDirect
-    Export:
-      Name: !Sub "${AWS::StackName}-SendEventToFordDirectUrl"
-
-
-
-
-
+  SendEventToFordDirectQueue:
+    Description: SQS URL for sending events to Ford Direct
+    Value: !Ref SendEventToFordDirectQueue

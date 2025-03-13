@@ -71,11 +71,13 @@ echo "Fetching SQS URL from CloudFormation stack: $stack_name..."
 sqs_url=$(aws cloudformation describe-stacks \
   --stack-name "$stack_name" \
   --region "$region" \
-  --query "Stacks[0].Outputs[?OutputKey=='MyQueue1Url'].OutputValue" \
+  --profile "$profile" \
+  --query "Stacks[0].Outputs[?OutputKey=='SendEventToFordDirectQueue'].OutputValue | [0]" \
   --output text)
 
 if [[ -z "$sqs_url" || "$sqs_url" == "None" ]]; then
   echo "Error: SQS URL not found in CloudFormation outputs!"
+  echo sqs_url
   exit 1
 fi
 
