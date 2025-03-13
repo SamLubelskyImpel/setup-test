@@ -27,7 +27,7 @@ Globals:
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "MOMENTUM"
         UPLOAD_SECRET_KEY: "impel"
-        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "8ilcqslkmc.execute-api.us-east-1.amazonaws.com/Stage"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [
             IsProd,
@@ -159,7 +159,6 @@ Resources:
     Properties:
       QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue.fifo"
       FifoQueue: true
-      ContentBasedDeduplication: true
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn

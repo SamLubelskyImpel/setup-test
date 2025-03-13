@@ -106,14 +106,17 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         if not leads:
             return None
 
+        if not vin:
+            # If no vin, return the lead_id of the first lead
+            return leads[0].get("lead_id")
+
         for lead in leads:
             vehicles_of_interest = lead.get("vehicles_of_interest", [])
             for vehicle in vehicles_of_interest:
                 if vehicle.get("vin") == vin:
                     return lead.get("lead_id")
 
-        # If no vehicle with the given VIN is found, return the lead_id of the first lead
-        return leads[0].get("lead_id")
+        return None
 
     except Exception as e:
         logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
