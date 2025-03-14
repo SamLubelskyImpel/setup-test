@@ -238,8 +238,6 @@ class XTimeApiWrapper:
         logger.info(f"XTime Update Appt Response: {response_json}")
         return response_json
 
-        return
-
 
     @sleep_and_retry
     @limits(calls=10, period=1)
