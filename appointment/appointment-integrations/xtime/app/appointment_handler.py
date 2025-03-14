@@ -167,7 +167,7 @@ def update_appointment(event: Any, context: Any) -> Any:
 
         if update_appointment["success"]:
             return {
-                "statusCode": 204
+                "statusCode": 200
             }
 
         return {

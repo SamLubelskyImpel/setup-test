@@ -92,7 +92,14 @@ def lambda_handler(event, context):
                 ).first()
 
         if not update_appointment:
-            raise Exception(f"Appointment with ID {appointment_id} could not be found.")
+            logger.error(f"Appointment with ID {appointment_id} could not be found.")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({
+                        "error": f"Appointment with ID {appointment_id} could not be found."",
+                        "request_id": request_id,
+                    })
+                }
 
         logger.info(f"UpdateAppointment: {update_appointment}")
         logger.info(f"Dealer metadata: {partner_metadata}")
@@ -144,11 +151,11 @@ def lambda_handler(event, context):
         with DBSession() as session:
             session.query(Appointment).filter(Appointment.id == appointment_id).update({"timeslot_ts": format_timestamp(timeslot, dealer_timezone)})
             session.commit()
-
+ 
         return {
-            "statusCode": 204,
+            "statusCode": 200,
             "body": dumps({
-                "message": "success"
+                "message": "Success. The request was received and successfully processed by the Impel data layer."
             })
         }
 

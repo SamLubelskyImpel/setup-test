@@ -215,8 +215,6 @@ class XTimeApiWrapper:
             email_address = "not-available@noemail.com"  # Default email address
         elif not phone_number:
             phone_number = "5550000000"  # Default phone number
-        elif not email_address and not phone_number:
-            raise ValueError("Email address or phone number is required.")
 
         payload = {
             "appointmentId": update_appt_data.integration_appointment_id,
