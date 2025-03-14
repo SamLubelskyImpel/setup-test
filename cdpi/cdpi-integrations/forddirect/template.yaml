@@ -54,9 +54,10 @@ Globals:
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
         FORD_DIRECT_QUEUE_URL:
-          !If [IsProd, 
-          "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-prod-ford-direc-SendEventToFordDirectQueuet",
-          "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-test-ford-direct-SendEventToFordDirectQueue"]
+          !If 
+            - IsProd
+            - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-prod-ford-direct-SendEventToFordDirectQueue"
+            - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-test-ford-direct-SendEventToFordDirectQueue"
 
     VpcConfig:
         SecurityGroupIds:
