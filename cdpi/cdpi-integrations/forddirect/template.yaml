@@ -53,6 +53,11 @@ Globals:
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
         EVENTS_API_URL:
           !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
+        FORD_DIRECT_QUEUE_URL:
+          !If 
+            - IsProd
+            - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-prod-ford-direct-SendEventToFordDirectQueue"
+            - !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/cdpi-test-ford-direct-SendEventToFordDirectQueue"
 
     VpcConfig:
         SecurityGroupIds:
@@ -124,7 +129,12 @@ Resources:
                    IsProd,
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/event-publishing-api*",
                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/event-publishing-api*",
-                ]
+                ]  
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/FD-DSR*",
+                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/FD-DSR*",
+                ]             
           - Effect: Allow
             Action:
               - ec2:CreateNetworkInterface
@@ -152,6 +162,16 @@ Resources:
               - "sqs:GetQueueAttributes"
             Resource:
               - !GetAtt DownloadQueue.Arn
+              - !GetAtt SendEventToFordDirectQueue.Arn
+          - Effect: "Allow"
+            Action:
+              - "ssm:GetParameter"
+            Resource:
+              - !If [
+                   IsProd,
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/prod/*",
+                   !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sqs/test/*",
+                ]
           - Effect: "Allow"
             Action:
               - "lambda:InvokeFunction"
@@ -949,3 +969,133 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
+
+  # 🚀 EVENT Processing SQS and Lambda
+  DsrEventProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 30
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
+          maxReceiveCount: 3
+
+  DsrEventProcessingQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueueDLQ
+      MessageRetentionPeriod: 1209600
+
+  DsrEventProcessingLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingLambda
+      CodeUri: app/
+      Handler: dsr_event_processing.lambda_handler
+      Timeout: 30
+      MemorySize: 128
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt DsrEventProcessingQueue.Arn
+      Policies:
+        - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+          ]
+  
+  DsrEventProcessingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-DsrEventProcessingLambda"
+
+  DsrEventProcessingQueueDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DsrEventProcessingQueueDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DsrEventProcessingQueueDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DsrEventProcessingQueueDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  # 🚀 Send Event To Ford Direct SQS and Lambda
+  SendEventToFordDirectQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 30
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt SendEventToFordDirectDLQ.Arn
+          maxReceiveCount: 3
+
+  SendEventToFordDirectDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectDLQ
+      MessageRetentionPeriod: 1209600
+
+  SendEventToFordDirectLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectLambda
+      CodeUri: app/
+      Handler: send_event_to_fd.lambda_handler
+      Timeout: 30
+      MemorySize: 128
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt SendEventToFordDirectQueue.Arn
+      Policies:
+        - !Ref LambdaExecutionPolicy
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+          ]
+
+  SendEventToFordDirectLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-SendEventToFordDirectLambda"
+
+  SendEventToFordDirectDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-SendEventToFordDirectDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the SendEventToFordDirectDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SendEventToFordDirectDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching

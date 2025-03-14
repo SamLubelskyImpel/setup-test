@@ -19,6 +19,7 @@ secret_client = boto3.client("secretsmanager")
 lambda_client = boto3.client("lambda")
 
 def create_audit_dsr(integration_partner_id, consumer_id, event_type, complete_date=None, complete_flag=False):
+    '''Method to create audit_dsr object'''
     datetime_now = datetime.now(timezone.utc)
     
     audit_dsr = AuditDsr(
