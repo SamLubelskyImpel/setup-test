@@ -6,6 +6,7 @@ from json import loads, dumps
 from botocore.exceptions import ClientError
 from shared_class import BaseClass
 import uuid
+import re
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -145,7 +146,20 @@ class ShiftDigitalAPIWrapper:
             logger.error(f"Failed to fetch data from CRM API: {e}")
             raise APIError(f"Could not retrieve data from CRM API for lead_id: {lead_id}")
 
-        preferred_contact = "email" if customer_data.get("email_optin_flag") else "sms" if customer_data.get("sms_optin_flag") else "phone"
+        # Process mobile phone: remove non-numeric characters and convert to int if valid
+        mobile_phone = self.validate_phone_number(customer_data.get("phone", ""))
+
+        # Extract email and opt-in flags
+        email = customer_data.get("email", "").strip()
+        email_optin_flag = customer_data.get("email_optin_flag", False)
+        sms_optin_flag = customer_data.get("sms_optin_flag", False)
+
+        # Default to "phone"
+        preferred_contact = "phone"
+        if email and email_optin_flag:
+            preferred_contact = "email"
+        elif mobile_phone and sms_optin_flag:
+            preferred_contact = "text"
 
         # Shift digital only accepts VOI so fetch that from the source ids
         sourceId = self.provider_source_ids.get(self.oem_name, {}).get("sales", "UNKNOWN")
@@ -172,7 +186,7 @@ class ShiftDigitalAPIWrapper:
                 "city": customer_data.get("city", ""),
                 "state": customer_data.get("state", ""),
                 "zipCode": customer_data.get("postal_code", ""),
-                "mobilePhone": customer_data.get("phone", ""),
+                "mobilePhone": mobile_phone,
                 "emailAddress": customer_data.get("email", ""),
                 "preferredContactMethod": preferred_contact,
                 "comments": lead.get("lead_comment", "")
@@ -255,6 +269,16 @@ class ShiftDigitalAPIWrapper:
 
         return None
 
+    def validate_phone_number(self, phone_str: str):
+        """Cleans and validates a phone number. Ensures it is exactly 10 digits."""
+
+        phone_cleaned = re.sub(r"\D", "", phone_str.strip()) if phone_str else ""
+
+        if len(phone_cleaned) == 10:
+            return int(phone_cleaned)
+        logger.warning(f"Invalid phone number '{phone_str}', setting to None.")
+        return None
+
     def process_callback(self, shift_digital_lead_id: str, lead_id: str):
         """Process the callback by checking the lead status and updating CRM API."""
         try:
@@ -289,3 +313,4 @@ class ShiftDigitalAPIWrapper:
         except APIError as e:
             logger.error(f"Error processing callback: {e}")
             raise
+
