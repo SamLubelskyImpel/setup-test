@@ -91,10 +91,10 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
 
     except json.JSONDecodeError as e:
         logger.error(f"[JSON] Error decoding JSON | Error: {e}")
-        return {"statusCode": 400, "body": {"error": "Invalid JSON format"}}
+        raise Exception("Invalid JSON format")
     except Exception as e:
         logger.exception(f"[Handler] Unexpected error processing record | Error: {e}")
-        return {"statusCode": 500, "body": {"error": "Internal server error"}}
+        raise Exception("Internal server error")
 
 
 def lambda_handler(event: Any, context: Any):
