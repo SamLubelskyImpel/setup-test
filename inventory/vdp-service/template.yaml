@@ -161,3 +161,106 @@ Resources:
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
+  InvokeVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-invoke-vdp
+      Description: Invoke the download of VDP Data
+      Handler: download_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+    Environment:
+      Variables:
+        DOWNLOAD_VDP_QUEUE: !Ref DownloadVDPQueue
+
+  InvokeVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-invoke-vdp
+      RetentionInDays: 60
+
+  InvokeVDPAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service InvokeVDP Errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeVDP
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  InvokeVDPScheduleRule:
+  Type: AWS::Events::Rule
+  Properties:
+    Description: Schedule the download of VDP Data every hour
+    ScheduleExpression: "cron(0 */1 * * ? *)"
+    State: !If [IsProd, "ENABLED", "DISABLED"]
+    Targets:
+      - Arn: !GetAtt InvokeVDP.Arn
+        Id: !Sub vdp-service-${Environment}-invoke-vdp
+
+  DownloadVDPQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-download-vdp-dlq
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+
+  DownloadVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service DownloadVDP DLQ Errors
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Sub vdp-service-${Environment}-download-vdp-dlq
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  DownloadVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-download-vdp-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DownloadVDPQueueDLQ.Arn
+        maxReceiveCount: 3
+
+  DownloadVDPEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt DownloadVDPQueue.Arn
+      FunctionName: !Ref InvokeVDP
+      Enabled: true
+
+  DownloadVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-download-vdp
+      Description: Download VDP Data from SFTP
+      Handler: download_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+
+  DownloadVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-download-vdp
+      RetentionInDays: 60
