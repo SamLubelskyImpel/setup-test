@@ -69,7 +69,7 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
     
     except Exception as e:
         logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
-        return {"statusCode": 500, "body": {"message": "Internal server error"}}
+        raise Exception("Internal server error")
 
 
 def lambda_handler(event: Any, context: Any):
