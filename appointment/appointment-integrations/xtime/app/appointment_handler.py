@@ -167,7 +167,11 @@ def update_appointment(event: Any, context: Any) -> Any:
 
         if update_appointment["success"]:
             return {
-                "statusCode": 200
+                "statusCode": 200,
+                "body": dumps({
+                    "message": "Appointment successfully rescheduled"
+                }
+                )
             }
 
         return {

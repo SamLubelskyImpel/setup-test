@@ -30,8 +30,8 @@ class CreateAppointment:
     comment: str
     first_name: str
     last_name: str
-    email_address: str
-    phone_number: str
+    email_address: Optional[str] = None
+    phone_number: Optional[str] = None
     vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None
@@ -64,7 +64,6 @@ class UpdateAppointment:
     timeslot: str
     first_name: str
     last_name: str
-    duration: Optional[int] = 15
     email_address: Optional[str] = None
     phone_number: Optional[str] = None
     vin: Optional[str] = None

@@ -93,13 +93,13 @@ def lambda_handler(event, context):
 
         if not update_appointment:
             logger.error(f"Appointment with ID {appointment_id} could not be found.")
-                return {
-                    "statusCode": 404,
-                    "body": dumps({
-                        "error": f"Appointment with ID {appointment_id} could not be found."",
-                        "request_id": request_id,
-                    })
-                }
+            return {
+                "statusCode": 404,
+                "body": dumps({
+                    "error": f"Appointment with ID {appointment_id} could not be found.",
+                    "request_id": request_id,
+                })
+            }
 
         logger.info(f"UpdateAppointment: {update_appointment}")
         logger.info(f"Dealer metadata: {partner_metadata}")
@@ -113,7 +113,6 @@ def lambda_handler(event, context):
             "source_product": source_product,
             "integration_dealer_id": integration_dealer_id,
             "timeslot": timeslot,
-            "duration": body.get("duration", 15),
             "first_name": update_appointment.first_name,
             "last_name": update_appointment.last_name,
             "email_address": update_appointment.email_address,
