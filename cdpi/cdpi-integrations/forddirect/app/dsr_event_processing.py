@@ -11,24 +11,14 @@ from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.audit_dsr import AuditDsr
 
 
+FORD_DIRECT_QUEUE_URL = environ.get("FORD_DIRECT_QUEUE_URL")
+
 # ✅ Logging Configuration
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 # ✅ AWS Clients
-ssm = boto3.client("ssm")
 sqs = boto3.client("sqs")
-
-
-def get_sqs_url() -> str:
-    """Retrieve the SQS URL from AWS SSM Parameter Store."""
-    try:
-        response = ssm.get_parameter(Name=f"/sqs/{environ['ENVIRONMENT']}/queue_url")
-        logger.info(f"SQS URL retrieved from SSM: {response['Parameter']['Value']}")
-        return response["Parameter"]["Value"]
-    except Exception as e:
-        logger.error(f"Failed to retrieve SQS URL from SSM: {str(e)}")
-        raise
 
 
 def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
@@ -38,11 +28,10 @@ def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
             QueueUrl=queue_url,
             MessageBody=json.dumps(message_body),
         )
-        logger.info(f"Message sent to SQS: {response['MessageId']}")
+        logger.info(f"[SQS] Message sent successfully | MessageId: {response['MessageId']} | Queue: {queue_url}")
     except Exception as e:
-        logger.error(f"Failed to send message to SQS: {str(e)}")
+        logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
         raise
-
 
 def record_handler(record: SQSRecord) -> Dict[str, Any]:
     """Process each record from the batch and send it to SQS."""
@@ -54,6 +43,11 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
         event_type = data.get("event_type")
         completed_flag = data.get("completed_flag", False)
 
+        if not consumer_id or not event_type:
+            logger.warning(f"[Validation] Missing required fields in record | Data: {data}")
+            raise ValueError("Missing required fields: consumer_id or event_type")
+
+
         with DBSession() as session:
             audit_dsr = session.query(AuditDsr).filter(
                 AuditDsr.consumer_id == consumer_id,
@@ -63,19 +57,18 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
             if audit_dsr:
                 audit_dsr.complete_flag = completed_flag
                 audit_dsr.complete_date = datetime.now(timezone.utc) if completed_flag else None
-                audit_dsr.dsr_request_type = event_type
 
                 session.commit()
-                logger.info(f"AuditDsr updated for consumer_id {consumer_id}")
+                logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
             else:
-                logger.warning(f"No existing AuditDsr found for consumer_id {consumer_id}")
+                logger.warning(f"[DB] No matching AuditDsr found | ConsumerID: {consumer_id} | EventType: {event_type}")
                 raise Exception(f"No existing AuditDsr found for consumer_id {consumer_id}")
-
-        sqs_url = get_sqs_url()
-        send_message_to_sqs(sqs_url, data)
+            
+        logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
+        send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
     
     except Exception as e:
-        logger.error(f"Error processing record: {str(e)}")
+        logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
         return {"statusCode": 500, "body": {"message": "Internal server error"}}
 
 
