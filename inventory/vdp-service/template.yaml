@@ -111,17 +111,18 @@ Resources:
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
                     ]
-        # - PolicyName: SQSPolicy
-        #   PolicyDocument:
-        #     Version: "2012-10-17"
-        #     Statement:
-        #       - Effect: "Allow"
-        #         Action:
-        #           - "sqs:SendMessage"
-        #           - "sqs:ReceiveMessage"
-        #           - "sqs:DeleteMessage"
-        #           - "sqs:GetQueueAttributes"
-        #         Resource:
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !Ref DownloadVDPQueue
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -198,14 +199,18 @@ Resources:
       TreatMissingData: notBreaching
 
   InvokeVDPScheduleRule:
-  Type: AWS::Events::Rule
-  Properties:
-    Description: Schedule the download of VDP Data every hour
-    ScheduleExpression: "cron(0 */1 * * ? *)"
-    State: !If [IsProd, "ENABLED", "DISABLED"]
-    Targets:
-      - Arn: !GetAtt InvokeVDP.Arn
-        Id: !Sub vdp-service-${Environment}-invoke-vdp
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Schedule the download of VDP Data every hour
+      ScheduleExpression: "cron(0 */1 * * ? *)"
+      State: !If [IsProd, "ENABLED", "DISABLED"]
+      Targets:
+        - Arn: !GetAtt InvokeVDP.Arn
+          Id: !Sub vdp-service-${Environment}-invoke-vdp-cox_au
+          Input: '{"impel_integration_partner_id": "cox_au"}'
+        - Arn: !GetAtt InvokeVDP.Arn
+          Id: !Sub vdp-service-${Environment}-invoke-vdp-carsales
+          Input: '{"impel_integration_partner_id": "carsales"}'
 
   DownloadVDPQueueDLQ:
     Type: AWS::SQS::Queue
