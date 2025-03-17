@@ -121,7 +121,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:vdp-service-${Environment}-download-vdp-queue"
+                  - !GetAtt DownloadVDPQueue.Arn
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -166,12 +166,12 @@ Resources:
     Properties:
       FunctionName: !Sub vdp-service-${Environment}-invoke-vdp
       Description: Invoke the download of VDP Data
-      Handler: download_vdp.lambda_handler
+      Handler: invoke_vdp.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
-    Environment:
-      Variables:
-        DOWNLOAD_VDP_QUEUE: !Ref DownloadVDPQueue
+      Environment:
+        Variables:
+          DOWNLOAD_VDP_QUEUE_URL: !GetAtt DownloadVDPQueue.QueueUrl
 
   InvokeVDPLogGroup:
     Type: AWS::Logs::LogGroup
@@ -251,7 +251,7 @@ Resources:
     Properties:
       BatchSize: 1
       EventSourceArn: !GetAtt DownloadVDPQueue.Arn
-      FunctionName: !Ref InvokeVDP
+      FunctionName: !Ref DownloadVDP
       Enabled: true
 
   DownloadVDP:

@@ -11,8 +11,8 @@ import boto3
 from rds_instance import RDSInstance
 from utils import connect_sftp_server, get_sftp_secrets
 
-ENVIRONMENT = environ["ENVIRONMENT"]
-DOWNLOAD_QUEUE_URL = environ["DOWNLOAD_QUEUE_URL"]
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+DOWNLOAD_VDP_QUEUE_URL = environ["DOWNLOAD_VDP_QUEUE_URL"]
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -23,13 +23,13 @@ def send_to_download_queue(message):
     """Send message to the download queue."""
     try:
         response = sqs_client.send_message(
-            QueueUrl=DOWNLOAD_QUEUE_URL,
+            QueueUrl=DOWNLOAD_VDP_QUEUE_URL,
             MessageBody=json.dumps(message),
         )
         logger.info(f"Message {message} added to the download queue: {response}")
-    except Exception as e:
+    except Exception:
         logger.exception("Error occurred while sending message to the download queue")
-        raise e
+        raise
 
 
 def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> list:
@@ -118,6 +118,10 @@ def lambda_handler(event, context):
         )
 
         sftp_conn.close()
+
+        if not files:
+            logger.info("No new files found. Exiting.")
+            return
 
         message = {
             "folder": impel_integration_partner_id,
