@@ -207,9 +207,9 @@ Resources:
         - Arn: !GetAtt InvokeVDP.Arn
           Id: !Sub vdp-service-${Environment}-invoke-vdp-cox_au
           Input: '{"impel_integration_partner_id": "coxau", "sftp_secret_key": "COXAU_SFTP"}'
-        - Arn: !GetAtt InvokeVDP.Arn
-          Id: !Sub vdp-service-${Environment}-invoke-vdp-carsales
-          Input: '{"impel_integration_partner_id": "carsales", "sftp_secret_key": "CARSALES_SFTP"}'
+        # - Arn: !GetAtt InvokeVDP.Arn
+        #   Id: !Sub vdp-service-${Environment}-invoke-vdp-carsales
+        #   Input: '{"impel_integration_partner_id": "carsales", "sftp_secret_key": "CARSALES_SFTP"}'
 
   DownloadVDPQueueDLQ:
     Type: AWS::SQS::Queue

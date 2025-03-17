@@ -1,3 +1,5 @@
+"""Download files from the SFTP server and upload to S3."""
+
 import json
 import logging
 import os
@@ -34,20 +36,38 @@ def upload_to_s3(folder_name, local_filename, provider_dealer_id, export_file_na
     logger.info(f"File {s3_file_name} uploaded to S3.")
 
 
-def download_file(sftp, remote_file_path):
-    """Download a file from the SFTP server."""
-    local_file_name = os.path.basename(remote_file_path)
-    sftp.get(remote_file_path, local_file_name)
+def process_file(sftp_conn, folder_name, file):
+    """Download a file from the SFTP server and upload it to S3."""
+    try:
+        # Create a temporary directory to download the file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            provider_dealer_id = file["provider_dealer_id"]
+            remote_file_path = file["vdp_file"]
+            modification_time = file["modification_time"]
 
-    logger.info(f"File {local_file_name} downloaded successfully.")
+            # Check if required parameters are present
+            if not all([remote_file_path, provider_dealer_id, modification_time]):
+                logger.error("Missing required parameters for file download.")
+                raise ValueError("remote_file_path, provider_dealer_id, and export_file_name are required.")
 
-    return local_file_name
+            os.chdir(temp_dir)
+            local_filename = os.path.basename(remote_file_path)
+
+            # Download file from SFTP server
+            sftp_conn.get(remote_file_path, local_filename)
+            logger.info(f"File {local_filename} downloaded successfully.")
+
+            upload_to_s3(folder_name, local_filename, provider_dealer_id, remote_file_path)
+            os.remove(local_filename)
+
+    except Exception as e:
+        logger.exception(f"Error occurred while processing file: {file}")
+        raise e
 
 
 def record_handler(record: SQSRecord) -> Any:
     """Download files from the SFTP server and upload to S3."""
     logger.info(f"Record: {record}")
-
     try:
         body = json.loads(record["body"])
         folder_name = body["folder"]
@@ -68,24 +88,7 @@ def record_handler(record: SQSRecord) -> Any:
 
         # Process files one by one
         for file in files:
-            # Create a temporary directory to download the file
-            with tempfile.TemporaryDirectory() as temp_dir:
-                provider_dealer_id = file["provider_dealer_id"]
-                remote_file_path = file["vdp_file"]
-                modification_time = file["modification_time"]
-
-                if not all([remote_file_path, provider_dealer_id, modification_time]):
-                    logger.error("Missing required parameters for file download.")
-                    raise ValueError("remote_file_path, provider_dealer_id, and export_file_name are required.")
-
-                os.chdir(temp_dir)
-                local_filename = os.path.basename(remote_file_path)
-                sftp_conn.get(remote_file_path, local_filename)
-
-                logger.info(f"File {local_filename} downloaded successfully.")
-
-                upload_to_s3(folder_name, local_filename, provider_dealer_id, remote_file_path)
-                os.remove(local_filename)
+            process_file(sftp_conn, folder_name, file)
 
         sftp_conn.close()
 

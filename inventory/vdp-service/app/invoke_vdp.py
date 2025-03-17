@@ -1,3 +1,5 @@
+"""Checks for modified VDP files on the SFTP server and sends them to the download queue."""
+
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -7,7 +9,7 @@ from typing import Any
 import boto3
 
 from rds_instance import RDSInstance
-from utils import connect_sftp_server, get_sftp_secrets, send_alert_notification
+from utils import connect_sftp_server, get_sftp_secrets
 
 ENVIRONMENT = environ["ENVIRONMENT"]
 DOWNLOAD_QUEUE_URL = environ["DOWNLOAD_QUEUE_URL"]
@@ -92,7 +94,6 @@ def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> 
 def lambda_handler(event, context):
     """Check for modified feed files on the SFTP server."""
     logger.info(f"Event: {event}")
-    logger.info(f"request_id: {event['request_id']}")
     try:
         current_time = datetime.now(timezone.utc)
 
