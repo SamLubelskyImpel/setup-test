@@ -330,6 +330,30 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-RetrieveTimeslots"
 
+  UpdateAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "appointment-service-${Environment}-UpdateAppointment"
+      CodeUri: app/
+      Handler: update_appointment.lambda_handler
+      Timeout: 30
+      MemorySize: 1024
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Put:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppointmentServiceApiGateway
+            Path: /appointments/v1
+            Method: PUT
+      Layers:
+        - !Ref ApptOrmLayer
+
+  UpdateAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-UpdateAppointment"
+
   ApptOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -393,6 +417,26 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref RetrieveTimeslots
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  UpdateAppointmentErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub appointment-service-${Environment}-UpdateAppointment
+      AlarmDescription: Appointment service failed to process incoming request
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref UpdateAppointment
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda
