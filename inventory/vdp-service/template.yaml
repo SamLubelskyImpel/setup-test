@@ -47,8 +47,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        MERCH_SFTP_KEY: MERCH_SFTP
-        SALESAI_SFTP_KEY: SALESAI_SFTP
+        INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -122,7 +121,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
-                  - !Ref DownloadVDPQueue
+                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:vdp-service-${Environment}-download-vdp-queue"
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -207,10 +206,10 @@ Resources:
       Targets:
         - Arn: !GetAtt InvokeVDP.Arn
           Id: !Sub vdp-service-${Environment}-invoke-vdp-cox_au
-          Input: '{"impel_integration_partner_id": "cox_au"}'
+          Input: '{"impel_integration_partner_id": "coxau", "sftp_secret_key": "COXAU_SFTP"}'
         - Arn: !GetAtt InvokeVDP.Arn
           Id: !Sub vdp-service-${Environment}-invoke-vdp-carsales
-          Input: '{"impel_integration_partner_id": "carsales"}'
+          Input: '{"impel_integration_partner_id": "carsales", "sftp_secret_key": "CARSALES_SFTP"}'
 
   DownloadVDPQueueDLQ:
     Type: AWS::SQS::Queue
