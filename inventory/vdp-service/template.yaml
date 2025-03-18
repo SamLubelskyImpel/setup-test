@@ -108,8 +108,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
                     ]
         # - PolicyName: SQSPolicy
         #   PolicyDocument:
