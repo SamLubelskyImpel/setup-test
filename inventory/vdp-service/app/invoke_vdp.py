@@ -105,7 +105,7 @@ def lambda_handler(event, context):
 
         active_dealers = rds_instance.get_active_dealer_partners()
         active_dealers = [dealer[0] for dealer in active_dealers]
-        logger.info(f"Active dealers for {impel_integration_partner_id}: {active_dealers}")
+        logger.info(f"Active dealers: {active_dealers}")
 
         if not active_dealers:
             logger.warning("No active dealers found. Exiting.")

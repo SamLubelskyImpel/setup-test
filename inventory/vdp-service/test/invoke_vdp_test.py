@@ -10,6 +10,7 @@ sys.path.append(app_dir)
 
 os.environ["ENVIRONMENT"] = "test"
 os.environ["DOWNLOAD_VDP_QUEUE_URL"] = "test_queue_url"
+os.environ["SFTP_SECRET_KEY"] = "test_secret_key"
 
 from invoke_vdp import get_new_vdp_files
 
@@ -21,7 +22,6 @@ def test_get_new_vdp_files(mock_logger):
     """Test get_new_vdp_files function"""
     # Mock inputs
     mock_sftp = MagicMock()
-    folder_name = "test_folder"
     active_dealers = ["dealer1", "dealer2"]
     last_modified_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
@@ -36,7 +36,7 @@ def test_get_new_vdp_files(mock_logger):
     ]
 
     # Call get_new_vdp_files
-    result = get_new_vdp_files(mock_sftp, folder_name, active_dealers, last_modified_time)
+    result = get_new_vdp_files(mock_sftp, active_dealers, last_modified_time)
 
     # Expected result
     expected_result = [
