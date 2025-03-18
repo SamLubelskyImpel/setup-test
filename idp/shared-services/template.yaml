@@ -252,6 +252,36 @@ Resources:
       QueueName: !Sub "idp-shared-services-${Environment}-IDPEventRuleDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
+  
+  DSRInboundEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-DSRInbound
+      EventPattern:
+        {
+          "source": [{"prefix":"service_ai"},{"prefix":"sales_ai"}],
+          "detail": {
+            "event_type": ["cdp.dsr.delete", "cdp.dsr.optout"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:196800776222:cdpi-prod-ford-direct-DsrEventProcessingQueue',
+            'arn:aws:sqs:us-east-1:143813444726:cdpi-test-ford-direct-DsrEventProcessingQueue'
+          ]
+          DeadLetterConfig:
+            Arn: !GetAtt DSRInboundEventRuleDLQ.Arn
+
+  DSRInboundEventRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-DSRInboundEventRuleDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
 
   MonitoringRule:
     Type: AWS::Events::Rule
