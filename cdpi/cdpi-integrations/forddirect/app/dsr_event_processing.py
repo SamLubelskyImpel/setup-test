@@ -6,6 +6,8 @@ from typing import Any, Dict
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from datetime import datetime, timezone
+from utils import send_alert_notification
+from uuid import uuid4
 
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.audit_dsr import AuditDsr
@@ -38,7 +40,7 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
     logger.info(f"Processing Record: {record.body}")
 
     try:
-        data = json.loads(record.body)
+        data = json.loads(record.body).get("detail", {})
         consumer_id = data.get("consumer_id")
         event_type = data.get("event_type")
         completed_flag = data.get("completed_flag", False)
@@ -75,6 +77,7 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
 def lambda_handler(event: Any, context: Any):
     """Lambda function entry point for processing SQS messages."""
     logger.info(f"Received Event: {json.dumps(event)}")
+    request_id = str(uuid4())
 
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
@@ -82,5 +85,7 @@ def lambda_handler(event: Any, context: Any):
             event=event, record_handler=record_handler, processor=processor, context=context
         )
     except Exception as e:
+        send_alert_notification(request_id, 'dsr_event_processing', e)
+
         logger.exception("Error processing records")
         raise
