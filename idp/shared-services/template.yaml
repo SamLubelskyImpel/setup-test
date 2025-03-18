@@ -107,6 +107,11 @@ Resources:
                     'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
                     'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
                   ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:196800776222:cdpi-prod-ford-direct-DsrEventProcessingQueue',
+                    'arn:aws:sqs:us-east-1:143813444726:cdpi-test-ford-direct-DsrEventProcessingQueue'
+                  ]
 
   EnterpriseBusQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -273,6 +278,7 @@ Resources:
             'arn:aws:sqs:us-east-1:196800776222:cdpi-prod-ford-direct-DsrEventProcessingQueue',
             'arn:aws:sqs:us-east-1:143813444726:cdpi-test-ford-direct-DsrEventProcessingQueue'
           ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
           DeadLetterConfig:
             Arn: !GetAtt DSRInboundEventRuleDLQ.Arn
 
