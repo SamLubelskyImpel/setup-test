@@ -18,7 +18,6 @@ from utils import connect_sftp_server, get_sftp_secrets
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
-SECRET_KEY = os.environ["SFTP_SECRET_KEY"]
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -27,13 +26,11 @@ s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 
 
-def upload_to_s3(folder_name, local_filename, provider_dealer_id, export_file_name):
+def upload_to_s3(folder_name, local_filename, provider_dealer_id):
     """Upload files to S3."""
-    s3_file_name = f"{export_file_name}.csv"
-
-    s3_key = f"vdp/{folder_name}/{provider_dealer_id}/{s3_file_name}"
+    s3_key = f"vdp/{folder_name}/{provider_dealer_id}.csv"
     s3_client.upload_file(Filename=local_filename, Bucket=INVENTORY_BUCKET, Key=s3_key)
-    logger.info(f"File {s3_file_name} uploaded to S3.")
+    logger.info(f"File {s3_key} uploaded to S3.")
 
 
 def process_file(sftp_conn, folder_name, file):
@@ -57,7 +54,7 @@ def process_file(sftp_conn, folder_name, file):
             sftp_conn.get(remote_file_path, local_filename)
             logger.info(f"File {local_filename} downloaded successfully.")
 
-            upload_to_s3(folder_name, local_filename, provider_dealer_id, remote_file_path)
+            upload_to_s3(folder_name, local_filename, provider_dealer_id)
             os.remove(local_filename)
 
     except Exception as e:
@@ -72,6 +69,7 @@ def record_handler(record: SQSRecord) -> Any:
         body = json.loads(record["body"])
         folder_name = body["folder"]
         files = body["files"]
+        sftp_secret_key = body["sftp_secret_key"]
 
         if not files:
             logger.info("No files to download from the SFTP server.")
@@ -79,7 +77,7 @@ def record_handler(record: SQSRecord) -> Any:
 
         # Get SFTP secrets
         hostname, port, username, password = get_sftp_secrets(
-            "inventory-integrations-sftp", SECRET_KEY
+            "inventory-integrations-sftp", sftp_secret_key
         )
 
         # Connect to SFTP server

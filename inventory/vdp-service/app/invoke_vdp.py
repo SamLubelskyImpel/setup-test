@@ -65,7 +65,7 @@ def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> 
 
         # Check if dealer is active
         if dealer_id not in active_dealers:
-            logger.debug(f"Skipping file: {file_name}. Dealer ID '{dealer_id}' is not active.")
+            logger.warning(f"Skipping file: {file_name}. Dealer ID '{dealer_id}' is not active.")
             continue
 
         # Update VDP files if it is the latest modification
@@ -110,6 +110,10 @@ def lambda_handler(event, context):
         active_dealers = [dealer[0] for dealer in active_dealers]
         logger.info(f"Active dealers for {impel_integration_partner_id}: {active_dealers}")
 
+        if not active_dealers:
+            logger.warning("No active dealers found. Exiting.")
+            return
+
         hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", sftp_secret_key)
         sftp_conn = connect_sftp_server(hostname, port, username, password)
 
@@ -126,7 +130,8 @@ def lambda_handler(event, context):
         message = {
             "folder": impel_integration_partner_id,
             "files": files,
-            "search_time": current_time.isoformat()
+            "search_time": current_time.isoformat(),
+            "sftp_secret_key": sftp_secret_key
         }
         logger.info(f"Message to be sent to the download queue: {message}")
         send_to_download_queue(message)

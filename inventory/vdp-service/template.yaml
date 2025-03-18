@@ -47,7 +47,11 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+        INVENTORY_BUCKET: !If [
+          IsProd,
+          !Sub "inventory-integrations-${AWS::Region}-prod",
+          !Sub "inventory-integrations-${AWS::Region}-test"
+        ]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -107,8 +111,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*",
-                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-${Environment}*"
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
                     ]
         - PolicyName: SQSPolicy
           PolicyDocument:
