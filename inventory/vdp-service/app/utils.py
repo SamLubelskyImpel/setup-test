@@ -35,17 +35,3 @@ def connect_sftp_server(hostname, port, username, password):
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
-
-
-def send_alert_notification(request_id: str, endpoint: str, details: str, e: Exception) -> None:
-    """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred on {endpoint} - {details} - Exception: {e}",
-    }
-    sns_client = boto3.client("sns")
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=dumps({"default": dumps(data)}),
-        Subject=f"VDP Service: {endpoint} Failure Alert - request_id {request_id}",
-        MessageStructure="json",
-    )
