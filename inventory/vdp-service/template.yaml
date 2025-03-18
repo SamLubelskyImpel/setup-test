@@ -52,6 +52,7 @@ Globals:
           !Sub "inventory-integrations-${AWS::Region}-prod",
           !Sub "inventory-integrations-${AWS::Region}-test"
         ]
+        SFTP_SECRET_KEY: "INTEGRATIONS_VDP_SFTP"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -209,11 +210,7 @@ Resources:
       State: !If [IsProd, "ENABLED", "DISABLED"]
       Targets:
         - Arn: !GetAtt InvokeVDP.Arn
-          Id: !Sub vdp-service-${Environment}-invoke-vdp-cox_au
-          Input: '{"impel_integration_partner_id": "coxau", "sftp_secret_key": "COXAU_SFTP"}'
-        # - Arn: !GetAtt InvokeVDP.Arn
-        #   Id: !Sub vdp-service-${Environment}-invoke-vdp-carsales
-        #   Input: '{"impel_integration_partner_id": "carsales", "sftp_secret_key": "CARSALES_SFTP"}'
+          Id: !Sub vdp-service-${Environment}-invoke-vdp
 
   DownloadVDPQueueDLQ:
     Type: AWS::SQS::Queue

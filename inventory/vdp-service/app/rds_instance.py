@@ -48,13 +48,13 @@ class RDSInstance:
         self.rds_connection.commit()
         return cursor
 
-    def select_db_active_dealer_partners(self, integration_partner_name):
-        """Get the active provider dealer IDs for the given integration partner name."""
+    def get_active_dealer_partners(self):
+        """Get the active provider dealer IDs."""
         db_active_dealer_partners_query = f"""
             select idip.provider_dealer_id
             from {self.schema}.inv_dealer_integration_partner idip
             join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
-            where iip.impel_integration_partner_id = '{integration_partner_name}' and idip.is_active = true
+            where idip.is_active = true
         """
         results = self.execute_rds(db_active_dealer_partners_query)
         db_dealer_ftp_details = results.fetchall()

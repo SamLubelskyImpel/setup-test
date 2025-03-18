@@ -18,6 +18,7 @@ from utils import connect_sftp_server, get_sftp_secrets
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
+SFTP_SECRET_KEY = os.environ["SFTP_SECRET_KEY"]
 
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
@@ -26,14 +27,14 @@ s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
 
 
-def upload_to_s3(folder_name, local_filename, provider_dealer_id):
+def upload_to_s3(local_filename, provider_dealer_id):
     """Upload files to S3."""
-    s3_key = f"vdp/{folder_name}/{provider_dealer_id}.csv"
+    s3_key = f"vdp/{provider_dealer_id}.csv"
     s3_client.upload_file(Filename=local_filename, Bucket=INVENTORY_BUCKET, Key=s3_key)
     logger.info(f"File {s3_key} uploaded to S3.")
 
 
-def process_file(sftp_conn, folder_name, file):
+def process_file(sftp_conn, file):
     """Download a file from the SFTP server and upload it to S3."""
     try:
         # Create a temporary directory to download the file
@@ -54,7 +55,7 @@ def process_file(sftp_conn, folder_name, file):
             sftp_conn.get(remote_file_path, local_filename)
             logger.info(f"File {local_filename} downloaded successfully.")
 
-            upload_to_s3(folder_name, local_filename, provider_dealer_id)
+            upload_to_s3(local_filename, provider_dealer_id)
             os.remove(local_filename)
 
     except Exception as e:
@@ -67,9 +68,7 @@ def record_handler(record: SQSRecord) -> Any:
     logger.info(f"Record: {record}")
     try:
         body = json.loads(record["body"])
-        folder_name = body["folder"]
         files = body["files"]
-        sftp_secret_key = body["sftp_secret_key"]
 
         if not files:
             logger.info("No files to download from the SFTP server.")
@@ -77,16 +76,15 @@ def record_handler(record: SQSRecord) -> Any:
 
         # Get SFTP secrets
         hostname, port, username, password = get_sftp_secrets(
-            "inventory-integrations-sftp", sftp_secret_key
+            "inventory-integrations-sftp", SFTP_SECRET_KEY
         )
 
         # Connect to SFTP server
         sftp_conn = connect_sftp_server(hostname, port, username, password)
-        sftp_conn.chdir(f"{folder_name}/")
 
         # Process files one by one
         for file in files:
-            process_file(sftp_conn, folder_name, file)
+            process_file(sftp_conn, file)
 
         sftp_conn.close()
 

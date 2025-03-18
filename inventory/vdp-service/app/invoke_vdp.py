@@ -13,6 +13,7 @@ from utils import connect_sftp_server, get_sftp_secrets
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 DOWNLOAD_VDP_QUEUE_URL = environ["DOWNLOAD_VDP_QUEUE_URL"]
+SFTP_SECRET_KEY = environ["SFTP_SECRET_KEY"]
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -32,13 +33,12 @@ def send_to_download_queue(message):
         raise
 
 
-def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> list:
+def get_new_vdp_files(sftp, active_dealers, last_modified_time) -> list:
     """Get and filter VDP files modified after the last_modified_time."""
     vdp_files: dict[str, dict[str, Any]] = {}
 
     # Retrieve and process files from the SFTP server
-    folder_name = f"{folder_name}/"
-    for file_attr in sftp.listdir_attr(folder_name):
+    for file_attr in sftp.listdir_attr("."):
         file_name = file_attr.filename.lower()
         modification_time = datetime.fromtimestamp(
             file_attr.st_mtime, tz=timezone.utc
@@ -46,6 +46,11 @@ def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> 
 
         # Skip files modified before the last_modified_time
         if modification_time < last_modified_time:
+            continue
+
+        # Validate file extension
+        if not file_name.endswith(".csv"):
+            logger.warning(f"Invalid file extension for file: {file_name}. Only '.csv' files are allowed.")
             continue
 
         # Validate file name and check for "_vdp"
@@ -56,11 +61,6 @@ def get_new_vdp_files(sftp, folder_name, active_dealers, last_modified_time) -> 
         dealer_id = file_name.split('_vdp')[0]
         if not dealer_id:
             logger.warning(f"Error parsing dealer ID from file name: {file_name}")
-            continue
-
-        # Validate file extension
-        if not file_name.endswith(".csv"):
-            logger.warning(f"Invalid file extension for file: {file_name}. Only '.csv' files are allowed.")
             continue
 
         # Check if dealer is active
@@ -103,10 +103,7 @@ def lambda_handler(event, context):
 
         rds_instance = RDSInstance()
 
-        impel_integration_partner_id = event.get("impel_integration_partner_id")
-        sftp_secret_key = event.get("sftp_secret_key")
-
-        active_dealers = rds_instance.select_db_active_dealer_partners(impel_integration_partner_id)
+        active_dealers = rds_instance.get_active_dealer_partners()
         active_dealers = [dealer[0] for dealer in active_dealers]
         logger.info(f"Active dealers for {impel_integration_partner_id}: {active_dealers}")
 
@@ -114,11 +111,11 @@ def lambda_handler(event, context):
             logger.warning("No active dealers found. Exiting.")
             return
 
-        hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", sftp_secret_key)
+        hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SFTP_SECRET_KEY)
         sftp_conn = connect_sftp_server(hostname, port, username, password)
 
         files = get_new_vdp_files(
-            sftp_conn, impel_integration_partner_id, active_dealers, last_modified_time
+            sftp_conn, active_dealers, last_modified_time
         )
 
         sftp_conn.close()
@@ -128,10 +125,8 @@ def lambda_handler(event, context):
             return
 
         message = {
-            "folder": impel_integration_partner_id,
             "files": files,
             "search_time": current_time.isoformat(),
-            "sftp_secret_key": sftp_secret_key
         }
         logger.info(f"Message to be sent to the download queue: {message}")
         send_to_download_queue(message)
