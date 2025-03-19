@@ -105,11 +105,11 @@ def lambda_handler(event, context):
                 "dealer": {
                     "id": consumer.dealer_id,
                     "impel_dealer_id": consumer.impel_dealer_id
-                } if consumer.dealer_id else None,
+                },
                 "integration_partner": {
                     "id": consumer.integration_partner_id,
                     "impel_integration_partner_id": consumer.impel_integration_partner_id
-                } if consumer.integration_partner_id else None
+                }
             }
 
             return {

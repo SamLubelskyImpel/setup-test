@@ -723,7 +723,6 @@ components:
                 type: string
               dealer:
                 type: object
-                nullable: true
                 properties:
                   id:
                     type: integer
@@ -731,7 +730,6 @@ components:
                     type: string
               integration_partner:
                 type: object
-                nullable: true
                 properties:
                   id:
                     type: integer
