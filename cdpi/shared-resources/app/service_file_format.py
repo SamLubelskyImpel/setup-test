@@ -65,7 +65,7 @@ def parse(csv_object):
         raise EmptyFileError
 
     for row in rows:
-        if row.get("dms_vendor_name", "").lower() == 'unified_crm_layer':
+        if row.get("dms_vendor_name", "").lower() == 'shared layer':
             # Waiting for CE-2121 Api endpoint to be available
 
             # consumer_id = row["dms_consumer_id"]

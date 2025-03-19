@@ -560,7 +560,7 @@ Resources:
       Environment:
         Variables:
           CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
-          SECRET_KEY: !If [IsProd, "impel", "impel"] # TODO: Confirm with Elena which CRM credentials to use
+          SECRET_KEY: !If [IsProd, "impel", "impel"]
       VpcConfig: !Ref AWS::NoValue
 
   SalesfileFormatLogGroup:
@@ -656,7 +656,7 @@ Resources:
       Environment:
         Variables:
           DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
-          SECRET_KEY: !If [IsProd, "impel_service", "impel_service"] # TODO: Confirm credentials
+          SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
 
   ServicefileFormatLogGroup:
