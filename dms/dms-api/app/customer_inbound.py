@@ -16,7 +16,6 @@ from sqlalchemy.exc import OperationalError
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -92,7 +91,7 @@ def lambda_handler(event, context):
                     IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
                 ).filter(
                     Consumer.dealer_customer_no == customer_id
-                ).limit(1).first()
+                ).first()
             else:
                 return {
                     "statusCode": 404,
