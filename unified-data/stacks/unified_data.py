@@ -102,7 +102,7 @@ class UnifiedData(Stack):
             instance_type=ec2.InstanceType.of(
                 ec2.InstanceClass.T4G, ec2.InstanceSize.SMALL
             ),
-            database_name="dms",
+            database_name="postgres",
             port=5432,
             allocated_storage=100,
             credentials=rds.Credentials.from_generated_secret(username="pgroot"),
