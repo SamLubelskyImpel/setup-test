@@ -715,16 +715,28 @@ components:
         results:
           type: array
           items:
-            allOf:
-              - $ref: '#/components/schemas/Consumer'
-              - type: object
+            type: object
+            properties:
+              id:
+                type: integer
+              dealer_customer_no:
+                type: string
+              dealer:
+                type: object
+                nullable: true
                 properties:
-                  dealer:
-                    $ref: '#/components/schemas/Dealer'
-              - type: object
+                  id:
+                    type: integer
+                  impel_dealer_id:
+                    type: string
+              integration_partner:
+                type: object
+                nullable: true
                 properties:
-                  integration_partner:
-                    $ref: '#/components/schemas/IntegrationPartner'
+                  id:
+                    type: integer
+                  impel_integration_partner_id:
+                    type: string
     IntegrationPartner:
       type: object
       properties:
