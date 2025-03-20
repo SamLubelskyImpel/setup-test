@@ -1,0 +1,95 @@
+openapi: 3.0.0
+servers:
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/SpinCar/VDP_Service/1.0.0
+  - description: Impel test environment
+    url: https://vdp-service-test.testenv.impel.io/
+  - description: Impel staging environment
+    url: https://vdp-service.testenv.impel.io/
+  - description: Impel production environment
+    url: https://vdp-service.impel.io/
+info:
+  version: "1.0.0"
+  title: vdp-service
+  description: |
+    The API for VDP (Vehicle Detail Page) Service provides endpoints to retrieve vehicle information based on VIN (Vehicle Identification Number) or stock number.
+    This service allows users to fetch essential vehicle details like VIN, stock number, SRP (Search Results Page) image URL, and VDP URL.
+    It is designed to facilitate seamless integration with inventory systems and enhance vehicle data retrieval for various applications.
+#{{VDP_API_AWS_VALIDATION}}
+paths:
+  /vdp:
+    get:
+      summary: Retrieve VDP data for a given VIN or Stock No and Impel Dealer ID.
+      operationId: get_vdp
+      #{{GET_VDP_LAMBDA_INFO}}
+      parameters:
+        - name: vin
+          in: query
+          required: true
+          description: Vehicle Identification Number.
+          schema:
+            type: string
+            pattern: "^[A-HJ-NPR-Z\\d]{17}$" # Basic VIN pattern
+          example: "1G1ZD5SU0G7123456" # Example VIN
+        - name: stock_number
+          in: query
+          required: true
+          description: Vehicle stock number.
+          schema:
+            type: string
+          example: "ABC1234" # Example Stock Number
+        - name: impel_dealer_id
+          in: query
+          required: true
+          description: Impel Dealer ID.
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: "#/components/responses/200"
+        '400':
+          $ref: "#/components/responses/400"
+        '401':
+          $ref: "#/components/responses/401"
+        '404':
+          $ref: "#/components/responses/404"
+        '500':
+          $ref: "#/components/responses/500"
+components:
+  responses:
+    '200':
+      description: Successful retrieval of VDP data.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              VIN:
+                type: string
+                description: Vehicle Identification Number.
+              STOCK:
+                type: string
+                description: Vehicle stock number.
+              SRP_IMAGE_URL:
+                type: string
+                description: URL of the vehicle's SRP image.
+              VDP_URL:
+                type: string
+                description: URL of the vehicle's VDP page.
+    '202':
+      description: Accepted. The request was received but failed to be processed by the VDP Service.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    '400':
+      description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
+    '401':
+      description: This request is unauthorized. The authorization credentials are missing or are wrong. For example if the partner_id or the x_api_key provided in the header are wrong/missing. This error can also occur if the dealer_id provided hasn't been configured with Impel.
+    '404':
+      description: Not Found. The VIN or stock number of the request didn't match any existing VDP Data.
+    '500':
+      description: Internal Server Error. Please contact Impel support.
