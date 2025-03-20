@@ -182,7 +182,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-invoke-vdp
-      RetentionInDays: 60
 
   InvokeVDPAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -268,4 +267,3 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-download-vdp
-      RetentionInDays: 60
