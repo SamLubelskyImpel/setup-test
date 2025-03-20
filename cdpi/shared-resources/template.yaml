@@ -299,8 +299,8 @@ Resources:
                     ]
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
                   ]
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
@@ -655,7 +655,7 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
+          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "ntsa4o8lda.execute-api.us-east-1.amazonaws.com/Stage"]
           SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
 

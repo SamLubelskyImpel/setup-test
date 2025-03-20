@@ -66,27 +66,22 @@ def parse(csv_object):
 
     for row in rows:
         if row.get("dms_vendor_name", "").lower() == 'shared layer':
-            # Waiting for CE-2121 Api endpoint to be available
+            consumer_id = row["dms_consumer_id"]
 
-            # consumer_id = row["dms_consumer_id"]
+            logger.info(f"Updating vendor name for lead with DMS Consumer ID {consumer_id}")
 
-            # logger.info(f"Updating vendor name for lead with DMS Consumer ID {consumer_id}")
+            url = f'https://{DMS_API_DOMAIN}/customer/v1?customer_id={consumer_id}'
 
-            # url = f'https://{DMS_API_DOMAIN}/consumer/v1'
+            dms_api_key = get_secret("DmsDataService", SECRET_KEY)["api_key"]
+            response = make_dms_api_request(url, "GET", dms_api_key)
 
-            # dms_api_key = get_secret("DmsDataService", SECRET_KEY)["api_key"] # TODO: Confirm credentials
-            # response = make_dms_api_request(url, "GET", dms_api_key)
+            if response.status_code != 200:
+                raise LeadNotFoundError(f"Consumer with DMS Consumer ID {consumer_id} not found. {response.text}")
 
-            # if response.status_code != 200:
-                # raise LeadNotFoundError(f"Consumer with DMS Consumer ID {consumer_id} not found. {response.text}")
+            logger.info(f"DMS API responded with: {response.status_code} for lead with DMS Consumer ID {consumer_id}")
 
-            # logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {consumer_id}")
-
-            # vendor_name = response.json().get("dms_vendor_name")
-            # dms_consumer_id = response.json().get("dms_consumer_id")
-            vendor_name = "mocked vendor name"
-            dms_consumer_id = "123456789"
-
+            vendor_name = response.json().get("results")[0]["integration_partner"]["impel_integration_partner_id"]
+            dms_consumer_id = response.json().get("results")[0]["dealer_customer_no"]
 
             row["dms_vendor_name"] = vendor_name
             row["dms_consumer_id"] = dms_consumer_id
