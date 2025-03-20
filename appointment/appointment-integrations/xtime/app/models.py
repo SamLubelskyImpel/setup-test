@@ -30,8 +30,8 @@ class CreateAppointment:
     comment: str
     first_name: str
     last_name: str
-    email_address: str
-    phone_number: str
+    email_address: Optional[str] = None
+    phone_number: Optional[str] = None
     vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None
@@ -48,6 +48,25 @@ class GetAppointments:
     email_address: str
     phone_number: str
     vin: str
+    year: Optional[int] = None
+    make: Optional[str] = None
+    model: Optional[str] = None
+
+
+@dataclass
+class UpdateAppointment:
+    request_id: str
+    source_product: str
+    integration_dealer_id: str
+    dealer_timezone: str
+    integration_appointment_id: str
+    op_code: str
+    timeslot: str
+    first_name: str
+    last_name: str
+    email_address: Optional[str] = None
+    phone_number: Optional[str] = None
+    vin: Optional[str] = None
     year: Optional[int] = None
     make: Optional[str] = None
     model: Optional[str] = None
