@@ -1,4 +1,5 @@
 """Authorize requests to the crm api gateway."""
+
 import json
 import logging
 import os
@@ -18,7 +19,6 @@ def _lambda_handler(event: Any, context: Any) -> Any:
     logger.info(event)
 
     method_arn = event["methodArn"]
-
     headers = {k.lower(): v for k, v in event['headers'].items()}
     partner_id = headers.get('partner_id')
     api_key = headers.get('x_api_key')

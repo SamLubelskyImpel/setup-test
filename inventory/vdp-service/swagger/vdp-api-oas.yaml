@@ -25,7 +25,6 @@ paths:
       parameters:
         - name: vin
           in: query
-          required: true
           description: Vehicle Identification Number.
           schema:
             type: string
@@ -33,7 +32,6 @@ paths:
           example: "1G1ZD5SU0G7123456" # Example VIN
         - name: stock_number
           in: query
-          required: true
           description: Vehicle stock number.
           schema:
             type: string
