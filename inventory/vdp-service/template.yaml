@@ -372,12 +372,12 @@ Resources:
                   !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/vdp-api*",
                 ]
 
-  GetVDP:
+  QueryVDP:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "vdp-service-${Environment}-GetVDP"
+      FunctionName: !Sub "vdp-service-${Environment}-QueryVDP"
       CodeUri: app/
-      Handler: get_vdp.lambda_handler
+      Handler: query_vdp.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
