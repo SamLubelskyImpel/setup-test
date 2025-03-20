@@ -60,7 +60,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
 
                 if dealer_db.metadata_:
-                    dealer_record["metadata"] = {**dip_db.metadata_, **dealer_db.metadata_}
+                    if dealer_record["metadata"]:
+                        combined_metadata = dealer_record["metadata"].copy()
+                        combined_metadata.update(dealer_db.metadata_)
+                        dealer_record["metadata"] = combined_metadata
+                    else:
+                        dealer_record["metadata"] = dealer_db.metadata_
 
                 dealer_records.append(dealer_record)
 
