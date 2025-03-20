@@ -1,7 +1,5 @@
 openapi: 3.0.0
 servers:
-  - description: SwaggerHub API Auto Mocking
-    url: https://virtserver.swaggerhub.com/SpinCar/VDP_Service/1.0.0
   - description: Impel test environment
     url: https://vdp-service-test.testenv.impel.io/
   - description: Impel staging environment

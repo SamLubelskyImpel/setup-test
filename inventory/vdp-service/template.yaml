@@ -275,13 +275,13 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-download-vdp
 
-  VDPApiGateway:
+  VDPServiceApiGateway:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub vdp-service-${Environment}-vdp-api
       StageName: !Ref Environment
       Domain:
-        DomainName: !If [ IsProd, 'vpd-api.impel.io', !Sub 'vdp-api${DomainSuffix}.testenv.impel.io' ]
+        DomainName: !If [ IsProd, 'vpd-service.impel.io', !Sub 'vdp-service${DomainSuffix}.testenv.impel.io' ]
         CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
         SecurityPolicy: TLS_1_2
       Auth:
@@ -385,6 +385,6 @@ Resources:
         Get:
           Type: Api
           Properties:
-            RestApiId: !Ref VDPApiGateway
+            RestApiId: !Ref VDPServiceApiGateway
             Path: /vdp
             Method: GET
