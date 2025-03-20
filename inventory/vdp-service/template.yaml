@@ -161,3 +161,116 @@ Resources:
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
+  VDPApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub vdp-service-${Environment}-vdp-api
+      StageName: !Ref Environment
+      Domain:
+        DomainName: !If [ IsProd, 'vpd-api.impel.io', !Sub 'vdp-api${DomainSuffix}.testenv.impel.io' ]
+        CertificateArn: !FindInMap [ SslCertificates, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+        SecurityPolicy: TLS_1_2
+      Auth:
+        DefaultAuthorizer: DefaultAuth
+        Authorizers:
+          DefaultAuth:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt Authorizer.Arn
+            Identity:
+              Headers:
+                - partner_id
+                - x_api_key
+              Context:
+                - resourcePath
+              ReauthorizeEvery: 0
+      AccessLogSetting:
+        DestinationArn: !GetAtt APILogGroup.Arn
+        Format: >-
+          {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: "./swagger/vdp-api-oas-interpolated.yaml"
+      GatewayResponses:
+        BAD_REQUEST_PARAMETERS:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        UNAUTHORIZED:
+          ResponseTemplates:
+            application/json: '{"message": "This request is unauthorized."}'
+          StatusCode: "401"
+        ACCESS_DENIED:
+          ResponseTemplates:
+            application/json: '{"message": "$context.authorizer.key"}'
+          StatusCode: "403"
+        DEFAULT_5xx:
+          ResponseTemplates:
+            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+  APILogGroup:
+    Type: AWS::Logs::LogGroup
+
+  APICloudWatchRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - >-
+          arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  APIGatewayAccount:
+    Type: "AWS::ApiGateway::Account"
+    Properties:
+      CloudWatchRoleArn: !GetAtt APICloudWatchRole.Arn
+
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-Authorizer"
+      CodeUri: app/
+      Handler: authorizer.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - Id: AuthorizerPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetAPIKeys
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                !If [
+                  IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/vdp-api*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/vdp-api*",
+                ]
+
+  GetVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-GetVDP"
+      CodeUri: app/
+      Handler: get_vdp.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VDPApiGateway
+            Path: /vdp
+            Method: GET
