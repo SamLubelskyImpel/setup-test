@@ -1,15 +1,13 @@
 import logging
 from os import environ
-from json import dumps
 from uuid import uuid4
 import boto3
 from datetime import datetime, timedelta
 from utils import send_missing_inbound_file_notification, send_alert_notification
 
-
 from cdpi_orm.session_config import DBSession
-from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
+
 
 SHARED_BUCKET = environ.get("SHARED_BUCKET")
 
