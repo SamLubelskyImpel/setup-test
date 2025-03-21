@@ -75,7 +75,6 @@ class RDSInstance:
         results = self.execute_rds(db_impel_dealer_id_query)
         db_dealer_ftp_details = results.fetchall()
         
-        # If dealer not found then check in metadata
         if not db_dealer_ftp_details:
             additional_id_query = f"""
                 select d.impel_dealer_id
