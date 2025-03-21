@@ -1,11 +1,4 @@
 openapi: 3.0.0
-servers:
-  - description: Impel test environment
-    url: https://vdp-service-test.testenv.impel.io/
-  - description: Impel staging environment
-    url: https://vdp-service.testenv.impel.io/
-  - description: Impel production environment
-    url: https://vdp-service.impel.io/
 info:
   version: "1.0.0"
   title: vdp-service
@@ -72,15 +65,6 @@ components:
               VDP_URL:
                 type: string
                 description: URL of the vehicle's VDP page.
-    '202':
-      description: Accepted. The request was received but failed to be processed by the VDP Service.
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              message:
-                type: string
     '400':
       description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
     '401':
@@ -89,3 +73,7 @@ components:
       description: Not Found. The VIN or stock number of the request didn't match any existing VDP Data.
     '500':
       description: Internal Server Error. Please contact Impel support.
+servers:
+  # Added by API Auto Mocking Plugin
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/SpinCar/VDP_Service/1.0.0
