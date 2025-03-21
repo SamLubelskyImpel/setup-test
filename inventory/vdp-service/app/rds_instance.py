@@ -1,0 +1,86 @@
+import logging
+from json import loads
+from os import environ
+import boto3
+import psycopg2
+import psycopg2.extras
+
+ENVIRONMENT = environ.get("ENVIRONMENT", "test")
+IS_PROD = ENVIRONMENT == "prod"
+
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+s3_client = boto3.client("s3")
+
+
+class RDSInstance:
+    """Manage RDS connection."""
+
+    def __init__(self):
+        self.is_prod = IS_PROD
+        self.schema = f"{'prod' if self.is_prod else 'stage'}"
+        self.rds_connection = self.get_rds_connection()
+
+    def get_rds_connection(self):
+        """Get connection to RDS database."""
+        sm_client = boto3.client("secretsmanager")
+        secret_string = loads(
+            sm_client.get_secret_value(
+                SecretId="prod/RDS/SHARED" if self.is_prod else "test/RDS/SHARED"
+            )["SecretString"]
+        )
+        return psycopg2.connect(
+            user=secret_string["user"],
+            password=secret_string["password"],
+            host=secret_string["host"],
+            port=secret_string["port"],
+            database=secret_string["db_name"],
+        )
+
+    def execute_rds(self, query_str):
+        """Execute query on RDS and return cursor."""
+        cursor = self.rds_connection.cursor()
+        cursor.execute(query_str)
+        return cursor
+
+    def commit_rds(self, query_str):
+        """Execute and commit query on RDS and return cursor."""
+        cursor = self.execute_rds(query_str)
+        self.rds_connection.commit()
+        return cursor
+
+    def find_dealer_integration_partner_id(self, provider_dealer_id):
+        """Query for DIP ID based on provider dealer ID."""
+        query = f"SELECT id FROM {self.schema}.inv_dealer_integration_partner WHERE provider_dealer_id = %s"
+        with self.rds_connection.cursor() as cursor:
+            cursor.execute(query, (provider_dealer_id,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+
+    def batch_update_inventory_vdp(self, vdp_list, provider_dealer_id):
+        """Batch update inventory VDP data."""
+        try:
+            update_vdp_query = f"""
+                WITH temp_vdp_table AS (
+                    SELECT *
+                    FROM (VALUES %s) AS data(vin, stock_num, vdp, dealer_integration_partner_id)
+                ) 
+                UPDATE {self.schema}.inv_inventory AS i
+                SET vdp = t.vdp 
+                FROM temp_vdp_table AS t
+                JOIN {self.schema}.inv_vehicle AS v ON 
+                    t.vin = v.vin 
+                    AND t.stock_num = v.stock_num 
+                    AND t.dealer_integration_partner_id = v.dealer_integration_partner_id
+                WHERE i.vehicle_id = v.id
+                RETURNING i.id;
+            """
+            with self.rds_connection.cursor() as cursor:
+                psycopg2.extras.execute_values(cursor, update_vdp_query, vdp_list)
+                updated_vdp = cursor.fetchall()
+                self.rds_connection.commit()
+            return updated_vdp if updated_vdp else None
+        except Exception as e:
+            error_message = f"Error updating VDP records: {provider_dealer_id}.csv - {str(e)}"
+            logger.error(error_message)
+            raise
