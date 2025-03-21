@@ -134,6 +134,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt DownloadVDPQueue.Arn
+                  - !GetAtt MergeVDPQueue.Arn
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -395,3 +396,70 @@ Resources:
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       TreatMissingData: notBreaching
+
+  MergeVDPDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-merge-vdp-dlq
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+
+  MergeVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service MergeVDP DLQ Errors
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Sub vdp-service-${Environment}-merge-vdp-dlq
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  MergeVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-merge-vdp-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MergeVDPDLQ.Arn
+        maxReceiveCount: 3
+
+  MergeVDPTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt MergeVDPQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"landing-zone"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  MergeVDPEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt MergeVDPQueue.Arn
+      FunctionName: !Ref MergeVDP
+      Enabled: true
+
+  MergeVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-merge-vdp
+      Description: Merge VDP Data
+      Handler: merge_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
