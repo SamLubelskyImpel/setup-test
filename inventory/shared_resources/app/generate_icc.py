@@ -102,30 +102,31 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """Convert to ICC format and upload to inventory/icc bucket."""
     logger.info(f"Record: {event}")
     try:
-        integration_partner = event.get("integration_partner")
+        integration_partners = event.get("integration_partners", [])
 
         # Initialize RDS instance
         rds_instance = RDSInstance()
 
-        # Retreive active dealer integration partners
-        active_dips = rds_instance.get_active_dealer_integration_partners(integration_partner)
+        for integration_partner in integration_partners:
+            # Retreive active dealer integration partners
+            active_dips = rds_instance.get_active_dealer_integration_partners(integration_partner)
 
-        if not active_dips:
-            logger.warning("No active dealer integration partners for integration partner")
-            return
+            if not active_dips:
+                logger.warning("No active dealer integration partners for integration partner")
+                return
 
-        for dip, provider_dealer_id in active_dips:
-            inv_data = rds_instance.get_on_lot_inventory(dip)
+            for dip, provider_dealer_id in active_dips:
+                inv_data = rds_instance.get_on_lot_inventory(dip)
 
-            if inv_data:
-                icc_formatted_inventory = convert_unified_to_icc(inv_data)
-                logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
+                if inv_data:
+                    icc_formatted_inventory = convert_unified_to_icc(inv_data)
+                    logger.info(f"ICC formatted inventory: {icc_formatted_inventory.head()}")
 
-                # Save ICC formatted inventory to S3
-                csv_content = icc_formatted_inventory.to_csv(index=False)
-                upload_to_s3(csv_content, integration_partner, provider_dealer_id)
-            else:
-                logger.info(f"No inventory data found for {provider_dealer_id}")
+                    # Save ICC formatted inventory to S3
+                    csv_content = icc_formatted_inventory.to_csv(index=False)
+                    upload_to_s3(csv_content, integration_partner, provider_dealer_id)
+                else:
+                    logger.info(f"No inventory data found for {provider_dealer_id}")
     except Exception:
         logger.exception("Error processing record")
         raise

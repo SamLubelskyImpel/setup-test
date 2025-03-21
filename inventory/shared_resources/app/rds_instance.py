@@ -291,10 +291,15 @@ class RDSInstance:
         inventory_ids = set()
 
         insert_query = f"""
-        INSERT INTO {self.schema}.inv_inventory (vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color,
-        interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin, interior_material, trim,
-        factory_certified, region, on_lot, metadata, received_datetime, photo_url, vdp, comments, options, priority_options)
-        VALUES %s
+        INSERT INTO {self.schema}.inv_inventory (
+            vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color,
+            interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin,
+            interior_material, trim, factory_certified, region, on_lot, metadata, received_datetime,
+            photo_url, vdp, comments, options, priority_options, cost_price, inventory_status,
+            source_data_drive_train, source_data_interior_material_description, source_data_transmission,
+            source_data_transmission_speed, transmission_speed, build_data, highway_mpg, city_mpg,
+            engine, engine_displacement
+        ) VALUES %s
         ON CONFLICT (vehicle_id, dealer_integration_partner_id) DO UPDATE SET
             list_price = EXCLUDED.list_price,
             special_price = EXCLUDED.special_price,
@@ -320,7 +325,19 @@ class RDSInstance:
             vdp = EXCLUDED.vdp,
             comments = EXCLUDED.comments,
             options = EXCLUDED.options,
-            priority_options = EXCLUDED.priority_options
+            priority_options = EXCLUDED.priority_options,
+            cost_price = EXCLUDED.cost_price,
+            inventory_status = EXCLUDED.inventory_status,
+            source_data_drive_train = EXCLUDED.source_data_drive_train,
+            source_data_interior_material_description = EXCLUDED.source_data_interior_material_description,
+            source_data_transmission = EXCLUDED.source_data_transmission,
+            source_data_transmission_speed = EXCLUDED.source_data_transmission_speed,
+            transmission_speed = EXCLUDED.transmission_speed,
+            build_data = EXCLUDED.build_data,
+            highway_mpg = EXCLUDED.highway_mpg,
+            city_mpg = EXCLUDED.city_mpg,
+            engine = EXCLUDED.engine,
+            engine_displacement = EXCLUDED.engine_displacement
         RETURNING id;
         """
         new_inventory_records = []
@@ -335,7 +352,10 @@ class RDSInstance:
                     inv.get('transmission'), inv.get('drive_train'), inv.get('cylinders'), inv.get('body_style'), inv.get('series'),
                     inv['vin'], inv.get('interior_material'), inv.get('trim'), inv.get('factory_certified'), inv.get('region'),
                     inv.get('on_lot'), inv.get('metadata'), inv.get('received_datetime'), inv.get('photo_url'), inv.get('vdp'),
-                    inv.get('comments'), inv.get('options'), inv.get('priority_options')
+                    inv.get('comments'), inv.get('options'), inv.get('priority_options'), inv.get('cost_price'), inv.get('inventory_status'),
+                    inv.get('source_data_drive_train'), inv.get('source_data_interior_material_description'), inv.get('source_data_transmission'),
+                    inv.get('source_data_transmission_speed'), inv.get('transmission_speed'), inv.get('build_data'), inv.get('highway_mpg'), inv.get('city_mpg'),
+                    inv.get('engine'), inv.get('engine_displacement')
                 )
                 for inv in batch
             ]
