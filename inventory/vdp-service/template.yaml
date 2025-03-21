@@ -432,6 +432,27 @@ Resources:
         deadLetterTargetArn: !GetAtt MergeVDPDLQ.Arn
         maxReceiveCount: 3
 
+  MergeVDPQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref MergeVDPQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: "sqs:SendMessage"
+            Resource: !GetAtt MergeVDPQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !If [
+                  IsProd,
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                ]
+
   MergeVDPTopicSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -463,3 +484,8 @@ Resources:
       Handler: merge_vdp.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
+
+  MergeVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-merge-vdp

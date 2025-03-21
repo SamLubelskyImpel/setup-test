@@ -1,7 +1,7 @@
 """Merge Inventory and VDP CSV data."""
 
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
 import logging
 from os import environ
@@ -24,17 +24,13 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client("s3")
 
 
-class MissingVDPException(Exception):
-    pass
-
-
-def upload_to_s3(csv_content, provider_dealer_id, modification_time):
+def upload_to_s3(csv_content, integration_partner_id, provider_dealer_id, modification_time):
     """Upload files to S3."""
     format_string = '%Y/%m/%d/%H'
     date_key = datetime.utcnow().strftime(format_string)
     s3_file_name = f"{provider_dealer_id}_{modification_time}.csv"
 
-    s3_key = f"raw/coxau/{date_key}/{s3_file_name}"
+    s3_key = f"raw/{integration_partner_id}/{date_key}/{s3_file_name}"
     s3_client.put_object(
         Bucket=INVENTORY_BUCKET,
         Key=s3_key,
@@ -44,7 +40,24 @@ def upload_to_s3(csv_content, provider_dealer_id, modification_time):
     logger.info(f"File {s3_file_name} uploaded to S3.")
 
 
+def download_from_s3(s3_key):
+    """Download files from S3."""
+    try:
+        csv_object = s3_client.get_object(
+            Bucket=INVENTORY_BUCKET,
+            Key=s3_key
+        )
+        logger.info(f"File {s3_key} downloaded from S3.")
+        csv_content = csv_object['Body'].read().decode('utf-8')
+        return csv_content
+
+    except Exception as e:
+        logger.error(f"Error downloading file from S3: {e}")
+        return None
+
+
 def merge_csv_files(inv_csv_content, vdp_csv_content):
+    """Merge the inventory and VDP CSV files."""
     inv_csv_file = StringIO(inv_csv_content)
     inv_reader = csv.DictReader(inv_csv_file)
 
@@ -82,49 +95,38 @@ def merge_csv_files(inv_csv_content, vdp_csv_content):
 def record_handler(record):
     """Process each record in the batch."""
     logger.info(record)
-    # try:
-    #     body = loads(record.body)
+    try:
+        body = loads(record.body)
+        inv_s3_key = body['Records'][0]['s3']['object']['key']
 
-    #     provider_dealer_id = body['provider_dealer_id']
-    #     modificiation_time = body['modification_time']
-    #     logger.info(f"Provider dealer id: {provider_dealer_id}, Modification time: {modificiation_time}")
+        integration_partner_id = inv_s3_key.split('/')[1]
+        provider_dealer_id = inv_s3_key.split('/')[2]
+        logger.info(f"Integration partner id: {integration_partner_id}, Provider dealer id: {provider_dealer_id}")
 
-    #     s3_base_path = f"landing-zone/coxau/{provider_dealer_id}/"
+        # Get inventory file
+        inv_csv_content = download_from_s3(inv_s3_key)
 
-    #     # Get inventory file
-    #     try:
-    #         inv_csv_object = s3_client.get_object(
-    #             Bucket=INVENTORY_BUCKET,
-    #             Key=s3_base_path + "inventory.csv"
-    #         )
-    #         inv_csv_content = inv_csv_object['Body'].read().decode('utf-8')
-    #     except Exception as e:
-    #         logger.info(f"Inventory file not found: {e}. Not processing VDP file.")
-    #         return
+        if not inv_csv_content:
+            logger.error(f"Error downloading inventory file from S3: {inv_s3_key}")
+            raise Exception(f"Error downloading inventory file from S3: {inv_s3_key}")
 
-    #     # Get VDP file
-    #     try:
-    #         try:
-    #             vdp_csv_object = s3_client.get_object(
-    #                 Bucket=INVENTORY_BUCKET,
-    #                 Key=s3_base_path + "vdp.csv"
-    #             )
-    #             vdp_csv_content = vdp_csv_object['Body'].read().decode('utf-8')
-    #         except Exception as e:
-    #             logger.info(f"VDP file not found: {e}. Only processing inventory file.")
-    #             raise MissingVDPException("VDP file not found")
+        # Get VDP file
+        vdp_s3_key = f"vdp/{provider_dealer_id}.csv"
+        vdp_csv_content = download_from_s3(vdp_s3_key)
 
-    #         combined_csv_content = merge_csv_files(inv_csv_content, vdp_csv_content)
+        # Merge the files
+        if vdp_csv_content:
+            combined_csv_content = merge_csv_files(inv_csv_content, vdp_csv_content)
+        else:
+            logger.warning(f"VDP file not found: {vdp_s3_key}, skipping merge.")
+            combined_csv_content = inv_csv_content
 
-    #     except MissingVDPException:
-    #         logger.info("Only inventory file found. Skipping merge.")
-    #         combined_csv_content = inv_csv_content
-
-    #     upload_to_s3(combined_csv_content, provider_dealer_id, modificiation_time)
-
-    # except Exception as e:
-    #     logger.error(f"Error merging files - {record}: {e}")
-    #     raise
+        # Upload the merged file to S3
+        modification_time = int(datetime.now(timezone.utc).timestamp())
+        upload_to_s3(combined_csv_content, integration_partner_id, provider_dealer_id, modification_time)
+    except Exception as e:
+        logger.error(f"Error merging files - {record}: {e}")
+        raise
 
 
 def lambda_handler(event: Any, context: Any) -> Any:
