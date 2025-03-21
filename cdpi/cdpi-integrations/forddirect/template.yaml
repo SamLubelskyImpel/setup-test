@@ -1099,3 +1099,40 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
+  CheckMissingInboundFiles:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: check_missing_inbound_files.lambda_handler
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-CheckMissingInboundFiles
+      MemorySize: 128
+      Timeout: 30
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(59 23 * * ? *)
+            Enabled: !If [ IsProd, true, false ]
+      Policies:
+        - !Ref LambdaExecutionPolicy
+        - Id: FunctionPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowS3
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/*"
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+          ]
+  
+  CheckMissingInboundFilesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-CheckMissingInboundFiles"
