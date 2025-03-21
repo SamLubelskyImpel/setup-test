@@ -980,6 +980,24 @@ Resources:
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt DsrEventProcessingQueueDLQ.Arn
           maxReceiveCount: 3
+  
+  DsrEventProcessingQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref DsrEventProcessingQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS: 
+                - !If
+                  - IsProd
+                  - "arn:aws:iam::143813444726:role/EnterpriseBus-prod-CrossAccountRole"
+                  - "arn:aws:iam::143813444726:role/EnterpriseBus-test-CrossAccountRole"
+            Action: "SQS:SendMessage"
+            Resource: !GetAtt DsrEventProcessingQueue.Arn
 
   DsrEventProcessingQueueDLQ:
     Type: AWS::SQS::Queue

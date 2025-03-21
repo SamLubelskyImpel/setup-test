@@ -43,27 +43,31 @@ def lambda_handler(event, context):
         product_name = 'sales_ai' if product_name == 'Sales AI' else 'service_ai'
         source_dealer_id = salesai_dealer_id if product_name == "sales_ai" else serviceai_dealer_id
 
+        event_json = {
+            "event_json": [
+                {
+                    "event_type": event_type,
+                    "integration_partner": integration_partner_id,
+                    "consumer_id": consumer_id,
+                    "dealer_id": dealer_id,
+                    "source_consumer_id": source_consumer_id,
+                    "source_dealer_id": source_dealer_id,
+                    "source_application": product_name,
+                    "request_date": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+            ],
+            "event_source": "cdp_integration_layer"
+        }
+
+        logger.info(f"Event JSON: {event_json}")
+
         response = requests.post(
             f"{environ.get('EVENTS_API_URL')}/v1/events",
             headers={
                 "client-id": client_id,
                 "api-key": token,
             },
-            json={
-                "event_json": [
-                    {
-                        "event_type": event_type,
-                        "integration_partner": integration_partner_id,
-                        "consumer_id": consumer_id,
-                        "dealer_id": dealer_id,
-                        "source_consumer_id": source_consumer_id,
-                        "source_dealer_id": source_dealer_id,
-                        "source_application": product_name,
-                        "request_date": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    }
-                ],
-                "event_source": "cdp_integration_layer"
-            }
+            json=event_json
         )
 
         if response.status_code != 200:

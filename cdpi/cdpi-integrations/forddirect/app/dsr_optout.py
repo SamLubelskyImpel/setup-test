@@ -1,6 +1,6 @@
 import logging
 from os import environ
-from json import dumps
+from json import dumps, loads
 from utils import create_audit_dsr, call_events_api, send_alert_notification, log_dev
 from uuid import uuid4
 
@@ -25,12 +25,15 @@ def validate_data(event):
     return True, ""
 
 def lambda_handler(event, context):
+    event_type = "cdp.dsr.optout"
     request_id = str(uuid4())
     logger.info(f"Request ID: {request_id}")
     logger.info("dsr_optout starting")
     log_dev(event)
 
-    data_validated,error_msg = validate_data(event)
+    body = loads(event["body"])
+
+    data_validated,error_msg = validate_data(body)
     
     if not data_validated:
         logger.error(f"Error invoking ford direct dsr optout. Response: {error_msg}")
@@ -46,9 +49,8 @@ def lambda_handler(event, context):
         }
     
     try:
-        consumer_id = event["ext_consumer_id"]
-        dealer_id = event["dealer_identifier"]
-        event_type = "cdp.dsr.optout"
+        consumer_id = body["ext_consumer_id"]
+        dealer_id = body["dealer_identifier"]
 
         logger.info(f"consumer_id: {consumer_id}, dealer_id: {dealer_id}")
 
