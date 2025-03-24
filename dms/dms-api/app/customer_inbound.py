@@ -16,6 +16,8 @@ from sqlalchemy.exc import OperationalError
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+STATEMENT_TIMEOUT = int(environ.get("STATEMENT_TIMEOUT_MS"))
+
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -35,6 +37,8 @@ def lambda_handler(event, context):
             return {"statusCode": 400, "body": dumps({"error": "Customer ID is required"})}
 
         with DBSession() as session:
+            session.execute(text(f'SET LOCAL statement_timeout = {STATEMENT_TIMEOUT};'))
+
             id_exists = session.query(
                 session.query(Consumer.id).filter(Consumer.id == customer_id).exists()
             ).scalar()
@@ -51,47 +55,33 @@ def lambda_handler(event, context):
                     "statusCode": 400,
                     "body": dumps({"error": f"Customer ID {customer_id} exists as both Consumer ID and Dealer Customer No"})
                 }
+            if dealer_no_count > 0 and partner_count > 1:
+                return {
+                    "statusCode": 400,
+                    "body": dumps({"error": f"Multiple dealer integration partners found for Customer ID {customer_id}"})
+                }
+
+            query = (
+                session.query(
+                    Consumer.id,
+                    Consumer.dealer_customer_no,
+                    Dealer.id.label("dealer_id"),
+                    Dealer.impel_dealer_id,
+                    IntegrationPartner.id.label("integration_partner_id"),
+                    IntegrationPartner.impel_integration_partner_id
+                ).join(
+                    DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
+                ).outerjoin(
+                    Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+                ).outerjoin(
+                    IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+                )
+            )
 
             if id_exists:
-                consumer = session.query(
-                    Consumer.id,
-                    Consumer.dealer_customer_no,
-                    Dealer.id.label("dealer_id"),
-                    Dealer.impel_dealer_id,
-                    IntegrationPartner.id.label("integration_partner_id"),
-                    IntegrationPartner.impel_integration_partner_id
-                ).join(
-                    DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
-                ).outerjoin(
-                    Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
-                ).outerjoin(
-                    IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
-                ).filter(
-                    Consumer.id == customer_id
-                ).first()
+                consumer = query.filter(Consumer.id == customer_id).first()
             elif dealer_no_count > 0:
-                if partner_count > 1:
-                    return {
-                        "statusCode": 400,
-                        "body": dumps({"error": f"Multiple dealer integration partners found for Customer ID {customer_id}"})
-                    }
-
-                consumer = session.query(
-                    Consumer.id,
-                    Consumer.dealer_customer_no,
-                    Dealer.id.label("dealer_id"),
-                    Dealer.impel_dealer_id,
-                    IntegrationPartner.id.label("integration_partner_id"),
-                    IntegrationPartner.impel_integration_partner_id
-                ).join(
-                    DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
-                ).outerjoin(
-                    Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
-                ).outerjoin(
-                    IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
-                ).filter(
-                    Consumer.dealer_customer_no == customer_id
-                ).first()
+                consumer = query.filter(Consumer.dealer_customer_no == customer_id).first()
             else:
                 return {
                     "statusCode": 404,

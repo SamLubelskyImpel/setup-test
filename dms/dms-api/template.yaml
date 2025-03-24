@@ -325,7 +325,7 @@ Resources:
     Properties:
       CodeUri: app/
       Handler: customer_inbound.lambda_handler
-      Timeout: 30
+      Timeout: 60
       Events:
         Get:
           Type: Api
