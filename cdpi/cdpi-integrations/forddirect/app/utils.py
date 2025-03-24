@@ -73,6 +73,19 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
         MessageStructure="json",
     )
 
+def send_missing_inbound_file_notification(details: dict) -> None:
+    """Send missing inbound files alert notification to CE team."""
+    data = {
+        "message": f"{details}",
+    }
+    sns_client = boto3.client("sns")
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=dumps({"default": dumps(data)}),
+        Subject=f"CDPI FORD DIRECT: Missing Inbound Files Alert",
+        MessageStructure="json",
+    )
+
 def log_dev(log_msg):
     if not IS_PROD:
         logger.info(log_msg)
