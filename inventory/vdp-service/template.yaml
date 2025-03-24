@@ -471,7 +471,7 @@ Resources:
   MergeVDPEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 1
+      BatchSize: 3
       EventSourceArn: !GetAtt MergeVDPQueue.Arn
       FunctionName: !Ref MergeVDP
       Enabled: true
