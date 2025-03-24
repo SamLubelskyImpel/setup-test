@@ -41,6 +41,9 @@ def lambda_handler(event, context):
         outbound_files = s3_client.list_objects_v2(Bucket=SHARED_BUCKET, Prefix=prefix)
         logger.info(f"Outbound Files: {outbound_files}")
 
+        dealers_obj = {}
+        any_missing_files = False
+
         for file in outbound_files.get("Contents", []):
             key = file["Key"]
 
@@ -51,8 +54,11 @@ def lambda_handler(event, context):
             filename = key.split('impel_')[-1]
             dealer_id = filename.split('_')[0]
 
+            if dealer_id not in dealers_obj:
+                dealers_obj[dealer_id] = []
+
             dip = get_dealer_integration_partner(dealer_id)
-            logger.info(f"Dealer Integration Partner: {dip}")
+            logger.info(f"Dealer Integration Partner: {dip.id}")
 
             inbound_prefix = f"fd-raw/pii_match/{dip.cdp_dealer_id}/{date.year}/{date.month}/{date.day}"
             logger.info(f"Inbound Prefix: {inbound_prefix}")
@@ -64,11 +70,15 @@ def lambda_handler(event, context):
             if inbound_file_exists:
                 logger.info(f"File {key} has a matching inbound file on: {inbound_files.get('Contents', [])}")
             else:
+                any_missing_files = True
                 logger.info(f"Missing file: {key}")
                 error_msg = f"The outbound file with key {key} has no matching inbound file on {SHARED_BUCKET}/{inbound_prefix}"
-                send_missing_inbound_file_notification(error_msg)
-
+                dealers_obj[dealer_id].append({"cdp_dealer_id": dip.cdp_dealer_id, "error_msg": error_msg})
         
+        if any_missing_files:
+            logger.info(f"Missing files dict: {dealers_obj}")
+            send_missing_inbound_file_notification(dealers_obj)
+    
     except Exception as e:
         logger.exception(f"Error invoking ford direct missing inbound files: {e}")
         send_alert_notification(request_id, "Ford Direct Missing Inbound Files", e)
