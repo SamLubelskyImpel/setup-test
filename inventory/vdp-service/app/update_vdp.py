@@ -65,13 +65,13 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
 
         # check for required fields: VIN and/or STOCK and VDP URL
         if vin_col is None and stock_col is None:
-            message = f"Missing vin and stock in the {provider_dealer_id}.csv"
-            logger.error(message)
-            raise Exception(message)
+            message = f"Missing vin and stock in the {provider_dealer_id}.csv. Skipping further processing.."
+            logger.warning(message)
+            return None, None
         if vdp_url_col is None:
-            message = f"No VDP data in the {provider_dealer_id}.csv"
-            logger.error(message)
-            raise Exception(message)
+            message = f"No VDP data in the {provider_dealer_id}.csv. Skipping further processing.."
+            logger.warning(message)
+            return None, None
 
         vdp_df = vdp_df.loc[:, extracted_cols]
 
@@ -84,7 +84,7 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         vdp_column_list = [col for col, cond in zip(['vin', 'stock', 'vdp_url'], [vin_col, stock_col, vdp_url_col]) if cond]
         vdp_column_list.append("dealer_integration_partner_id")
         
-        return vdp_list if vdp_list else None, vdp_column_list
+        return (vdp_list, vdp_column_list) if vdp_list else (None, None)
     except Exception as e:
         error_message = f"Error processing data: {provider_dealer_id}.csv - {str(e)}"
         logger.error(error_message)
