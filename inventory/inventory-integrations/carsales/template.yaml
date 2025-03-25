@@ -71,19 +71,6 @@ Resources:
         - Key: Product
           Value: carsales-inv-integration
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "carsales inventory integration rds access"
-      GroupId: !If [ IsProd,
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -193,7 +180,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: "Allow"
-                Action:          
+                Action:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
@@ -206,7 +193,7 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource:
-                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*" 
+                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*"
         - PolicyName: S3Policy
           PolicyDocument:
             Version: "2012-10-17"
