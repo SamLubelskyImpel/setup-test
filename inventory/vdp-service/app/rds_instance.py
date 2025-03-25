@@ -57,20 +57,19 @@ class RDSInstance:
             result = cursor.fetchone()
             return result[0] if result else None
 
-    def batch_update_inventory_vdp(self, vdp_list, provider_dealer_id):
+    def batch_update_inventory_vdp(self, vdp_list, vdp_data_col_list, join_conditions, provider_dealer_id):
         """Batch update inventory VDP data."""
         try:
             update_vdp_query = f"""
                 WITH temp_vdp_table AS (
                     SELECT *
-                    FROM (VALUES %s) AS data(vin, stock_num, vdp, dealer_integration_partner_id)
+                    FROM (VALUES %s) AS data({vdp_data_col_list})
                 ) 
                 UPDATE {self.schema}.inv_inventory AS i
-                SET vdp = t.vdp 
+                SET vdp = t.vdp_url
                 FROM temp_vdp_table AS t
                 JOIN {self.schema}.inv_vehicle AS v ON 
-                    t.vin = v.vin 
-                    AND t.stock_num = v.stock_num 
+                    ({join_conditions})
                     AND t.dealer_integration_partner_id = v.dealer_integration_partner_id
                 WHERE i.vehicle_id = v.id
                 RETURNING i.id;
