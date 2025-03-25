@@ -63,11 +63,11 @@ class RDSInstance:
                 WITH temp_vdp_table AS (
                     SELECT *
                     FROM (VALUES %s) AS data({vdp_data_col_list})
-                ) 
+                )
                 UPDATE {self.schema}.inv_inventory AS i
                 SET vdp = t.vdp_url
                 FROM temp_vdp_table AS t
-                JOIN {self.schema}.inv_vehicle AS v ON 
+                JOIN {self.schema}.inv_vehicle AS v ON
                     ({join_conditions})
                     AND t.dealer_integration_partner_id = v.dealer_integration_partner_id
                 WHERE i.vehicle_id = v.id

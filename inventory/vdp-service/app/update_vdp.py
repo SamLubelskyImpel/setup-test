@@ -1,9 +1,8 @@
 import logging
 import boto3
-import json 
+import json
 import io
 import os
-from os import environ
 import pandas as pd
 import re
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
@@ -14,7 +13,7 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from rds_instance import RDSInstance
 
-ENVIRONMENT = environ.get('ENVIRONMENT')
+ENVIRONMENT = os.environ.get('ENVIRONMENT')
 TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 
 logger = logging.getLogger()
@@ -46,7 +45,7 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         if vdp_df.empty:
             logger.warning(f"Warning: {provider_dealer_id}.csv is empty. Skipping further processing..")
             return None, None
-        
+
         vin_col = stock_col = vdp_url_col = None
         extracted_cols = []
 
