@@ -82,6 +82,7 @@ class RDSInstance:
             error_message = f"Error updating VDP records: {provider_dealer_id}.csv - {str(e)}"
             logger.error(error_message)
             raise
+
     def get_active_dealer_partners(self):
         """Get the active provider dealer IDs."""
         db_active_dealer_partners_query = f"""

@@ -55,8 +55,6 @@ Globals:
         REGION: !Sub '${AWS::Region}'
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        MERCH_SFTP_KEY: MERCH_SFTP
-        SALESAI_SFTP_KEY: SALESAI_SFTP
         INVENTORY_BUCKET: !If [
                             IsProd,
                             !Sub "inventory-integrations-${AWS::Region}-prod",
@@ -131,6 +129,12 @@ Resources:
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod*",
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod/vdp/*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test/vdp/*"
+                    ]
+
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
