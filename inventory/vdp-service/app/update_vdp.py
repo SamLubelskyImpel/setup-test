@@ -77,12 +77,12 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         # drop rows with misisng VDP URL
         vdp_df = vdp_df.dropna(subset=[vdp_url_col])
 
-        # form a list of tuples for bulk insert using execute_values() 
+        # form a list of tuples for bulk insert using execute_values()
         vdp_list = [tuple(row) + (dealer_integration_partner_id,) for row in vdp_df.to_numpy()]
 
         vdp_column_list = [col for col, cond in zip(['vin', 'stock', 'vdp_url'], [vin_col, stock_col, vdp_url_col]) if cond]
         vdp_column_list.append("dealer_integration_partner_id")
-        
+
         return (vdp_list, vdp_column_list) if vdp_list else (None, None)
     except Exception as e:
         error_message = f"Error processing data: {provider_dealer_id}.csv - {str(e)}"
@@ -91,7 +91,7 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
 
 def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
-    
+
     try:
         sns_message = json.loads(record['body'])
         s3_event = sns_message['Records'][0]['s3']
