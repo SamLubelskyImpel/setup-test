@@ -15,7 +15,6 @@ s3_client = boto3.client("s3")
 
 class RDSInstance:
     """Manage RDS connection."""
-
     def __init__(self):
         self.is_prod = IS_PROD
         self.schema = f"{'prod' if self.is_prod else 'stage'}"
@@ -83,3 +82,17 @@ class RDSInstance:
             error_message = f"Error updating VDP records: {provider_dealer_id}.csv - {str(e)}"
             logger.error(error_message)
             raise
+    def get_active_dealer_partners(self):
+        """Get the active provider dealer IDs."""
+        db_active_dealer_partners_query = f"""
+            select idip.provider_dealer_id
+            from {self.schema}.inv_dealer_integration_partner idip
+            join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
+            where idip.is_active = true
+        """
+        results = self.execute_rds(db_active_dealer_partners_query)
+        db_dealer_ftp_details = results.fetchall()
+        if not results:
+            return []
+        else:
+            return db_dealer_ftp_details
