@@ -215,7 +215,7 @@ Resources:
             QueueName: !Sub "shift-digital-${Environment}-CallbackQueue"
             VisibilityTimeout: 60
             MessageRetentionPeriod: 604800  
-            DelaySeconds: 960
+            DelaySeconds: 900
             RedrivePolicy:
                 deadLetterTargetArn: !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
                 maxReceiveCount: 3
