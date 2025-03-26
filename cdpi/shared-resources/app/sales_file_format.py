@@ -27,9 +27,6 @@ sm_client = boto3.client('secretsmanager')
 class EmptyFileError(Exception):
     pass
 
-class LeadNotFoundError(Exception):
-    pass
-
 def get_secret(secret_name, secret_key):
     """Get secret from Secrets Manager."""
     secret = sm_client.get_secret_value(
@@ -71,16 +68,19 @@ def parse(csv_object):
             
             url = f'https://{CRM_API_DOMAIN}/internal/leads/{lead_id}'
 
-            crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"] # TODO: Confirm which credentials to use
+            crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"]
             response = make_crm_api_request(url, "GET", crm_api_key)
 
             if response.status_code != 200:
-                raise LeadNotFoundError(f"Lead with CRM Lead ID {lead_id} not found. {response.text}")
-            
-            logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {lead_id}")
+                logger.warning(f"Lead with CRM Lead ID {lead_id} not found. {response.text}")
 
-            vendor_name = response.json().get("crm_vendor_name")
-            crm_lead_id = response.json().get("crm_lead_id")
+                vendor_name = ""
+                crm_lead_id = ""
+            else:
+                logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {lead_id}")
+
+                vendor_name = response.json().get("crm_vendor_name", "")
+                crm_lead_id = response.json().get("crm_lead_id", "")
 
             row["crm_vendor_name"] = vendor_name
             row["crm_lead_id"] = crm_lead_id
