@@ -62,3 +62,17 @@ class RDSInstance:
             return []
         else:
             return db_dealer_ftp_details
+
+    def get_integration_partner_metadata(self, integration_partner_id):
+        """Get the integration partner metadata."""
+        db_integration_partner_metadata_query = f"""
+            select metadata
+            from {self.schema}.inv_integration_partner
+            where impel_integration_partner_id = {integration_partner_id}
+        """
+        results = self.execute_rds(db_integration_partner_metadata_query)
+        db_integration_partner_metadata = results.fetchone()
+        if not db_integration_partner_metadata:
+            return {}
+        else:
+            return db_integration_partner_metadata[0]

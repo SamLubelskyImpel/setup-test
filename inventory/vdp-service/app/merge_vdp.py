@@ -16,6 +16,8 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
+from rds_instance import get_integration_partner_metadata
+
 INVENTORY_BUCKET = environ["INVENTORY_BUCKET"]
 
 logger = logging.getLogger()
@@ -100,6 +102,14 @@ def record_handler(record):
         inv_s3_key = body['Records'][0]['s3']['object']['key']
 
         integration_partner_id = inv_s3_key.split('/')[1]
+
+        metadata = get_integration_partner_metadata(integration_partner_id)
+        logger.info(f"Integration partner metadata: {metadata}")
+
+        if metadata.get('vdp_merge_service') != 'true':
+            logger.info(f"VDP merge service not enabled for integration partner: {integration_partner_id}")
+            return
+
         provider_dealer_id = inv_s3_key.split('/')[2]
         logger.info(f"Integration partner id: {integration_partner_id}, Provider dealer id: {provider_dealer_id}")
 
