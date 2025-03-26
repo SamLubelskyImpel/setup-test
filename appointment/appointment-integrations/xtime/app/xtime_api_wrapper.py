@@ -12,7 +12,7 @@ from boto3 import client
 from dateutil import parser
 from ratelimit import limits, sleep_and_retry
 
-from models import GetAppointments, CreateAppointment, AppointmentSlots
+from models import GetAppointments, CreateAppointment, AppointmentSlots, UpdateAppointment
 from xtime_token_management.secrets import get_token, update_token
 from xtime_token_management.token_status import is_token_expired
 
@@ -194,6 +194,48 @@ class XTimeApiWrapper:
         response_json = self.__call_api(url, method="GET", params=params)
 
         logger.info(f"XTime Timeslots Response: {response_json}")
+        return response_json
+
+    def update_appointment(self, update_appt_data: UpdateAppointment):
+
+        url = "{}/service/appointments-bookings".format(self.__api_url)
+
+        params = {
+
+        "dealerCode": update_appt_data.integration_dealer_id
+
+        }
+        self._add_optional_params(params=params, data_instance=update_appt_data)
+        logger.info(f"Params for XTime: \n {params}")
+
+        email_address = update_appt_data.email_address
+        phone_number = update_appt_data.phone_number
+
+        if not email_address:
+            email_address = "not-available@noemail.com"  # Default email address
+        elif not phone_number:
+            phone_number = "5550000000"  # Default phone number
+
+        payload = {
+            "appointmentId": update_appt_data.integration_appointment_id,
+            "appointmentDateTimeLocal": self.__localize_time(update_appt_data.timeslot, update_appt_data.dealer_timezone),
+            "firstName": update_appt_data.first_name,
+            "lastName": update_appt_data.last_name,
+            "emailAddress":email_address,
+            "phoneNumber": phone_number.replace("-", ""),
+            "services":[
+                {
+                    "opcode": update_appt_data.op_code
+                }
+            ]
+        }
+
+        payload = {key: value for key, value in payload.items() if value}
+        logger.info(f"Payload for XTime: \n {payload}")
+
+        response_json = self.__call_api(url, payload=payload, params=params)
+
+        logger.info(f"XTime Update Appt Response: {response_json}")
         return response_json
 
 

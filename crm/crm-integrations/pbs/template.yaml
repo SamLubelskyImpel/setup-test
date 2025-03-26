@@ -419,7 +419,7 @@ Resources:
       FunctionName: !Sub pbs-${Environment}-SendActivity
       CodeUri: app/
       Handler: send_activity.lambda_handler
-      Timeout: 30
+      Timeout: 60
       MemorySize: 256
       Role: !GetAtt LambdaRole.Arn
   

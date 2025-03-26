@@ -132,19 +132,6 @@ Resources:
         - Key: Product
           Value: shared-inv-integrations
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "inventory integration shared rds access"
-      GroupId: !If [ IsProd,
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -498,20 +485,8 @@ Resources:
       State: ENABLED
       Targets:
         - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCCarsales"
-          Input: '{"integration_partner": "carsales"}'
-        - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCCoxau"
-          Input: '{"integration_partner": "coxau"}'
-        - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCDealerStudio"
-          Input: '{"integration_partner": "dealerstudio"}'
-        - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCICC"
-          Input: '{"integration_partner": "icc"}'
-        - Arn: !GetAtt GenerateICC.Arn
-          Id: "GenerateICCAutostock"
-          Input: '{"integration_partner": "autostock"}'
+          Id: "GenerateICC"
+          Input: '{"integration_partners": ["carsales", "coxau", "dealerstudio", "icc", "autostock", "icc-api"]}'
 
   PermissionForEventsToInvokeGenerateICC:
     Type: AWS::Lambda::Permission
