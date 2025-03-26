@@ -30,8 +30,7 @@ def lambda_handler(event, context):
     """Run customer API."""
     logger.info(f"Event: {event}")
     try:
-        filters = event.get("queryStringParameters", {})
-        customer_id = filters.get("customer_id", None)
+        customer_id = event["pathParameters"]["customer_id"]
 
         if not customer_id:
             return {"statusCode": 400, "body": dumps({"error": "Customer ID is required"})}
@@ -63,8 +62,7 @@ def lambda_handler(event, context):
 
             query = (
                 session.query(
-                    Consumer.id,
-                    Consumer.dealer_customer_no,
+                    Consumer,
                     Dealer.id.label("dealer_id"),
                     Dealer.impel_dealer_id,
                     IntegrationPartner.id.label("integration_partner_id"),
@@ -79,26 +77,33 @@ def lambda_handler(event, context):
             )
 
             if id_exists:
-                consumer = query.filter(Consumer.id == customer_id).first()
+                consumer_data = query.filter(Consumer.id == customer_id).first()
             elif dealer_no_count > 0:
-                consumer = query.filter(Consumer.dealer_customer_no == customer_id).first()
+                consumer_data = query.filter(Consumer.dealer_customer_no == customer_id).first()
             else:
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": f"Customer ID {customer_id} does not exist in the Shared Layer"})
                 }
 
+            (
+                consumer,
+                dealer_id,
+                impel_dealer_id,
+                integration_partner_id,
+                impel_integration_partner_id,
+            ) = consumer_data
+
             result_dict = {
-                "id": consumer.id,
-                "dealer_customer_no": consumer.dealer_customer_no,
+                **consumer.as_dict(),
                 "dealer": {
-                    "id": consumer.dealer_id,
-                    "impel_dealer_id": consumer.impel_dealer_id
+                    "id": dealer_id,
+                    "impel_dealer_id": impel_dealer_id,
                 },
                 "integration_partner": {
-                    "id": consumer.integration_partner_id,
-                    "impel_integration_partner_id": consumer.impel_integration_partner_id
-                }
+                    "id": integration_partner_id,
+                    "impel_integration_partner_id": impel_integration_partner_id,
+                },
             }
 
             return {

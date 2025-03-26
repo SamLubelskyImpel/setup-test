@@ -532,7 +532,7 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{APPOINTMENT_LAMBDA_INFO}}
-  /customer/v1:
+  /customer/v1/{customer_id}:
     get:
       summary: Get DMS customer data.
       operationId: get-customer
@@ -553,7 +553,7 @@ paths:
         description: API Key provided by Impel
       - schema:
           type: string
-        in: query
+        in: path
         name: customer_id
         required: true
         description: The DMS or dealer's ID assigned to the customer.
@@ -715,26 +715,24 @@ components:
         results:
           type: array
           items:
-            type: object
-            properties:
-              id:
-                type: integer
-              dealer_customer_no:
-                type: string
-              dealer:
-                type: object
+            allOf:
+              - $ref: '#/components/schemas/Consumer'
+              - type: object
                 properties:
-                  id:
-                    type: integer
-                  impel_dealer_id:
-                    type: string
-              integration_partner:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                  impel_integration_partner_id:
-                    type: string
+                  dealer:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_dealer_id:
+                        type: string
+                  integration_partner:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_integration_partner_id:
+                        type: string
     IntegrationPartner:
       type: object
       properties:
