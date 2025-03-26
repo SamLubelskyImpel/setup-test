@@ -106,14 +106,18 @@ def lambda_handler(event: dict, context: Any):
         dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
 
         partner_name = 'CARSALES_AU'
-        dealer = next(iter([d for d in dealers if d['crm_dealer_id'] == crm_dealer_id]), None)
+        dealer = next(iter([
+            d for d in dealers 
+            if d['crm_dealer_id'] == crm_dealer_id
+            or crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', []) 
+        ]), None)
 
         if not dealer:
             partner_name = 'DEALERSOCKET_AU'
             dealer = next(iter([
                 d for d in dealers
                 if d.get('metadata', {}).get('lead_vendor') == 'carsales'
-                and d.get('metadata', {}).get('carsales_dealer_id') == crm_dealer_id
+                and crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', [])
             ]), None)
 
         if not dealer:

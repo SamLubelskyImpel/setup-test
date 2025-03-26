@@ -60,7 +60,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 }
 
                 if dealer_db.metadata_:
-                    dealer_record["metadata"] = dealer_db.metadata_
+                    dealer_record["metadata"] = {
+                        **(dealer_record["metadata"] if dealer_record["metadata"] is not None else {}),
+                        **dealer_db.metadata_
+                    }
 
                 dealer_records.append(dealer_record)
 

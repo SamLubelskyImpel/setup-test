@@ -325,6 +325,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if request_product == "chat_ai":
             adf_recipients = []
             sftp_config = {}
+            oem_partner = {}
 
             try:
                 if dip_metadata:

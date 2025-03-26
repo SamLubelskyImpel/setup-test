@@ -23,9 +23,11 @@ sqs_client = client('sqs')
 s3_client = client('s3')
 processor = BatchProcessor(event_type=EventType.SQS)
 
+
 class ADFAssemblerError(Exception):
     """Exception indicating failure to send an event to the ADF Assembler."""
     pass
+
 
 def load_adf_config() -> Dict[str, str]:
     """Load ADF Assembler configuration from S3 and cache it."""
@@ -40,40 +42,70 @@ def load_adf_config() -> Dict[str, str]:
         send_email_notification(error_message, subject="ADF Configuration Load Failure")
         raise ADFAssemblerError(error_message)
 
+
 # Load configuration at module load time to avoid multiple S3 calls
 adf_config = load_adf_config()
 
 def send_to_adf_assembler(record: Dict[str, Any]) -> None:
     """Send event to ADF Assembler based on event type."""
+    logger.info(f"This is event: {record.json_body}")
     try:
         event = record.json_body
         attributes = record.get("attributes", {})
-        queue_key = "OEM_PARTNER_ADF_QUEUE" if event.get("oem_partner") else "STANDARD_ADF_QUEUE"
-
+        queue_url = None
+        queue_key = "STANDARD_ADF_QUEUE"
         logger.info(f"adf_config: {adf_config}")
+
+        is_oem_partner_event = False
+
+        oem_partner = event.get("oem_partner")
+        oem_partner_name = oem_partner["name"].upper() if oem_partner else ""
+
+        if oem_partner_name:
+            for queue_name, queue_details in adf_config.get("OEM_PARTNER_QUEUES", {}).items():
+                if oem_partner_name in queue_details.get("partners", []):
+                    queue_url = queue_details.get("queue_url")
+                    queue_key = f"OEM_PARTNER_QUEUES -> {queue_name}"  # Track exact match
+                    is_oem_partner_event = True
+                    logger.info(f"OEM Partner '{oem_partner_name}' matched with queue: {queue_url}")
+                    break
+
+            if not queue_url:
+                error_message = f"No queue configured for OEM Partner '{oem_partner_name}'."
+                logger.error(error_message)
+                raise ValueError(error_message)
+
+        if not queue_url:
+            queue_url = adf_config.get("STANDARD_ADF_QUEUE")
+            queue_key = "STANDARD_ADF_QUEUE"
+            logger.info("Using STANDARD_ADF_QUEUE as fallback.")
+
         logger.info(f"queue_key: {queue_key}")
 
-        sqs_url = adf_config.get(queue_key)
-        if not sqs_url:
-            raise ValueError(f"No SQS URL configured for key '{queue_key}'")
-
-        if queue_key == "OEM_PARTNER_ADF_QUEUE" and 'CreateActivity' in attributes.get('SenderId'):
+        if is_oem_partner_event and 'CreateActivity' in attributes.get('SenderId', ''):
             logger.info(f"Skipping OEM Partner ADF Assembler for CreateActivity event.")
             return
 
+        if not queue_url:
+            raise ValueError("No SQS URL configured for the event.")
+
         logger.info(f"Sending message to {queue_key}\nThis is event: {event}")
-        sqs_client.send_message(QueueUrl=sqs_url, MessageBody=dumps(event))
+        sqs_client.send_message(QueueUrl=queue_url, MessageBody=dumps(event))
         logger.info("Message successfully sent to ADF Assembler.")
+
     except (Boto3Error, ValueError) as e:
         error_message = f"Error sending event to ADF Assembler: {e}"
         logger.error(error_message)
         send_email_notification(error_message, subject="ADF Assembler Failure Alert")
         raise ADFAssemblerError(error_message)
 
+
+
 def record_handler(record: SQSRecord) -> None:
     """Process each SQS record."""
     logger.info(f"Processing record with message ID: {record.message_id}")
     send_to_adf_assembler(record)
+
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda entry point to process events."""

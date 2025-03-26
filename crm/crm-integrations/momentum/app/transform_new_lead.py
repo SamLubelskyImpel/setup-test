@@ -100,12 +100,16 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
         response_json = response.json()
 
         leads = response_json.get("leads", [])
-        if leads and vin:
-            for lead in leads:
-                vehicles_of_interest = lead.get("vehicles_of_interest", [])
-                for vehicle in vehicles_of_interest:
-                    if vehicle.get("vin") == vin:
-                        return lead.get("lead_id")
+
+        if not vin:
+            # If no vin, return the lead_id of the first lead
+            return leads[0].get("lead_id")
+
+        for lead in leads:
+            vehicles_of_interest = lead.get("vehicles_of_interest", [])
+            for vehicle in vehicles_of_interest:
+                if vehicle.get("vin") == vin:
+                    return lead.get("lead_id")
 
         return None
 
@@ -276,9 +280,9 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        bucket = message["detail"]["bucket"]["name"]
-        key = message["detail"]["object"]["key"]
-        product_dealer_id = key.split('/')[2]
+        bucket = message["bucket"]
+        key = message["key"]
+        product_dealer_id = message["product_dealer_id"]
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
