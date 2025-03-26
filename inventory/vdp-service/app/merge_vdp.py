@@ -66,9 +66,17 @@ def merge_csv_files(inv_csv_content, vdp_csv_content):
     vdp_csv_file = StringIO(vdp_csv_content)
     vdp_reader = csv.DictReader(vdp_csv_file)
 
-    # Read the inventory and VDP data into lists of dictionaries
+    # Read the inventory data into a list of dictionaries
     inv_rows = [row for row in inv_reader]
-    vdp_rows = {row['VIN']: row for row in vdp_reader}
+
+    # Create dictionaries for quick lookup by VIN and StockNo in a single pass
+    vdp_rows_vin = {}
+    vdp_rows_stock_no = {}
+    for row in vdp_reader:
+        if 'VIN' in row and row['VIN']:
+            vdp_rows_vin[row['VIN']] = row
+        if 'StockNo' in row and row['StockNo']:
+            vdp_rows_stock_no[row['StockNo']] = row
 
     # Ensure all relevant columns are present in the inventory rows
     fieldnames = inv_reader.fieldnames
@@ -79,9 +87,13 @@ def merge_csv_files(inv_csv_content, vdp_csv_content):
 
     # Update the inventory rows with data from the VDP rows
     for inv_row in inv_rows:
-        vin = inv_row['VIN']
-        if vin in vdp_rows:
-            vdp_row = vdp_rows[vin]
+        vdp_row = None
+        if inv_row.get('VIN') in vdp_rows_vin:
+            vdp_row = vdp_rows_vin[inv_row['VIN']]
+        elif inv_row.get('StockNo') in vdp_rows_stock_no:
+            vdp_row = vdp_rows_stock_no[inv_row['StockNo']]
+
+        if vdp_row:
             inv_row['PhotoURL'] = vdp_row.get('SRP IMAGE URL', inv_row.get('PhotoURL', ''))
             inv_row['VDP'] = vdp_row.get('VDP URL', inv_row.get('VDP', ''))
 
@@ -106,7 +118,7 @@ def record_handler(record):
         metadata = get_integration_partner_metadata(integration_partner_id)
         logger.info(f"Integration partner metadata: {metadata}")
 
-        if metadata.get('vdp_merge_service') != 'true':
+        if not metadata.get('vdp_merge_service', False):
             logger.info(f"VDP merge service not enabled for integration partner: {integration_partner_id}")
             return
 
