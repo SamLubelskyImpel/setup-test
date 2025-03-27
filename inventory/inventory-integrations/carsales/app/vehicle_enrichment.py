@@ -87,20 +87,28 @@ def get_vdp_data(vehicle_data, impel_dealer_id):
     """This function calls the VDP Lambda function to get the VDP data."""
     try:
         identification_data = vehicle_data.get("Identification", [])
-        vin = None
-        stock_no = None
-        for identification in identification_data:
-            if identification["Type"] == "VIN":
-                vin = identification["Value"]
-            elif identification["Type"] == "StockNumber":
-                stock_no = identification["Value"]
+        vin = next(
+            (item["Value"] for item in identification_data if item["Type"] == "VIN"),
+            None,
+        )
+        stock_no = next(
+            (item["Value"] for item in identification_data if item["Type"] == "StockNumber"),
+            None,
+        )
 
-        if not (vin or stock_no):
-            raise Exception("No VIN or StockNumber found in the Identification data.")
+        if not vin and not stock_no:
+            raise ValueError("No VIN or StockNumber found in the Identification data.")
 
+        # Create the payload for the VDP Lambda function
         function_name = f"vdp-service-${ENVIRONMENT}-QueryVDP"
-        payload = {"vin": vin, "stock_number": stock_no, "impel_dealer_id": impel_dealer_id}
+        payload = {
+            "vin": vin,
+            "stock_number": stock_no,
+            "impel_dealer_id": impel_dealer_id,
+        }
+        logger.info(f"Invoking VDP Lambda: {function_name} with payload: {payload}")
 
+        # Invoke the VDP Lambda function
         vdp_response = lambda_client.invoke(
             FunctionName=function_name,
             InvocationType="RequestResponse",
@@ -111,10 +119,14 @@ def get_vdp_data(vehicle_data, impel_dealer_id):
 
         vdp_data = json.loads(raw_payload)
 
+        # Validate the response status code
         if vdp_data.get("statusCode") != 200:
             raise Exception(f"VDP data not found for VIN {vin} or Stock No {stock_no}.")
 
         return json.loads(vdp_data.get("body"))
+    except ValueError as e:
+        logger.warning(f"Failed to retrieve VDP data: {e}")
+        return {}
     except Exception as e:
         logger.exception(f"Failed to retrieve VDP data: {e}")
         raise
@@ -165,15 +177,13 @@ def record_handler(record: SQSRecord):
         month = current_time.strftime("%m")
         day = current_time.strftime("%d")
 
-
-
         merged_object_key = f"raw/carsales/{impel_dealer_id}/{year}/{month}/{day}/{iso_timestamp}_{unique_id}.json"
         logger.info(f"Saving enriched data to: {bucket_name}/{merged_object_key}")
         s3_client.put_object(
             Bucket=bucket_name, Key=merged_object_key, Body=json.dumps(merged_data)
         )
     except Exception:
-        logger.exception(f"Failed to process event")
+        logger.exception("Failed to process event")
         raise
 
 
