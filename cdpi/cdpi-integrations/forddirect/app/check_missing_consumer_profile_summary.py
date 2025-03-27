@@ -90,7 +90,8 @@ def lambda_handler(event, context):
             logger.info(f"Missing files dict: {dealers_obj}")
             send_missing_files_notification(f"CDPI FORD DIRECT: Missing Consumer Profile Summary Alert", dealers_obj)
         
-        logger.info("No missing consumer profile summary files found.")
+        else:
+            logger.info("No missing consumer profile summary files found.")
     
     except Exception as e:
         logger.exception(f"Error invoking ford direct missing consumer profile summary: {e}")
