@@ -344,6 +344,77 @@ paths:
                       type: object
                       additionalProperties: true
                       example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
+  
+  /internal/leads/{lead_id}:
+    get:
+      operationId: get-internal-lead
+      summary: Retrieve a specific lead by ID for internal usage
+      #{{RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/leadId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
+                      crm_lead_id:
+                        type: string
+                        description: The unique lead ID in the CRM system
+                        example: "12345-67890"
+                      crm_vendor_name:
+                        type: string
+                        description: The name of the CRM vendor integration partner
+                        example: "VinSolutions"
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      metadata:
+                        description: Metadata for a lead
+                        type: object
+                        additionalProperties: true
+                        example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
 
   /leads/{lead_id}/status:
     get:
