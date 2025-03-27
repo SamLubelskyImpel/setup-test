@@ -16,7 +16,7 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-from rds_instance import get_integration_partner_metadata
+from rds_instance import RDSInstance
 
 INVENTORY_BUCKET = environ["INVENTORY_BUCKET"]
 
@@ -75,8 +75,8 @@ def merge_csv_files(inv_csv_content, vdp_csv_content):
     for row in vdp_reader:
         if 'VIN' in row and row['VIN']:
             vdp_rows_vin[row['VIN']] = row
-        if 'StockNo' in row and row['StockNo']:
-            vdp_rows_stock_no[row['StockNo']] = row
+        if 'STOCK' in row and row['STOCK']:
+            vdp_rows_stock_no[row['STOCK']] = row
 
     # Ensure all relevant columns are present in the inventory rows
     fieldnames = inv_reader.fieldnames
@@ -115,11 +115,12 @@ def record_handler(record):
 
         integration_partner_id = inv_s3_key.split('/')[1]
 
-        metadata = get_integration_partner_metadata(integration_partner_id)
+        rds_instance = RDSInstance()
+        metadata = rds_instance.get_integration_partner_metadata(integration_partner_id)
         logger.info(f"Integration partner metadata: {metadata}")
 
-        if not metadata.get('vdp_merge_service', False):
-            logger.info(f"VDP merge service not enabled for integration partner: {integration_partner_id}")
+        if not (metadata and metadata.get('vdp_merge_service')):
+            logger.warning(f"VDP merge service not enabled for integration partner: {integration_partner_id}")
             return
 
         provider_dealer_id = inv_s3_key.split('/')[2]

@@ -67,8 +67,8 @@ class RDSInstance:
         """Get the integration partner metadata."""
         db_integration_partner_metadata_query = f"""
             select metadata
-            from {self.schema}.inv_integration_partner
-            where impel_integration_partner_id = {integration_partner_id}
+            from {self.schema}.inv_integration_partner iip
+            where impel_integration_partner_id = '{integration_partner_id}'
         """
         results = self.execute_rds(db_integration_partner_metadata_query)
         db_integration_partner_metadata = results.fetchone()
