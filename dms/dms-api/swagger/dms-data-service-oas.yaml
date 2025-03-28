@@ -532,6 +532,45 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{APPOINTMENT_LAMBDA_INFO}}
+  /customer/v1/{customer_id}:
+    get:
+      summary: Get DMS customer data.
+      operationId: get-customer
+      description: |-
+        This API endpoint enables the retrieval of DMS customer data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: string
+        in: path
+        name: customer_id
+        required: true
+        description: The DMS or dealer's ID assigned to the customer.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CustomerResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{CUSTOMER_LAMBDA_INFO}}
 components:
   schemas:
     AppointmentResponse:
@@ -668,6 +707,32 @@ components:
                     $ref: '#/components/schemas/IntegrationPartner'
         has_next_page:
           type: boolean
+    CustomerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Consumer'
+              - type: object
+                properties:
+                  dealer:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_dealer_id:
+                        type: string
+                  integration_partner:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_integration_partner_id:
+                        type: string
     IntegrationPartner:
       type: object
       properties:
