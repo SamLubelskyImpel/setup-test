@@ -52,6 +52,7 @@ Globals:
       Variables:
         AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
         ENVIRONMENT: !Ref Environment
+        REGION: !Sub '${AWS::Region}'
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         INVENTORY_BUCKET: !If [
@@ -60,6 +61,7 @@ Globals:
           !Sub "inventory-integrations-${AWS::Region}-test"
         ]
         SFTP_SECRET_KEY: "INTEGRATIONS_VDP_SFTP"
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -122,6 +124,12 @@ Resources:
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod*",
                       !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod/vdp/*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test/vdp/*"
+                    ]
+
         - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -133,6 +141,7 @@ Resources:
                   - "sqs:DeleteMessage"
                   - "sqs:GetQueueAttributes"
                 Resource:
+                  - !GetAtt UpdateVDPQueue.Arn
                   - !GetAtt DownloadVDPQueue.Arn
                   - !GetAtt MergeVDPQueue.Arn
         - PolicyName: SecretsManagerPolicy
@@ -174,6 +183,107 @@ Resources:
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
+  UpdateVDPQueueDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vdp-service-${Environment}-UpdateVDPDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+
+  UpdateVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub vdp-service-${Environment}-UpdateVDPDLQ
+      AlarmDescription: There are messages in the UpdateVDPDLQ Alarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UpdateVDPQueueDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  UpdateVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vdp-service-${Environment}-UpdateVDPQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt UpdateVDPQueueDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+  UpdateVDPQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UpdateVDPQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UpdateVDPQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UpdateVDPQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                                      IsProd,
+                                      !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                                      !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                                    ]
+
+  UpdateVDPTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+                  IsProd,
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                ]
+      Endpoint: !GetAtt UpdateVDPQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"vdp"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+
+  UpdateVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-UpdateVDP"
+      Description: Download VDP file and update inventory database.
+      Handler: update_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+
+  UpdateVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/vdp-service-${Environment}-UpdateVDP'
+
+  UpdateVDPEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt UpdateVDPQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt UpdateVDP.Arn
   InvokeVDP:
     Type: AWS::Serverless::Function
     Properties:
