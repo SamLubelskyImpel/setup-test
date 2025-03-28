@@ -62,12 +62,15 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
 
                 session.commit()
                 logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
+
+                if completed_flag:
+                    logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
+                    send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
+                
             else:
                 logger.warning(f"[DB] No matching AuditDsr found | ConsumerID: {consumer_id} | EventType: {event_type}")
                 raise Exception(f"No existing AuditDsr found for consumer_id {consumer_id}")
             
-        logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
-        send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
     
     except Exception as e:
         logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
