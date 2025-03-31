@@ -76,19 +76,6 @@ Resources:
         - Key: Product
           Value: dms-service
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "dms service rds access"
-      GroupId: !If [ IsProd,
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   DmsDataServiceGateway:
     Type: AWS::Serverless::Api
     Properties:
