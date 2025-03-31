@@ -636,7 +636,7 @@ Resources:
         - Name: QueueName
           Value: !GetAtt SalesfileFormatDeadLetterQueue.QueueName
       Statistic: Sum
-      Period: 300
+      Period: 900
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: GreaterThanThreshold
@@ -652,10 +652,10 @@ Resources:
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
       MemorySize: 1024
-      Timeout: 300
+      Timeout: 900
       Environment:
         Variables:
-          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "ntsa4o8lda.execute-api.us-east-1.amazonaws.com/Stage"]
+          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"] # TODO: change back to test
           SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
 
