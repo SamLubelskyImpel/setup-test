@@ -16,28 +16,26 @@ s3_client = boto3.client("s3")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
+
 class MissingSellerDataError(Exception):
+    """This exception is raised when the vehicle data is missing seller information."""
     pass
+
 
 class MissingDealerError(Exception):
+    """This exception is raised when the dealer is not active."""
     pass
 
-def is_dealer_active(vehicle: dict):
 
+def is_dealer_active(vehicle: dict):
+    """Check if the dealer is active."""
     seller = vehicle.get("Seller", None)
     if seller:
         identifier = seller.get("Identifier", None)
         if identifier:
             rds_instance = RDSInstance()
-
-            results = rds_instance.get_active_dealer_with_id(identifier)
-            logger.info(f"Found Impel Dealer Id: {results}")
-            impel_dealer_id = None
-
-            if results:
-                impel_dealer_id = results[0][0]
-                return True, impel_dealer_id
-
+            if rds_instance.check_dealer_active(identifier):
+                return True, identifier
             raise MissingDealerError(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
         else:
             logger.warning("No Seller Identifier provided.")
@@ -99,7 +97,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps({"error": "Internal Server Error. Please contact Impel support."}),
         }
 
+
 def notify_client_engineering(subject, error_message):
+    """Notify Client Engineering team"""
     sns_client = boto3.client("sns")
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,

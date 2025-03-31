@@ -193,7 +193,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: "Allow"
-                Action:          
+                Action:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
@@ -206,7 +206,8 @@ Resources:
                 Action:
                   - "lambda:InvokeFunction"
                 Resource:
-                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*" 
+                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*"
+                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:vdp-service-${Environment}-QueryVDP"
         - PolicyName: S3Policy
           PolicyDocument:
             Version: "2012-10-17"

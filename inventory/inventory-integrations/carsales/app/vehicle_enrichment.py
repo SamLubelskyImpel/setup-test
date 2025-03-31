@@ -100,30 +100,37 @@ def get_vdp_data(vehicle_data, impel_dealer_id):
             raise ValueError("No VIN or StockNumber found in the Identification data.")
 
         # Create the payload for the VDP Lambda function
-        function_name = f"vdp-service-${ENVIRONMENT}-QueryVDP"
-        payload = {
+        function_name = f"vdp-service-{ENVIRONMENT}-QueryVDP"
+        query_parameters = {
             "vin": vin,
             "stock_number": stock_no,
             "impel_dealer_id": impel_dealer_id,
         }
-        logger.info(f"Invoking VDP Lambda: {function_name} with payload: {payload}")
+        logger.info(f"Invoking VDP Lambda: {function_name} with payload: {query_parameters}")
 
         # Invoke the VDP Lambda function
-        vdp_response = lambda_client.invoke(
+        response = lambda_client.invoke(
             FunctionName=function_name,
             InvocationType="RequestResponse",
-            Payload=json.dumps(payload),
+            Payload=json.dumps({"queryStringParameters": query_parameters}),
         )
-        raw_payload = vdp_response["Payload"].read().decode("utf-8")
-        logger.info(f"VDP Lambda Response: {raw_payload}")
-
-        vdp_data = json.loads(raw_payload)
+        vdp_response_payload = response["Payload"].read().decode("utf-8")
+        vdp_response = json.loads(vdp_response_payload)
+        logger.info(f"VDP Lambda Response: {vdp_response}")
 
         # Validate the response status code
-        if vdp_data.get("statusCode") != 200:
-            raise Exception(f"VDP data not found for VIN {vin} or Stock No {stock_no}.")
+        status_code = vdp_response.get("statusCode")
+        if status_code == 200:
+            body = vdp_response.get("body")
+            if not body:
+                raise Exception("VDP Lambda response body is empty.")
+            return json.loads(body)
+        elif status_code == 404:
+            logger.warning(f"VDP data not found for VIN {vin} or Stock No {stock_no}.")
+            return {}
+        else:
+            raise Exception(f"Unexpected status code: {vdp_response}")
 
-        return json.loads(vdp_data.get("body"))
     except ValueError as e:
         logger.warning(f"Failed to retrieve VDP data: {e}")
         return {}
@@ -165,8 +172,8 @@ def record_handler(record: SQSRecord):
         vdp_data = get_vdp_data(vehicle_data, impel_dealer_id)
 
         # Merge the enriched data with the VDP data
-        merged_data["VDP"] = vdp_data.get("VDP_URL")
-        merged_data["PHOTO_URL"] = vdp_data.get("SRP_IMAGE_URL")
+        merged_data["VDP"] = vdp_data.get("VDP URL")
+        merged_data["PHOTO_URL"] = vdp_data.get("SRP IMAGE URL")
 
         # Save the enriched data to the S3 bucket
         current_time = datetime.now()
