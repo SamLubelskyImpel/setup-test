@@ -655,7 +655,7 @@ Resources:
       Timeout: 900
       Environment:
         Variables:
-          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"] # TODO: change back to test
+          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
           SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
 
