@@ -152,6 +152,27 @@ Resources:
       QueueName: !Sub "tekion-apc-dms-${Environment}-DealsDLQ"
       MessageRetentionPeriod: 1209600
 
+  DealsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-DealsDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DealsDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DealsDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+
   ProcessDealsQueue:
     Type: AWS::SQS::Queue
     Properties:
