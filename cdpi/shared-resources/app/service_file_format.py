@@ -62,10 +62,16 @@ def parse(csv_object):
         raise EmptyFileError
 
     for row in rows:
-        if row.get("dms_vendor_name", "").lower() == 'shared layer':
+        if row.get("dms_vendor_name", "").lower() == 'impel unified data':
             consumer_id = row["dms_consumer_id"]
 
             logger.info(f"Updating vendor name for lead with DMS Consumer ID {consumer_id}")
+
+            # Check if the consumer_id is not empty
+            if not consumer_id:
+                logger.warning("Consumer ID is empty. Skipping this row.")
+                writer.writerow(row) # Leave the row as it is if the consumer_id is empty
+                continue
 
             url = f'https://{DMS_API_DOMAIN}/customer/v1/{consumer_id}'
 

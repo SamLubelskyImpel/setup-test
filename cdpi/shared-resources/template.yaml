@@ -669,7 +669,7 @@ Resources:
     Properties:
       QueueName: !Sub "cdpi-${Environment}-ServicefileFormat"
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 300
+      VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ServicefileFormatDeadLetterQueue.Arn
         maxReceiveCount: 1
