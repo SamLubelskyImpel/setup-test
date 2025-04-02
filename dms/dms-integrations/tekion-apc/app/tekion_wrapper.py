@@ -95,8 +95,8 @@ class TekionWrapper:
             start_date = end_date - timedelta(days=1)
             start_time = int(start_date.timestamp() * 1000)
             end_time = int(end_date.timestamp() * 1000)
-            url_params["startTime"] = start_time
-            url_params["endTime"] = end_time
+            url_params["createdStartTime"] = start_time
+            url_params["createdEndTime"] = end_time
         if next_fetch_key:
             url_params["nextFetchKey"] = next_fetch_key
         token = self._get_token()
@@ -125,7 +125,7 @@ class TekionWrapper:
                 raise RuntimeError(
                     f"{path} returned {resp.status_code} but metadata of {meta}"
                 )
-            if meta["currentPage"] < meta["pages"] and meta["nextFetchKey"]:
+            if meta.get("nextFetchKey", None):
                 return resp_json["data"] + self._call_tekion(
                     path, next_fetch_key=meta["nextFetchKey"]
                 )
@@ -141,7 +141,7 @@ class TekionWrapper:
 
     def get_deals(self, next_fetch_key=""):
         """Retrieve Deals by dealer id"""
-        return self._call_tekion("openapi/v3.1.0/deals", next_fetch_key=next_fetch_key)
+        return self._call_tekion("openapi/v4.0.0/deals", next_fetch_key=next_fetch_key)
 
     def get_appointments(self, next_fetch_key=""):
         """Retrieve Appointments by dealer id"""
