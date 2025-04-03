@@ -59,9 +59,6 @@ Globals:
                         !Sub "integrations-${AWS::Region}-test"
                       ]
         FTP_FOLDER: !If [ IsProd, "", ""]
-        PROCESS_DEALS_QUEUE: !GetAtt ProcessDealsQueue.Arn
-        SCHEDULER_DLQ: !GetAtt EventbridgeSchedulerDLQ.Arn
-        SCHEDULER_ROLE: !GetAtt SchedulerIAMRole.Arn
     VpcConfig:
       SecurityGroupIds:
         - !Ref TekionSecurityGroup
@@ -151,27 +148,6 @@ Resources:
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-DealsDLQ"
       MessageRetentionPeriod: 1209600
-
-  DealsDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub tekion-apc-dms-${Environment}-DealsDLQAlarm
-      AlarmDescription: There are over 1 unprocessed messages in the DealsDLQ
-      ActionsEnabled: !If [ IsProd, true, false ]
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt DealsDLQ.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
-
 
   ProcessDealsQueue:
     Type: AWS::SQS::Queue
@@ -307,7 +283,7 @@ Resources:
     Properties:
       AlarmName: !Sub tekion-apc-dms-${Environment}-InvokeDataPull
       AlarmDescription: Invoke Data Pull pipeline failed to process incoming request
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       ComparisonOperator: GreaterThanOrEqualToThreshold
@@ -493,6 +469,10 @@ Resources:
       Environment:
         Variables:
           Environment: !Ref Environment
+          PROCESS_DEALS_QUEUE: !GetAtt ProcessDealsQueue.Arn
+          SCHEDULER_DLQ: !GetAtt EventbridgeSchedulerDLQ.Arn
+          SCHEDULER_ROLE: !GetAtt SchedulerIAMRole.Arn
+          BATCH_SIZE: 50
       Events:
         SQSEvent:
           Type: SQS

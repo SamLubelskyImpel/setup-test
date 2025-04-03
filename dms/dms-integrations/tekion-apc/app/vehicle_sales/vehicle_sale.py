@@ -4,6 +4,12 @@ import boto3
 from os import environ
 from json import loads, dumps
 from uuid import uuid4
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
 from tekion_wrapper import TekionWrapper
 from datetime import datetime, timezone, timedelta
 
@@ -11,6 +17,8 @@ from datetime import datetime, timezone, timedelta
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 eventbridge_client = boto3.client('scheduler')
+
+BATCH_SIZE = int(environ.get("BATCH_SIZE"))
 
 
 def create_schedules(s3_keys):
@@ -44,10 +52,10 @@ def create_schedules(s3_keys):
             }
         )
 
-        logger.info(f"Eventbridge Schedule created with ARN {schedule_arn['ScheduleArn']}")
+        logger.info(f"Eventbridge Schedule created with ARN {schedule_arn['ScheduleArn']}") 
 
-    return
-
+def chunk_list(lst, n):
+    return [lst[i:i + n] for i in range(0, len(lst), n)]
 
 def save_chunk(data, tekion_wrapper):
     
@@ -59,9 +67,11 @@ def save_chunk(data, tekion_wrapper):
     )
     return key
 
-def parse_data(data):
+def parse_data(record: SQSRecord):
     """Parse and handle SQS Message."""
-    logger.info(data)
+    logger.info(record)
+
+    data = record.json_body
 
     tekion_wrapper = TekionWrapper(
         dealer_id=data["dealer_id"],
@@ -70,29 +80,35 @@ def parse_data(data):
 
     api_data = tekion_wrapper.get_deals()
 
-    current_chunk = []
-    count = 0
+    for deal in api_data:
+        deal.update({"dms_id": tekion_wrapper.dealer_id})
 
     s3_keys = []
+    chunked_list = chunk_list(api_data, BATCH_SIZE)
 
-    for element in api_data:
-        element.update({"dms_id": tekion_wrapper.dealer_id})
-        current_chunk.append(element)
-        count += 1
-        if count == 50:
-            s3_keys.append(save_chunk(current_chunk, tekion_wrapper))
-            current_chunk = []
-            count = 0
-    if count > 0:
-        s3_keys.append(save_chunk(current_chunk, tekion_wrapper))
+    for chunk in chunked_list:
+        s3_keys.append(save_chunk(chunk, tekion_wrapper))
 
     create_schedules(s3_keys)
         
 def lambda_handler(event, context):
     """Query Tekion deals API."""
+    # try:
+    #     for record in event["Records"]:
+    #         parse_data(loads(record["body"]))
+    # except Exception:
+    #     logger.exception("Error running deals lambda")
+    #     raise
+
     try:
-        for record in event["Records"]:
-            parse_data(loads(record["body"]))
-    except Exception:
-        logger.exception("Error running deals lambda")
+        processor = BatchProcessor(event_type=EventType.SQS)
+        result = process_partial_response(
+            event=event,
+            record_handler=parse_data,
+            processor=processor,
+            context=context
+        )
+        return result
+    except:
+        logger.exception(f"Error processing batch")
         raise
