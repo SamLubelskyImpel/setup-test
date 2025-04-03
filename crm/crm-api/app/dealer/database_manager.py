@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from json import dumps
@@ -80,14 +80,20 @@ class DatabaseManager:
                 raise InvalidFilterException(f"Invalid key attribute in schema: {key}")
         return None
 
-    def get_dealers_config(self) -> List[Dict[str, str]]:
-        """Fetches dealer configurations from the database based on filters."""
+    def get_dealers_config(self, page=1, max_results=1000) -> Tuple[List[Dict[str, str]], int]:
         with DBSession() as session:
-            query = self._build_query(session)
+            query = self._build_query(session)            
+            total_count = query.count()
+            
+            paginated_query = query.order_by(DealerIntegrationPartner.id)\
+                .limit(max_results)\
+                .offset((page - 1) * max_results)
+            
             self.dealer_records = [
-                self._build_dealer_record(*res) for res in query.all()
+                self._build_dealer_record(*res) for res in paginated_query.all()
             ]
-        return self.dealer_records
+            
+        return self.dealer_records, total_count
 
     def post_dealers_config(self, dealer_info: DealerInfo) -> Dict[str, str]:
         """Inserts a new dealer configuration into the database."""

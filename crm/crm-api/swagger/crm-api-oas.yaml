@@ -920,6 +920,23 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
+        - name: page
+          in: query
+          description: The page number to retrieve (starting from 1)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: result_count
+          in: query
+          description: Maximum number of results per page (max 1000)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 1000
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.

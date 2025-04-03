@@ -4,6 +4,7 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any, Optional
+from datetime import datetime, timezone
 
 from database_manager import DatabaseManager, DealerInfo, DealerStatus, InvalidFilterException
 
@@ -44,10 +45,27 @@ class DealersConfig:
         return self._method_not_allowed_response()
 
     def _handle_get(self) -> dict:
-        logger.info("Processing GET request")
-        self.db_manager.create_filters(self.query_params)
-        dealer_records = self.db_manager.get_dealers_config()
-        return {"statusCode": 200, "body": dumps(dealer_records)}
+        logger.info("Processing GET request")        
+        page = int(self.query_params.get("page", 1))
+        max_results = min(1000, int(self.query_params.get("result_count", 1000)))
+        
+        filter_params = {k: v for k, v in self.query_params.items() 
+                        if k not in ["page", "result_count"]}
+        
+        self.db_manager.create_filters(filter_params)        
+        dealer_records, total_count = self.db_manager.get_dealers_config(page, max_results)
+        
+        has_next_page = (page * max_results) < total_count
+        
+        response = {
+            "received_date_utc": datetime.now(timezone.utc)
+                .replace(microsecond=0)
+                .isoformat(),
+            "results": dealer_records,
+            "has_next_page": has_next_page
+        }
+        
+        return {"statusCode": 200, "body": dumps(response)}
 
     def _handle_post(self) -> dict:
         logger.info("Processing POST request")
