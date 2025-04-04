@@ -8,6 +8,7 @@ import re
 
 import boto3
 import pandas as pd
+import numpy as np
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
@@ -89,8 +90,17 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         # drop rows with misisng VDP URL
         vdp_df = vdp_df.dropna(subset=[vdp_url_col, srp_image_url_col], how='all')
 
+        # Convert missing values (NaN) to None
+        vdp_df = vdp_df.where(pd.notna(vdp_df), None)
+
+        # Convert to appropriate types
+        vdp_list = [
+            tuple(None if isinstance(value, (float, np.float64)) and np.isnan(value) else value for value in row) + (dealer_integration_partner_id,)
+            for row in vdp_df.to_numpy()
+        ]
+
         # form a list of tuples for bulk insert using execute_values()
-        vdp_list = [tuple(row) + (dealer_integration_partner_id,) for row in vdp_df.to_numpy()]
+        # vdp_list = [tuple(row) + (dealer_integration_partner_id,) for row in vdp_df.to_numpy()]
 
         # Create a list of column names where the corresponding condition is True
         columns = ['vin', 'stock', 'srp_image_url', 'vdp_url']
