@@ -80,7 +80,7 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
             message = f"Missing vin and stock in the {provider_dealer_id}.csv. Skipping further processing.."
             logger.warning(message)
             return None, None
-        if vdp_url_col and srp_image_url_col is None:
+        if vdp_url_col is None and srp_image_url_col is None:
             message = f"No VDP data in the {provider_dealer_id}.csv. Skipping further processing.."
             logger.warning(message)
             return None, None
