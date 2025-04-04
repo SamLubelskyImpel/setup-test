@@ -943,9 +943,19 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/DealerConfiguration"
+                type: object
+                properties:
+                  received_date_utc:
+                    type: string
+                    format: date-time
+                    description: Timestamp when the response was generated
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DealerConfiguration"
+                  has_next_page:
+                    type: boolean
+                    description: Indicates if there are more pages of results available
         '400':
           "$ref": "#/components/responses/400"
         '401':

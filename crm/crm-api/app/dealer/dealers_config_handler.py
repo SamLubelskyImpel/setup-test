@@ -53,9 +53,7 @@ class DealersConfig:
                         if k not in ["page", "result_count"]}
         
         self.db_manager.create_filters(filter_params)        
-        dealer_records, total_count = self.db_manager.get_dealers_config(page, max_results)
-        
-        has_next_page = (page * max_results) < total_count
+        dealer_records, has_next_page = self.db_manager.get_dealers_config(page, max_results)
         
         response = {
             "received_date_utc": datetime.now(timezone.utc)
