@@ -1,16 +1,20 @@
-import logging
-import boto3
-import json
+"""This module processes new VDP data from S3 and updates the inventory database."""
+
 import io
+import json
+import logging
 import os
-import pandas as pd
 import re
-from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+
+import boto3
+import pandas as pd
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
     process_partial_response,
 )
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+
 from rds_instance import RDSInstance
 
 ENVIRONMENT = os.environ.get('ENVIRONMENT')
@@ -19,6 +23,7 @@ TOPIC_ARN = os.environ.get('ALERT_CLIENT_ENGINEERING_TOPIC')
 logger = logging.getLogger()
 logger.setLevel(os.environ.get('LOGLEVEL', 'INFO').upper())
 s3_client = boto3.client('s3')
+
 
 def notify_client_engineering(error_message):
     """Send a notification to the client engineering SNS topic."""
@@ -31,7 +36,9 @@ def notify_client_engineering(error_message):
     )
     return
 
+
 def read_csv_from_s3(s3_body, file_name):
+    """Read CSV data from S3 and return a DataFrame."""
     try:
         return pd.read_csv(io.BytesIO(s3_body), delimiter=',', encoding='utf-8', on_bad_lines='warn', dtype=None, header=0)
     except Exception as e:
@@ -39,14 +46,16 @@ def read_csv_from_s3(s3_body, file_name):
         logger.error(error_message)
         raise
 
+
 def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id):
+    """Validate VDP data and prepare it for database insertion."""
     try:
         # check if file is empty
         if vdp_df.empty:
             logger.warning(f"Warning: {provider_dealer_id}.csv is empty. Skipping further processing..")
             return None, None
 
-        vin_col = stock_col = vdp_url_col = None
+        vin_col = stock_col = vdp_url_col = srp_image_url_col = None
         extracted_cols = []
 
         # identify relevant columns and handle scenarios where the CSV might have either VIN or stock
@@ -61,13 +70,16 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
             elif re.search(r'vdp.*url', col, re.IGNORECASE):
                 vdp_url_col = col
                 extracted_cols.append(col)
+            elif re.search(r'srp.*image.*url', col, re.IGNORECASE):
+                srp_image_url_col = col
+                extracted_cols.append(col)
 
         # check for required fields: VIN and/or STOCK and VDP URL
         if vin_col is None and stock_col is None:
             message = f"Missing vin and stock in the {provider_dealer_id}.csv. Skipping further processing.."
             logger.warning(message)
             return None, None
-        if vdp_url_col is None:
+        if vdp_url_col and srp_image_url_col is None:
             message = f"No VDP data in the {provider_dealer_id}.csv. Skipping further processing.."
             logger.warning(message)
             return None, None
@@ -75,12 +87,17 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         vdp_df = vdp_df.loc[:, extracted_cols]
 
         # drop rows with misisng VDP URL
-        vdp_df = vdp_df.dropna(subset=[vdp_url_col])
+        vdp_df = vdp_df.dropna(subset=[vdp_url_col, srp_image_url_col], how='all')
 
         # form a list of tuples for bulk insert using execute_values()
         vdp_list = [tuple(row) + (dealer_integration_partner_id,) for row in vdp_df.to_numpy()]
 
-        vdp_column_list = [col for col, cond in zip(['vin', 'stock', 'vdp_url'], [vin_col, stock_col, vdp_url_col]) if cond]
+        # Create a list of column names where the corresponding condition is True
+        columns = ['vin', 'stock', 'srp_image_url', 'vdp_url']
+        conditions = [vin_col, stock_col, srp_image_url_col, vdp_url_col]
+        vdp_column_list = [column for column, condition in zip(columns, conditions) if condition]
+
+        # Add dealer_integration_partner_id to the column list
         vdp_column_list.append("dealer_integration_partner_id")
 
         return (vdp_list, vdp_column_list) if vdp_list else (None, None)
@@ -89,9 +106,10 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
         logger.error(error_message)
         raise
 
-def record_handler(record: SQSRecord):
-    logger.info(f"Record: {record}")
 
+def record_handler(record: SQSRecord):
+    """Process each SQS record."""
+    logger.info(f"Record: {record}")
     try:
         sns_message = json.loads(record['body'])
         s3_event = sns_message['Records'][0]['s3']
@@ -135,6 +153,7 @@ def record_handler(record: SQSRecord):
         logger.exception(message)
         notify_client_engineering(message)
         raise
+
 
 def lambda_handler(event, context):
     """Download file from S3 and update inventory VDP data"""

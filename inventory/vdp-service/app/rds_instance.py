@@ -65,7 +65,7 @@ class RDSInstance:
                     FROM (VALUES %s) AS data({vdp_data_col_list})
                 )
                 UPDATE {self.schema}.inv_inventory AS i
-                SET vdp = t.vdp_url
+                SET vdp = t.vdp_url, photo_url = t.srp_image_url
                 FROM temp_vdp_table AS t
                 JOIN {self.schema}.inv_vehicle AS v ON
                     ({join_conditions})
