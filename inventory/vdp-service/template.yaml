@@ -330,6 +330,14 @@ Resources:
         - Arn: !GetAtt InvokeVDP.Arn
           Id: !Sub vdp-service-${Environment}-invoke-vdp
 
+  InvokeVDPScheduleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt InvokeVDP.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InvokeVDPScheduleRule.Arn
+
   DownloadVDPQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
