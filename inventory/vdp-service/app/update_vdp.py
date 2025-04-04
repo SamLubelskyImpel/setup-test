@@ -99,9 +99,6 @@ def validate_vdp_data(vdp_df, provider_dealer_id, dealer_integration_partner_id)
             for row in vdp_df.to_numpy()
         ]
 
-        # form a list of tuples for bulk insert using execute_values()
-        # vdp_list = [tuple(row) + (dealer_integration_partner_id,) for row in vdp_df.to_numpy()]
-
         # Create a list of column names where the corresponding condition is True
         columns = ['vin', 'stock', 'srp_image_url', 'vdp_url']
         conditions = [vin_col, stock_col, srp_image_url_col, vdp_url_col]
