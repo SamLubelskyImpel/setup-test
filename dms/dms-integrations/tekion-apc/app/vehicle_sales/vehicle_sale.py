@@ -93,13 +93,6 @@ def parse_data(record: SQSRecord):
         
 def lambda_handler(event, context):
     """Query Tekion deals API."""
-    # try:
-    #     for record in event["Records"]:
-    #         parse_data(loads(record["body"]))
-    # except Exception:
-    #     logger.exception("Error running deals lambda")
-    #     raise
-
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(

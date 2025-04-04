@@ -136,16 +136,14 @@ class TekionWrapper:
             raise
 
     def _call_tekion_v4(self, path, next_fetch_key="", params: dict={}, set_date_filter=True):
-        """Retrieve Tekion data."""
+        """Retrieve Tekion data from api v4.0.0"""
         url = f"{self.base_url}/{path}"
         url_params = params
         if set_date_filter:
             end_date = self.end_dt.replace(hour=0, minute=0, second=0)
             start_date = end_date - timedelta(days=1)
-            start_time = int(start_date.timestamp() * 1000)
-            end_time = int(end_date.timestamp() * 1000)
-            url_params["createdStartTime"] = start_time
-            url_params["createdEndTime"] = end_time
+            url_params["createdStartTime"] = int(start_date.timestamp() * 1000)
+            url_params["createdEndTime"] = int(end_date.timestamp() * 1000)
         if next_fetch_key:
             url_params["nextFetchKey"] = next_fetch_key
         token = self._get_token()
