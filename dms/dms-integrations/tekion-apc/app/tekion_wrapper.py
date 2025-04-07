@@ -135,13 +135,60 @@ class TekionWrapper:
             logger.exception(f"Unable to parse {path} response {resp}")
             raise
 
+    def _call_tekion_v4(self, path, next_fetch_key="", params: dict={}, set_date_filter=True):
+        """Retrieve Tekion data from api v4.0.0"""
+        url = f"{self.base_url}/{path}"
+        url_params = params
+        if set_date_filter:
+            end_date = self.end_dt.replace(hour=0, minute=0, second=0)
+            start_date = end_date - timedelta(days=1)
+            url_params["createdStartTime"] = int(start_date.timestamp() * 1000)
+            url_params["createdEndTime"] = int(end_date.timestamp() * 1000)
+        if next_fetch_key:
+            url_params["nextFetchKey"] = next_fetch_key
+        token = self._get_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "dealer_id": self.dealer_id,
+            "app_id": self.app_id,
+            "accept": "application/json",
+        }
+        resp = requests.get(url, headers=headers, params=params)
+        logger.info(f"Url: {url} Params: {params} Status: {resp.status_code} {resp.text}")
+
+        if resp.status_code != 200:
+            logger.error(f"Tekion responded with {resp.status_code} {resp.text}")
+
+        if resp.status_code in (429, 403):
+            self._alert_ce(url, resp.status_code)
+
+        resp.raise_for_status()
+
+        try:
+            resp_json = resp.json()
+            meta = resp_json["meta"]
+
+            if meta["status"] != "success":
+                raise RuntimeError(
+                    f"{path} returned {resp.status_code} but metadata of {meta}"
+                )
+            if meta.get("nextFetchKey", None):
+                return resp_json["data"] + self._call_tekion(
+                    path, next_fetch_key=meta["nextFetchKey"]
+                )
+            else:
+                return resp_json["data"]
+        except JSONDecodeError:
+            logger.exception(f"Unable to parse {path} response {resp}")
+            raise
+
     def get_repair_orders(self, next_fetch_key=""):
         """Retrieve Tekion Repair Order."""
         return self._call_tekion("openapi/v3.1.0/repair-orders", next_fetch_key=next_fetch_key)
 
     def get_deals(self, next_fetch_key=""):
         """Retrieve Deals by dealer id"""
-        return self._call_tekion("openapi/v3.1.0/deals", next_fetch_key=next_fetch_key)
+        return self._call_tekion_v4("openapi/v4.0.0/deals", next_fetch_key=next_fetch_key)
 
     def get_appointments(self, next_fetch_key=""):
         """Retrieve Appointments by dealer id"""

@@ -92,6 +92,33 @@ Resources:
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt TekionSecurityGroup.GroupId
 
+  SchedulerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:ReceiveMessage"
+                  - "sqs:SendMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt ProcessDealsQueue.Arn
+                  - !GetAtt EventbridgeSchedulerDLQ.Arn
+
   RepairOrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -121,6 +148,67 @@ Resources:
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-DealsDLQ"
       MessageRetentionPeriod: 1209600
+
+  ProcessDealsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-ProcessDealsQueue"
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessDealsDLQ.Arn
+        maxReceiveCount: 5
+
+  ProcessDealsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-ProcessDealsDLQ"
+      MessageRetentionPeriod: 1209600
+
+  ProcessDealsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-ProcessDealsDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the ProcessDealsDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ProcessDealsDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  EventbridgeSchedulerDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "tekion-apc-dms-${Environment}-EventbridgeSchedulerDLQ"
+      MessageRetentionPeriod: 1209600
+
+  EventbridgeSchedulerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-EventbridgeSchedulerDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the EventbridgeSchedulerDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventbridgeSchedulerDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   HistoricalDataQueue:
     Type: AWS::SQS::Queue
@@ -167,6 +255,12 @@ Resources:
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
                     !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
                   ]
+            - Sid: AllowSNS
+              Effect: "Allow"
+              Action:
+                - "sns:Publish"
+              Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
       Environment:
         Variables:
           Environment: !Ref Environment
@@ -183,6 +277,26 @@ Resources:
             Schedule: cron(0 0 * * ? *)
             Input: '{"frequency": "daily"}'
       VpcConfig: !Ref AWS::NoValue
+
+  InvokeTekionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-InvokeDataPull
+      AlarmDescription: Invoke Data Pull pipeline failed to process incoming request
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeTekionFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
 
   RepairOrderFunction:
     Type: AWS::Serverless::Function
@@ -340,9 +454,25 @@ Resources:
                 - lambda:InvokeFunction
               Resource:
                 - !GetAtt RefreshTokenLambda.Arn
+            - Sid: AllowCreateSchedule
+              Effect: "Allow"
+              Action:
+                - "scheduler:CreateSchedule"
+              Resource:
+                - "*"
+            - Sid: AllowPassRole
+              Effect: "Allow"
+              Action:
+                - "iam:PassRole"
+              Resource:
+                - !GetAtt SchedulerIAMRole.Arn
       Environment:
         Variables:
           Environment: !Ref Environment
+          PROCESS_DEALS_QUEUE: !GetAtt ProcessDealsQueue.Arn
+          SCHEDULER_DLQ: !GetAtt EventbridgeSchedulerDLQ.Arn
+          SCHEDULER_ROLE: !GetAtt SchedulerIAMRole.Arn
+          BATCH_SIZE: 50
       Events:
         SQSEvent:
           Type: SQS
