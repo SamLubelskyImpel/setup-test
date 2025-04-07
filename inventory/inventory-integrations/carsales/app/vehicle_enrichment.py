@@ -14,6 +14,8 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
+from api_wrapper import VDPApiWrapper
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -83,62 +85,6 @@ def get_redbook_data(vehicle_data):
     return redbook_data
 
 
-def get_vdp_data(vehicle_data, impel_dealer_id):
-    """This function calls the VDP Lambda function to get the VDP data."""
-    try:
-        identification_data = vehicle_data.get("Identification", [])
-        vin = next(
-            (item["Value"] for item in identification_data if item["Type"] == "VIN"),
-            None,
-        )
-        stock_no = next(
-            (item["Value"] for item in identification_data if item["Type"] == "StockNumber"),
-            None,
-        )
-
-        if not vin and not stock_no:
-            raise ValueError("No VIN or StockNumber found in the Identification data.")
-
-        # Create the payload for the VDP Lambda function
-        function_name = f"vdp-service-{ENVIRONMENT}-QueryVDP"
-        query_parameters = {
-            "vin": vin,
-            "stock_number": stock_no,
-            "impel_dealer_id": impel_dealer_id,
-        }
-        logger.info(f"Invoking VDP Lambda: {function_name} with payload: {query_parameters}")
-
-        # Invoke the VDP Lambda function
-        response = lambda_client.invoke(
-            FunctionName=function_name,
-            InvocationType="RequestResponse",
-            Payload=json.dumps({"queryStringParameters": query_parameters}),
-        )
-        vdp_response_payload = response["Payload"].read().decode("utf-8")
-        vdp_response = json.loads(vdp_response_payload)
-        logger.info(f"VDP Lambda Response: {vdp_response}")
-
-        # Validate the response status code
-        status_code = vdp_response.get("statusCode")
-        if status_code == 200:
-            body = vdp_response.get("body")
-            if not body:
-                raise Exception("VDP Lambda response body is empty.")
-            return json.loads(body)
-        elif status_code == 404:
-            logger.warning(f"VDP data not found for VIN {vin} or Stock No {stock_no}.")
-            return {}
-        else:
-            raise Exception(f"Unexpected status code: {vdp_response}")
-
-    except ValueError as e:
-        logger.warning(f"Failed to retrieve VDP data: {e}")
-        return {}
-    except Exception as e:
-        logger.exception(f"Failed to retrieve VDP data: {e}")
-        raise
-
-
 def record_handler(record: SQSRecord):
     """This function calls and merges the RedBook and VDP data with the vehicle data."""
     logger.info(f"Record: {record}")
@@ -169,11 +115,17 @@ def record_handler(record: SQSRecord):
         logger.info(f"Enriched data: {merged_data}")
 
         # Call the VDP Lambda function to get the VDP data
-        vdp_data = get_vdp_data(vehicle_data, impel_dealer_id)
+        vdp_api = VDPApiWrapper()
+        vdp_data = vdp_api.get_vdp_data(vehicle_data, impel_dealer_id)
+        logger.info(f"VDP data: {vdp_data}")
 
         # Merge the enriched data with the VDP data
-        merged_data["VDP"] = vdp_data.get("VDP URL")
-        merged_data["PHOTO_URL"] = vdp_data.get("SRP IMAGE URL")
+        if vdp_data:
+            merged_data["VDP"] = vdp_data.get("VDP URL")
+            merged_data["PHOTO_URL"] = vdp_data.get("SRP IMAGE URL")
+            logger.info(f"Enriched data with VDP: {merged_data}")
+        else:
+            logger.warning("No VDP data found skipping merge.")
 
         # Save the enriched data to the S3 bucket
         current_time = datetime.now()

@@ -49,6 +49,8 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+        VDP_API_DOMAIN: !If [ IsProd, "", "ox3muijc3m.execute-api.us-east-1.amazonaws.com/test" ]
+        VDP_API_SECRET_KEY: !If [ IsProd, "impel", "test"]
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -194,7 +196,6 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource:
                 - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:redbook-${Environment}-*"
-                - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:vdp-service-${Environment}-QueryVDP"
         - PolicyName: S3Policy
           PolicyDocument:
             Version: "2012-10-17"
@@ -218,6 +219,20 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt VehicleEnrichmentQueue.Arn
+        - PolicyName: SecretsManagerPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: GetAPIKey
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/vdp-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/vdp-api*"
+                    ]
 
   UnifiedFormatQueue:
     Type: AWS::SQS::Queue
