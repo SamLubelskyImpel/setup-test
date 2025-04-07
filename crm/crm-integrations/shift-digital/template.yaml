@@ -1,0 +1,256 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Shift Digital Integration
+
+Parameters:
+    Environment:
+        Description: The name of the runtime environment
+        Type: String
+        AllowedPattern: "^[a-zA-Z0-9-]+$"
+        ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+    IsProd:
+        Fn::Equals:
+            - Ref: AWS::AccountId
+            - "196800776222"
+    IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Mappings:
+    SslCertificates:
+        us-east-1:
+            "143813444726": "arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d"
+            "196800776222": "arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be"
+    Subnets:
+        us-east-1:
+            "196800776222":
+                - subnet-0d29a385efe83bf1c
+                - subnet-0e88ecdd743701e96
+                - subnet-00291e028e21cb78f
+                - subnet-0b1555d5fa3c8ba8e
+            "143813444726":
+                - subnet-030d57e39ec0df603
+                - subnet-01044d580678ea63c
+                - subnet-0b29db0aeb6cdabec
+                - subnet-0e28d592f2ca28fb7
+
+Globals:
+    Function:
+        Runtime: python3.9
+        Environment:
+            Variables:
+                AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+                ENVIRONMENT: !Ref Environment
+                LOGLEVEL: INFO
+                SECRET_KEY: "SHIFT_DIGITAL"
+                SNS_TOPIC_ARN: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                SHIFT_DIGITAL_CALLBACK_QUEUE: !Ref ShiftDigitalCallbackQueue
+                INTEGRATIONS_BUCKET: 
+                    !If [
+                        IsProd,
+                        "crm-integrations-prod",
+                        "crm-integrations-test",
+                    ]
+                UPLOAD_SECRET_KEY: "impel"
+                CRM_API_DOMAIN:
+                    !If [
+                        IsProd,
+                        "crm-api.impel.io",
+                        "crm-api-test.testenv.impel.io",
+                    ]
+
+Resources:
+    LambdaRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            Policies:
+                - PolicyName: CloudWatchLogsPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "logs:CreateLogGroup"
+                                - "logs:CreateLogStream"
+                                - "logs:PutLogEvents"
+                            Resource: "arn:aws:logs:*:*:*"
+                - PolicyName: AccessSecretsManager
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - secretsmanager:GetSecretValue
+                            Resource:
+                                - !If [
+                                      IsProd,
+                                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                                  ]
+                                - !If [
+                                    IsProd,
+                                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                                    !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                                ]
+                - PolicyName: LambdaPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "lambda:InvokeFunction"
+                            Resource: "*"
+                - PolicyName: S3Policy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "s3:GetObject"
+                                - "s3:PutObject"
+                            Resource:
+                                - !Sub "arn:aws:s3:::crm-integrations-${Environment}*"
+                - PolicyName: SNSPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                          - Effect: "Allow"
+                            Action:
+                                - "sns:Publish"
+                            Resource:
+                                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+                - PolicyName: SQSPolicy
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                      - Effect: "Allow"
+                        Action:
+                        - "sqs:SendMessage"
+                        - "sqs:ReceiveMessage"
+                        - "sqs:DeleteMessage"
+                        - "sqs:GetQueueAttributes"
+                        Resource:
+                        - !GetAtt ShiftDigitalPostLeadQueue.Arn
+                        - !GetAtt ShiftDigitalPostLeadDeadLetterQueue.Arn
+                        - !GetAtt ShiftDigitalCallbackQueue.Arn
+                        - !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
+                        - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerQueue"
+
+    ShiftDigitalPostLead:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub "shift-digital-${Environment}-PostLead"
+            Description: Sends lead/customer/vehicle data to Shift Digital API.
+            CodeUri: app/
+            Handler: shift_digital_post_lead.lambda_handler
+            Timeout: 60
+            Role: !GetAtt LambdaRole.Arn
+
+    ShiftDigitalPostLeadQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "shift-digital-${Environment}-PostLeadQueue"
+            VisibilityTimeout: 120
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt ShiftDigitalPostLeadDeadLetterQueue.Arn
+                maxReceiveCount: 3
+
+    ShiftDigitalPostLeadDeadLetterQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "shift-digital-${Environment}-PostLeadDLQ"
+            MessageRetentionPeriod: 604800
+            VisibilityTimeout: 10
+
+    ShiftDigitalPostLeadEventMapping:
+        Type: AWS::Lambda::EventSourceMapping
+        Properties:
+            BatchSize: 1
+            EventSourceArn: !GetAtt ShiftDigitalPostLeadQueue.Arn
+            MaximumBatchingWindowInSeconds: 0
+            FunctionName: !GetAtt ShiftDigitalPostLead.Arn
+
+    ShiftDigitalPostLeadDLQAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmName: !Sub "shift-digital-${Environment}-PostLeadDLQ"
+            AlarmDescription: Triggered when Shift Digital Post Lead DLQ has more than 1 unprocessed message.
+            ActionsEnabled: true
+            AlarmActions:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            Dimensions:
+                - Name: QueueName
+                  Value: !GetAtt ShiftDigitalPostLeadDeadLetterQueue.QueueName
+            EvaluationPeriods: 1
+            MetricName: ApproximateNumberOfMessagesVisible
+            Namespace: AWS/SQS
+            Period: 300
+            Statistic: Sum
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 1
+            TreatMissingData: notBreaching
+
+    ShiftDigitalCallback:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub "shift-digital-${Environment}-Callback"
+            Description: Retrieves the CRM Lead ID from Shift Digital after a delay.
+            CodeUri: app/
+            Handler: shift_digital_callback.lambda_handler
+            Timeout: 60
+            Role: !GetAtt LambdaRole.Arn
+
+    ShiftDigitalCallbackQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "shift-digital-${Environment}-CallbackQueue"
+            VisibilityTimeout: 60
+            MessageRetentionPeriod: 604800  
+            DelaySeconds: 900
+            RedrivePolicy:
+                deadLetterTargetArn: !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
+                maxReceiveCount: 3
+
+    ShiftDigitalCallbackDeadLetterQueue:
+        Type: AWS::SQS::Queue
+        Properties:
+            QueueName: !Sub "shift-digital-${Environment}-CallbackDLQ"
+            MessageRetentionPeriod: 604800
+            VisibilityTimeout: 10
+
+    ShiftDigitalCallbackEventMapping:
+        Type: AWS::Lambda::EventSourceMapping
+        Properties:
+            BatchSize: 1
+            EventSourceArn: !GetAtt ShiftDigitalCallbackQueue.Arn
+            MaximumBatchingWindowInSeconds: 0
+            FunctionName: !GetAtt ShiftDigitalCallback.Arn
+
+    ShiftDigitalCallbackDLQAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmName: !Sub "shift-digital-${Environment}-CallbackDLQ"
+            AlarmDescription: Triggered when Shift Digital Callback DLQ has more than 1 unprocessed message.
+            ActionsEnabled: true
+            AlarmActions:
+                - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+            Dimensions:
+                - Name: QueueName
+                  Value: !GetAtt ShiftDigitalCallbackDeadLetterQueue.QueueName
+            EvaluationPeriods: 1
+            MetricName: ApproximateNumberOfMessagesVisible
+            Namespace: AWS/SQS
+            Period: 300
+            Statistic: Sum
+            ComparisonOperator: GreaterThanThreshold
+            Threshold: 1
+            TreatMissingData: notBreaching

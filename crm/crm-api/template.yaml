@@ -352,6 +352,25 @@ Resources:
       Layers:
         - !Ref CrmOrmLayer
 
+  RetrieveInternalLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveInternalLead"
+      CodeUri: app/lead/
+      Handler: retrieve_internal_lead.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /internal/leads/{lead_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
   RetrieveLeadByCrmIds:
     Type: AWS::Serverless::Function
     Properties:
