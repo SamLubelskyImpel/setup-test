@@ -41,7 +41,6 @@ def get_secret(secret_name, secret_key) -> Any:
     secret_data = loads(secret)
     return secret_data
 
-
 def create_consumer(consumer_data, product_dealer_id, crm_api_key) -> dict:
     """Create consumer in db."""
     try:
@@ -92,32 +91,33 @@ def create_lead(parsed_lead, crm_api_key) -> dict:
 
     return unified_crm_lead_id
 
-
 def parse_consumer(entity_data) -> dict:
     """Parse entity data to create crm consumer based on the CRM Integration Mapping"""
     try:
         customer_info = (
-            entity_data.get('ShowCustomerInformation', {})
-            .get('ShowCustomerInformationDataArea', {})
-            .get('CustomerInformation', {})
-            .get('CustomerInformationDetail', {})
+            entity_data.get('CustomerInformationDetail', {})
             .get('CustomerParty', {})
             .get('SpecifiedPerson', {})
         )
-
+        city = customer_info.get('PostalAddress', {}).get('CityName', '')
+        # TODO: make better get function 
+        if not city:
+            city = ''
         consumer = {
-            "crm_consumer_id": (entity_data.get('ShowCustomerInformation', {})
-                                .get('ShowCustomerInformationDataArea', {})
-                                .get('CustomerInformation', {})
-                                .get('CustomerInformationDetail', {})
+            "crm_consumer_id": (entity_data.get('CustomerInformationDetail', {})
                                 .get('CustomerParty', {})
                                 .get('PartyID', '')),
             "first_name": customer_info.get('GivenName', ''),
             "last_name": customer_info.get('FamilyName', ''),
             "middle_name": customer_info.get('MiddleName', ''),
             "email": customer_info.get('URICommunication', {}).get('URIID', ''),
-            "phone": next((phone.get('CompleteNumber', '') for phone in customer_info.get('TelephoneCommunication', []) if phone.get('UseCode') == 'Mobile'), ''),
-            "city": customer_info.get('PostalAddress', {}).get('CityName', ''),
+            "phone": next(
+                (phone.get("CompleteNumber", "")
+                 for phone in customer_info.get("TelephoneCommunication", []) 
+                 if phone.get("UseCode", "").lower() == "mobile"),
+                ""
+            ),
+            "city": city,
             "country": "AU",  # Default value as per the CRM Integration Mapping
             "address": ' '.join(filter(None, [
                 customer_info.get('PostalAddress', {}).get('LineOne', ''),
@@ -162,12 +162,15 @@ def parse_lead(event, carsales_data) -> dict:
                 {
                     "crm_salesperson_id": event.get('primaryAssigned', ''),
                     "first_name": carsales_data.get('Assignment', {}).get('Name', '').split()[0],
-                    "last_name": carsales_data.get('Assignment', {}).get('Name', '').split()[1] if len(carsales_data.get('Name', '').split()) > 1 else '',
+                    "last_name": (
+                        carsales_data.get('Assignment', {}).get('Name', '').split()[1]
+                        if len(carsales_data.get('Assignment', {}).get('Name', '').split()) > 1
+                        else ''
+                    ),                    
                     "email": carsales_data.get('Assignment', {}).get('Email', '')
                 }
             ],
         }
-
         return lead
     except Exception as e:
         logger.error(f"Unexpected error parsing lead data: {e}")
@@ -178,8 +181,6 @@ def record_handler(record: SQSRecord):
     """
     Transform the lead, and upload to CRM Shared Layer
     """
-    logger.info(f"Record: {record}")
-
     try:
         body = loads(record.body)
 
@@ -198,7 +199,6 @@ def record_handler(record: SQSRecord):
             product_dealer_id,
             crm_api_key
         )
-        logger.info(f"Consumer created: {unified_consumer_id}")
 
         # Create leads
         lead_data = parse_lead(event, carsales_data)

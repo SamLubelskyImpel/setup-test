@@ -3,7 +3,7 @@ import logging
 from json import dumps, loads
 from os import environ
 from typing import Any, Dict
-from dealer_socket_client import DealerSocketClient, DS_LEAD_STATUS_MAPPINGS
+from pentana_client import PentanaClient, DS_LEAD_STATUS_MAPPINGS
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 DEALERSOCKET_VENDOR = environ.get("DEALERSOCKET_VENDOR")
@@ -36,12 +36,12 @@ def send_sqs_message(message_body: Dict[str, Any]) -> None:
 
 def search_lead(crm_dealer_id: str, crm_consumer_id: str) -> Dict[str, Any]:
     """Search lead in CRM."""
-    dealersocket_client = DealerSocketClient()
-    lead_response = dealersocket_client.query_event(DEALERSOCKET_VENDOR, crm_dealer_id, crm_consumer_id)
+    pentana_client = PentanaClient()
+    lead_response = pentana_client.query_event(DEALERSOCKET_VENDOR, crm_dealer_id, crm_consumer_id)
     if not lead_response:
-        raise Exception("No lead returned by DealerSocket AU")
+        raise Exception("Lead search failed to find carsales lead for customer in Pentana")
 
-    logger.info(f"Dealersocket Lead API Response: {lead_response}")
+    logger.info(f"Pentana Lead API Response: {lead_response}")
 
     return lead_response
 
@@ -49,7 +49,6 @@ def search_lead(crm_dealer_id: str, crm_consumer_id: str) -> Dict[str, Any]:
 def get_lead_updates(crm_dealer_id: str, crm_consumer_id: str, crm_lead_id: str, dealer_partner_id: str, lead_id: str) -> Dict[str, Any]:
     """Get lead updates from CRM."""
     event_response = search_lead(crm_dealer_id, crm_consumer_id)
-
     events = event_response.get("events", [])
     for event in events:
         if event.get("eventId") == crm_lead_id:

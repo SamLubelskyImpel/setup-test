@@ -48,7 +48,6 @@ def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
             db_person.email = new_person.get("email", "")
             db_person.position_name = new_person.get("position_name", "")
             new_person["salesperson_id"] = db_person.id
-            logger.info(f"Updated Salesperson for lead_id {lead_id}, {new_person}")
         else:
             # Create new salesperson
             salesperson = Salesperson(
@@ -63,7 +62,6 @@ def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
             session.add(salesperson)
             session.flush()
             new_person.update({"salesperson_id": salesperson.id})
-            logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")
     session.commit()
 
 
@@ -106,8 +104,7 @@ def modify_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
         return
 
     update_salespersons(session, lead_id, dealer_partner_id, new_salespersons)
-    update_lead_salespersons(session, lead_id, dealer_partner_id, new_salespersons)
-
+    update_lead_salespersons(session, lead_id, dealer_partner_id, new_salespersons)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
     # Find lead_salespersons that are no longer assigned to the lead.
     removed_salespeople = []
     existing_salespersons = get_salespersons_for_lead(session, lead_id)
@@ -139,6 +136,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         vehicles_of_interest = body.get('vehicles_of_interest', [])
         metadata = body.get('metadata')
         consumer_id = body.get("consumer_id")
+        crm_lead_id = body.get("crm_lead_id")
 
         lead_field_mapping = {
             "lead_status": "status",
@@ -184,6 +182,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."})
                 }
+
+            old_crm_lead_id = lead_db.crm_lead_id
+            if crm_lead_id and crm_lead_id != old_crm_lead_id:
+                lead_db.crm_lead_id = crm_lead_id
 
             dealer_partner_id = consumer_db.dealer_integration_partner_id
             if consumer_id and lead_db.consumer_id != consumer_id:
