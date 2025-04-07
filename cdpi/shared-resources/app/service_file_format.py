@@ -24,6 +24,16 @@ logger.setLevel(LOG_LEVEL)
 s3_client = boto3.client('s3')
 sm_client = boto3.client('secretsmanager')
 
+DMS_VENDORS = {
+    "DealerVault": "DEALERVAULT",
+    "DealerTrack": "DEALERTRACK",
+    "CDK Impel": "CDK",
+    "DealerVault FTP": "DEALERVAULT",
+    "CDK": "CDK",
+    "Reyrey" : "REYNOLDS_REYNOLDS",
+    "Tekion": "TEKION",
+}
+
 class EmptyFileError(Exception):
     pass
 
@@ -86,7 +96,9 @@ def parse(csv_object):
             else:
                 logger.info(f"DMS API responded with: {response.status_code} for lead with DMS Consumer ID {consumer_id}")
 
-                vendor_name = response.json().get("results")[0]["integration_partner"]["impel_integration_partner_id"]
+                db_vendor_name = response.json().get("results")[0]["integration_partner"]["impel_integration_partner_id"]
+
+                vendor_name = DMS_VENDORS.get(db_vendor_name, db_vendor_name)
                 dms_consumer_id = response.json().get("results")[0]["dealer_customer_no"]
 
             row["dms_vendor_name"] = vendor_name

@@ -24,6 +24,30 @@ logger.setLevel(LOG_LEVEL)
 s3_client = boto3.client('s3')
 sm_client = boto3.client('secretsmanager')
 
+CRM_VENDORS = {
+    "DEALERPEAK": "DEALERPEAK",
+    "REYREY": "REYNOLDS_REYNOLDS",
+    "MOMENTUM": "MOMENTUM",
+    "DRIVECENTRIC": "DRIVECENTRIC",
+    "PROMAX": "PROMAX",
+    "ELEAD_ADF": "CDK",
+    "ACTIVIX": "ACTIVIX",
+    "VINSOLUTIONS": "VINSOLUTIONS",
+    "PBS": "PBS",
+    "TEKION": "TEKION",
+    "COX_MOTORS_UK": "COX_AUTOMOTIVE",
+    "NEXUS_POINT": "NEXUS_POINT",
+    "BIG_MOTORING_WORLD": "BIG_MOTORING_WORLD",
+    "BIG_MOTORING_WORLD_TRADE": "BIG_MOTORING_WORLD",
+    "WALCU": "WALCU",
+    "CARSALES_AU": "CARSALES",
+    "DEALERSOCKET_AU": "DEALERSOCKET",
+    "TMS": "TMS",
+    "ESKIMO": "ESKIMO",
+    "ELEADAPI": "CDK",
+    "ITRACKLEADS": "ITRACKLEADS",
+}
+
 class EmptyFileError(Exception):
     pass
 
@@ -79,7 +103,9 @@ def parse(csv_object):
             else:
                 logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {lead_id}")
 
-                vendor_name = response.json().get("crm_vendor_name", "")
+                db_vendor_name = response.json().get("crm_vendor_name", "")
+
+                vendor_name = CRM_VENDORS.get(db_vendor_name, db_vendor_name)
                 crm_lead_id = response.json().get("crm_lead_id", "")
 
             row["crm_vendor_name"] = vendor_name
