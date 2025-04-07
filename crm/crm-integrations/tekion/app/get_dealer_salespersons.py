@@ -64,7 +64,7 @@ def get_product_dealer_id(crm_dealer_id: str) -> Optional[str]:
             headers={"x_api_key": api_key, "partner_id": CRM_API_SECRET_KEY},
         )
         response.raise_for_status()
-        return response.json()[0].get("product_dealer_id", "")
+        return response.json().get("results", [])[0].get("product_dealer_id", "") 
     except RequestException as e:
         logger.exception(f"Failed to get product dealer ID: {e}")
     return None
