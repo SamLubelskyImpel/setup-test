@@ -9,6 +9,12 @@ paths:
     get:
       summary: Retrieve a list of dealers with optional filters
       description: Retrieve dealer records. If no query parameters are provided, all dealers are returned. You can filter by fields such as dealer_name or sfdc_account_id.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
       parameters:
         - in: query
           name: dealer_name
@@ -48,6 +54,12 @@ paths:
     post:
       summary: Create a new dealer.
       description: Create a new dealer record along with its integration partner details.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
       requestBody:
         description: Dealer creation payload.
         required: true
@@ -71,6 +83,12 @@ paths:
     put:
       summary: Update an existing dealer.
       description: Update the details of an existing dealer and its associated integration partner if necessary.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
       requestBody:
         description: Dealer update payload.
         required: true
@@ -94,6 +112,12 @@ paths:
     delete:
       summary: Delete a dealer.
       description: Delete a dealer record. This may also remove or update any related integration partner records.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
       requestBody:
         description: Dealer deletion payload.
         required: true

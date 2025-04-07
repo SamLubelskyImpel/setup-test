@@ -83,24 +83,24 @@ Resources:
           Name: AWS::Include
           Parameters:
             Location: "./swagger/cdpi-api-oas.yaml"
-            GatewayResponses:
-        BAD_REQUEST_PARAMETERS:
-          ResponseTemplates:
-            application/json: '{"message": "$context.error.validationErrorString"}'
-        BAD_REQUEST_BODY:
-          ResponseTemplates:
-            application/json: '{"message": "$context.error.validationErrorString"}'
-        UNAUTHORIZED:
-          ResponseTemplates:
-            application/json: '{"message": "This request is unauthorized."}'
-          StatusCode: "401"
-        ACCESS_DENIED:
-          ResponseTemplates:
-            application/json: '{"message": "$context.authorizer.key"}'
-          StatusCode: "403"
-        DEFAULT_5xx:
-          ResponseTemplates:
-            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+        GatewayResponses:
+          BAD_REQUEST_PARAMETERS:
+            ResponseTemplates:
+              application/json: '{"message": "$context.error.validationErrorString"}'
+          BAD_REQUEST_BODY:
+            ResponseTemplates:
+              application/json: '{"message": "$context.error.validationErrorString"}'
+          UNAUTHORIZED:
+            ResponseTemplates:
+              application/json: '{"message": "This request is unauthorized."}'
+            StatusCode: "401"
+          ACCESS_DENIED:
+            ResponseTemplates:
+              application/json: '{"message": "$context.authorizer.key"}'
+            StatusCode: "403"
+          DEFAULT_5xx:
+            ResponseTemplates:
+              application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
 
   APILogGroup:
     Type: AWS::Logs::LogGroup
@@ -114,27 +114,25 @@ Resources:
       Timeout: 120
       MemorySize: 1024
       Policies:
-        - PolicyName: AuthorizerPermissions
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Sid: AllowGetAPIKeys
-                Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !If 
-                    - IsProd
-                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-api*"
-                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-api*"
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetAPIKeys
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !If 
+                  - IsProd
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-api*"
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-api*"
 
   DealerFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "cdpi-api-${Environment}-Dealer"
+      CodeUri: app/
       Handler: main.lambda_handler
       Runtime: python3.9
-      CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
       Layers:
         - !If 
