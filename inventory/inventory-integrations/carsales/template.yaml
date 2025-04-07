@@ -49,7 +49,7 @@ Globals:
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
-        VDP_API_DOMAIN: !If [ IsProd, "", "ox3muijc3m.execute-api.us-east-1.amazonaws.com/test" ]
+        VDP_API_DOMAIN: !If [ IsProd, "inbdqdt35d.execute-api.us-east-1.amazonaws.com/prod", "ox3muijc3m.execute-api.us-east-1.amazonaws.com/test" ]
         VDP_API_SECRET_KEY: !If [ IsProd, "impel", "test"]
     VpcConfig:
       SecurityGroupIds:
