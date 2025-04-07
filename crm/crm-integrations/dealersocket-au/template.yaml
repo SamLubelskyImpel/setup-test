@@ -461,3 +461,70 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
+
+  MonitoringDealersocket:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "dealersocket-au-${Environment}-Monitoring"
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+
+  MonitoringDealersocketLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/dealersocket-au-${Environment}-Monitoring"
+
+  LogGroupInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MonitoringDealersocket.Arn
+      Action: lambda:InvokeFunction
+      Principal: logs.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
+  MonitoringLeadSearchSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealersocket
+      - LeadSearchLogGroup
+    Properties:
+      LogGroupName: !Ref LeadSearchLogGroup
+      DestinationArn: !GetAtt MonitoringDealersocket.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringLeadTransformationSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealersocket
+      - LeadTransformationLogGroup
+    Properties:
+      LogGroupName: !Ref LeadTransformationLogGroup
+      DestinationArn: !GetAtt MonitoringDealersocket.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringSendActivitySubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealersocket
+      - SendActivityLogGroup
+    Properties:
+      LogGroupName: !Ref SendActivityLogGroup
+      DestinationArn: !GetAtt MonitoringDealersocket.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringLeadUpdatesSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringDealersocket
+      - LeadUpdatesLogGroup
+    Properties:
+      LogGroupName: !Ref LeadUpdatesLogGroup
+      DestinationArn: !GetAtt MonitoringDealersocket.Arn
+      FilterPattern: "SUPPORT ALERT"

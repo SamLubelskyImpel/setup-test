@@ -215,6 +215,8 @@ def record_handler(record: SQSRecord):
         return
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Transform DealerSocket AU Lead [CONTENT] "
+                     f"ProductDealerId: {product_dealer_id}\nTraceback: {e}")
         raise
 
 

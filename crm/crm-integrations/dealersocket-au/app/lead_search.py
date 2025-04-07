@@ -230,7 +230,6 @@ def record_handler(record: SQSRecord):
         matched_entity_id = None
         processed_event = None
         for party_id in matched_entity_ids:
-            logger.info(f"party id is: {party_id}")
             try:
                 event_response = pentana_client.query_event(DEALERSOCKET_VENDOR, dealer_id, party_id)
                 # Use process_event_response to filter events by matching vehicle details.
@@ -268,6 +267,8 @@ def record_handler(record: SQSRecord):
         send_message_to_queue(LEAD_TRANSFORMATION_QUEUE_URL, merged_data)
     except Exception as e:
         logger.error(f"Error processing record: {e}")
+        logger.error("[SUPPORT ALERT] Failed to Transform DealerSocket AU Lead [CONTENT] "
+                     f"ProductDealerId: {product_dealer_id}\nTraceback: {e}")
         raise
 
 
