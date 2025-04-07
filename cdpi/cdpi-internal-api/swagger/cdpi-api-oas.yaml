@@ -1,0 +1,217 @@
+openapi: 3.0.0
+info:
+  title: CDPI API
+  version: 1.0.0
+  description: API for CDPI
+  
+paths:
+  /dealer:
+    get:
+      summary: Retrieve a list of dealers with optional filters
+      description: Retrieve dealer records. If no query parameters are provided, all dealers are returned. You can filter by fields such as dealer_name or sfdc_account_id.
+      parameters:
+        - in: query
+          name: dealer_name
+          schema:
+            type: string
+          description: Filter by dealer name.
+        - in: query
+          name: sfdc_account_id
+          schema:
+            type: string
+          description: Filter by SFDC account ID.
+        - in: query
+          name: salesai_dealer_id
+          schema:
+            type: string
+          description: Filter by SalesAI dealer ID.
+        - in: query
+          name: serviceai_dealer_id
+          schema:
+            type: string
+          description: Filter by ServiceAI dealer ID.
+      responses:
+        '200':
+          description: A list of dealer records.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dealer'
+        '400':
+          description: Invalid request parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new dealer.
+      description: Create a new dealer record along with its integration partner details.
+      requestBody:
+        description: Dealer creation payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerCreateRequest'
+      responses:
+        '201':
+          description: Dealer created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealer'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update an existing dealer.
+      description: Update the details of an existing dealer and its associated integration partner if necessary.
+      requestBody:
+        description: Dealer update payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerUpdateRequest'
+      responses:
+        '200':
+          description: Dealer updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealer'
+        '400':
+          description: Invalid input or dealer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a dealer.
+      description: Delete a dealer record. This may also remove or update any related integration partner records.
+      requestBody:
+        description: Dealer deletion payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerDeleteRequest'
+      responses:
+        '204':
+          description: Dealer deleted successfully. No content is returned.
+        '400':
+          description: Invalid request or dealer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    Dealer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the dealer.
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp when the record was created.
+        db_update_date:
+          type: string
+          format: date-time
+          description: Timestamp when the record was last updated.
+      required:
+        - id
+        - dealer_name
+        - sfdc_account_id
+        - salesai_dealer_id
+        - serviceai_dealer_id
+    DealerCreateRequest:
+      type: object
+      properties:
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        cdp_dealer_id:
+          type: string
+          description: Custom dealer identifier.
+        impel_integration_partner_name:
+          type: string
+          description: Integration partner name for the dealer (e.g., FORD_DIRECT).
+      required:
+        - dealer_name
+        - sfdc_account_id
+        - salesai_dealer_id
+        - serviceai_dealer_id
+        - cdp_dealer_id
+        - impel_integration_partner_name
+    DealerUpdateRequest:
+      type: object
+      properties:
+        dealer_id:
+          type: integer
+          description: Unique identifier for the dealer to update.
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        cdp_dealer_id:
+          type: string
+          description: Custom dealer identifier.
+        impel_integration_partner_name:
+          type: string
+          description: Integration partner name for the dealer.
+      required:
+        - dealer_id
+    DealerDeleteRequest:
+      type: object
+      properties:
+        dealer_id:
+          type: integer
+          description: Unique identifier for the dealer to delete.
+      required:
+        - dealer_id
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: A human-readable error message.
+        errors:
+          type: string
+          description: Additional error details.

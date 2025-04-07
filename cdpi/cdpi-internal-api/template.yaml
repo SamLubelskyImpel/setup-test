@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: API for cdpi database
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment (e.g., dev, prod)
+    Type: String
+    AllowedPattern: "^[a-zA-Z0-9-]+$"
+    ConstraintDescription: Must contain only letters, numbers, or hyphens
+
+Conditions:
+  IsProd: !Equals [ !Ref Environment, prod ]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If 
+                    - IsProd
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/cdpi-api/*"
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/cdpi-api/*"
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+  CdpiInternalApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: DefaultAuth
+        Authorizers:
+          DefaultAuth:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt Authorizer.Arn
+            Identity:
+              Headers:
+                - partner_id
+                - x_api_key
+              Context:
+                - resourcePath
+              ReauthorizeEvery: 0
+      AccessLogSetting:
+        DestinationArn: !GetAtt APILogGroup.Arn
+        Format: >-
+          {"request_id" : "$context.requestId", "api_id" : "$context.apiId", "resource_path" : "$context.resourcePath", "resource_id" : "$context.resourceId", "http_method" : "$context.httpMethod", "source_ip" : "$context.identity.sourceIp", "user-agent" : "$context.identity.userAgent", "account_id" : "$context.identity.accountId", "api_key" : "$context.identity.apiKey", "caller" : "$context.identity.caller", "user" : "$context.identity.user", "user_arn" : "$context.identity.userArn"}
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: "./swagger/cdpi-api-oas.yaml"
+            GatewayResponses:
+        BAD_REQUEST_PARAMETERS:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        UNAUTHORIZED:
+          ResponseTemplates:
+            application/json: '{"message": "This request is unauthorized."}'
+          StatusCode: "401"
+        ACCESS_DENIED:
+          ResponseTemplates:
+            application/json: '{"message": "$context.authorizer.key"}'
+          StatusCode: "403"
+        DEFAULT_5xx:
+          ResponseTemplates:
+            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+  APILogGroup:
+    Type: AWS::Logs::LogGroup
+
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-api-${Environment}-Authorizer"
+      CodeUri: app/
+      Handler: authorizer.lambda_handler
+      Timeout: 120
+      MemorySize: 1024
+      Policies:
+        - PolicyName: AuthorizerPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowGetAPIKeys
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If 
+                    - IsProd
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-api*"
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-api*"
+
+  DealerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-api-${Environment}-Dealer"
+      Handler: main.lambda_handler
+      Runtime: python3.9
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Layers:
+        - !If 
+          - IsProd
+          - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3"
+          - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+      Events:
+        GetDealer:
+          Type: Api
+          Properties:
+            Path: /dealer
+            Method: GET
+            RestApiId: !Ref CdpiInternalApi
+        PostDealer:
+          Type: Api
+          Properties:
+            Path: /dealer
+            Method: POST
+            RestApiId: !Ref CdpiInternalApi
+        PutDealer:
+          Type: Api
+          Properties:
+            Path: /dealer
+            Method: PUT
+            RestApiId: !Ref CdpiInternalApi
+        DeleteDealer:
+          Type: Api
+          Properties:
+            Path: /dealer
+            Method: DELETE
+            RestApiId: !Ref CdpiInternalApi
