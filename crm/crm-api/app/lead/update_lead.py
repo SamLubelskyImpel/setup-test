@@ -48,6 +48,7 @@ def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
             db_person.email = new_person.get("email", "")
             db_person.position_name = new_person.get("position_name", "")
             new_person["salesperson_id"] = db_person.id
+            logger.info(f"Updated Salesperson for lead_id {lead_id}, {new_person}")
         else:
             # Create new salesperson
             salesperson = Salesperson(
@@ -62,6 +63,7 @@ def update_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
             session.add(salesperson)
             session.flush()
             new_person.update({"salesperson_id": salesperson.id})
+            logger.info(f"Created Salesperson for lead_id {lead_id}, {new_person}")
     session.commit()
 
 
