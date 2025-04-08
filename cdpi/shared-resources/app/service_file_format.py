@@ -32,6 +32,7 @@ DMS_VENDORS = {
     "CDK": "CDK",
     "Reyrey" : "REYNOLDS_REYNOLDS",
     "Tekion": "TEKION",
+    "dealertrack-dms": "DEALERTRACK",
 }
 
 class EmptyFileError(Exception):
