@@ -44,8 +44,14 @@ Resources:
                 Resource:
                   - !If 
                     - IsProd
-                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/cdpi-api/*"
-                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/cdpi-api/*"
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/cdpi-api*"
+                    - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/cdpi-api*"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
+                    ]
+
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -111,7 +117,7 @@ Resources:
       FunctionName: !Sub "cdpi-api-${Environment}-Authorizer"
       CodeUri: app/
       Handler: authorizer.lambda_handler
-      Timeout: 120
+      Timeout: 60
       MemorySize: 1024
       Policies:
         - Version: "2012-10-17"
@@ -123,8 +129,8 @@ Resources:
               Resource:
                 - !If 
                   - IsProd
-                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/cdpi-api*"
-                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/cdpi-api*"
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/cdpi-api*"
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/cdpi-api*"
 
   DealerFunction:
     Type: AWS::Serverless::Function
@@ -132,6 +138,7 @@ Resources:
       FunctionName: !Sub "cdpi-api-${Environment}-Dealer"
       CodeUri: app/
       Handler: main.lambda_handler
+      Timeout: 60
       Runtime: python3.9
       Role: !GetAtt LambdaRole.Arn
       Layers:
@@ -157,10 +164,4 @@ Resources:
           Properties:
             Path: /dealer
             Method: PUT
-            RestApiId: !Ref CdpiInternalApi
-        DeleteDealer:
-          Type: Api
-          Properties:
-            Path: /dealer
-            Method: DELETE
             RestApiId: !Ref CdpiInternalApi

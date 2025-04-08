@@ -109,31 +109,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-    delete:
-      summary: Delete a dealer.
-      description: Delete a dealer record. This may also remove or update any related integration partner records.
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
-        passthroughBehavior: never
-        httpMethod: POST
-        type: aws_proxy
-      requestBody:
-        description: Dealer deletion payload.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DealerDeleteRequest'
-      responses:
-        '204':
-          description: Dealer deleted successfully. No content is returned.
-        '400':
-          description: Invalid request or dealer not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     Dealer:

@@ -12,18 +12,11 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def lambda_handler(event: Any, context: Any) -> Any:
     """Dealer configs handler."""
-    logger.info(f"Received event: {dumps(event, indent=2)}")
-
     path = event.get("path")
     method = event.get("httpMethod")
     body = event.get("body", "{}")
 
-    # Currently handling only the /dealer endpoint.
-    if path != "/dealer":
-        return {
-            "statusCode": 404,
-            "body": dumps({"message": "Not Found"})
-        }
+    logger.info("Path: %s,\n Method: %s,\n Body: %s", path, method, body)
 
     try:
         with DBSession() as session:
@@ -32,11 +25,28 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if method == "GET":
                 # Retrieve query parameters if provided
                 filter_params = event.get("queryStringParameters") or {}
-                dealers = repo.get_dealers(filter_params)
-                dealers_list = [dealer.as_dict() for dealer in dealers]
+
+                try:
+                    page = int(filter_params.pop("page", 1))
+                    limit = int(filter_params.pop("limit", 100))
+                except ValueError:
+                    return {
+                        "statusCode": 400,
+                        "body": dumps({"message": "Invalid pagination parameters: page and limit must be integers."})
+                    }
+                
+                dealers, has_next_page = repo.get_dealers(filter_params)
+                logger.info(f"Retrieved {len(dealers)} dealers and has_next_page={has_next_page}")
+                response = {
+                    "page": page,
+                    "limit": limit,
+                    "dealers": [dealer.as_dict() for dealer in dealers],
+                    "has_next_page": has_next_page
+                }
+
                 return {
                     "statusCode": 200,
-                    "body": dumps(dealers_list)
+                    "body": dumps(response)
                 }
 
             elif method == "POST":
@@ -64,21 +74,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 return {
                     "statusCode": 200,
                     "body": dumps(updated_dealer.as_dict())
-                }
-            
-            elif method == "DELETE":
-                # Delete a dealer record
-                deletion_data = loads(body)
-                dealer_id = deletion_data.get("dealer_id")
-                if dealer_id is None:
-                    return {
-                        "statusCode": 400,
-                        "body": dumps({"message": "dealer_id is required for deletion."})
-                    }
-                repo.delete_dealer(dealer_id)
-                return {
-                    "statusCode": 204,
-                    "body": ""
                 }
             
             else:

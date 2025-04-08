@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 
 from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -14,7 +14,7 @@ class InvalidFilterException(Exception):
 class DealerRepository:
     def __init__(self, session):
         self.session = session
-        self.filters: List = []  # List to hold SQLAlchemy filter expressions
+        self.filters: List = []
 
     def create_filters(self, filter_params: dict) -> Optional[Dict[str, str]]:
         """
@@ -47,40 +47,33 @@ class DealerRepository:
                 raise InvalidFilterException(f"Invalid key attribute in schema: {key}")
         return None
 
-    def get_dealers(self, filter_params: dict = None):
+    def get_dealers(
+        self, 
+        filter_params: dict = None, 
+        page: int = 1, 
+        limit: int = 100
+    ) -> Tuple[List[Dealer], bool]:
         """
-        Retrieves dealer records, applying filters if provided.
-
-        Args:
-            filter_params (dict, optional): Dictionary of filters to apply.
+        Retrieves dealer records with optional filtering and pagination.
 
         Returns:
-            List of Dealer objects.
+            Tuple of (list of Dealer objects, has_next_page flag)
         """
+        logger.info(f"[dealers_config] Getting dealers with filters: {filter_params} and pagination: page={page}, limit={limit}")
         query = self.session.query(Dealer)
         if filter_params:
             self.create_filters(filter_params)
             if self.filters:
                 query = query.filter(*self.filters)
-        return query.all()
+
+        query = query.order_by(Dealer.id).offset((page - 1) * limit).limit(limit)
+
+        all_results = query.all()
+        has_next_page = len(all_results) == limit
+
+        return all_results, has_next_page
 
     def create_dealer(self, dealer_data: dict):
-        """
-        Creates a new dealer record along with its integration partner record.
-
-        Args:
-            dealer_data (dict): Dictionary containing dealer creation data. Expected keys:
-                - dealer_name
-                - sfdc_account_id
-                - salesai_dealer_id
-                - serviceai_dealer_id
-                - cdp_dealer_id
-                - impel_integration_partner_name
-
-        Returns:
-            The created Dealer object.
-        """
-        # Create the new dealer record
         new_dealer = Dealer(
             dealer_name=dealer_data["dealer_name"],
             sfdc_account_id=dealer_data["sfdc_account_id"],
@@ -92,7 +85,6 @@ class DealerRepository:
         self.session.refresh(new_dealer)
         dealer_id = new_dealer.id
 
-        # Retrieve the integration partner record by the provided name
         integration_partner_record = self.session.query(IntegrationPartner.id).filter(
             IntegrationPartner.impel_integration_partner_name == dealer_data["impel_integration_partner_name"]
         ).first()
@@ -100,7 +92,6 @@ class DealerRepository:
             raise Exception("Integration partner not found")
         integration_partner_id = integration_partner_record[0]
 
-        # Create the DealerIntegrationPartner record using the newly created dealer_id
         new_dealer_integration_partner = DealerIntegrationPartner(
             integration_partner_id=integration_partner_id,
             dealer_id=dealer_id,
@@ -115,19 +106,6 @@ class DealerRepository:
         return new_dealer
 
     def update_dealer(self, dealer_id: int, update_data: dict):
-        """
-        Updates an existing dealer record.
-
-        Args:
-            dealer_id (int): The ID of the dealer to update.
-            update_data (dict): Fields to update.
-
-        Returns:
-            The updated Dealer object.
-
-        Raises:
-            ValueError: If the dealer is not found.
-        """
         dealer = self.session.query(Dealer).get(dealer_id)
         if dealer:
             for key, value in update_data.items():
@@ -135,24 +113,4 @@ class DealerRepository:
             self.session.commit()
             self.session.refresh(dealer)
             return dealer
-        raise ValueError("Dealer not found")
-
-    def delete_dealer(self, dealer_id: int):
-        """
-        Deletes a dealer record.
-
-        Args:
-            dealer_id (int): The ID of the dealer to delete.
-
-        Returns:
-            True if deletion was successful.
-
-        Raises:
-            ValueError: If the dealer is not found.
-        """
-        dealer = self.session.query(Dealer).get(dealer_id)
-        if dealer:
-            self.session.delete(dealer)
-            self.session.commit()
-            return True
         raise ValueError("Dealer not found")
