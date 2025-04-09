@@ -1,0 +1,450 @@
+openapi: 3.0.1
+info:
+  title: Inventory API  
+  version: 1.0.0
+  description: |-
+    All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS. Max request size of 6MB.
+# servers:
+#   #todo - add production and test urls
+  # - url:
+  #   description: Impel test environment endpoint.
+  # - url:
+  #   description: Impel prod environment endpoint.
+
+#{{INVENTORY_INTERNAL_API_VALIDATION}}
+
+paths:
+  /dealer/v1:
+    get:
+      #{{RETRIEVE_DEALER_INFO}}
+      summary: Get dealers data.
+      operationId: get-dealers
+      description: |-
+        This API endpoint enables the retrieval of dealer data.
+      parameters:
+        - schema:
+            type: string
+          in: header
+          name: client_id
+          required: true
+          description: Client ID provided by Impel.
+        - schema:
+            type: string
+          in: header
+          name: x_api_key
+          required: true
+          description: API Key provided by Impel
+        - schema:
+            type: string
+          in: query
+          name: provider_dealer_id
+          required: false
+          description: The id of the dealer assigned by the provider of the inventory to query for.
+          example: 123456
+        - schema:
+            type: string
+          in: query
+          name: impel_integration_partner_name
+          required: false
+          description: The name of the inventory provider assigned by Impel of the inventory to query for.
+          example: "Partner Name"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DealerResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+  /inventory/v1:
+    get:
+      #{{RETRIEVE_INVENTORY_INFO}}
+      summary: Get inventory data by dealer or VIN.
+      operationId: get-inventory
+      description: |-
+        This API endpoint enables the retrieval of inventory/vehicle data using a dealer ID or VIN. 
+        An optional parameter `on_lot` can be set to `true` to filter results to only vehicles currently on the lot.
+      parameters:
+        - schema:
+            type: string
+          in: header
+          name: client_id
+          required: true
+          description: Client ID provided by Impel.
+        - schema:
+            type: string
+          in: header
+          name: x_api_key
+          required: true
+          description: API Key provided by Impel.
+        - schema:
+            type: integer
+          in: query
+          name: dealer_id
+          required: false
+          description: The ID of the dealer to query inventory for.
+          example: 123456
+        - schema:
+            type: string
+          in: query
+          name: vin
+          required: false
+          description: The Vehicle Identification Number to query inventory for.
+          example: 1HGCM82633A123456
+        - schema:
+            type: boolean
+          in: query
+          name: on_lot
+          required: false
+          description: If set to `true`, only inventory/vehicles currently on the lot will be returned.
+          example: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/InventoryResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+
+components:
+  schemas:
+    IntegrationPartner:
+      type: object
+      description: Represents an external integration partner in the system.
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the integration partner.
+        impel_integration_partner_id:
+          type: string
+          description: Unique identifier for the partner within the Impel system.
+        type:
+          type: string
+          description: Type of integration partner
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp indicating when the integration partner record was created in the database.
+    Dealer:
+      type: object
+      description: Represents a dealership that interacts with Impel
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the dealer.
+        impel_dealer_id:
+          type: string
+          description: Unique identifier for the dealer within the Impel system.
+        location_name:
+          type: string
+          description: Name of the dealership location.
+        state:
+          type: string
+          description: State where the dealership is located.
+        city:
+          type: string
+          description: City where the dealership is located.
+        zip_code:
+          type: string
+          description: Postal code of the dealership location.
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp indicating when the dealer record was created in the database.
+        name:
+          type: string
+          description: Official name of the dealership.
+    DealerIntegrationPartner:
+      type: object
+      description: Represents the relationship between a dealer and an integration partner.
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the dealer-integration partner relationship.
+        integration_partner_id:
+          type: integer
+          description: Identifier of the associated integration partner.
+        dealer_id:
+          type: integer
+          description: Identifier of the associated dealer.
+        provider_dealer_id:
+          type: string
+          description: Identifier for the dealer in the provider's system.
+        is_active:
+          type: boolean
+          description: Indicates whether the dealer integration partner relationship is active.
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp indicating when the relationship record was created in the database.
+    Vehicle:
+      type: object
+      description: Represents a vehicle in the system, including its specifications and association with a dealer integration partner.
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the vehicle.
+        vin:
+          type: string
+          description: Vehicle Identification Number, a unique code used to identify the vehicle.
+        oem_name:
+          type: string
+          description: Name of the original equipment manufacturer (OEM) of the vehicle.
+        type:
+          type: string
+          description: General type of the vehicle
+        vehicle_class:
+          type: string
+          description: Classification of the vehicle based on regulatory or industry standards.
+        mileage:
+          type: string
+          description: Distance the vehicle has traveled
+        make:
+          type: string
+          description: Manufacturer or brand of the vehicle (e.g., Toyota, Ford).
+        model:
+          type: string
+          description: Specific model of the vehicle (e.g., Corolla, Mustang).
+        year:
+          type: string
+          description: Year the vehicle was manufactured.
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp indicating when the vehicle record was created in the database.
+        dealer_integration_partner_id:
+          type: integer
+          description: Identifier linking the vehicle to a dealer integration partner.
+        new_or_used:
+          type: string
+          description: Indicates whether the vehicle is new or used.
+        metadata:
+          type: string
+          description: Additional information about the vehicle
+    Inventory:
+      type: object
+      description: Represents an inventory item in the system
+      properties:
+        id:
+          type: integer
+          description: The unique ID of the inventory item.
+        vehicle_id:
+          type: integer
+          description: The ID of the vehicle associated with this inventory item.
+          example: 123456
+        dealer_integration_partner_id:
+          type: integer
+          description: The ID of the dealer integration partner.
+          example: 123456
+        vin:
+          type: string
+          description: The Vehicle Identification Number.
+          example: 1HGCM82633A123456
+        list_price:
+          type: number
+          format: float
+          description: The list price of the vehicle.
+          example: 25000
+        cost_price:
+          type: number
+          format: float
+          description: The cost price of the vehicle.
+          example: 20000
+        fuel_type:
+          type: string
+          description: The type of fuel the vehicle uses.
+          example: "Gasoline"
+        exterior_color:
+          type: string
+          description: The exterior color of the vehicle.
+          example: "Red"
+        interior_color:
+          type: string
+          description: The interior color of the vehicle.
+          example: "Black"
+        doors:
+          type: integer
+          description: The number of doors the vehicle has.
+          example: 4
+        seats:
+          type: integer
+          description: The number of seats in the vehicle.
+          example: 5
+        transmission:
+          type: string
+          description: The type of transmission.
+          example: "Automatic"
+        photo_url:
+          type: string
+          description: URL of the vehicle photo.
+          example: "http://example.com/photo.jpg"
+        comments:
+          type: string
+          description: Additional comments about the vehicle.
+          example: "2023 Mazda BT-50 XT Dual Cab - Automatic - 3.0L Diesel Turbo."
+        drive_train:
+          type: string
+          description: The drivetrain configuration of the vehicle.
+          example: "4WD"
+        cylinders:
+          type: integer
+          description: The number of cylinders in the vehicle's engine.
+          example: 6
+        body_style:
+          type: string
+          description: The body style of the vehicle.
+          example: "SUV"
+        series:
+          type: string
+          description: The vehicle series.
+          example: "UB 2024.00MY"
+        on_lot:
+          type: boolean
+          description: Indicates whether the vehicle is currently available on the lot.
+          example: true
+        inventory_status:
+          type: string
+          description: The current status of the inventory item.
+          example: "Available"
+        interior_material:
+          type: string
+          description: The interior material of the vehicle.
+          example: "Leather"
+        source_data_drive_train:
+          type: string
+          description: The original drivetrain data from the source.
+          example: "4WD"
+        source_data_interior_material_description:
+          type: string
+          description: Interior material description from the source.
+          example: "Leather"
+        source_data_transmission:
+          type: string
+          description: Transmission type from the source.
+          example: "Automatic"
+        source_data_transmission_speed:
+          type: string
+          description: Transmission speed from the source.
+          example: "Automatic"
+        transmission_speed:
+          type: string
+          description: The number of transmission speeds.
+          example: "Automatic"
+        build_data:
+          type: string
+          description: Additional build data for the vehicle.
+          example: "2023 Mazda BT-50 XT Dual Cab - Automatic - 3.0L Diesel Turbo."
+        region:
+          type: string
+          description: The region where the vehicle is located.
+          example: "US"
+        highway_mpg:
+          type: integer
+          description: The highway fuel efficiency in miles per gallon.
+          example: 30
+        city_mpg:
+          type: integer
+          description: The city fuel efficiency in miles per gallon.
+          example: 25
+        vdp:
+          type: string
+          description: Vehicle Display Page URL.
+          example: "http://example.com/vdp"
+        trim:
+          type: string
+          description: The trim level of the vehicle.
+          example: "Sport"
+        special_price:
+          type: number
+          format: float
+          description: A special promotional price for the vehicle.
+          example: 23000
+        engine:
+          type: string
+          description: The engine type of the vehicle.
+          example: "3.0L Diesel Turbo"
+        engine_displacement:
+          type: string
+          description: The engine displacement.
+          example: "3.0L"
+        factory_certified:
+          type: boolean
+          description: Indicates whether the vehicle is factory certified.
+          example: true
+        metadata_:
+          type: object
+          additionalProperties: true
+          description: Additional metadata for the inventory item.
+          example: {"key": "value"}
+        options:
+          type: array
+          items:
+            type: string
+          description: List of options available for the vehicle.
+          example: ["Sunroof", "Leather Seats"]
+        priority_options:
+          type: array
+          items:
+            type: string
+          description: List of priority options for the vehicle.
+          example: ["Navigation", "Bluetooth"]
+    InventoryResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Inventory'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+              - type: object
+                properties:
+                  dealer_integration_partner:
+                    $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Vehicle'
+        has_next_page:
+          type: boolean
+    DealerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/DealerIntegrationPartner'
+              - type: object
+                properties:
+                  dealer:
+                    $ref: '#/components/schemas/Dealer'
+              - type: object
+                properties:
+                  integration_partner:
+                    $ref: '#/components/schemas/IntegrationPartner'
+        has_next_page:
+          type: boolean
