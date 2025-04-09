@@ -39,6 +39,7 @@ fi
 user=$(aws iam get-user --output json | jq -r .User.UserName | sed 's/\./-/g')
 commit_id=$(git log -1 --format=%H)
 
+python3 app/inventory_internal_api/swagger/oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
