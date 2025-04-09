@@ -36,7 +36,7 @@ class TekionWrapper:
                 boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)[
                     "SecretString"
                 ]
-            )["TEKION_V3"])
+            )["TEKION_V4"])
 
             return secret["app_id"], secret["secret_key"], secret["url"]
         except ClientError as e:
@@ -69,7 +69,7 @@ class TekionWrapper:
         try:
             resp_data = resp.json()["data"]
             token = resp_data["access_token"]
-            # Refreshes token if request within 10 seconds of expirey time for server leeway.
+            # Refreshes token if request within 10 seconds of expire time for server leeway.
             expire_seconds = int(resp_data["expire_in"]) - 10
             expire_datetime = datetime.utcnow() + timedelta(
                 seconds=expire_seconds
@@ -161,9 +161,9 @@ class TekionWrapper:
 
         if resp.status_code in (429, 403):
             self._alert_ce(url, resp.status_code)
-
+            
         resp.raise_for_status()
-
+   
         try:
             resp_json = resp.json()
             meta = resp_json["meta"]
@@ -200,46 +200,46 @@ class TekionWrapper:
 
     def get_customer_v4(self, id: str):
         """Retrieve Customer by id."""
-        return self._call_tekion(f"openapi/v4.0.0/customers/{id}", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/customers/{id}", set_date_filter=False)
 
     def get_employee(self, id: str):
         """Retrieve User (Employee) by id"""
-        return self._call_tekion(f"openapi/v4.0.0/users/{deal_id}", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/users/{id}", set_date_filter=False)
 
     def get_deal_customers(self, deal_id: str):
         """Retrieve all Customers associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/customers", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/customers", set_date_filter=False)
 
     def get_deal_payment(self, deal_id: str):
         """Retrieve Payment Details associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/deal-payment", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment", set_date_filter=False)
 
     def get_deal_service_contracts(self, deal_id: str):
         """Retrieve all Service Contracts (fnis) associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/deal-payment/fnis", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment/fnis", set_date_filter=False)
 
     def get_deal_trade_ins(self, deal_id: str):
         """Retrieve all Trade Ins associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/trade-ins", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/trade-ins", set_date_filter=False)
 
     def get_deal_gross_details(self, deal_id: str):
         """Retrieve Gross Details associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/gross-details", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/gross-details", set_date_filter=False)
         
     def get_deal_vehicles(self, deal_id: str):
         """Retrieve all Vehicles associated with a Deal by Deal id"""
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/vehicles", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/vehicles", set_date_filter=False)
 
     def get_vehicle_warranties(self, vehicle_inventory_id: str):
         """Retrieve all Warranties associated with a Vehicle by Vehicle Inventory id"""
-        return self._call_tekion(f"openapi/v4.0.0/vehicle-inventory/{vehicle_inventory_id}/warranties", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/vehicle-inventory/{vehicle_inventory_id}/warranties", set_date_filter=False)
 
     def get_deal_assignees(self, deal_id: str):
         """
         Retrieve all Sales Associates associated with a Deal by Deal id.
-        Further API call is required of rspecific information about assignees
+        Further API call is required for specific information about assignees
         """
-        return self._call_tekion(f"openapi/v4.0.0/deals/{deal_id}/assignees", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/assignees", set_date_filter=False)
 
     def upload_data(self, api_data, key):
         """Upload API data to S3."""

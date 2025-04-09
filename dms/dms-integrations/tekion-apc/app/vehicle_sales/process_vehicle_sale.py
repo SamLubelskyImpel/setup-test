@@ -14,6 +14,7 @@ from uuid import uuid4
 from tekion_wrapper import TekionWrapper
 from requests.exceptions import HTTPError
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 
 logger = logging.getLogger()
@@ -38,60 +39,92 @@ def enrich_vehicle_sale(data, dms_id, api):
 
     deal_id = data["id"]
 
-    data.update("payment", api.get_deal_payment(deal_id))
+    try:
+        data.update({"payment": api.get_deal_payment(deal_id)})
+    except HTTPError:
+        logger.warning(f"No payment details for deal {deal_id}")
+        data.update({"payment": {}})
 
-    data.update("service_contracts", api.get_deal_service_contracts(deal_id))
+    try:
+        data.update({"service_contracts": api.get_deal_service_contracts(deal_id)})
+    except HTTPError:
+        logger.warning(f"No service contracts for deal {deal_id}")
+        data.update({"service_contracts": []})
+  
+    try:
+        data.update({"trade_ins": api.get_deal_trade_ins(deal_id)})
+    except HTTPError:
+        logger.warning(f"No trade ins for deal {deal_id}")
+        data.update({"trade_ins": []})
 
-    data.update("trade_ins", api.get_deal_trade_ins(deal_id))
+    # data.update({"gross_details": api.get_deal_gross_details(deal_id)})
 
-    data.update("gross_details", api.get_deal_gross_details(deal_id))
+    vehicles = []
+    try:
+        vehicles = api.get_deal_vehicles(deal_id)
 
-    vehicles = api.get_deal_vehicles(deal_id)
+        data.update({"vehicles": vehicles})
 
-    data.update("vehicles", vehicles)
+    except HTTPError:
+        logger.warning(f"No vehicles for deal {deal_id}")
+        data.update({"vehicles": []})
 
     warranties = []
     for vehicle in vehicles:
-        warranties.append(api.get_vehicle_warranties(vehicle["id"]))
-    
-    data.update("warranties", warranties)
+        try:
+            warranties.append(api.get_vehicle_warranties(vehicle["id"]))
+        except HTTPError:
+            logger.warning(f"No warranties for vehicle {vehicle['id']}")
 
-    customers = api.get_deal_customers(deal_id)
+    data.update({"warranties": warranties})
 
-    buyerFlag, cobuyerFlag = False, False
+    try:
+        customers = api.get_deal_customers(deal_id)
 
-    for customer in customers:
+        buyerFlag, cobuyerFlag = False, False
 
-        if not buyerFlag and customer["type"] == "BUYER":
-            data.update("buyer", api.get_customer_v4(customer["id"]))
-            buyerFlag = True
-        elif not cobuyerFlag and customer["type"] == "COBUYER":
-            data.update("cobuyer", api.get_customer_v4(customer["id"]))
-            cobuyerFlag = True
-        elif buyerFlag and cobuyerFlag:
-            break
-    
-    assignees = api.get_deal_assignees(deal_id)
+        for customer in customers:
 
-    for assignee in assignees:
-        if assignee["primary"]:
-            deal.update("salesperson", api.get_employee(assignee["id"]))
-            break
+            if not buyerFlag and customer["type"] == "BUYER":
+                # data.update({"buyer_communications": api.get_customer_v4(customer["id"])})
+                data.update({"buyer": customer})
+                buyerFlag = True
+            elif not cobuyerFlag and customer["type"] == "COBUYER":
+                # data.update({"cobuyer_communications": api.get_customer_v4(customer["id"])})
+                data.update({"cobuyer": customer})
+                cobuyerFlag = True
+            elif buyerFlag and cobuyerFlag:
+                break
+
+    except HTTPError:
+        logger.warning(f"No customers for deal {deal_id}")
+        data.update({"buyer": {}})
+        data.update({"cobuyer": {}})
+
+
+    try:
+        assignees = api.get_deal_assignees(deal_id)
+        for assignee in assignees:
+            if assignee["primary"]:
+                data.update({"salesperson": api.get_employee(assignee["employeeDetails"]["id"])})
+                break
+    except HTTPError:
+        logger.warning(f"No salespersons for deal {deal_id}")
+        data.update({"salesperson": {}})
+
+    logger.info(f"Enriched record: {data}")
 
     return data
 
 
-def record_handler(record: SQSRecord):
-    logger.info(f"Record: {record}")
-
+def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
     try:
-        body = record.json_body
-        dms_id = body.get("dms_id")
-        s3_key = body.get("s3_key")
+        dms_id = body["dms_id"]
+        s3_key = body["s3_key"]
 
         api = TekionWrapper(dealer_id=dms_id)
 
-        vehicle_sale_chunk= loads(s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key))
+        vehicle_sale_chunk= loads(s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key)["Body"].read().decode("utf-8"))
 
         with ThreadPoolExecutor() as executor:
             futures = [
@@ -104,8 +137,7 @@ def record_handler(record: SQSRecord):
                     enriched_vehicle_sale = future.result()
                     save_vehicle_sale(enriched_vehicle_sale, dms_id)
                 except Exception as e:
-                    logger.error(f"Unhandled exception for dealer {dealer_id}: {e}")
-                    dealer_codes[dealer_id] = "ERROR"  
+                    logger.error(f"Unhandled exception for dealer {dms_id}: {e}")
 
     except HTTPError as e:
         if e.response.status_code == 429:
@@ -117,6 +149,10 @@ def record_handler(record: SQSRecord):
         logger.exception("Error processing record")
         raise
 
+def record_handler(record: SQSRecord) -> None:
+    """Process each SQS record."""
+    logger.info(f"Processing record with message ID: {record.message_id}")
+    fetch_and_process_vehicle_sales(record.json_body)
 
 def process_vehicle_sales_handler(event, context):
     logger.info(f"Event: {event}")
