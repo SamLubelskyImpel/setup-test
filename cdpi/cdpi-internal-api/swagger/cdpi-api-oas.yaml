@@ -3,18 +3,14 @@ info:
   title: CDPI API
   version: 1.0.0
   description: API for CDPI
-  
 paths:
   /dealer:
     get:
       summary: Retrieve a list of dealers with optional filters
-      description: Retrieve dealer records. If no query parameters are provided, all dealers are returned. You can filter by fields such as dealer_name or sfdc_account_id.
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
-        passthroughBehavior: never
-        httpMethod: POST
-        type: aws_proxy
+      description: >
+        Retrieve dealer records. If no query parameters are provided, all dealers are returned.
+        You can filter by fields such as dealer_name, sfdc_account_id, salesai_dealer_id,
+        or serviceai_dealer_id. Supports pagination via 'page' and 'limit' parameters.
       parameters:
         - in: query
           name: dealer_name
@@ -36,15 +32,31 @@ paths:
           schema:
             type: string
           description: Filter by ServiceAI dealer ID.
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: The page number for pagination (default is 1).
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+          description: The maximum number of records to return per page (default is 100).
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
       responses:
         '200':
-          description: A list of dealer records.
+          description: A paginated list of dealer records.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Dealer'
+                $ref: '#/components/schemas/DealerListResponse'
         '400':
           description: Invalid request parameters.
           content:
@@ -73,7 +85,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dealer'
+                $ref: '#/components/schemas/DealerCreatedResponse'
         '400':
           description: Invalid input.
           content:
@@ -82,7 +94,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
     put:
       summary: Update an existing dealer.
-      description: Update the details of an existing dealer and its associated integration partner if necessary.
+      description: Update the details of an existing dealer.
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
@@ -197,6 +209,39 @@ components:
           description: Integration partner name for the dealer.
       required:
         - dealer_id
+    DealerListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number.
+        limit:
+          type: integer
+          description: Maximum number of records returned per page.
+        dealers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dealer'
+        has_next_page:
+          type: boolean
+          description: Flag indicating if there is a next page.
+      required:
+        - page
+        - limit
+        - dealers
+        - has_next_page
+    DealerCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Confirmation message.
+        dealer_id:
+          type: integer
+          description: Unique identifier of the created dealer.
+      required:
+        - message
+        - dealer_id
     DealerDeleteRequest:
       type: object
       properties:
@@ -214,3 +259,5 @@ components:
         errors:
           type: string
           description: Additional error details.
+      required:
+        - message
