@@ -49,6 +49,7 @@ Globals:
         LOGLEVEL: INFO
         MERCH_SFTP_KEY: MERCH_SFTP
         SALESAI_SFTP_KEY: SALESAI_SFTP
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -635,7 +636,7 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: "./app/inventory_internal_api/swagger/inventory_internal_api-interpolated.yaml"
+            Location: "./swagger/inventory-internal-api-oas-interpolated.yaml"
       GatewayResponses:
         BAD_REQUEST_PARAMETERS:
           ResponseTemplates:
@@ -684,7 +685,7 @@ Resources:
     Properties:
       FunctionName: !Sub "shared-inv-${Environment}-inventory-authorizer"
       CodeUri: app/
-      Handler: inventory_internal_api/app/authorizer.lambda_handler
+      Handler: authorizer.lambda_handler
       Timeout: 30
       MemorySize: 512
       Policies:
@@ -712,7 +713,7 @@ Resources:
     Properties:
       FunctionName: !Sub "shared-inv-${Environment}-inventory-RetrieveInventory"
       CodeUri: app/
-      Handler: inventory_internal_api/app/retrieve_inventory.lambda_handler
+      Handler: retrieve_inventory.lambda_handler
       Timeout: 30
       MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
@@ -734,7 +735,7 @@ Resources:
     Properties:
       FunctionName: !Sub "shared-inv-${Environment}-inventory-RetrieveDealer"
       CodeUri: app/
-      Handler: inventory_internal_api/app/retrieve_dealer.lambda_handler
+      Handler: retrieve_dealer.lambda_handler
       Timeout: 30
       MemorySize: 1024
       Role: !GetAtt LambdaRole.Arn
