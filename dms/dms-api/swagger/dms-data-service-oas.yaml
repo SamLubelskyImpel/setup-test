@@ -224,6 +224,42 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{REPAIR_ORDER_LAMBDA_INFO}}
+    post:
+      summary: Ingest repair order records.
+      operationId: post-repair-order
+      description: Receives unified-format repair order records for ingestion.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string 
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                records:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RepairOrderResponse'
+      responses:
+        '202':
+          description: Accepted for processing.
+        '400':
+          description: Bad Request.
+        '500':
+          description: Internal Server Error.
+      #{{REPAIR_ORDER_LAMBDA_INFO}}
   /vehicle-sale/v1:
     get:
       summary: Get DMS vehicle sale data.
@@ -337,6 +373,39 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{VEHICLE_SALE_LAMBDA_INFO}}
+    post:
+      summary: Ingest vehicle sale records.
+      operationId: post-vehicle-sale
+      description: Receives unified-format vehicle sale records for ingestion.
+      parameters:
+        - in: header
+          name: client_id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x_api_key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                records:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/VehicleSaleResponse'
+      responses:
+        '202':
+          description: Accepted for processing.
+        '400':
+          description: Bad Request.
+        '500':
+          description: Internal Server Error.
   /dealer/v1:
     get:
       summary: Get DMS dealer data.
@@ -389,6 +458,12 @@ paths:
         name: impel_integration_partner_id
         required: false
         description: The id of the DMS assigned by Impel to query for.
+      - schema:
+          type: boolean
+        in: query
+        name: historical_pull
+        description:
+        required: false
       responses:
         '200':
           description: Success
@@ -402,6 +477,49 @@ paths:
           description: This request is unauthorized.
         '500':
           description: Internal Server Error. Please contact Impel support.
+      #{{DEALER_LAMBDA_INFO}}
+    patch:
+      summary: Update historical pull metadata for  dealers.
+      operationId: update-dealer-historical-progress
+      description: |-
+        Updates the historical pull progress for one or more dealers by DMS ID.
+      parameters:
+        - in: header
+          name: client_id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x_api_key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dms_ids:
+                  type: array
+                  description: A list of DMS IDs to update historical progress for.
+                  items:
+                    type: string
+                historical_progress:
+                  type: object
+                  description: Metadata object to be written under 'historical_pull'.
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DealerHistoricalProgressUpdateResponse"
+        '400':
+          description: Bad Request.
+        '500':
+          description: Internal Server Error.
       #{{DEALER_LAMBDA_INFO}}
   /appointment/v1:
     get:
@@ -532,6 +650,39 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{APPOINTMENT_LAMBDA_INFO}}
+    post:
+      summary: Ingest appointment records.
+      operationId: post-appointment
+      description: Receives unified-format appointment records for ingestion.
+      parameters:
+        - in: header
+          name: client_id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x_api_key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                records:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AppointmentResponse'
+      responses:
+        '202':
+          description: Accepted for processing.
+        '400':
+          description: Bad Request.
+        '500':
+          description: Internal Server Error.
   /customer/v1/{customer_id}:
     get:
       summary: Get DMS customer data.
@@ -707,6 +858,19 @@ components:
                     $ref: '#/components/schemas/IntegrationPartner'
         has_next_page:
           type: boolean
+    DealerHistoricalProgressUpdateResponse:
+      type: object
+      properties:
+        updated:
+          type: array
+          items:
+            type: object
+            properties:
+              dms_id:
+                type: string
+              historical_progress:
+                type: object
+                additionalProperties: true
     CustomerResponse:
       type: object
       properties:
