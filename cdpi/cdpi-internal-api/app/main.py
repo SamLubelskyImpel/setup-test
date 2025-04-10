@@ -74,7 +74,9 @@ def _handle_put(body: Dict[str, Any], repo: DealerRepository) -> Dict[str, Any]:
         logger.error("Missing dealer_id in update request")
         return _response(400, {"message": "dealer_id is required for update."})
     
-    updated_dealer = repo.update_dealer(dealer_id, body)
+    updated_dealer, is_updated = repo.update_dealer(dealer_id, body)
+    if not is_updated:
+        return _response(200, {"message": f"No updates were applied for dealer id: {dealer_id}"})
     logger.info(f"Updated dealer with id: {dealer_id}")
     return _response(200, updated_dealer.as_dict(), default=str)
 

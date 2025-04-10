@@ -1,6 +1,8 @@
 import logging
 from os import environ
-from typing import Optional, Dict, List, Tuple
+from sqlalchemy import or_
+from sqlalchemy.orm import outerjoin
+from typing import Dict, List, Tuple, Optional
 from pydantic import BaseModel, Field, ValidationError
 
 from cdpi_orm.models.dealer import Dealer
@@ -30,6 +32,14 @@ class DealerCreateRequest(BaseModel):
     cdp_dealer_id: str = Field(..., max_length=80, description="CDP Dealer ID")
     impel_integration_partner_name: str = Field(..., max_length=80, examples=["FORD_DIRECT"])
     is_active: bool = Field(False, description="Is the dealer active?")
+
+class DealerUpdateData(BaseModel):
+    dealer_id: int
+    dealer_name: Optional[str] = None
+    sfdc_account_id: Optional[str] = None
+    salesai_dealer_id: Optional[str] = None
+    serviceai_dealer_id: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class DealerRepository:
@@ -87,9 +97,26 @@ class DealerRepository:
 
     def create_dealer(self, dealer_data: dict) -> Dealer:
         """Creates a new dealer and its integration partner record."""
-        dealer_create_request = DealerCreateRequest(**dealer_data)
-
         try:
+            dealer_create_request = DealerCreateRequest(**dealer_data)
+            
+            existing_dealer = self.session.query(Dealer) \
+                .outerjoin(DealerIntegrationPartner, Dealer.id == DealerIntegrationPartner.dealer_id) \
+                .filter(
+                    or_(
+                        Dealer.sfdc_account_id == dealer_create_request.sfdc_account_id,
+                        DealerIntegrationPartner.cdp_dealer_id == dealer_create_request.cdp_dealer_id
+                    )
+                ).first()
+
+            if existing_dealer:
+                logger.info(
+                    "Duplicate dealer found: sfdc_account_id=%s or cdp_dealer_id=%s",
+                    dealer_create_request.sfdc_account_id,
+                    dealer_create_request.cdp_dealer_id
+                )
+                raise Exception("Duplicate dealer exists based on sfdc_account_id or cdp_dealer_id")
+
             new_dealer = Dealer(
                 dealer_name=dealer_create_request.dealer_name,
                 sfdc_account_id=dealer_create_request.sfdc_account_id,
@@ -133,17 +160,49 @@ class DealerRepository:
 
     def update_dealer(self, dealer_id: int, update_data: dict) -> Dealer:
         """Updates an existing dealer record."""
-        dealer = self.session.get(Dealer, dealer_id)
-        if dealer:
-            logger.debug(f"Updating dealer with id: {dealer_id}")
-            for key, value in update_data.items():
-                setattr(dealer, key, value)
-            self.session.commit()
-            self.session.refresh(dealer)
-            logger.info(f"Dealer updated with id: {dealer_id}")
-            return dealer
-        logger.error(f"Dealer with id {dealer_id} not found")
-        raise ValueError("Dealer not found")
+
+        try:
+            update_payload = DealerUpdateData(**update_data)
+
+            dealer = self.session.get(Dealer, dealer_id)
+            if not dealer:
+                logger.error(f"Dealer with id {dealer_id} not found")
+                raise ValueError("Dealer not found")
+
+            updated = False  # Flag to track if any change is applied
+
+            dealer_fields = ['dealer_name', 'sfdc_account_id', 'salesai_dealer_id', 'serviceai_dealer_id']
+            for field in dealer_fields:
+                new_value = getattr(update_payload, field)
+                if new_value is not None:
+                    setattr(dealer, field, new_value)
+                    updated = True
+
+            if update_payload.is_active is not None:
+                dealer_integration_partner = self.session.query(DealerIntegrationPartner).filter_by(dealer_id=dealer_id).first()
+                if dealer_integration_partner:
+                    dealer_integration_partner.is_active = update_payload.is_active
+                    updated = True
+                else:
+                    logger.warning("No DealerIntegrationPartner record found for dealer_id %s", dealer_id)
+
+            if updated:
+                self.session.commit()
+                self.session.refresh(dealer)
+                logger.info("Dealer updated successfully with id: %s", dealer_id)
+            else:
+                logger.info("No updates were applied for dealer id: %s", dealer_id)
+
+            return dealer, updated
+        
+        except ValidationError as e:
+            logger.error("Validation error: %s", str(e), exc_info=True)
+            sanitized = self._sanitize_errors(e.errors())
+            raise ValidationErrorResponse(sanitized, e)
+        except Exception as e:
+            self.session.rollback()
+            logger.error("Error updating dealer: %s", str(e), exc_info=True)
+            raise
 
     @staticmethod
     def _build_dealer_record(dealer, dealer_integration_partner, integration_partner) -> Dict[str, any]:
