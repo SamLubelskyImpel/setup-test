@@ -292,6 +292,16 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/CDPI/DB/application*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/CDPI/DB/application*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/DmsDataService*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/DmsDataService*",
+                  ]
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -314,6 +324,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound/*"
                   - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-processed/*"
+                  - !Sub "arn:aws:s3:::cdpi-shared-${AWS::Region}-${Environment}/customer-inbound-preprocessed/*"
         - PolicyName: SQSAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -327,6 +338,8 @@ Resources:
                 Resource:
                   - !GetAtt ConsumerIngestionQueue.Arn
                   - !GetAtt ConsumerIngestionBatcherQueue.Arn
+                  - !GetAtt SalesfileFormatQueue.Arn
+                  - !GetAtt ServicefileFormatQueue.Arn
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -526,6 +539,198 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt ConsumerIngestionDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
+
+  SalesfileFormatLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-SalesfileFormat"
+      Handler: sales_file_format.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 300
+      Environment:
+        Variables:
+          CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
+          SECRET_KEY: !If [IsProd, "impel", "impel"]
+      VpcConfig: !Ref AWS::NoValue
+
+  SalesfileFormatLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-SalesfileFormat"
+
+  SalesfileFormatQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-SalesfileFormat"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SalesfileFormatDeadLetterQueue.Arn
+        maxReceiveCount: 1
+
+  SalesfileFormatDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-SalesfileFormatDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  SalesfileFormatEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt SalesfileFormatQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt SalesfileFormatLambda.Arn
+
+  SalesfileFormatQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref SalesfileFormatQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: SalesfileFormatQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt SalesfileFormatQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
+
+  SalesfileFormatTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref SharedS3ToSNSTopic
+      Endpoint: !GetAtt SalesfileFormatQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound-preprocessed/sales-ai/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  SalesfileFormatDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-SalesfileFormatDLQAlarm"
+      AlarmDescription: "Alarm for Sales File Format Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SalesfileFormatDeadLetterQueue.QueueName
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      TreatMissingData: notBreaching
+
+  ServicefileFormatLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ServicefileFormat"
+      Handler: service_file_format.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 1024
+      Timeout: 900
+      Environment:
+        Variables:
+          DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
+          SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
+      VpcConfig: !Ref AWS::NoValue
+
+  ServicefileFormatLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ServicefileFormat"
+
+  ServicefileFormatQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ServicefileFormat"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 900
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ServicefileFormatDeadLetterQueue.Arn
+        maxReceiveCount: 1
+
+  ServicefileFormatDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "cdpi-${Environment}-ServicefileFormatDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  ServicefileFormatEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt ServicefileFormatQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt ServicefileFormatLambda.Arn
+
+  ServicefileFormatQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ServicefileFormatQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: ServicefileFormatQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt ServicefileFormatQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !Ref SharedS3ToSNSTopic
+
+  ServicefileFormatTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !Ref SharedS3ToSNSTopic
+      Endpoint: !GetAtt ServicefileFormatQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"customer-inbound-preprocessed/service-ai/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  ServicefileFormatDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cdpi-${Environment}-ServicefileFormatDLQAlarm"
+      AlarmDescription: "Alarm for Services File Format Dead Letter Queue"
+      ActionsEnabled: true
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt ServicefileFormatDeadLetterQueue.QueueName
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
