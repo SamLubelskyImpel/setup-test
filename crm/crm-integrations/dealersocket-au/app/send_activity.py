@@ -7,7 +7,7 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from .api_wrappers import CrmApiWrapper, DealersocketAUApiWrapper
+from api_wrappers import CrmApiWrapper, DealersocketAUApiWrapper
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -52,10 +52,16 @@ def record_handler(record: SQSRecord) -> None:
                 f"No Activity ID received. Dealersocket response: {dealersocket_au_response}"
             )
     except Exception as e:
-        logger.error(
+        error_message = (
             f"Failed to post activity | Activity ID: {activity.get('activity_id')}, "
             f"Lead ID: {activity.get('lead_id')} | Error: {str(e)}"
         )
+        logger.error(error_message)
+        support_alert_message = (
+            f"[SUPPORT ALERT] Failed to post activity | Activity ID: {activity.get('activity_id')}, "
+            f"Lead ID: {activity.get('lead_id')} | Error: {str(e)}"
+        )
+        logger.error(support_alert_message)
         raise
 
 
