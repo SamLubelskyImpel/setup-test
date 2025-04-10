@@ -458,7 +458,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 10
+      Threshold: 1
       TreatMissingData: notBreaching
 
   MonitoringDealersocket:
