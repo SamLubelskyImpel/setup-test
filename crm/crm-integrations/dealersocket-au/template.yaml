@@ -445,8 +445,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub dealersocket-au-${Environment}-SendActivityDLQ
-      AlarmDescription: There are over 1 unprocessed messages in the dealersocket-au
-        SendActivity DLQ
+      AlarmDescription: There are over 10 unprocessed messages in the dealersocket-au SendActivity DLQ
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
@@ -459,7 +458,7 @@ Resources:
       Period: 300
       Statistic: Sum
       ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
+      Threshold: 10
       TreatMissingData: notBreaching
 
   MonitoringDealersocket:
