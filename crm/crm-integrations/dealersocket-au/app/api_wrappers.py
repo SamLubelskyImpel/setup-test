@@ -15,6 +15,7 @@ from hashlib import sha256
 from base64 import b64encode
 from datetime import datetime
 from xml.etree.ElementTree import Element, SubElement, tostring, fromstring
+from lxml.etree import Element, SubElement, tostring, CDATA
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -130,17 +131,19 @@ class DealersocketAUApiWrapper:
         # """
 
     def _build_xml(self, root_tag: str, elements: dict) -> str:
-        """Build XML payload dynamically."""
         root = Element(root_tag, {
-            "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
+            "xsd": "http://www.w3.org/2001/XMLSchema",
+            "xsi": "http://www.w3.org/2001/XMLSchema-instance"
         })
         for tag, value in elements.items():
-            if value is not None:  # Skip empty elements
-                sub_element = SubElement(root, tag)
+            sub_element = SubElement(root, tag)
+            if tag == "Note":
+                # Insert CDATA section for Note instead of plain text.
+                sub_element.text = CDATA(value)
+            else:
                 sub_element.text = value
         return tostring(root, encoding="unicode")
-
+    
     def _parse_response(self, response_text: str) -> dict:
         """Parse XML response into a dictionary."""
         root = fromstring(response_text)
@@ -166,11 +169,11 @@ class DealersocketAUApiWrapper:
     def _get_common_elements(self) -> dict:
         """Return common elements used in multiple payloads."""
         return {
-            "Vendor": "Impel",
+            "Vendor": "Pulsar",
             "DealerId": self.activity["crm_dealer_id"],
             "EntityId": self.activity["crm_consumer_id"],
             "EventId": self.activity["crm_lead_id"],
-            "Note": f"<![CDATA[{self.activity['notes']}]]>",
+            "Note": f"<span style='color:Black'>{self.activity['notes']}</span>",
         }
 
     def _create_activity_payload(self, activity_type: str, activity_id: str = "") -> str:
@@ -213,22 +216,46 @@ class DealersocketAUApiWrapper:
         updated_payload = self._create_activity_payload("appointment", activity_id=activity_id)
         return self._send_request("Activity", updated_payload, method="PUT")
 
+    # def create_activity(self):
+    #     """Create an activity on CRM."""
+    #     try:
+    #         activity_type = self.activity["activity_type"]
+    #         payload = self._create_activity_payload(activity_type)
+    #         endpoint = "WorkNote" if activity_type == "note" else "Activity"
+    #         response_text = self._send_request(endpoint, payload)
+    #         response_data = self._parse_response(response_text)
+
+    #         # Handle ACTIVITY_EXISTS for appointments
+    #         if activity_type == "appointment" and response_data.get("ErrorCode") == "ACTIVITY_EXISTS":
+    #             return self._parse_response(
+    #                 self._handle_activity_exists(response_data["ErrorMessage"])
+    #             )
+
+    #         return response_data
+    #     except Exception as e:
+    #         logger.error(f"Failed to create activity: {e}")
+    #         return None
+
     def create_activity(self):
-        """Create an activity on CRM."""
+        """Create an activity on CRM. Only 'note' activity types are supported."""
         try:
-            activity_type = self.activity["activity_type"]
+            activity_type = self.activity["activity_type"].lower()
+            if activity_type != "note":
+                error_msg = f"Activity type '{activity_type}' is not supported. Only 'note' is allowed."
+                logger.error(error_msg)
+                return {
+                    "ErrorCode": "UNSUPPORTED_ACTIVITY_TYPE",
+                    "ErrorMessage": error_msg
+                }
             payload = self._create_activity_payload(activity_type)
-            endpoint = "WorkNote" if activity_type == "note" else "Activity"
+            endpoint = "WorkNote"  # Currently, this the the only working endpoint
             response_text = self._send_request(endpoint, payload)
+            logger.info(f"response_text is: {response_text}")
             response_data = self._parse_response(response_text)
-
-            # Handle ACTIVITY_EXISTS for appointments
-            if activity_type == "appointment" and response_data.get("ErrorCode") == "ACTIVITY_EXISTS":
-                return self._parse_response(
-                    self._handle_activity_exists(response_data["ErrorMessage"])
-                )
-
+            logger.info(f"response_data is: {response_data}")
             return response_data
+
         except Exception as e:
             logger.error(f"Failed to create activity: {e}")
             return None
+
