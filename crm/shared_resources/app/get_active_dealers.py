@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 ENVIRONMENT = environ.get("ENVIRONMENT")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CRM_API_URL = environ.get("CRM_API_URL")
-PARTNER_ID = environ.get("PARTNER_ID")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -20,24 +19,25 @@ s3_client = boto3.client("s3")
 secret_client = boto3.client("secretsmanager")
 
 
-def get_secrets():
+def get_secrets(partner_id: str):
     """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
     )
-    secret = loads(secret["SecretString"])[PARTNER_ID]
+    secret = loads(secret["SecretString"])[partner_id]
     secret_data = loads(secret)
 
     return secret_data["api_key"]
 
 
-def get_dealers(integration_partner_name: str) -> Any:
+def get_dealers(integration_partner_name: str, partner_id: str) -> Any:
     """Get active dealers from CRM API."""
-    api_key = get_secrets()
+    api_key = get_secrets(partner_id)
+    logger.info(f"PARTNER_ID: {partner_id}")
     response = requests.get(
         url=f"{CRM_API_URL}dealers",
         headers={
-            "partner_id": PARTNER_ID,
+            "partner_id": partner_id,
             "x_api_key": api_key
         },
         params={
@@ -88,12 +88,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     integration_partner_name = event["impel_integration_partner_name"]
+    partner_id = event.get("partner_id", "impel")
+
     try:
         current_time = datetime.utcnow()
         start_time = (current_time - timedelta(minutes=10)).strftime('%Y-%m-%dT%H:%M:%SZ')
         end_time = current_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        dealers = get_dealers(integration_partner_name)
+        dealers = get_dealers(integration_partner_name, partner_id)
         if not dealers:
             logger.error(f"No active dealers found for {integration_partner_name}")
             return

@@ -58,6 +58,9 @@ Globals:
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         REYREY_PARTNER_NAME: "reyrey"
         PARTNER_ID: "impel"
+        ACTIVIX_PARTNER_ID: "internal_activix"
+        MOMENTUM_PARTNER_ID: "internal_momentum"
+        REYREY_PARTNER_ID: "internal_reyrey"
         DA_SECRET_KEY: "DA_EVENT_LISTENER"
     VpcConfig:
       SecurityGroupIds:

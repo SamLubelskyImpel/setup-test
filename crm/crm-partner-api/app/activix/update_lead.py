@@ -13,7 +13,7 @@ from uuid import uuid4
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 ENVIRONMENT = environ.get("ENVIRONMENT")
-PARTNER_ID = environ.get("PARTNER_ID")
+PARTNER_ID = environ.get("ACTIVIX_PARTNER_ID")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -39,7 +39,7 @@ def get_secrets():
     )
     secret = loads(secret["SecretString"])[PARTNER_ID]
     secret_data = loads(secret)
-
+    logger.info(f"PARTNER ID: {PARTNER_ID}")
     return secret_data["api_key"]
 
 
