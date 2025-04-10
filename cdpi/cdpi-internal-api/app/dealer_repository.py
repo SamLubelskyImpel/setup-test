@@ -1,4 +1,5 @@
 import logging
+from os import environ
 from typing import Optional, Dict, List, Tuple
 from pydantic import BaseModel, Field, ValidationError
 
@@ -6,7 +7,8 @@ from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from cdpi_orm.models.integration_partner import IntegrationPartner
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 class InvalidFilterException(Exception):
@@ -48,10 +50,10 @@ class DealerRepository:
                 None,
             )
             if model:
-                logger.debug("Adding filter for %s = %s", key, value)
+                logger.debug(f"Adding filter for {key} = {value}")
                 self.filters.append(getattr(model, key) == value)
             else:
-                logger.warning("Invalid key attribute in schema: %s", key)
+                logger.warning(f"Invalid key attribute in schema: {key}")
                 raise InvalidFilterException(f"Invalid key attribute in schema: {key}")
 
     def get_dealers(
@@ -66,7 +68,7 @@ class DealerRepository:
         Returns:
             Tuple of (list of dealer records, has_next_page flag)
         """
-        logger.info("Getting dealers with filters: %s (page=%s, limit=%s)", filter_params, page, limit)
+        logger.info(f"Getting dealers with filters: {filter_params}\n (page={page}, limit={limit})")
         query = self.session.query(Dealer, DealerIntegrationPartner, IntegrationPartner) \
             .join(DealerIntegrationPartner, Dealer.id == DealerIntegrationPartner.dealer_id) \
             .join(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
@@ -80,7 +82,7 @@ class DealerRepository:
         results = query.all()
         dealer_records = [self._build_dealer_record(*res) for res in results]
         has_next_page = len(dealer_records) == limit
-        logger.debug("Query returned %s records. Has next page: %s", len(dealer_records), has_next_page)
+        logger.debug(f"Query returned {len(dealer_records)} records. Has next page: {has_next_page}")
         return dealer_records, has_next_page
 
     def create_dealer(self, dealer_data: dict) -> Dealer:
@@ -98,14 +100,14 @@ class DealerRepository:
             self.session.commit()
             self.session.refresh(new_dealer)
             dealer_id = new_dealer.id
-            logger.debug("Dealer record created with id: %s", dealer_id)
+            logger.debug(f"Dealer record created with id: {dealer_id}")
 
             integration_partner_record = self.session.query(IntegrationPartner.id).filter(
                 IntegrationPartner.impel_integration_partner_name == dealer_create_request.impel_integration_partner_name
             ).first()
             if not integration_partner_record:
                 self.session.rollback()
-                logger.error("Integration partner not found for %s", dealer_create_request.impel_integration_partner_name)
+                logger.error(f"Integration partner not found for {dealer_create_request.impel_integration_partner_name}")
                 raise Exception("Integration partner not found")
             integration_partner_id = integration_partner_record[0]
 
@@ -118,10 +120,10 @@ class DealerRepository:
             self.session.add(new_dealer_integration_partner)
             self.session.commit()
             self.session.refresh(new_dealer_integration_partner)
-            logger.info("Dealer and integration partner record created for dealer id: %s", dealer_id)
+            logger.info(f"Dealer and integration partner record created for dealer id: {dealer_id}")
             return new_dealer
         except ValidationError as e:
-            logger.error("Validation error: %s", e, exc_info=True)
+            logger.error("Validation error: %s", str(e), exc_info=True)
             sanitized = self._sanitize_errors(e.errors())
             raise ValidationErrorResponse(sanitized, e)
         except Exception as e:
@@ -131,16 +133,16 @@ class DealerRepository:
 
     def update_dealer(self, dealer_id: int, update_data: dict) -> Dealer:
         """Updates an existing dealer record."""
-        dealer = self.session.get(Dealer, dealer_id)  # Recommended in SQLAlchemy 1.4+
+        dealer = self.session.get(Dealer, dealer_id)
         if dealer:
-            logger.debug("Updating dealer with id: %s", dealer_id)
+            logger.debug(f"Updating dealer with id: {dealer_id}")
             for key, value in update_data.items():
                 setattr(dealer, key, value)
             self.session.commit()
             self.session.refresh(dealer)
-            logger.info("Dealer updated with id: %s", dealer_id)
+            logger.info(f"Dealer updated with id: {dealer_id}")
             return dealer
-        logger.error("Dealer with id %s not found", dealer_id)
+        logger.error(f"Dealer with id {dealer_id} not found")
         raise ValueError("Dealer not found")
 
     @staticmethod
