@@ -131,19 +131,23 @@ class DealersocketAUApiWrapper:
         # """
 
     def _build_xml(self, root_tag: str, elements: dict) -> str:
-        root = Element(root_tag, {
+        nsmap = {
             "xsd": "http://www.w3.org/2001/XMLSchema",
             "xsi": "http://www.w3.org/2001/XMLSchema-instance"
-        })
+        }
+        root = Element(root_tag, nsmap=nsmap)
         for tag, value in elements.items():
+            # Skip the element if value is None or an empty string.
+            if value in (None, ""):
+                continue
             sub_element = SubElement(root, tag)
             if tag == "Note":
-                # Insert CDATA section for Note instead of plain text.
                 sub_element.text = CDATA(value)
             else:
                 sub_element.text = value
         return tostring(root, encoding="unicode")
-    
+
+
     def _parse_response(self, response_text: str) -> dict:
         """Parse XML response into a dictionary."""
         root = fromstring(response_text)
@@ -167,14 +171,17 @@ class DealersocketAUApiWrapper:
         return utc_datetime.astimezone(dealer_tz).isoformat()
 
     def _get_common_elements(self) -> dict:
-        """Return common elements used in multiple payloads."""
-        return {
+        elements = {
             "Vendor": "Pulsar",
             "DealerId": self.activity["crm_dealer_id"],
             "EntityId": self.activity["crm_consumer_id"],
             "EventId": self.activity["crm_lead_id"],
-            "Note": f"<span style='color:Black'>{self.activity['notes']}</span>",
         }
+        # Only add the Note element if a note exists:
+        if self.activity.get("notes"):
+            elements["Note"] = f"<span style='color:Black'>{self.activity['notes']}</span>"
+        return elements
+
 
     def _create_activity_payload(self, activity_type: str, activity_id: str = "") -> str:
         """Generate payload for a specific activity type."""
@@ -216,6 +223,7 @@ class DealersocketAUApiWrapper:
         updated_payload = self._create_activity_payload("appointment", activity_id=activity_id)
         return self._send_request("Activity", updated_payload, method="PUT")
 
+    # TODO: Enable this code when we support other activity types  
     # def create_activity(self):
     #     """Create an activity on CRM."""
     #     try:
@@ -250,9 +258,7 @@ class DealersocketAUApiWrapper:
             payload = self._create_activity_payload(activity_type)
             endpoint = "WorkNote"  # Currently, this the the only working endpoint
             response_text = self._send_request(endpoint, payload)
-            logger.info(f"response_text is: {response_text}")
             response_data = self._parse_response(response_text)
-            logger.info(f"response_data is: {response_data}")
             return response_data
 
         except Exception as e:
