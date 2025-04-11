@@ -31,6 +31,16 @@ paths:
             type: string
           description: Filter by SFDC account ID.
         - in: query
+          name: impel_integration_partner_name
+          schema:
+            type: string
+          description: Filter by Impel integration partner name.
+        - in: query
+          name: is_active
+          schema:
+            type: string
+          description: Filter by active dealers.
+        - in: query
           name: salesai_dealer_id
           schema:
             type: string

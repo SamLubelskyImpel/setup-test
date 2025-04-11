@@ -4,7 +4,7 @@ from os import environ
 from typing import Any, Dict
 
 from cdpi_orm.session_config import DBSession
-from dealer_repository import DealerRepository, ValidationErrorResponse
+from dealer_repository import DealerRepository, ValidationErrorResponse, ErrorMessage
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -35,6 +35,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 logger.warning(f"Method {method} not allowed")
                 return _response(405, {"message": f"Method {method} not allowed"})
+    except ErrorMessage as e:
+        logger.error(f"Error message: {e.message}")
+        return _response(e.status_code, {"message": e.message})
     except ValidationErrorResponse as e:
         logger.warning(f"Validation error: {e.full_errors}")
         return _response(400, {"message": "Validation failed", "errors": e.errors})
@@ -46,16 +49,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 def _handle_get(event: Dict[str, Any], repo: DealerRepository) -> Dict[str, Any]:
     """Handle GET requests: retrieve dealers with filters and pagination."""
     filter_params = event.get("queryStringParameters") or {}
-    try:
-        page = int(filter_params.pop("page", 1))
-        limit = int(filter_params.pop("limit", 100))
-    except ValueError:
-        logger.error("Invalid pagination parameters: %s", filter_params)
-        return _response(400, {"message": "Invalid pagination parameters: page and limit must be integers."})
-
-    dealers, has_next_page = repo.get_dealers(filter_params, page, limit)
-    logger.info(f"Retrieved {len(dealers)} dealers, has_next_page={has_next_page}")
-    return _response(200, {"page": page, "limit": limit, "dealers": dealers, "has_next_page": has_next_page})
+    dealers_data = repo.get_dealers(filter_params)
+    logger.info(f"Retrieved {len(dealers_data['response'])} dealers, has_next_page={dealers_data['has_next_page']}")
+    return _response(200, dealers_data)
 
 
 def _handle_post(body: Dict[str, Any], repo: DealerRepository) -> Dict[str, Any]:

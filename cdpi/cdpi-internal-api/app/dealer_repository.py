@@ -2,8 +2,11 @@ import logging
 from os import environ
 from sqlalchemy import or_
 from sqlalchemy.orm import outerjoin
-from typing import Dict, List, Tuple, Optional
-from pydantic import BaseModel, Field, ValidationError
+from typing import Dict, List, Tuple
+from pydantic import ValidationError
+
+from models.dealer_models import DealerCreateRequest, DealerUpdateRequest, DealerRetrieveRequest
+from models.exceptions import InvalidFilterException, ValidationErrorResponse, ErrorMessage
 
 from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -11,35 +14,6 @@ from cdpi_orm.models.integration_partner import IntegrationPartner
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-
-class InvalidFilterException(Exception):
-    """Exception raised when a filter key is invalid."""
-    pass
-
-
-class ValidationErrorResponse(Exception):
-    def __init__(self, errors, full_errors):
-        self.errors = errors
-        self.full_errors = full_errors
-
-
-class DealerCreateRequest(BaseModel):
-    dealer_name: str = Field(..., max_length=80, description="Name of the dealer")
-    sfdc_account_id: str = Field(..., max_length=40, description="Salesforce Account ID")
-    salesai_dealer_id: str = Field(..., max_length=80, description="SalesAI Dealer ID")
-    serviceai_dealer_id: str = Field(..., max_length=80, description="ServiceAI Dealer ID")
-    cdp_dealer_id: str = Field(..., max_length=80, description="CDP Dealer ID")
-    impel_integration_partner_name: str = Field(..., max_length=80, examples=["FORD_DIRECT"])
-    is_active: bool = Field(False, description="Is the dealer active?")
-
-class DealerUpdateData(BaseModel):
-    dealer_id: int
-    dealer_name: Optional[str] = None
-    sfdc_account_id: Optional[str] = None
-    salesai_dealer_id: Optional[str] = None
-    serviceai_dealer_id: Optional[str] = None
-    is_active: Optional[bool] = None
 
 
 class DealerRepository:
@@ -52,11 +26,7 @@ class DealerRepository:
         self.filters = []  # Reset filters
         for key, value in filter_params.items():
             model = next(
-                (
-                    m
-                    for m in [DealerIntegrationPartner, Dealer, IntegrationPartner]
-                    if hasattr(m, key)
-                ),
+                (m for m in [DealerIntegrationPartner, Dealer, IntegrationPartner] if hasattr(m, key)),
                 None,
             )
             if model:
@@ -68,9 +38,7 @@ class DealerRepository:
 
     def get_dealers(
         self, 
-        filter_params: dict = None, 
-        page: int = 1, 
-        limit: int = 100
+        filter_params: dict = None,
     ) -> Tuple[List[Dict[str, any]], bool]:
         """
         Retrieves dealer records with optional filtering and pagination.
@@ -78,13 +46,26 @@ class DealerRepository:
         Returns:
             Tuple of (list of dealer records, has_next_page flag)
         """
-        logger.info(f"Getting dealers with filters: {filter_params}\n (page={page}, limit={limit})")
         query = self.session.query(Dealer, DealerIntegrationPartner, IntegrationPartner) \
             .join(DealerIntegrationPartner, Dealer.id == DealerIntegrationPartner.dealer_id) \
             .join(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
         
-        if filter_params:
-            self.create_filters(filter_params)
+        logger.info(f"Initial filter params: {filter_params}")
+        try:
+            retrieve_request = DealerRetrieveRequest(**filter_params)
+        except ValidationError as e:
+            logger.error(f"Validation error: {str(e)}", exc_info=True)
+            sanitized = self._sanitize_errors(e.errors())
+            raise ValidationErrorResponse(sanitized, e)
+
+        valid_filters = retrieve_request.model_dump(exclude_unset=True)
+        logger.info(f"Valid filters after validation: {valid_filters}")
+
+        page = valid_filters.pop("page", retrieve_request.page)
+        limit = valid_filters.pop("limit", retrieve_request.limit)
+        
+        if valid_filters:
+            self.create_filters(valid_filters)
             if self.filters:
                 query = query.filter(*self.filters)
 
@@ -93,7 +74,8 @@ class DealerRepository:
         dealer_records = [self._build_dealer_record(*res) for res in results]
         has_next_page = len(dealer_records) == limit
         logger.debug(f"Query returned {len(dealer_records)} records. Has next page: {has_next_page}")
-        return dealer_records, has_next_page
+
+        return {"page": page, "limit": limit, "response": dealer_records, "has_next_page": has_next_page}
 
     def create_dealer(self, dealer_data: dict) -> Dealer:
         """Creates a new dealer and its integration partner record."""
@@ -110,13 +92,24 @@ class DealerRepository:
                 ).first()
 
             if existing_dealer:
-                logger.info(
-                    "Duplicate dealer found: sfdc_account_id=%s or cdp_dealer_id=%s",
-                    dealer_create_request.sfdc_account_id,
-                    dealer_create_request.cdp_dealer_id
+                logger.info(f"Duplicate dealer found: sfdc_account_id={dealer_create_request.sfdc_account_id} or cdp_dealer_id={dealer_create_request.cdp_dealer_id}")
+                raise ErrorMessage(
+                    f"Duplicate dealer found with sfdc_account_id={dealer_create_request.sfdc_account_id} or cdp_dealer_id={dealer_create_request.cdp_dealer_id}",
+                    status_code=409
                 )
-                raise Exception("Duplicate dealer exists based on sfdc_account_id or cdp_dealer_id")
 
+            integration_partner_record = self.session.query(IntegrationPartner.id).filter(
+                IntegrationPartner.impel_integration_partner_name == dealer_create_request.impel_integration_partner_name
+            ).first()
+            if not integration_partner_record:
+                logger.error(f"Integration partner not found for {dealer_create_request.impel_integration_partner_name}")
+                raise Exception("Integration partner not found")
+            integration_partner_id = integration_partner_record[0]
+
+
+            # Create new dealer and integration partner records
+            logger.info(f"Creating new dealer with name: {dealer_create_request.dealer_name}")
+            logger.info(f"Integration partner ID: {integration_partner_id}")
             new_dealer = Dealer(
                 dealer_name=dealer_create_request.dealer_name,
                 sfdc_account_id=dealer_create_request.sfdc_account_id,
@@ -124,45 +117,32 @@ class DealerRepository:
                 serviceai_dealer_id=dealer_create_request.serviceai_dealer_id,
             )
             self.session.add(new_dealer)
-            self.session.commit()
-            self.session.refresh(new_dealer)
-            dealer_id = new_dealer.id
-            logger.debug(f"Dealer record created with id: {dealer_id}")
-
-            integration_partner_record = self.session.query(IntegrationPartner.id).filter(
-                IntegrationPartner.impel_integration_partner_name == dealer_create_request.impel_integration_partner_name
-            ).first()
-            if not integration_partner_record:
-                self.session.rollback()
-                logger.error(f"Integration partner not found for {dealer_create_request.impel_integration_partner_name}")
-                raise Exception("Integration partner not found")
-            integration_partner_id = integration_partner_record[0]
 
             new_dealer_integration_partner = DealerIntegrationPartner(
                 integration_partner_id=integration_partner_id,
-                dealer_id=dealer_id,
+                dealer_id=new_dealer.id,
                 cdp_dealer_id=dealer_create_request.cdp_dealer_id,
                 is_active=dealer_create_request.is_active,
             )
             self.session.add(new_dealer_integration_partner)
             self.session.commit()
+            self.session.refresh(new_dealer)
             self.session.refresh(new_dealer_integration_partner)
-            logger.info(f"Dealer and integration partner record created for dealer id: {dealer_id}")
+            logger.info(f"Dealer created successfully with id: {new_dealer.id}")
             return new_dealer
         except ValidationError as e:
-            logger.error("Validation error: %s", str(e), exc_info=True)
+            logger.error(f"Validation error: {str(e)}", exc_info=True)
             sanitized = self._sanitize_errors(e.errors())
             raise ValidationErrorResponse(sanitized, e)
         except Exception as e:
-            self.session.rollback()  # Ensure rollback on any failure
-            logger.error("Error creating dealer: %s", str(e), exc_info=True)
+            self.session.rollback()
+            logger.error(f"Error creating dealer: {str(e)}", exc_info=True)
             raise
 
-    def update_dealer(self, dealer_id: int, update_data: dict) -> Dealer:
+    def update_dealer(self, dealer_id: int, update_data: dict) -> Tuple[Dealer, bool]:
         """Updates an existing dealer record."""
-
         try:
-            update_payload = DealerUpdateData(**update_data)
+            update_payload = DealerUpdateRequest(**update_data)
 
             dealer = self.session.get(Dealer, dealer_id)
             if not dealer:
@@ -184,24 +164,24 @@ class DealerRepository:
                     dealer_integration_partner.is_active = update_payload.is_active
                     updated = True
                 else:
-                    logger.warning("No DealerIntegrationPartner record found for dealer_id %s", dealer_id)
+                    logger.warning(f"No DealerIntegrationPartner record found for dealer_id {dealer_id}")
 
             if updated:
                 self.session.commit()
                 self.session.refresh(dealer)
-                logger.info("Dealer updated successfully with id: %s", dealer_id)
+                logger.info(f"Dealer updated successfully with id: {dealer_id}")
             else:
-                logger.info("No updates were applied for dealer id: %s", dealer_id)
+                logger.info(f"No updates were applied for dealer id: {dealer_id}")
 
             return dealer, updated
-        
+
         except ValidationError as e:
-            logger.error("Validation error: %s", str(e), exc_info=True)
+            logger.error(f"Validation error: {str(e)}", exc_info=True)
             sanitized = self._sanitize_errors(e.errors())
             raise ValidationErrorResponse(sanitized, e)
         except Exception as e:
             self.session.rollback()
-            logger.error("Error updating dealer: %s", str(e), exc_info=True)
+            logger.error(f"Error updating dealer: {str(e)}", exc_info=True)
             raise
 
     @staticmethod
