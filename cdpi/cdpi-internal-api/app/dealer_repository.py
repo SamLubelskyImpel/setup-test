@@ -117,6 +117,7 @@ class DealerRepository:
                 serviceai_dealer_id=dealer_create_request.serviceai_dealer_id,
             )
             self.session.add(new_dealer)
+            self.session.flush()
 
             new_dealer_integration_partner = DealerIntegrationPartner(
                 integration_partner_id=integration_partner_id,
@@ -126,8 +127,6 @@ class DealerRepository:
             )
             self.session.add(new_dealer_integration_partner)
             self.session.commit()
-            self.session.refresh(new_dealer)
-            self.session.refresh(new_dealer_integration_partner)
             logger.info(f"Dealer created successfully with id: {new_dealer.id}")
             return new_dealer
         except ValidationError as e:
