@@ -33,7 +33,7 @@ def get_secrets(partner_id: str):
 def get_dealers(integration_partner_name: str, partner_id: str) -> Any:
     """Get active dealers from CRM API."""
     api_key = get_secrets(partner_id)
-    logger.info(f"PARTNER_ID: {partner_id}")
+
     response = requests.get(
         url=f"{CRM_API_URL}dealers",
         headers={

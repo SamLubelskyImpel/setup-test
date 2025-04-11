@@ -39,7 +39,7 @@ def get_secrets():
     )
     secret = loads(secret["SecretString"])[PARTNER_ID]
     secret_data = loads(secret)
-    logger.info(f"PARTNER ID: {PARTNER_ID}")
+
     return secret_data["api_key"]
 
 
