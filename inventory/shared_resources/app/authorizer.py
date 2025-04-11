@@ -35,7 +35,6 @@ def _lambda_handler(event, context):
             SecretId=f"{'prod' if is_prod else 'test'}/InventoryInternalApi"
         )
         secret = json.loads(secret["SecretString"]).get(str(client_id), {})
-        # potential update -- to raise a keyerror with 401 status code when secret is empty currently it leads to 500 error
         if not secret:
             logger.error("Invalid client_id: %s, secret is not present", client_id)       
             raise Exception("Unauthorized")
