@@ -72,8 +72,10 @@ class RDSInstance:
         join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
         where iip.impel_integration_partner_id = 'carsales'
         and idip.is_active = true
-        and (idip.provider_dealer_id = '{provider_dealer_id}')
-        or ( idip.metadata ? 'additional_dealer_ids' and idip.metadata->'additional_dealer_ids' ? '{provider_dealer_id}')"""
+        and (
+            (idip.provider_dealer_id = '{provider_dealer_id}')
+            or ( idip.metadata ? 'additional_dealer_ids' and idip.metadata->'additional_dealer_ids' ? '{provider_dealer_id}')
+        )"""
 
         results = self.execute_rds(db_impel_dealer_id_query)
         db_dealer_ftp_details = results.fetchall()
