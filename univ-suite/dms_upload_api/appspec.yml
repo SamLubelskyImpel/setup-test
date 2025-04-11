@@ -20,7 +20,7 @@ hooks:
       runas: root
   AfterInstall:
     - location: codedeploy/application_pkgs/config.sh
-      timeout: 120
+      timeout: 240
       runas: root
     - location: codedeploy/webserver/config.sh
       timeout: 10
