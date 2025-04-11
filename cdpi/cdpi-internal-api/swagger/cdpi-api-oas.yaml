@@ -3,6 +3,14 @@ info:
   title: CDPI API
   version: 1.0.0
   description: API for CDPI
+servers:
+  - description: Impel test environment
+    url: https://lo12s28io0.execute-api.us-east-1.amazonaws.com/Stage/
+  - description: Impel production environment
+    url: https://lo12s28io0.execute-api.us-east-1.amazonaws.com/Stage/
+security:
+  - ApiKeyAuth: []
+    PartnerIdAuth: []
 paths:
   /dealer:
     get:
@@ -44,6 +52,9 @@ paths:
             type: integer
             default: 100
           description: The maximum number of records to return per page (default is 100).
+      security:
+        - ApiKeyAuth: []
+          PartnerIdAuth: []
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
@@ -63,9 +74,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized. API key or partner_id is invalid or missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       summary: Create a new dealer.
       description: Create a new dealer record along with its integration partner details.
+      security:
+        - ApiKeyAuth: []
+          PartnerIdAuth: []
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
@@ -92,9 +112,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized. API key or partner_id is invalid or missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     put:
       summary: Update an existing dealer.
       description: Update the details of an existing dealer.
+      security:
+        - ApiKeyAuth: []
+          PartnerIdAuth: []
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
@@ -121,7 +150,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized. API key or partner_id is invalid or missing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x_api_key
+      description: API key needed to access this service.
+    PartnerIdAuth:
+      type: apiKey
+      in: header
+      name: partner_id
+      description: Partner identifier used in conjunction with the API key.
   schemas:
     Dealer:
       type: object
