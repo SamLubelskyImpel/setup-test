@@ -43,7 +43,6 @@ Globals:
         ACTIVIX_PARTNER_ID: "internal_activix"
         MOMENTUM_PARTNER_ID: "internal_momentum"
         REYREY_PARTNER_ID: "internal_reyrey"
-        DA_SECRET_KEY: "DA_EVENT_LISTENER"
 
 Resources:
   LambdaRole:
