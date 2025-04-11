@@ -63,21 +63,25 @@ class RDSInstance:
         else:
             return db_dealer_ftp_details
 
-    def check_dealer_active(self, provider_dealer_id, impel_integration_partner_id):
-        """Check if the dealer is active."""
-        db_active_dealer_query = f"""
-            select idip.is_active
-            from {self.schema}.inv_dealer_integration_partner idip
-            join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
-            where iip.impel_integration_partner_id = '{impel_integration_partner_id}' and idip.is_active = true
-            and idip.provider_dealer_id = '{provider_dealer_id}'
-        """
-        results = self.execute_rds(db_active_dealer_query)
-        db_active_dealer = results.fetchall()
-        if not db_active_dealer:
-            return False
+    def get_active_dealer_with_id(self, provider_dealer_id):
+        """Get the active provider dealer IDs for the given integration partner name."""
+        db_impel_dealer_id_query = f"""
+        select d.impel_dealer_id
+        from {self.schema}.inv_dealer d
+        join {self.schema}.inv_dealer_integration_partner idip on d.id = idip.dealer_id
+        join {self.schema}.inv_integration_partner iip on idip.integration_partner_id = iip.id
+        where iip.impel_integration_partner_id = 'carsales'
+        and idip.is_active = true
+        and (idip.provider_dealer_id = '{provider_dealer_id}')
+        or ( idip.metadata ? 'additional_dealer_ids' and idip.metadata->'additional_dealer_ids' ? '{provider_dealer_id}')"""
+
+        results = self.execute_rds(db_impel_dealer_id_query)
+        db_dealer_ftp_details = results.fetchall()
+
+        if not results:
+            return []
         else:
-            return db_active_dealer[0][0]
+            return db_dealer_ftp_details
 
     def get_table_names(self):
         """Get a list of table names in the database."""

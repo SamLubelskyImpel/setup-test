@@ -34,8 +34,13 @@ def is_dealer_active(vehicle: dict):
         identifier = seller.get("Identifier", None)
         if identifier:
             rds_instance = RDSInstance()
-            if rds_instance.check_dealer_active(identifier, "carsales"):
-                return True, identifier
+            results = rds_instance.get_active_dealer_with_id(identifier)
+            logger.info(f"Found Impel Dealer Id: {results}")
+            impel_dealer_id = None
+
+            if results:
+                impel_dealer_id = results[0][0]
+                return True, impel_dealer_id
             raise MissingDealerError(f"Internal Error: No Impel Dealer Id found for CarSales Dealer {identifier}")
         else:
             logger.warning("No Seller Identifier provided.")
