@@ -23,13 +23,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve inventory items from Inventory DB"""
     
     request_id = str(uuid4())
-    dealer_id = None
-    vin = None
-    on_lot = None
     max_results = 1000
-    query_params = event.get("queryStringParameters", {})
+    query_params = event.get("queryStringParameters") or {}
 
-    page = 1 if not query_params else int(query_params.get("page", "1"))
+    page = int(query_params.get("page", "1"))
     result_count = (
         max_results
         if not query_params
@@ -44,10 +41,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
     try:
         inventory_items = []
 
-        if query_params:
-            dealer_id = query_params.get("dealer_id")
-            vin = query_params.get("vin", None)
-            on_lot = query_params.get("on_lot", 'false') == "true"
+        dealer_id = query_params["dealer_id"]
+        vin = query_params.get("vin", None)
+        on_lot = query_params.get("on_lot", None)
 
         logger.info(f"Query parameters: {query_params}")
 
@@ -70,6 +66,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             if on_lot:
                 logger.info(f"Filtering by on_lot: {on_lot}")
+                on_lot = True if on_lot.lower() == "true" else False
                 db_results = db_results.filter(
                     InvInventory.on_lot.is_(on_lot)
                 )

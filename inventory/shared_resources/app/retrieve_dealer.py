@@ -20,9 +20,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 def lambda_handler(event: Any, context: Any) -> Any:
     """Retrieve active dealers from Inventory DB"""
     
-    partner_name = None
-    provider_dealer_id = None
-    
     request_id = str(uuid4())
     logger.info(f"Request ID: {request_id}")
 
@@ -30,13 +27,12 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     try:
         dealer_records = []
-        query_params = event.get("queryStringParameters")
-        
-        if query_params:
-            partner_name = query_params.get("integration_partner_name", None)
-            provider_dealer_id = query_params.get("provider_dealer_id", None)
+        query_params = event.get("queryStringParameters") or {}
 
         logger.info(f"Query parameters: {query_params}")
+
+        partner_name = query_params.get("integration_partner_name", None)
+        provider_dealer_id = query_params.get("provider_dealer_id", None)
 
         with DBSession() as session:
             db_results = session.query(
