@@ -78,58 +78,70 @@ class DealerRepository:
         return {"page": page, "limit": limit, "response": dealer_records, "has_next_page": has_next_page}
 
     def create_dealer(self, dealer_data: dict) -> Dealer:
-        """Creates a new dealer and its integration partner record."""
+        """Creates a new dealer and its integration partner record in a single transaction."""
         try:
             dealer_create_request = DealerCreateRequest(**dealer_data)
-            
-            existing_dealer = self.session.query(Dealer) \
-                .outerjoin(DealerIntegrationPartner, Dealer.id == DealerIntegrationPartner.dealer_id) \
+
+            # Check for existing dealer
+            existing_dealer = (
+                self.session.query(Dealer)
+                .outerjoin(DealerIntegrationPartner)
                 .filter(
                     or_(
                         Dealer.sfdc_account_id == dealer_create_request.sfdc_account_id,
-                        DealerIntegrationPartner.cdp_dealer_id == dealer_create_request.cdp_dealer_id
+                        DealerIntegrationPartner.cdp_dealer_id == dealer_create_request.cdp_dealer_id,
                     )
-                ).first()
+                )
+                .first()
+            )
 
             if existing_dealer:
-                logger.info(f"Duplicate dealer found: sfdc_account_id={dealer_create_request.sfdc_account_id} or cdp_dealer_id={dealer_create_request.cdp_dealer_id}")
+                logger.info(
+                    f"Duplicate dealer found: sfdc_account_id={dealer_create_request.sfdc_account_id} or "
+                    f"cdp_dealer_id={dealer_create_request.cdp_dealer_id}"
+                )
                 raise ErrorMessage(
-                    f"Duplicate dealer found with sfdc_account_id={dealer_create_request.sfdc_account_id} or cdp_dealer_id={dealer_create_request.cdp_dealer_id}",
-                    status_code=409
+                    f"Duplicate dealer found with sfdc_account_id={dealer_create_request.sfdc_account_id} or "
+                    f"cdp_dealer_id={dealer_create_request.cdp_dealer_id}",
+                    status_code=409,
                 )
 
-            integration_partner_record = self.session.query(IntegrationPartner.id).filter(
-                IntegrationPartner.impel_integration_partner_name == dealer_create_request.impel_integration_partner_name
-            ).first()
+            # Retrieve Integration Partner ID
+            integration_partner_record = (
+                self.session.query(IntegrationPartner)
+                .filter_by(impel_integration_partner_name=dealer_create_request.impel_integration_partner_name)
+                .first()
+            )
+
             if not integration_partner_record:
-                logger.error(f"Integration partner not found for {dealer_create_request.impel_integration_partner_name}")
+                logger.error(f"Integration partner not found: {dealer_create_request.impel_integration_partner_name}")
                 raise Exception("Integration partner not found")
-            integration_partner_id = integration_partner_record[0]
 
+            # Create new dealer with related integration partner in one go
+            logger.info(f"Creating dealer '{dealer_create_request.dealer_name}'")
 
-            # Create new dealer and integration partner records
-            logger.info(f"Creating new dealer with name: {dealer_create_request.dealer_name}")
-            logger.info(f"Integration partner ID: {integration_partner_id}")
             new_dealer = Dealer(
                 dealer_name=dealer_create_request.dealer_name,
                 sfdc_account_id=dealer_create_request.sfdc_account_id,
                 salesai_dealer_id=dealer_create_request.salesai_dealer_id,
                 serviceai_dealer_id=dealer_create_request.serviceai_dealer_id,
+                integration_partners=[
+                    DealerIntegrationPartner(
+                        integration_partner_id=integration_partner_record.id,
+                        cdp_dealer_id=dealer_create_request.cdp_dealer_id,
+                        is_active=dealer_create_request.is_active,
+                    )
+                ],
             )
-            self.session.add(new_dealer)
-            self.session.flush()
 
-            new_dealer_integration_partner = DealerIntegrationPartner(
-                integration_partner_id=integration_partner_id,
-                dealer_id=new_dealer.id,
-                cdp_dealer_id=dealer_create_request.cdp_dealer_id,
-                is_active=dealer_create_request.is_active,
-            )
-            self.session.add(new_dealer_integration_partner)
+            self.session.add(new_dealer)
             self.session.commit()
-            logger.info(f"Dealer created successfully with id: {new_dealer.id}")
+
+            logger.info(f"Dealer created successfully with ID: {new_dealer.id}")
             return new_dealer
+
         except ValidationError as e:
+            self.session.rollback()
             logger.error(f"Validation error: {str(e)}", exc_info=True)
             sanitized = self._sanitize_errors(e.errors())
             raise ValidationErrorResponse(sanitized, e)
