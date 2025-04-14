@@ -14,7 +14,7 @@ SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CONFIG_FILE_KEY = "configurations/tekion_api_version_config.json"
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN", "crm-api-test.testenv.impel.io")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "impel")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "internal_tekion")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
