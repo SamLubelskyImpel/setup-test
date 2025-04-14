@@ -52,7 +52,6 @@ FIELD_MAPPINGS = {
         'doors': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Doors'),
         'seats': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Seats'),
         'transmission': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Transmission'),
-        'photo_url': 'Media.Photos.0.Url',
         'comments': 'Description',
         'drive_train': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Drive'),
         'cylinders': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'Cylinders'),
@@ -66,6 +65,8 @@ FIELD_MAPPINGS = {
         'engine': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'EngineType'),
         'engine_displacement': lambda e: get_from_list(e, 'Specification.Attributes', 'Value', 'Name', 'EngineSize'),
         'factory_certified': lambda e: len(get_nested_value(e, 'Certifications', [])) > 0,
-        'options': 'options'
+        'options': 'options',
+        'vdp': 'VDP',
+        'photo_url': 'PHOTO_URL',
     },
 }

@@ -1,0 +1,610 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: VDP Service
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: '^[a-zA-z0-9-]+$'
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+  DomainSuffix:
+    Description: The domain suffix of the API Gateway
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$|"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+    Default: ""
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+    - Ref: AWS::AccountId
+    - 196800776222
+  IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
+
+Mappings:
+  Subnets:
+    us-east-1:
+      '196800776222':
+        - subnet-0d29a385efe83bf1c
+        - subnet-0e88ecdd743701e96
+        - subnet-00291e028e21cb78f
+        - subnet-0b1555d5fa3c8ba8e
+      '143813444726':
+        - subnet-030d57e39ec0df603
+        - subnet-01044d580678ea63c
+        - subnet-0b29db0aeb6cdabec
+        - subnet-0e28d592f2ca28fb7
+  VpcId:
+    us-east-1:
+      '196800776222': vpc-03417e688cee5bc07
+      '143813444726': vpc-0b28df8980a1905d5
+  SslCertificates:
+    us-east-1:
+      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
+      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub '${AWS::AccountId}'
+        ENVIRONMENT: !Ref Environment
+        REGION: !Sub '${AWS::Region}'
+        IS_PROD: !If [ IsProd, 1, 0 ]
+        LOGLEVEL: INFO
+        INVENTORY_BUCKET: !If [
+          IsProd,
+          !Sub "inventory-integrations-${AWS::Region}-prod",
+          !Sub "inventory-integrations-${AWS::Region}-test"
+        ]
+        SFTP_SECRET_KEY: "INTEGRATIONS_VDP_SFTP"
+        ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+    VpcConfig:
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
+
+Resources:
+  SecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      DeletionPolicy: Delete
+      Properties:
+        GroupDescription: Permit traffic from the vdp service
+        VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
+        SecurityGroupEgress:
+          - Description: AllowAll
+            CidrIp: 0.0.0.0/0
+            IpProtocol: '-1'
+        Tags:
+          - Key: Environment
+            Value: !Ref Environment
+          - Key: Product
+            Value: vdp-service
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test*"
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-prod/vdp/*",
+                      !Sub "arn:aws:s3:::inventory-integrations-${AWS::Region}-test/vdp/*"
+                    ]
+
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt UpdateVDPQueue.Arn
+                  - !GetAtt DownloadVDPQueue.Arn
+                  - !GetAtt MergeVDPQueue.Arn
+        - PolicyName: SecretsManagerPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AllowGetDBInfo
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*"
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
+                    ]
+        - PolicyName: LambdaVPCAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: "*"
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+
+  UpdateVDPQueueDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vdp-service-${Environment}-UpdateVDPDLQ'
+      VisibilityTimeout: 10
+      MessageRetentionPeriod: 1209600
+
+  UpdateVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub vdp-service-${Environment}-UpdateVDPDLQ
+      AlarmDescription: There are messages in the UpdateVDPDLQ Alarm
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt UpdateVDPQueueDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  UpdateVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vdp-service-${Environment}-UpdateVDPQueue'
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 60
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt UpdateVDPQueueDeadLetterQueue.Arn
+          maxReceiveCount: 5
+
+  UpdateVDPQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref UpdateVDPQueue
+      PolicyDocument:
+          Version: '2012-10-17'
+          Id: UpdateVDPQueuePolicy
+          Statement:
+            - Sid: Allow-SNS-SendMessage
+              Action:
+                - sqs:SendMessage
+              Effect: Allow
+              Resource: !GetAtt UpdateVDPQueue.Arn
+              Principal:
+                  Service: sns.amazonaws.com
+              Condition:
+                  ArnEquals:
+                      aws:SourceArn: !If [
+                                      IsProd,
+                                      !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                                      !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                                    ]
+
+  UpdateVDPTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+                  IsProd,
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                ]
+      Endpoint: !GetAtt UpdateVDPQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"vdp"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+
+  UpdateVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-UpdateVDP"
+      Description: Download VDP file and update inventory database.
+      Handler: update_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 60
+      MemorySize: 1024
+
+  UpdateVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/vdp-service-${Environment}-UpdateVDP'
+
+  UpdateVDPEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt UpdateVDPQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt UpdateVDP.Arn
+
+  InvokeVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-invoke-vdp
+      Description: Invoke the download of VDP Data
+      Handler: invoke_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          DOWNLOAD_VDP_QUEUE_URL: !GetAtt DownloadVDPQueue.QueueUrl
+
+  InvokeVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-invoke-vdp
+
+  InvokeVDPAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service InvokeVDP Errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref InvokeVDP
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  InvokeVDPScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Schedule the download of VDP Data every hour
+      ScheduleExpression: "cron(0 */1 * * ? *)"
+      State: !If [IsProd, "ENABLED", "DISABLED"]
+      Targets:
+        - Arn: !GetAtt InvokeVDP.Arn
+          Id: !Sub vdp-service-${Environment}-invoke-vdp
+
+  InvokeVDPScheduleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt InvokeVDP.Arn
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InvokeVDPScheduleRule.Arn
+
+  DownloadVDPQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-download-vdp-dlq
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+
+  DownloadVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service DownloadVDP DLQ Errors
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Sub vdp-service-${Environment}-download-vdp-dlq
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  DownloadVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-download-vdp-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DownloadVDPQueueDLQ.Arn
+        maxReceiveCount: 3
+
+  DownloadVDPEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt DownloadVDPQueue.Arn
+      FunctionName: !Ref DownloadVDP
+      Enabled: true
+
+  DownloadVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-download-vdp
+      Description: Download VDP Data from SFTP
+      Handler: download_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+
+  DownloadVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-download-vdp
+
+  VDPServiceApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub vdp-service-${Environment}-vdp-api
+      StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: DefaultAuth
+        Authorizers:
+          DefaultAuth:
+            FunctionPayloadType: REQUEST
+            FunctionArn: !GetAtt Authorizer.Arn
+            Identity:
+              Headers:
+                - partner_id
+                - x_api_key
+              Context:
+                - resourcePath
+              ReauthorizeEvery: 0
+      AccessLogSetting:
+        DestinationArn: !GetAtt APILogGroup.Arn
+        Format: >-
+          {"request_id" : "$context.requestId","api_id" : "$context.apiId","resource_path" : "$context.resourcePath","resource_id" : "$context.resourceId","http_method" : "$context.httpMethod","source_ip" : "$context.identity.sourceIp","user-agent" : "$context.identity.userAgent","account_id" : "$context.identity.accountId","api_key" : "$context.identity.apiKey","caller" : "$context.identity.caller","user" : "$context.identity.user","user_arn" : "$context.identity.userArn"}
+      GatewayResponses:
+        BAD_REQUEST_PARAMETERS:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        BAD_REQUEST_BODY:
+          ResponseTemplates:
+            application/json: '{"message": "$context.error.validationErrorString"}'
+        UNAUTHORIZED:
+          ResponseTemplates:
+            application/json: '{"message": "This request is unauthorized."}'
+          StatusCode: "401"
+        ACCESS_DENIED:
+          ResponseTemplates:
+            application/json: '{"message": "$context.authorizer.key"}'
+          StatusCode: "403"
+        DEFAULT_5xx:
+          ResponseTemplates:
+            application/json: '{"message": "Internal Server Error. Please contact Impel support."}'
+
+  APILogGroup:
+    Type: AWS::Logs::LogGroup
+
+  APICloudWatchRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - >-
+          arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  APIGatewayAccount:
+    Type: "AWS::ApiGateway::Account"
+    Properties:
+      CloudWatchRoleArn: !GetAtt APICloudWatchRole.Arn
+
+  Authorizer:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-Authorizer"
+      CodeUri: app/
+      Handler: authorizer.lambda_handler
+      Policies:
+        - Id: AuthorizerPermissions
+          Version: "2012-10-17"
+          Statement:
+            - Sid: AllowGetAPIKeys
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                !If [
+                  IsProd,
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/vdp-api*",
+                  !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/vdp-api*",
+                ]
+
+  QueryVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "vdp-service-${Environment}-QueryVDP"
+      CodeUri: app/
+      Handler: query_vdp.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref VDPServiceApiGateway
+            Path: /vdp
+            Method: GET
+
+  QueryVDPAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service QueryVDP Errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref QueryVDP
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  MergeVDPDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-merge-vdp-dlq
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+
+  MergeVDPDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm for VDP Service MergeVDP DLQ Errors
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Sub vdp-service-${Environment}-merge-vdp-dlq
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      TreatMissingData: notBreaching
+
+  MergeVDPQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub vdp-service-${Environment}-merge-vdp-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt MergeVDPDLQ.Arn
+        maxReceiveCount: 3
+
+  MergeVDPQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref MergeVDPQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: "sqs:SendMessage"
+            Resource: !GetAtt MergeVDPQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !If [
+                  IsProd,
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+                  !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+                ]
+
+  MergeVDPTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      RawMessageDelivery: true
+      TopicArn: !If [
+        IsProd,
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-prod",
+        !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:inventory-integrations-sns-s3-topic-${AWS::Region}-test"
+      ]
+      Endpoint: !GetAtt MergeVDPQueue.Arn
+      FilterPolicyScope: MessageBody
+      FilterPolicy:
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"landing-zone"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+
+  MergeVDPEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 3
+      EventSourceArn: !GetAtt MergeVDPQueue.Arn
+      FunctionName: !Ref MergeVDP
+      Enabled: true
+
+  MergeVDP:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub vdp-service-${Environment}-merge-vdp
+      Description: Merge VDP Data
+      Handler: merge_vdp.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+
+  MergeVDPLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/vdp-service-${Environment}-merge-vdp
