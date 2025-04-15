@@ -395,8 +395,7 @@ class RDSInstance:
     
     def get_active_dealers(self):
         """
-        Retrieve the active dealer integration partner IDs and provider dealer IDs
-        for all integration partners.
+        Retrieve the active dealer_ids and impel_dealer_id
         """
         query = f"""
             SELECT dealer.id, dealer.impel_dealer_id
