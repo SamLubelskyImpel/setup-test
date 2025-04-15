@@ -103,7 +103,7 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
 
         if not vin:
             # If no vin, return the lead_id of the first lead
-            return leads[0].get("lead_id")
+            return leads[0].get("lead_id") if leads else None
 
         for lead in leads:
             vehicles_of_interest = lead.get("vehicles_of_interest", [])
