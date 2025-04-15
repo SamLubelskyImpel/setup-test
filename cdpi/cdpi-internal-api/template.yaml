@@ -52,7 +52,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Delete
     Properties:
-      GroupDescription: Permit traffic from the CRM internal API
+      GroupDescription: Permit traffic from the CDPI internal API
       VpcId: !FindInMap [VpcId, !Ref "AWS::Region", !Ref "AWS::AccountId"]
       SecurityGroupEgress:
         - Description: AllowAll
@@ -62,7 +62,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
         - Key: Product
-          Value: crm-internal-api
+          Value: cdpi-internal-api
 
   LambdaRole:
     Type: AWS::IAM::Role

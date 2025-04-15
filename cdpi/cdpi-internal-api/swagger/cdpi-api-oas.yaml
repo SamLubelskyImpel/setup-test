@@ -299,15 +299,6 @@ components:
               lead_id:
                 type: integer
                 description: ID of the lead that was created.
-    '202':
-      description: Accepted. The request was received but failed to be processed by the CRM.
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              message:
-                type: string
     '400':
       description: This indicates Bad Request. For example this error can occur if
         a required property in the request JSON is missing.
