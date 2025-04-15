@@ -344,7 +344,7 @@ paths:
                       type: object
                       additionalProperties: true
                       example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
-  
+
   /internal/leads/{lead_id}:
     get:
       operationId: get-internal-lead
