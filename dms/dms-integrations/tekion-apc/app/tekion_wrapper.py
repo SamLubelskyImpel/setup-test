@@ -36,7 +36,7 @@ class TekionWrapper:
                 boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)[
                     "SecretString"
                 ]
-            )["TEKION_V3"])
+            )["TEKION_V4"])
 
             return secret["app_id"], secret["secret_key"], secret["url"]
         except ClientError as e:
