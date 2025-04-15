@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BEATS_VER="8.5.0"
+BEATS_VER="8.17.2"
 
 
 function configure_filebeat {

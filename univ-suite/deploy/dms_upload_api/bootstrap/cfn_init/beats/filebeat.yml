@@ -46,7 +46,7 @@ filebeat.inputs:
     type: journald
     include_matches:
       - _SYSTEMD_UNIT=universal_integrations.service
-    seek: cursor
+    seek: head
     paths: []
     fields_under_root: true
     fields:
