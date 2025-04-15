@@ -49,6 +49,7 @@ Globals:
         LOGLEVEL: INFO
         MERCH_SFTP_KEY: MERCH_SFTP
         SALESAI_SFTP_KEY: SALESAI_SFTP
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -604,3 +605,26 @@ Resources:
       Dimensions:
         - Name: DBInstanceIdentifier
           Value: !If [ IsProd, unified-data-shared-prod, unified-data-shared-test ]
+
+  CheckInventorySyndication:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "shared-inv-${Environment}-CheckInventorySyndication"
+      Description: Check if the inventory syndication is working.
+      Handler: check_inventory_syndication.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 300
+      MemorySize: 512
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(59 23 * * ? *) # Runs every day at 23:59
+            Enabled: !If [ IsProd, true, false ]
+  
+  CheckInventorySyndicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/shared-inv-${Environment}-CheckInventorySyndication"
+      RetentionInDays: 60
