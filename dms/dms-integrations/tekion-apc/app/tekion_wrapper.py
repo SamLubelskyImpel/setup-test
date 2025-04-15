@@ -200,7 +200,7 @@ class TekionWrapper:
 
     def get_customer_v4(self, id: str):
         """Retrieve Customer by id."""
-        return self._call_tekion_v4(f"openapi/v4.0.0/customers/{id}", set_date_filter=False)
+        return self._call_tekion_v4(f"openapi/v4.0.0/customers/", params={ "customerId": id }, set_date_filter=False)
 
     def get_employee(self, id: str):
         """Retrieve User (Employee) by id"""

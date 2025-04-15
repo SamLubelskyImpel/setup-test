@@ -24,7 +24,7 @@ INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
 s3_client = boto3.client('s3')
 
-def save_vehicle_sale(data, dms_id):
+def save_vehicle_sales(data, dms_id):
     now = datetime.now(tz=timezone.utc)
     key = f"tekion-apc/raw/fi_closed_deal/{dms_id}/{now.year}/{now.month}/{now.day}/{now.isoformat()}_fi_closed_deal_{str(uuid4())}.json"
     boto3.client("s3").put_object(
@@ -85,12 +85,20 @@ def enrich_vehicle_sale(data, dms_id, api):
 
         for customer in customers:
 
+            comms = {}
+            
             if not buyerFlag and customer["type"] == "BUYER":
-                # data.update({"buyer_communications": api.get_customer_v4(customer["id"])})
+                customer_details = api.get_customer_v4(customer["id"])
+                if customer_details:
+                    comms = customer_details[0].get("customerDetails", {})
+                data.update({"buyer_communications": comms})
                 data.update({"buyer": customer})
                 buyerFlag = True
             elif not cobuyerFlag and customer["type"] == "COBUYER":
-                # data.update({"cobuyer_communications": api.get_customer_v4(customer["id"])})
+                customer_details = api.get_customer_v4(customer["id"])
+                if customer_details:
+                    comms = customer_details[0].get("customerDetails", {})
+                data.update({"cobuyer_communications": comms})
                 data.update({"cobuyer": customer})
                 cobuyerFlag = True
             elif buyerFlag and cobuyerFlag:
@@ -100,7 +108,6 @@ def enrich_vehicle_sale(data, dms_id, api):
         logger.warning(f"No customers for deal {deal_id}")
         data.update({"buyer": {}})
         data.update({"cobuyer": {}})
-
 
     try:
         assignees = api.get_deal_assignees(deal_id)
@@ -126,6 +133,8 @@ def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
 
         vehicle_sale_chunk= loads(s3_client.get_object(Bucket=INTEGRATIONS_BUCKET, Key=s3_key)["Body"].read().decode("utf-8"))
 
+        enriched_records = []
+
         with ThreadPoolExecutor() as executor:
             futures = [
                 executor.submit(enrich_vehicle_sale, vehicle_sale, dms_id, api)
@@ -135,9 +144,11 @@ def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
             for future in as_completed(futures):
                 try:
                     enriched_vehicle_sale = future.result()
-                    save_vehicle_sale(enriched_vehicle_sale, dms_id)
+                    enriched_records.append(enriched_vehicle_sale)
                 except Exception as e:
                     logger.error(f"Unhandled exception for dealer {dms_id}: {e}")
+
+        save_vehicle_sales(enriched_records, dms_id)
 
     except HTTPError as e:
         if e.response.status_code == 429:
