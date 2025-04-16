@@ -91,15 +91,12 @@ class MerchUploader(MerchSalesAIBaseUploader):
         legacy_id_list = []
         for index, row in self.icc_formatted_inventory.iterrows():
             match_vin = row.get('VIN')
-            data = None
+            carsales_legacy_id = None
             for entry in vehicle_metadata:
                 vin = entry["vin"]
                 if match_vin == vin:
-                    metadata = str(entry["metadata"])
-                    a = metadata.strip("{}").replace('\"', "").replace('\'', '')
-                    b = dict(item.split(": ") for item in a.split(", "))
-                    data = b.get('carsales_legacy_id', None)
-            legacy_id_list.append(data)
+                    carsales_legacy_id = entry.get("metadata", {}).get("carsales_legacy_id", None)
+            legacy_id_list.append(carsales_legacy_id)
         logger.info("Found Legacy Ids:" + str(legacy_id_list))
         self.icc_formatted_inventory["DealerId"] = legacy_id_list
         return
