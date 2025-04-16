@@ -50,7 +50,7 @@ def send_request_to_fd(endpoint: str, headers: Dict[str, str], body: Dict[str, A
         raise Exception("Failed to send request.")
 
 
-def record_handler(record: SQSRecord) -> Dict[str, Any]:
+def record_handler(record: SQSRecord):
     """Process a single SQS record and send a request to Ford Direct DSR."""
     try:
         logger.info(f"[SQS] Processing record | MessageBody: {record.body}")
@@ -103,7 +103,9 @@ def lambda_handler(event: Any, context: Any):
 
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
-        return process_partial_response(event=event, record_handler=record_handler, processor=processor, context=context)
+        return process_partial_response(
+            event=event, record_handler=record_handler, processor=processor, context=context
+        )
     except Exception as e:
         logger.exception(f"[Lambda] Critical error processing records | Error: {e}")
         raise

@@ -15,11 +15,9 @@ from cdpi_orm.models.audit_dsr import AuditDsr
 
 FORD_DIRECT_QUEUE_URL = environ.get("FORD_DIRECT_QUEUE_URL")
 
-# ✅ Logging Configuration
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-# ✅ AWS Clients
 sqs = boto3.client("sqs")
 
 
@@ -35,7 +33,8 @@ def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
         logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
         raise
 
-def record_handler(record: SQSRecord) -> Dict[str, Any]:
+
+def record_handler(record: SQSRecord):
     """Process each record from the batch and send it to SQS."""
     logger.info(f"Processing Record: {record.body}")
 
@@ -49,29 +48,26 @@ def record_handler(record: SQSRecord) -> Dict[str, Any]:
             logger.warning(f"[Validation] Missing required fields in record | Data: {data}")
             raise ValueError("Missing required fields: consumer_id or event_type")
 
-
         with DBSession() as session:
             audit_dsr = session.query(AuditDsr).filter(
                 AuditDsr.consumer_id == consumer_id,
                 AuditDsr.dsr_request_type == event_type,
             ).first()
 
-            if audit_dsr:
-                audit_dsr.complete_flag = completed_flag
-                audit_dsr.complete_date = datetime.now(timezone.utc) if completed_flag else None
-
-                session.commit()
-                logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
-
-                if completed_flag:
-                    logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
-                    send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
-                
-            else:
+            if not audit_dsr:
                 logger.warning(f"[DB] No matching AuditDsr found | ConsumerID: {consumer_id} | EventType: {event_type}")
                 raise Exception(f"No existing AuditDsr found for consumer_id {consumer_id}")
-            
-    
+
+            audit_dsr.complete_flag = completed_flag
+            audit_dsr.complete_date = datetime.now(timezone.utc) if completed_flag else None
+
+            session.commit()
+            logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
+
+            if completed_flag:
+                logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
+                send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
+
     except Exception as e:
         logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
         raise Exception("Internal server error")

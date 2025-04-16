@@ -894,7 +894,7 @@ Resources:
     Properties:
       CodeUri: app/
       Handler: dsr_optout.lambda_handler
-      FunctionName: !Sub cdpi-${Environment}-ford-direct-dsr-output
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-dsr-optout
       MemorySize: 128
       Timeout: 30
       Events:
@@ -919,7 +919,7 @@ Resources:
   DsrOptoutLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-output"
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-optout"
 
   DsrDelete:
     Type: 'AWS::Serverless::Function'

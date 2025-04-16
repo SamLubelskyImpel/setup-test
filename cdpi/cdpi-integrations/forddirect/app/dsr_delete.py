@@ -24,6 +24,7 @@ def validate_data(event):
 
     return True, ""
 
+
 def lambda_handler(event, context):
     event_type = "cdp.dsr.delete"
     request_id = str(uuid4())
@@ -32,12 +33,11 @@ def lambda_handler(event, context):
     log_dev(event)
 
     body = loads(event["body"])
-    
-    data_validated,error_msg = validate_data(body)
-    
+
+    data_validated, error_msg = validate_data(body)
+
     if not data_validated:
         logger.error(f"Error invoking ford direct dsr optout. Response: {error_msg}")
-        
         return {
             "statusCode": 400,
             "body": dumps(
@@ -47,7 +47,7 @@ def lambda_handler(event, context):
             ),
             "headers": {"Content-Type": "application/json"},
         }
-    
+
     try:
         consumer_id = body["ext_consumer_id"]
         dealer_id = body["dealer_identifier"]
@@ -82,7 +82,7 @@ def lambda_handler(event, context):
                     ),
                     "headers": {"Content-Type": "application/json"},
                 }
-            
+
             consumer_profile, consumer, dealer, product, integration_partner = consumer_db
 
             session.delete(consumer_profile)
@@ -92,10 +92,9 @@ def lambda_handler(event, context):
 
             call_events_api(event_type, integration_partner.id, consumer_id, consumer.source_consumer_id, dealer_id,
                             dealer.salesai_dealer_id, dealer.serviceai_dealer_id, product.product_name)
-            
+
             session.commit()
 
-            
         logger.info("dsr_delete completed")
         return {
             "statusCode": 200,
@@ -109,9 +108,7 @@ def lambda_handler(event, context):
 
     except Exception as e:
         send_alert_notification(request_id, event_type, e)
-
         logger.exception(f"Error invoking ford direct dsr delete. Response: {e}")
-        
         return {
             "statusCode": 500,
             "body": dumps(
