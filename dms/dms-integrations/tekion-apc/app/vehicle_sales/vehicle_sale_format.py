@@ -36,8 +36,8 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
     first_payment_date = datetime.strptime(first_payment_date_str, "%Y-%m-%d")
 
     payment_option = default_get(deal_payment, "paymentOption", {})
-    payment_value = default_get(payment_option, "value", 0)
-    frequency = default_get(payment_option, "frequency", "").upper()
+    payment_value = default_get(payment_option, "term", 0)
+    frequency = default_get(payment_option, "paymentFrequency", "").upper()
 
     frequency_intervals = {
         "BI_WEEKLY": 14,
@@ -120,6 +120,8 @@ def calculate_payment_term(term, frequency):
         "SEMI_MONTHLY": 15,
         "WEEKLY": 7,
         "YEARLY": 365,
+        "QUARTERLY": 91,
+        "SEMI_ANNUALLY": 182,
     }
 
     if frequency in frequency_intervals:
@@ -133,7 +135,7 @@ def calculate_payment_term(term, frequency):
 
 def extract_communication_preference(comms, key):
     # TODO: Confirm with product which mapping to use
-    communications_obj = default_get(comms, key, {})
+    communications_obj = default_get(comms, key, [])[0]
     preference_mapping = default_get(default_get(communications_obj, "usagePreference", {}), "preferenceMapping", {})
     return True if preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES" else False
 
@@ -171,7 +173,7 @@ def parse_json_to_entries(json_data, s3_uri):
         dms_id = default_get(entry, "dms_id")  # Added to payload from parent lambda
         db_dealer_integration_partner["dms_id"] = dms_id
 
-        db_vehicle_sale["transaction_id"] = default_get(entry, "dealNumber")
+        db_vehicle_sale["transaction_id"] = default_get(entry, "externalDealNumber")
 
         delivery_date = default_get(entry, "deliveryDate", default_get(entry, "promisedDeliveryDate"))
         delivery_date = datetime.strptime(delivery_date, "%Y-%m-%d")
@@ -247,7 +249,7 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle_sale["sales_tax"] = default_get(total, "taxAmount")
 
         db_vehicle_sale["deal_type"] = default_get(deal_payment, "paymentType")
-        db_vehicle_sale["sale_type"] = default_get(deal_payment, "type")
+        db_vehicle_sale["sale_type"] = default_get(entry, "type")
 
         yearly_miles = default_get(deal_payment, "yearlyMiles", {})
         db_vehicle_sale["miles_per_year"] = default_get(yearly_miles, "baseMileage")
@@ -318,7 +320,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle["type"] = default_get(trim_details, "bodyType")
                 db_vehicle["vehicle_class"] = default_get(specification, "bodyClass")
 
-                colors = default_get(specification, "colors", [])
+                colors = default_get(specification, "vehicleColors", [])
                 for color in colors:
                     if default_get(color, "type", "").upper() == 'EXTERIOR':
                         db_vehicle["exterior_color"] = default_get(color, "color")
@@ -353,7 +355,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle_sale["adjustment_on_price"] = db_adjustment_on_price
 
 
-        trade_in_vehicles = default_get(entry, "tradeIns", [])
+        trade_in_vehicles = default_get(entry, "trade_ins", [])
         if trade_in_vehicles:
             trade_in_vehicle = trade_in_vehicles[0]
             vehicle = default_get(trade_in_vehicle, "vehicle", {})
@@ -365,7 +367,7 @@ def parse_json_to_entries(json_data, s3_uri):
             db_trade_in_vehicle["year"] = default_get(specification, "year")
             db_trade_in_vehicle["stock_num"] = default_get(vehicle, "stockId")
 
-            colors = default_get(specification, "colors", [])
+            colors = default_get(specification, "vehicleColors", [])
             for color in colors:
                 if default_get(color, "type", "").upper() == 'EXTERIOR':
                     db_trade_in_vehicle["exterior_color"] = default_get(color, "color")
@@ -374,10 +376,10 @@ def parse_json_to_entries(json_data, s3_uri):
             mileage = default_get(vehicle, "odometerReading", {})
             db_vehicle["mileage"] = default_get(mileage, "value")
 
-            trim_details = default_get(trade_in_vehicle, "trimDetails", {})
+            trim_details = default_get(specification, "trimDetails", {})
             db_trade_in_vehicle["oem_name"] = default_get(specification, "make")
             db_trade_in_vehicle["type"] = default_get(trim_details, "bodyType")
-            db_trade_in_vehicle["vehicle_class"] = default_get(trim_details, "bodyClass")
+            db_trade_in_vehicle["vehicle_class"] = default_get(specification, "bodyClass")
             db_trade_in_vehicle["trim"] = default_get(trim_details, "trim")
 
         buyer = default_get(entry, "buyer", {})
@@ -402,14 +404,29 @@ def parse_json_to_entries(json_data, s3_uri):
 
                 details = default_get(customer, "customerDetails", {})
 
-                name = default_get(details, "name", {})
+
+                if customer_type == "BUYER":
+                    name = default_get(details, "name", {})
+                elif customer_type == "CO_BUYER":
+                    db_target = db_cobuyer_consumer
+                    comms = cobuyer_comms
+
+                
                 emails = default_get(details, "emailCommunications", [])
                 phones = default_get(details, "phoneCommunications", [])
-                addresses = default_get(details, "residences", [])
+                residences = default_get(details, "residences", [])
 
                 db_target["dealer_customer_no"] = default_get(customer, "id")
+
+                # Business Schema use case
+                if not name:
+                    name = default_get(default_get(details, "principalOwner", {}), "name", {})
+                if not residences:
+                    residences = default_get(details, "businessLocation", [])
+
                 db_target["first_name"] = default_get(name, "firstName")
                 db_target["last_name"] = default_get(name, "lastName")
+              
                 db_target["email"] = default_get(emails[0], "email") if emails else None
 
                 db_target["email_optin_flag"] = extract_communication_preference(comms, "emailCommunications")
@@ -417,8 +434,9 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_target["postal_mail_optin_flag"] = extract_communication_preference(comms, "postalEmailCommunications")
                 db_target["sms_optin_flag"] = extract_communication_preference(comms, "smsCommunications")
 
-                for address in addresses:
-                    if default_get(address, "type", "").upper() == "CURRENT":
+                for residence in residences:
+                    address = default_get(residence, 'address', {})
+                    if default_get(residence, "addressType", "").upper() == "CURRENT":
                         loc_units = default_get(address, "locationUnits", [])
                         for unit in loc_units:
                             loc_type = default_get(unit, "type", "").upper()
@@ -439,27 +457,22 @@ def parse_json_to_entries(json_data, s3_uri):
                 if phones:
                     for phone in phones:
                         phone_type = default_get(phone, "phoneType")
-                        phone_number = default_get(phone, "completeNumber")
+                        phone_number = default_get(default_get(phone, "phone", {}), "completeNumber")
                         if phone_type and phone_number:
                             if phone_type.upper() == "HOME":
                                 db_home_phone = phone_number
-                            if phone_type.upper() == "CELL":
+                            elif phone_type.upper() == "MOBILE":
                                 db_cell_phone = phone_number
                 db_target["cell_phone"] = db_cell_phone
                 db_target["home_phone"] = db_home_phone
 
-        assignees = default_get(entry, "assignees", [])
-        for assignee in assignees:
-            assignee_roles = default_get(assignee, "roles", {})
-            assignee_role = default_get(assignee_roles, "id")
-            if assignee_role == "SALES_PERSON":
-                db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
-                name_details = default_get(assignee, "userNameDetails", {})
-                first_name = default_get(name_details, "firstName", "")
-                last_name = default_get(name_details, "lastName", "")
-                db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
-                break
-
+        assignee = default_get(entry, "salesperson", {})
+        db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
+        name_details = default_get(assignee, "userNameDetails", {})
+        first_name = default_get(name_details, "firstName", "")
+        last_name = default_get(name_details, "lastName", "")
+        db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
+          
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = metadata
