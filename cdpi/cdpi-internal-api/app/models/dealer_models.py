@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Extra
 
 class DealerCreateRequest(BaseModel):
     dealer_name: str = Field(..., max_length=80, description="Name of the dealer")
@@ -30,3 +30,6 @@ class DealerRetrieveRequest(BaseModel):
     impel_integration_partner_name: Optional[str] = None
     page: Optional[int] = Field(1, ge=1, description="Page number for pagination")
     limit: Optional[int] = Field(100, ge=1, le=1000, description="Number of records per page")
+
+    class Config:
+        extra = Extra.forbid

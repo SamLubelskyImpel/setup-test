@@ -50,7 +50,6 @@ class DealerRepository:
             .join(DealerIntegrationPartner, Dealer.id == DealerIntegrationPartner.dealer_id) \
             .join(IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id)
         
-        logger.info(f"Initial filter params: {filter_params}")
         try:
             retrieve_request = DealerRetrieveRequest(**filter_params)
         except ValidationError as e:
@@ -59,7 +58,6 @@ class DealerRepository:
             raise ValidationErrorResponse(sanitized, e)
 
         valid_filters = retrieve_request.model_dump(exclude_unset=True)
-        logger.info(f"Valid filters after validation: {valid_filters}")
 
         page = valid_filters.pop("page", retrieve_request.page)
         limit = valid_filters.pop("limit", retrieve_request.limit)
