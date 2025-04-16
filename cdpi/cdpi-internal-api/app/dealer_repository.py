@@ -1,7 +1,7 @@
 import logging
 from os import environ
 from sqlalchemy import or_
-from sqlalchemy.orm import outerjoin
+from sqlalchemy.orm import outerjoin, relationship
 from typing import Dict, List, Tuple
 from pydantic import ValidationError
 
@@ -119,6 +119,8 @@ class DealerRepository:
 
             # Create new dealer with related integration partner in one go
             logger.info(f"Creating dealer '{dealer_create_request.dealer_name}'")
+
+            Dealer.integration_partners = relationship(DealerIntegrationPartner)
 
             new_dealer = Dealer(
                 dealer_name=dealer_create_request.dealer_name,
