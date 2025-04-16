@@ -71,12 +71,12 @@ def lambda_handler(event, context):
                 ).first()
 
             if not consumer_db:
-                logger.error(f"Consumer/Profile not found for consumer_id {consumer_id} and dealer_id {dealer_id}")
+                logger.warning(f"Consumer/Profile not found for consumer_id {consumer_id} and dealer_id {dealer_id}. Skipping DSR event.")
                 return {
-                    "statusCode": 404,
+                    "statusCode": 200,
                     "body": dumps(
                         {
-                            "message": f"Consumer/Profile not found for consumer_id {consumer_id} and dealer_id {dealer_id}"
+                            "message": "Success"
                         }
                     ),
                     "headers": {"Content-Type": "application/json"},
