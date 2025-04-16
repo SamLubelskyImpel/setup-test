@@ -50,7 +50,10 @@ class RDSInstance:
 
     def find_dealer_integration_partner_id(self, provider_dealer_id):
         """Query for DIP ID based on provider dealer ID."""
-        query = f"SELECT id FROM {self.schema}.inv_dealer_integration_partner WHERE provider_dealer_id = %s"
+        query = (
+            f"SELECT id FROM {self.schema}.inv_dealer_integration_partner "
+            f"WHERE provider_dealer_id = %s and is_active = true"
+        )
         with self.rds_connection.cursor() as cursor:
             cursor.execute(query, (provider_dealer_id,))
             result = cursor.fetchone()
