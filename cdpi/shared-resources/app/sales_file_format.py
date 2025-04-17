@@ -48,8 +48,10 @@ CRM_VENDORS = {
     "ITRACKLEADS": "ITRACKLEADS",
 }
 
+
 class EmptyFileError(Exception):
     pass
+
 
 def get_secret(secret_name, secret_key):
     """Get secret from Secrets Manager."""
@@ -61,6 +63,7 @@ def get_secret(secret_name, secret_key):
 
     return secret_data
 
+
 def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None):
     """Generic helper function to make CRM API requests."""
 
@@ -70,6 +73,7 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None):
     }
     response = requests.request(method, url, headers=headers, json=data)
     return response
+
 
 def parse(csv_object):
     """Parse CSV object and extract entries"""
@@ -89,7 +93,7 @@ def parse(csv_object):
         if row.get("crm_vendor_name", "").lower() == 'unified_crm_layer':
             lead_id = row["crm_lead_id"]
             logger.info(f"Updating vendor name for lead with CRM Lead ID {lead_id}")
-            
+
             url = f'https://{CRM_API_DOMAIN}/internal/leads/{lead_id}'
 
             crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"]
@@ -116,6 +120,7 @@ def parse(csv_object):
     updated_csv = output_stream.getvalue()
 
     return updated_csv
+
 
 def record_handler(record: SQSRecord):
     """Process CSV file from S3 and update the vendor name"""

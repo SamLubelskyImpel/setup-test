@@ -69,7 +69,8 @@ def record_handler(record: SQSRecord):
         secret = get_secret(secret_name)
 
         fd_url = secret["url_v1"]
-        fd_headers = {"x-api-key": secret["api_key"], "Content-Type": "application/json"}
+        header, value = secret["api_key"].split(':')
+        fd_headers = {header: value, "Content-Type": "application/json"}
 
         fd_request_body = {
             "record_timestamp": datetime.now(timezone.utc).isoformat(),
