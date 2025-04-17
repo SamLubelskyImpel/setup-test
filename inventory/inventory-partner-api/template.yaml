@@ -95,7 +95,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: "Allow"
-                Action:          
+                Action:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
@@ -278,7 +278,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/inventory-partner-api-${Environment}-CarSalesIngestVehicle'
-  
+
   CarSalesIngestVehicleErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
