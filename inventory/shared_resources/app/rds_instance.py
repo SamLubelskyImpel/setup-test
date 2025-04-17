@@ -351,7 +351,7 @@ class RDSInstance:
                     inv.get('fuel_type'), inv.get('exterior_color'), inv.get('interior_color'), inv.get('doors'), inv.get('seats'),
                     inv.get('transmission'), inv.get('drive_train'), inv.get('cylinders'), inv.get('body_style'), inv.get('series'),
                     inv['vin'], inv.get('interior_material'), inv.get('trim'), inv.get('factory_certified'), inv.get('region'),
-                    inv.get('on_lot'), inv.get('metadata'), inv.get('received_datetime'), inv.get('photo_url'), inv.get('vdp'),
+                    inv.get('on_lot'), psycopg2.extras.Json(inv.get('metadata')), inv.get('received_datetime'), inv.get('photo_url'), inv.get('vdp'),
                     inv.get('comments'), inv.get('options'), inv.get('priority_options'), inv.get('cost_price'), inv.get('inventory_status'),
                     inv.get('source_data_drive_train'), inv.get('source_data_interior_material_description'), inv.get('source_data_transmission'),
                     inv.get('source_data_transmission_speed'), inv.get('transmission_speed'), inv.get('build_data'), inv.get('highway_mpg'), inv.get('city_mpg'),
