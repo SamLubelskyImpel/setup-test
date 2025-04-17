@@ -162,13 +162,10 @@ def parse_json_to_entries(json_data, s3_uri):
             "s3_url": s3_uri,
         }
 
-
-        deal_payment = default_get(entry, "payment")
-        service_contracts = default_get(entry, "service_contracts")
-        trade_ins = default_get(entry, "trade_ins")
-        vehicles = default_get(entry, "vehicles")
-        warranties = default_get(entry, "warranties")
-        salesperson = default_get(entry, "salesperson")
+        service_contracts = default_get(entry, "service_contracts", [])
+        vehicles = default_get(entry, "vehicles", [])
+        warranties = default_get(entry, "warranties", {})
+        salesperson = default_get(entry, "salesperson", {})
 
         dms_id = default_get(entry, "dms_id")  # Added to payload from parent lambda
         db_dealer_integration_partner["dms_id"] = dms_id
@@ -176,13 +173,11 @@ def parse_json_to_entries(json_data, s3_uri):
         db_vehicle_sale["transaction_id"] = default_get(entry, "externalDealNumber")
 
         delivery_date = default_get(entry, "deliveryDate", default_get(entry, "promisedDeliveryDate"))
-        delivery_date = datetime.strptime(delivery_date, "%Y-%m-%d")
-        # db_vehicle_sale["delivery_date"] = convert_unix_to_timestamp(delivery_date)
+        delivery_datetime = datetime.strptime(delivery_date, "%Y-%m-%d") if delivery_date else None
         db_vehicle_sale["delivery_date"] = delivery_date
 
         contract_date = default_get(entry, "contractDate")
-        contract_date = datetime.strptime(contract_date, '%Y-%m-%d')
-        #db_vehicle_sale["sale_date"] = convert_unix_to_timestamp(contract_date)
+        contract_datetime = datetime.strptime(contract_date, '%Y-%m-%d') if contract_date else None
         db_vehicle_sale["sale_date"] = contract_date
 
         # gross_details = default_get(entry, "grossDetails", {})
@@ -197,7 +192,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 )
                 db_vehicle_sale["payoff_on_trade"] = default_get(trade_in, "tradePayOff")
 
-        deal_payment = default_get(entry, "payment", {})
+
 
         fnis = default_get(entry, "service_contracts", [])
         db_vehicle_sale["has_service_contract"] = True if fnis else False
@@ -245,6 +240,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
                     db_service_contracts.append(db_service_contract)
 
+        deal_payment = default_get(entry, "payment", {})
         total = default_get(deal_payment, "total", {})
         db_vehicle_sale["sales_tax"] = default_get(total, "taxAmount")
 
@@ -275,19 +271,15 @@ def parse_json_to_entries(json_data, s3_uri):
         lease_mileage = default_get(deal_payment, "yearlyMiles", {})
         db_vehicle_sale["lease_mileage_limit"] = default_get(lease_mileage, "totalMileage")
 
-        first_payment_date = calculate_first_payment_date(deal_payment, contract_date, delivery_date)
+        first_payment_date = calculate_first_payment_date(deal_payment, contract_datetime, delivery_datetime)
         db_vehicle_sale["first_payment"] = first_payment_date
     
         try:
-            expected_payoff_date = calculate_expected_payoff_date(deal_payment, contract_date, delivery_date)
+            expected_payoff_date = calculate_expected_payoff_date(deal_payment, contract_datetime, delivery_datetime)
             db_vehicle_sale["expected_payoff_date"] = expected_payoff_date
         except Exception as e:
             logger.warning(f"Error calculating expected payoff date: {e}")
             db_vehicle_sale["expected_payoff_date"] = None
-
-        # gross_details = default_get(entry, "grossDetails", {})
-        # gross_cap_cost = default_get(gross_details, "grossCapCost", {})
-        # db_vehicle_sale["cost_of_vehicle"] = default_get(gross_cap_cost, "amount")
 
         vehicles = default_get(entry, "vehicles", [])
         if vehicles:
@@ -326,16 +318,21 @@ def parse_json_to_entries(json_data, s3_uri):
                         db_vehicle["exterior_color"] = default_get(color, "color")
                         break
 
-                endOdometer = default_get(vehicle, "endOdometer", {})
-                db_vehicle["warranty_expiration_miles"] = default_get(endOdometer, "value")
-                db_vehicle["warranty_expiration_date"] = default_get(vehicle, "endDate")
+                if warranties:
+                    warranty = default_get(warranties, default_get(vehicle, "vehicleInventoryId", ""), {})
+                    if warranty:
+                        endOdometer = default_get(warranty, "endOdometer", {})
+                        db_vehicle["warranty_expiration_miles"] = default_get(endOdometer, "value")
+                        db_vehicle["warranty_expiration_date"] = default_get(warranty, "endDate")
 
                 db_retail_price = None
                 db_oem_msrp = None
                 db_adjustment_on_price = 0
+                db_cost_of_vehicle = None
  
                 pricing = default_get(vehicle, "pricingDetails", {})
                 prices = default_get(pricing, "price", [])
+                costs = default_get(pricing, "costs", [])
                 adjustments = default_get(vehicle, "costAdjustments", [])
                 if prices:
                     for price in prices:
@@ -346,13 +343,23 @@ def parse_json_to_entries(json_data, s3_uri):
                                 db_retail_price = price_amount
                             if price_type.upper() == "MSRP":
                                 db_oem_msrp = price_amount
+
                 if adjustments:
                     for adj in adjustments:
                         db_adjustment_on_price += default_get(adj, "costAdjustment", 0)
 
+                if costs:
+                    for cost in costs:
+                        cost_type = default_get(cost, "type")
+                        cost_amount = default_get(cost, "amount")
+                        if cost_type and cost_amount:
+                            if cost_type.upper() == "INVOICE_PRICE":
+                                db_cost_of_vehicle = cost_amount
+        
                 db_vehicle_sale["listed_price"] = db_retail_price 
                 db_vehicle_sale["oem_msrp"] = db_oem_msrp
                 db_vehicle_sale["adjustment_on_price"] = db_adjustment_on_price
+                db_vehicle_sale["cost_of_vehicle"] = db_cost_of_vehicle
 
 
         trade_in_vehicles = default_get(entry, "trade_ins", [])
