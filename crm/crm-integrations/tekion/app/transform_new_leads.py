@@ -256,19 +256,20 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
             contacts = item.get('contacts') or [{}]
             consumer = contacts[0]
             address = parse_address(consumer.get('customerDetails', {}).get('residence', {}))
+            full_address = f"{address['line1']} {address['line2']}".strip()
             email = parse_email(consumer.get('customerDetails', {}).get('emailCommunications', []))
             phone = parse_phone_number(consumer.get('customerDetails', {}).get('phoneCommunications', []))
 
             db_consumer = {
-                "first_name": consumer.get('customerDetails', {}).get('name', {}).get('firstName', ''),
-                "last_name": consumer.get('customerDetails', {}).get('name', {}).get('lastName', ''),
-                "middle_name": consumer.get('customerDetails', {}).get('name', {}).get('middleName', ''),
-                "email": email["email"],
-                "phone": phone["number"],
-                "address": f"{address['line1']} {address['line2']}".strip(),
-                "city": address["city"],
-                "country": address["country"],
-                "postal_code": address["zip"],
+                "first_name": consumer.get('customerDetails', {}).get('name', {}).get('firstName', '')[:50],
+                "last_name": consumer.get('customerDetails', {}).get('name', {}).get('lastName', '')[:50],
+                "middle_name": consumer.get('customerDetails', {}).get('name', {}).get('middleName', '')[:50],
+                "email": email["email"][:100],
+                "phone": phone["number"][:20],
+                "address": full_address[:150],
+                "city": address["city"][:100],
+                "country": address["country"][:100],
+                "postal_code": address["zip"][:20],
                 "email_optin_flag": email["optedForCommunication"],
                 "sms_optin_flag": phone["optedForCommunication"]
             }
@@ -559,21 +560,23 @@ def parse_json_to_entries_v3(product_dealer_id: str, json_data: Any) -> Any:
 
             db_lead["vehicles_of_interest"] = db_vehicles
 
-            consumer = item.get('customers', [{}])[0]
+            customers = item.get('customers') or [{}]
+            consumer = customers[0]
             address = parse_address_v3(consumer.get('addresses', []))
+            full_address = f"{address['line1']} {address['line2']}".strip()
             email = parse_email_v3(consumer.get('emails', []))
             phone = parse_phone_number_v3(consumer.get('phones', []))
 
             db_consumer = {
-                "first_name": consumer.get('firstName', ''),
-                "last_name": consumer.get('lastName', ''),
-                "middle_name": consumer.get('middleName', ''),
-                "email": email["emailId"],
-                "phone": phone["number"],
-                "address": f"{address['line1']} {address['line2']}".strip(),
-                "city": address["city"],
-                "country": address["country"],
-                "postal_code": address["zip"],
+                "first_name": consumer.get('firstName', '')[:50],
+                "last_name": consumer.get('lastName', '')[:50],
+                "middle_name": consumer.get('middleName', '')[:50],
+                "email": email["emailId"][:100],
+                "phone": phone["number"][:20],
+                "address": full_address[:150],
+                "city": address["city"][:100],
+                "country": address["country"][:100],
+                "postal_code": address["zip"][:20],
                 "email_optin_flag": email["optedForCommunication"],
                 "sms_optin_flag": phone["optedForCommunication"]
             }
