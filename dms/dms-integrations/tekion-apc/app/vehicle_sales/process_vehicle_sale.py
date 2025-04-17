@@ -22,6 +22,8 @@ logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
 
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
+MISSING_DATA_STATUS_CODES = [400, 404]
+
 s3_client = boto3.client('s3')
 
 def save_vehicle_sales(data, dms_id):
@@ -39,44 +41,70 @@ def enrich_vehicle_sale(data, dms_id, api):
 
     deal_id = data["id"]
 
-    try:
-        data.update({"payment": api.get_deal_payment(deal_id)})
-    except HTTPError:
-        logger.warning(f"No payment details for deal {deal_id}")
-        data.update({"payment": {}})
+    enriched_record = {}
+
+    enriched_record["deal"] = data
 
     try:
-        data.update({"service_contracts": api.get_deal_service_contracts(deal_id)})
-    except HTTPError:
-        logger.warning(f"No service contracts for deal {deal_id}")
-        data.update({"service_contracts": []})
+        enriched_record.update({"api_payment": api.get_deal_payment(deal_id)})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No payment details for deal {deal_id}")
+            enriched_record.update({"api_payment": {}})
+        else:
+            raise e
+
+    try:
+        enriched_record.update({"api_service_contracts": api.get_deal_service_contracts(deal_id)})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No service contracts for deal {deal_id}")
+            enriched_record.update({"api_service_contracts": []})
+        else:
+            raise e
   
     try:
-        data.update({"trade_ins": api.get_deal_trade_ins(deal_id)})
-    except HTTPError:
-        logger.warning(f"No trade ins for deal {deal_id}")
-        data.update({"trade_ins": []})
+        enriched_record.update({"api_trade_ins": api.get_deal_trade_ins(deal_id)})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No trade ins for deal {deal_id}")
+            enriched_record.update({"api_trade_ins": []})
+        else:
+            raise e
 
-    # data.update({"gross_details": api.get_deal_gross_details(deal_id)})
+    # try:
+    #     enriched_record.update({"api_gross_details": api.get_deal_gross_details(deal_id)})
+    # except HTTPError as e:
+    #     if e.response.status_code in MISSING_DATA_STATUS_CODES:
+    #         logger.warning(f"No gross details for deal {deal_id}")
+    #         enriched_record.update({"api_gross_details": {}})
+    #     else:
+    #         raise e
 
     vehicles = []
     try:
         vehicles = api.get_deal_vehicles(deal_id)
 
-        data.update({"vehicles": vehicles})
+        enriched_record.update({"api_vehicles": vehicles})
 
-    except HTTPError:
-        logger.warning(f"No vehicles for deal {deal_id}")
-        data.update({"vehicles": []})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No vehicles for deal {deal_id}")
+            enriched_record.update({"api_vehicles": []})
+        else:
+            raise e
 
     warranties = []
     for vehicle in vehicles:
         try:
             warranties.append(api.get_vehicle_warranties(vehicle["id"]))
-        except HTTPError:
-            logger.warning(f"No warranties for vehicle {vehicle['id']}")
+        except HTTPError as e:
+            if e.response.status_code in MISSING_DATA_STATUS_CODES:
+                logger.warning(f"No warranties for vehicle {vehicle['id']}")
+            else:
+                raise e
 
-    data.update({"warranties": warranties})
+    enriched_record.update({"api_warranties": warranties})
 
     try:
         customers = api.get_deal_customers(deal_id)
@@ -91,37 +119,43 @@ def enrich_vehicle_sale(data, dms_id, api):
                 customer_details = api.get_customer_v4(customer["id"])
                 if customer_details:
                     comms = customer_details[0].get("customerDetails", {})
-                data.update({"buyer_communications": comms})
-                data.update({"buyer": customer})
+                enriched_record.update({"api_buyer_communications": comms})
+                enriched_record.update({"api_buyer": customer})
                 buyerFlag = True
             elif not cobuyerFlag and customer["type"] == "COBUYER":
                 customer_details = api.get_customer_v4(customer["id"])
                 if customer_details:
                     comms = customer_details[0].get("customerDetails", {})
-                data.update({"cobuyer_communications": comms})
-                data.update({"cobuyer": customer})
+                enriched_record.update({"api_cobuyer_communications": comms})
+                enriched_record.update({"api_cobuyer": customer})
                 cobuyerFlag = True
             elif buyerFlag and cobuyerFlag:
                 break
 
-    except HTTPError:
-        logger.warning(f"No customers for deal {deal_id}")
-        data.update({"buyer": {}})
-        data.update({"cobuyer": {}})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No customers for deal {deal_id}")
+            enriched_record.update({"api_buyer": {}})
+            enriched_record.update({"api_cobuyer": {}})
+        else:
+            raise e
 
     try:
         assignees = api.get_deal_assignees(deal_id)
         for assignee in assignees:
             if assignee["primary"]:
-                data.update({"salesperson": api.get_employee(assignee["employeeDetails"]["id"])})
+                enriched_record.update({"api_salesperson": api.get_employee(assignee["employeeDetails"]["id"])})
                 break
-    except HTTPError:
-        logger.warning(f"No salespersons for deal {deal_id}")
-        data.update({"salesperson": {}})
+    except HTTPError as e:
+        if e.response.status_code in MISSING_DATA_STATUS_CODES:
+            logger.warning(f"No salespersons for deal {deal_id}")
+            enriched_record.update({"api_salesperson": {}})
+        else:
+            raise e
 
-    logger.info(f"Enriched record: {data}")
+    logger.info(f"Enriched record: {enriched_record}")
 
-    return data
+    return enriched_record
 
 
 def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
@@ -141,12 +175,13 @@ def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
                 for vehicle_sale in vehicle_sale_chunk
             ]
 
-            for future in as_completed(futures):
-                try:
+            try:
+                for future in as_completed(futures):
                     enriched_vehicle_sale = future.result()
                     enriched_records.append(enriched_vehicle_sale)
-                except Exception as e:
-                    logger.error(f"Unhandled exception for dealer {dms_id}: {e}")
+            except Exception as e:
+                logger.error(f"Unhandled exception for dealer {dms_id}: {e}")
+                raise e
 
         save_vehicle_sales(enriched_records, dms_id)
 
