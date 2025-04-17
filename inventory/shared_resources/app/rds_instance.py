@@ -243,7 +243,7 @@ class RDSInstance:
             update_values = [
                 (
                     v['id'], v.get('type'), v.get('new_or_used'),
-                    v.get('oem_name'), v.get('make'), v.get('year'), v.get('metadata')
+                    v.get('oem_name'), v.get('make'), v.get('year'), psycopg2.extras.Json(v.get('metadata'))
                 )
                 for v in update_data
             ]
@@ -265,7 +265,7 @@ class RDSInstance:
                 batch = insert_data[i:i+100]
                 insert_values = [
                     (v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage'],
-                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'], v['metadata'])
+                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'], psycopg2.extras.Json(v['metadata']))
                     for v in batch
                 ]
 
