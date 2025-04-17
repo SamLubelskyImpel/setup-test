@@ -70,6 +70,8 @@ def extract_inventory_data(json_data):
             return value.strip()
         elif ftype == 'list':
             return value
+        elif ftype == 'dict':
+            return value
         else:
             logger.error(f"Invalid field: {ftype}")
             raise ValueError(f"Invalid field type: {ftype}")
@@ -94,7 +96,7 @@ def extract_inventory_data(json_data):
         'factory_certified': json_data.get('inv_inventory|factory_certified', False),
         'region': extract_field('inv_inventory|region'),
         'on_lot': json_data.get('inv_inventory|on_lot', True),
-        'metadata': extract_field('inv_inventory|metadata'),
+        'metadata': extract_field('inv_inventory|metadata', ftype='dict'),
         'received_datetime': extract_field('inv_inventory|received_datetime'),
         'vdp': extract_field('inv_inventory|vdp'),
         'comments': extract_field('inv_inventory|comments'),
