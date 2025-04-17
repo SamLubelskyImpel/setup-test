@@ -25,7 +25,7 @@ class InvVehicle(BaseForModels):
     db_update_role = Column(String(255), nullable=True)
     dealer_integration_partner_id = Column(Integer, ForeignKey("inv_dealer_integration_partner.id"), nullable=False)
     new_or_used = Column(String(1), nullable=True)
-    # metadata_ = Column("metadata", MutableDict.as_mutable(JSONB)) Removed because currently metadata values are string and not json
+    metadata_ = Column("metadata", MutableDict.as_mutable(JSONB))
     stock_num = Column(String(255), nullable=True)
 
     # Define relationship
