@@ -26,7 +26,7 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "PBS"
-        UPLOAD_SECRET_KEY: "impel"
+        UPLOAD_SECRET_KEY: "internal_pbs"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [

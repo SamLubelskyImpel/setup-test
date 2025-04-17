@@ -23,7 +23,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 PARTNER_KEY = environ.get("PARTNER_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
@@ -254,7 +253,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             db_lead["vehicles_of_interest"] = db_vehicles
 
-            consumer = item.get('contacts', [{}])[0]
+            contacts = item.get('contacts') or [{}]
+            consumer = contacts[0]
             address = parse_address(consumer.get('customerDetails', {}).get('residence', {}))
             email = parse_email(consumer.get('customerDetails', {}).get('emailCommunications', []))
             phone = parse_phone_number(consumer.get('customerDetails', {}).get('phoneCommunications', []))

@@ -83,6 +83,8 @@ def transform_to_unified(events_grouped: dict[str, list]) -> dict[str, list]:
                         entry[table][impel_field] = carsales_field(event)
                     else:
                         entry[table][impel_field] = get_nested_value(event, carsales_field)
+            entry["inv_dealer_integration_partner"] = {}
+            entry["inv_dealer_integration_partner"]["provider_dealer_id"] = dealer_id
             events_transformed.append(entry)
 
         entries[dealer_id] = events_transformed
