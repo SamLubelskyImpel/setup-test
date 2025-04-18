@@ -106,7 +106,8 @@ def modify_salespersons(session, lead_id, dealer_partner_id, new_salespersons):
         return
 
     update_salespersons(session, lead_id, dealer_partner_id, new_salespersons)
-    update_lead_salespersons(session, lead_id, dealer_partner_id, new_salespersons)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+    update_lead_salespersons(session, lead_id, dealer_partner_id, new_salespersons)
+
     # Find lead_salespersons that are no longer assigned to the lead.
     removed_salespeople = []
     existing_salespersons = get_salespersons_for_lead(session, lead_id)
@@ -138,7 +139,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         vehicles_of_interest = body.get('vehicles_of_interest', [])
         metadata = body.get('metadata')
         consumer_id = body.get("consumer_id")
-        crm_lead_id = body.get("crm_lead_id")
 
         lead_field_mapping = {
             "lead_status": "status",
@@ -184,10 +184,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "statusCode": 404,
                     "body": dumps({"error": f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."})
                 }
-
-            old_crm_lead_id = lead_db.crm_lead_id
-            if crm_lead_id and crm_lead_id != old_crm_lead_id:
-                lead_db.crm_lead_id = crm_lead_id
 
             dealer_partner_id = consumer_db.dealer_integration_partner_id
             if consumer_id and lead_db.consumer_id != consumer_id:
