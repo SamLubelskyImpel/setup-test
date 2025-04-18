@@ -182,19 +182,19 @@ class TekionWrapper:
             logger.exception(f"Unable to parse {path} response {resp}")
             raise
 
-    def get_repair_orders(self, next_fetch_key=""):
+    def get_repair_orders_v4(self, next_fetch_key=""):
         """Retrieve Tekion Repair Order."""
         return self._call_tekion("openapi/v3.1.0/repair-orders", next_fetch_key=next_fetch_key)
 
-    def get_deals(self, next_fetch_key=""):
+    def get_deals_v4(self, next_fetch_key=""):
         """Retrieve Deals by dealer id"""
         return self._call_tekion_v4("openapi/v4.0.0/deals", next_fetch_key=next_fetch_key)
 
-    def get_appointments(self, next_fetch_key=""):
+    def get_appointments_v3(self, next_fetch_key=""):
         """Retrieve Appointments by dealer id"""
         return self._call_tekion("openapi/v3.1.0/appointments", next_fetch_key=next_fetch_key)
 
-    def get_customer(self, id: str):
+    def get_customer_v3(self, id: str):
         """Retrieve Customer by id."""
         return self._call_tekion(f"openapi/v3.1.0/customers", params={ "id": id }, set_date_filter=False)
 
@@ -202,39 +202,39 @@ class TekionWrapper:
         """Retrieve Customer by id."""
         return self._call_tekion_v4(f"openapi/v4.0.0/customers/", params={ "customerId": id }, set_date_filter=False)
 
-    def get_employee(self, id: str):
+    def get_employee_v4(self, id: str):
         """Retrieve User (Employee) by id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/users/{id}", set_date_filter=False)
 
-    def get_deal_customers(self, deal_id: str):
+    def get_deal_customers_v4(self, deal_id: str):
         """Retrieve all Customers associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/customers", set_date_filter=False)
 
-    def get_deal_payment(self, deal_id: str):
+    def get_deal_payment_v4(self, deal_id: str):
         """Retrieve Payment Details associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment", set_date_filter=False)
 
-    def get_deal_service_contracts(self, deal_id: str):
+    def get_deal_service_contracts_v4(self, deal_id: str):
         """Retrieve all Service Contracts (fnis) associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment/fnis", set_date_filter=False)
 
-    def get_deal_trade_ins(self, deal_id: str):
+    def get_deal_trade_ins_v4(self, deal_id: str):
         """Retrieve all Trade Ins associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/trade-ins", set_date_filter=False)
 
-    def get_deal_gross_details(self, deal_id: str):
+    def get_deal_gross_details_v4(self, deal_id: str):
         """Retrieve Gross Details associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/gross-details", set_date_filter=False)
         
-    def get_deal_vehicles(self, deal_id: str):
+    def get_deal_vehicles_v4(self, deal_id: str):
         """Retrieve all Vehicles associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/vehicles", set_date_filter=False)
 
-    def get_vehicle_warranties(self, vehicle_inventory_id: str):
+    def get_vehicle_warranties_v4(self, vehicle_inventory_id: str):
         """Retrieve all Warranties associated with a Vehicle by Vehicle Inventory id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/vehicle-inventory/{vehicle_inventory_id}/warranties", set_date_filter=False)
 
-    def get_deal_assignees(self, deal_id: str):
+    def get_deal_assignees_v4(self, deal_id: str):
         """
         Retrieve all Sales Associates associated with a Deal by Deal id.
         Further API call is required for specific information about assignees

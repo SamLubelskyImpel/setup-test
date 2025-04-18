@@ -46,7 +46,7 @@ def enrich_vehicle_sale(data, dms_id, api):
     enriched_record["deal"] = data
 
     try:
-        enriched_record.update({"api_payment": api.get_deal_payment(deal_id)})
+        enriched_record.update({"api_payment": api.get_deal_payment_v4(deal_id)})
     except HTTPError as e:
         if e.response.status_code in MISSING_DATA_STATUS_CODES:
             logger.warning(f"No payment details for deal {deal_id}")
@@ -55,7 +55,7 @@ def enrich_vehicle_sale(data, dms_id, api):
             raise e
 
     try:
-        enriched_record.update({"api_service_contracts": api.get_deal_service_contracts(deal_id)})
+        enriched_record.update({"api_service_contracts": api.get_deal_service_contracts_v4(deal_id)})
     except HTTPError as e:
         if e.response.status_code in MISSING_DATA_STATUS_CODES:
             logger.warning(f"No service contracts for deal {deal_id}")
@@ -64,7 +64,7 @@ def enrich_vehicle_sale(data, dms_id, api):
             raise e
   
     try:
-        enriched_record.update({"api_trade_ins": api.get_deal_trade_ins(deal_id)})
+        enriched_record.update({"api_trade_ins": api.get_deal_trade_ins_v4(deal_id)})
     except HTTPError as e:
         if e.response.status_code in MISSING_DATA_STATUS_CODES:
             logger.warning(f"No trade ins for deal {deal_id}")
@@ -73,7 +73,7 @@ def enrich_vehicle_sale(data, dms_id, api):
             raise e
 
     # try:
-    #     enriched_record.update({"api_gross_details": api.get_deal_gross_details(deal_id)})
+    #     enriched_record.update({"api_gross_details": api.get_deal_gross_details_v4(deal_id)})
     # except HTTPError as e:
     #     if e.response.status_code in MISSING_DATA_STATUS_CODES:
     #         logger.warning(f"No gross details for deal {deal_id}")
@@ -83,7 +83,7 @@ def enrich_vehicle_sale(data, dms_id, api):
 
     vehicles = []
     try:
-        vehicles = api.get_deal_vehicles(deal_id)
+        vehicles = api.get_deal_vehicles_v4(deal_id)
 
         enriched_record.update({"api_vehicles": vehicles})
 
@@ -97,7 +97,7 @@ def enrich_vehicle_sale(data, dms_id, api):
     warranties = []
     for vehicle in vehicles:
         try:
-            warranties.append(api.get_vehicle_warranties(vehicle["vehicleInventoryId"]))
+            warranties.append(api.get_vehicle_warranties_v4(vehicle["vehicleInventoryId"]))
         except HTTPError as e:
             if e.response.status_code in MISSING_DATA_STATUS_CODES:
                 logger.warning(f"No warranties for vehicle {vehicle['id']}")
@@ -107,7 +107,7 @@ def enrich_vehicle_sale(data, dms_id, api):
     enriched_record.update({"api_warranties": warranties})
 
     try:
-        customers = api.get_deal_customers(deal_id)
+        customers = api.get_deal_customers_v4(deal_id)
 
         buyerFlag, cobuyerFlag = False, False
 
@@ -141,10 +141,10 @@ def enrich_vehicle_sale(data, dms_id, api):
             raise e
 
     try:
-        assignees = api.get_deal_assignees(deal_id)
+        assignees = api.get_deal_assignees_v4(deal_id)
         for assignee in assignees:
             if assignee["primary"]:
-                enriched_record.update({"api_salesperson": api.get_employee(assignee["employeeDetails"]["id"])})
+                enriched_record.update({"api_salesperson": api.get_employee_v4(assignee["employeeDetails"]["id"])})
                 break
     except HTTPError as e:
         if e.response.status_code in MISSING_DATA_STATUS_CODES:
