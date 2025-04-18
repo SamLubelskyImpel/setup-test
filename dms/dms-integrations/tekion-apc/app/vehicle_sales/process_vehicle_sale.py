@@ -94,10 +94,11 @@ def enrich_vehicle_sale(data, dms_id, api):
         else:
             raise e
 
-    warranties = []
+    warranties = {}
     for vehicle in vehicles:
         try:
-            warranties.append(api.get_vehicle_warranties(vehicle["vehicleInventoryId"]))
+            inv_id = vehicle["vehicleInventoryId"]
+            warranties.update({inv_id: api.get_vehicle_warranties(inv_id)})
         except HTTPError as e:
             if e.response.status_code in MISSING_DATA_STATUS_CODES:
                 logger.warning(f"No warranties for vehicle {vehicle['id']}")

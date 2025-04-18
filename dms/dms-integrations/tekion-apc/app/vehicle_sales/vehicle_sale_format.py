@@ -156,45 +156,32 @@ def parse_json_to_entries(json_data, s3_uri):
 
         db_metadata = {
             "Region": REGION,
-            "PartitionYear": s3_uri.split("/")[2],
-            "PartitionMonth": s3_uri.split("/")[3],
-            "PartitionDate": s3_uri.split("/")[4],
+            "PartitionYear": s3_uri.split("/")[4],
+            "PartitionMonth": s3_uri.split("/")[5],
+            "PartitionDate": s3_uri.split("/")[6],
             "s3_url": s3_uri,
         }
 
-        service_contracts = default_get(entry, "service_contracts", [])
-        vehicles = default_get(entry, "vehicles", [])
-        warranties = default_get(entry, "warranties", {})
-        salesperson = default_get(entry, "salesperson", {})
+        deal = default_get(entry, "deal", {})
 
-        dms_id = default_get(entry, "dms_id")  # Added to payload from parent lambda
+        dms_id = default_get(deal, "dms_id")  # Added to payload from parent lambda
         db_dealer_integration_partner["dms_id"] = dms_id
 
-        db_vehicle_sale["transaction_id"] = default_get(entry, "externalDealNumber")
+        db_vehicle_sale["transaction_id"] = default_get(deal, "externalDealNumber")
 
-        delivery_date = default_get(entry, "deliveryDate", default_get(entry, "promisedDeliveryDate"))
+        delivery_date = default_get(deal, "deliveryDate", default_get(deal, "promisedDeliveryDate"))
         delivery_datetime = datetime.strptime(delivery_date, "%Y-%m-%d") if delivery_date else None
         db_vehicle_sale["delivery_date"] = delivery_date
 
-        contract_date = default_get(entry, "contractDate")
+        contract_date = default_get(deal, "contractDate")
         contract_datetime = datetime.strptime(contract_date, '%Y-%m-%d') if contract_date else None
         db_vehicle_sale["sale_date"] = contract_date
 
-        # gross_details = default_get(entry, "grossDetails", {})
+        # gross_details = default_get(deal, "grossDetails", {})
         # vehicle_gross = default_get(gross_details, "vehicleGross", {})
         # db_vehicle_sale["vehicle_gross"] = default_get(vehicle_gross, "amount")
 
-        trade_ins = default_get(entry, "trade_ins", [])
-        if trade_ins:
-            for trade_in in trade_ins:
-                db_vehicle_sale["trade_in_value"] = default_get(
-                    trade_in, "actualCashValue"
-                )
-                db_vehicle_sale["payoff_on_trade"] = default_get(trade_in, "tradePayOff")
-
-
-
-        fnis = default_get(entry, "service_contracts", [])
+        fnis = default_get(entry, "api_service_contracts", [])
         db_vehicle_sale["has_service_contract"] = True if fnis else False
         if fnis:
             for fni in fnis:
@@ -240,12 +227,12 @@ def parse_json_to_entries(json_data, s3_uri):
 
                     db_service_contracts.append(db_service_contract)
 
-        deal_payment = default_get(entry, "payment", {})
+        deal_payment = default_get(entry, "api_payment", {})
         total = default_get(deal_payment, "total", {})
         db_vehicle_sale["sales_tax"] = default_get(total, "taxAmount")
 
         db_vehicle_sale["deal_type"] = default_get(deal_payment, "paymentType")
-        db_vehicle_sale["sale_type"] = default_get(entry, "type")
+        db_vehicle_sale["sale_type"] = default_get(deal, "type")
 
         yearly_miles = default_get(deal_payment, "yearlyMiles", {})
         db_vehicle_sale["miles_per_year"] = default_get(yearly_miles, "baseMileage")
@@ -256,7 +243,7 @@ def parse_json_to_entries(json_data, s3_uri):
         payment_options = default_get(deal_payment, "paymentOption", {})
         frequency = default_get(payment_options, "paymentFrequency")
 
-        if frequency.upper() != 'MONTHLY':
+        if frequency and frequency.upper() != 'MONTHLY':
             db_vehicle_sale["finance_term"] = calculate_payment_term(default_get(payment_options, "term"), frequency)
         else:
             db_vehicle_sale["finance_term"] = default_get(payment_options, "term")
@@ -281,7 +268,8 @@ def parse_json_to_entries(json_data, s3_uri):
             logger.warning(f"Error calculating expected payoff date: {e}")
             db_vehicle_sale["expected_payoff_date"] = None
 
-        vehicles = default_get(entry, "vehicles", [])
+        vehicles = default_get(entry, "api_vehicles", [])
+        warranties = default_get(entry, "api_warranties", {})
         if vehicles:
             for vehicle in vehicles:
                 db_vehicle_sale["vin"] = default_get(vehicle, "vin")
@@ -362,7 +350,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_vehicle_sale["cost_of_vehicle"] = db_cost_of_vehicle
 
 
-        trade_in_vehicles = default_get(entry, "trade_ins", [])
+        trade_in_vehicles = default_get(entry, "api_trade_ins", [])
         if trade_in_vehicles:
             trade_in_vehicle = trade_in_vehicles[0]
             vehicle = default_get(trade_in_vehicle, "vehicle", {})
@@ -389,10 +377,16 @@ def parse_json_to_entries(json_data, s3_uri):
             db_trade_in_vehicle["vehicle_class"] = default_get(specification, "bodyClass")
             db_trade_in_vehicle["trim"] = default_get(trim_details, "trim")
 
-        buyer = default_get(entry, "buyer", {})
-        cobuyer = default_get(entry, "cobuyer", {})
-        buyer_comms = default_get(entry, "buyer_communications", {})
-        cobuyer_comms = default_get(entry, "cobuyer_communications", {})
+            db_vehicle_sale["trade_in_value"] = default_get(
+                trade_in_vehicle, "actualCashValue"
+            )
+            db_vehicle_sale["payoff_on_trade"] = default_get(trade_in_vehicle, "tradePayOff")
+
+
+        buyer = default_get(entry, "api_buyer", {})
+        cobuyer = default_get(entry, "api_cobuyer", {})
+        buyer_comms = default_get(entry, "api_buyer_communications", {})
+        cobuyer_comms = default_get(entry, "api_cobuyer_communications", {})
 
         customers = [buyer, cobuyer]
         comms = {}
@@ -473,7 +467,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 db_target["cell_phone"] = db_cell_phone
                 db_target["home_phone"] = db_home_phone
 
-        assignee = default_get(entry, "salesperson", {})
+        assignee = default_get(entry, "api_salesperson", {})
         db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
         name_details = default_get(assignee, "userNameDetails", {})
         first_name = default_get(name_details, "firstName", "")
