@@ -48,6 +48,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+PATCH_DEALER_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PatchDealerMetadata.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 APPOINTMENT_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -71,6 +80,7 @@ DMS_DATA_SERVICE_INTERPOLATION_DATA = {
     "REPAIR_ORDER_LAMBDA_INFO": REPAIR_ORDER_LAMBDA_INFO,
     "VEHICLE_SALE_LAMBDA_INFO": VEHICLE_SALE_LAMBDA_INFO,
     "DEALER_LAMBDA_INFO": DEALER_LAMBDA_INFO,
+    "PATCH_DEALER_LAMBDA_INFO": PATCH_DEALER_LAMBDA_INFO,
     "APPOINTMENT_LAMBDA_INFO": APPOINTMENT_LAMBDA_INFO,
     "CREATE_DEALER_LAMBDA_INFO" : CREATE_DEALER_LAMBDA_INFO,
     "CUSTOMER_LAMBDA_INFO": CUSTOMER_LAMBDA_INFO
