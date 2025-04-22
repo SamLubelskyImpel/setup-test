@@ -43,7 +43,7 @@ def record_handler(record: SQSRecord):
         api = TekionWrapper(dealer_id=dms_id)
         db_instance = RDSInstance()
 
-        tekion_res = api.get_customer(dms_customer_id)
+        tekion_res = api.get_customer_v3(dms_customer_id)
         save_response(tekion_res, dms_id, dms_customer_id)
 
         if len(tekion_res) == 0:
