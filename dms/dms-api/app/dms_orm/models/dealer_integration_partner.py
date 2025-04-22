@@ -4,6 +4,8 @@ import sys
 
 from dms_orm.session_config import BaseForModels
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
+
 
 
 class DealerIntegrationPartner(BaseForModels):
@@ -17,6 +19,7 @@ class DealerIntegrationPartner(BaseForModels):
     dms_id = Column(String)
     is_active = Column(Boolean)
     db_creation_date = Column(DateTime)
+    metadata_ = Column("metadata",JSONB)
 
     def as_dict(self):
         """Return attributes of the keys in the table."""

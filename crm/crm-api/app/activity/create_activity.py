@@ -17,6 +17,8 @@ from crm_orm.models.integration_partner import IntegrationPartner
 from crm_orm.models.consumer import Consumer
 from crm_orm.models.dealer import Dealer
 
+from sqlalchemy.dialects.postgresql import insert
+
 from event_service.events import dispatch_event, Event, Resource
 
 logger = logging.getLogger()
@@ -152,9 +154,30 @@ def lambda_handler(event: Any, context: Any) -> Any:
         validate_activity_body(activity_type, activity_due_ts, activity_requested_ts, notes)
 
         with DBSession() as session:
+            # OAS should validate activity type, this is a backup
+            activity_type_id, = session.query(ActivityType.id).filter(ActivityType.type == activity_type).first()
+            if not activity_type_id:
+                logger.error(f"Failed to find activity type {activity_type} for lead {lead_id}")
+                return {
+                    "statusCode": 404,
+                    "body": dumps({"error": f"Activity type {activity_type} not found."})
+                }
+
             # Check lead existence
             db_results = session.query(
-                Lead, Consumer, DealerIntegrationPartner, Dealer.metadata_, Dealer.product_dealer_id, IntegrationPartner.impel_integration_partner_name
+                Lead.id,
+                Lead.crm_lead_id,
+                Consumer.id,
+                Consumer.crm_consumer_id,
+                DealerIntegrationPartner.id,
+                DealerIntegrationPartner.crm_dealer_id,
+                DealerIntegrationPartner.metadata_,
+                DealerIntegrationPartner.is_active,
+                DealerIntegrationPartner.is_active_salesai,
+                DealerIntegrationPartner.is_active_chatai,
+                Dealer.metadata_,
+                Dealer.product_dealer_id,
+                IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -166,132 +189,134 @@ def lambda_handler(event: Any, context: Any) -> Any:
             ).filter(
                 Lead.id == lead_id
             ).first()
+
             if not db_results:
                 logger.error(f"Lead {lead_id} not found. Activity failed to be created.")
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": f"Lead {lead_id} not found. Activity failed to be created."})
                 }
-            # OAS should validate activity type, this is a backup
-            activity_type_db = session.query(ActivityType).filter(ActivityType.type == activity_type).first()
-            if not activity_type_db:
-                logger.error(f"Failed to find activity type {activity_type} for lead {lead_id}")
-                return {
-                    "statusCode": 404,
-                    "body": dumps({"error": f"Activity type {activity_type} not found."})
-                }
 
-            lead_db, consumer_db, dealer_partner_db, dealer_metadata, product_dealer_id, partner_name = db_results
-            dip_metadata = dealer_partner_db.metadata_
+            (lead_id,
+             crm_lead_id,
+             consumer_id,
+             crm_consumer_id,
+             dip_id,
+             crm_dealer_id,
+             dip_metadata,
+             dip_is_active,
+             dip_is_active_salesai,
+             dip_is_active_chatai,
+             dealer_metadata,
+             product_dealer_id,
+             partner_name) = db_results
 
-            if not any([dealer_partner_db.is_active, dealer_partner_db.is_active_salesai, dealer_partner_db.is_active_chatai]):
-                error_msg = f"Dealer integration partner {dealer_partner_db.id} is not active. Activity failed to be created."
+            if not any([dip_is_active, dip_is_active_salesai, dip_is_active_chatai]):
+                error_msg = f"Dealer integration partner {dip_id} is not active. Activity failed to be created."
                 logger.error(error_msg)
                 send_general_alert_notification(subject=f'CRM API: Activity creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": error_msg})
                 }
-            
+
             # Create activity
-            activity = Activity(
-                lead_id=lead_db.id,
-                activity_type_id=activity_type_db.id,
+            stmt = insert(Activity).values(
+                lead_id=lead_id,
+                activity_type_id=activity_type_id,
                 activity_due_ts=activity_due_ts,
                 activity_requested_ts=activity_requested_ts,
                 request_product=request_product,
                 notes=notes,
                 contact_method=contact_method
-            )
+            ).returning(Activity.id)
 
-            session.add(activity)
-
+            activity_id = session.execute(stmt).scalar()
             session.commit()
-            activity_id = activity.id
             logger.info(f"Created activity {activity_id}")
 
-            dispatch_event(
-                request_product=request_product,
-                partner=partner_name,
-                event=Event.Created,
-                resource=Resource.Activity,
-                content={
-                    'message': 'Activity Created',
-                    'activity_id': activity_id,
-                    'lead_id': lead_db.id,
-                    'dealer_id': product_dealer_id,
-                    'activity_type': activity_type
-                })
+        dispatch_event(
+            request_product=request_product,
+            partner=partner_name,
+            event=Event.Created,
+            resource=Resource.Activity,
+            content={
+                'message': 'Activity Created',
+                'activity_id': activity_id,
+                'lead_id': lead_id,
+                'dealer_id': product_dealer_id,
+                'activity_type': activity_type
+            })
 
-            if dealer_metadata:
-                dealer_timezone = dealer_metadata.get("timezone", "")
-            else:
-                logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
-                dealer_timezone = ""
+        if dealer_metadata:
+            dealer_timezone = dealer_metadata.get("timezone", "")
+        else:
+            logger.warning(f"No metadata found for dealer: {dip_id}")
+            dealer_timezone = ""
 
-            payload = {
-                # Lead info
-                "lead_id": lead_db.id,
-                "crm_lead_id": lead_db.crm_lead_id,
-                "dealer_integration_partner_id": dealer_partner_db.id,
-                "crm_dealer_id": dealer_partner_db.crm_dealer_id,
-                "consumer_id": consumer_db.id,
-                "crm_consumer_id": consumer_db.crm_consumer_id,
-                "dealer_integration_partner_metadata": dip_metadata,
-                # Activity info
-                "activity_id": activity_id,
-                "notes": activity.notes,
-                "activity_due_ts": activity_due_ts,
-                "activity_requested_ts": activity_requested_ts,
-                "dealer_timezone": dealer_timezone,
-                "activity_type": activity_type,
-                "contact_method": activity.contact_method,
-            }
+        payload = {
+            # Lead info
+            "lead_id": lead_id,
+            "crm_lead_id": crm_lead_id,
+            "dealer_integration_partner_id": dip_id,
+            "crm_dealer_id": crm_dealer_id,
+            "consumer_id": consumer_id,
+            "crm_consumer_id": crm_consumer_id,
+            "dealer_integration_partner_metadata": dip_metadata,
+            # Activity info
+            "activity_id": activity_id,
+            "notes": notes,
+            "activity_due_ts": activity_due_ts,
+            "activity_requested_ts": activity_requested_ts,
+            "dealer_timezone": dealer_timezone,
+            "activity_type": activity_type,
+            "contact_method": contact_method,
+        }
 
-            logger.info(f"Payload to CRM: {dumps(payload)}")
+        logger.info(f"Payload to CRM: {dumps(payload)}")
 
-            writeback_disabled = is_writeback_disabled(partner_name, activity_id)
+        writeback_disabled = is_writeback_disabled(partner_name, activity_id)
 
-            # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
-            if request_product == "chat_ai" and activity_type == "appointment":
-                try:
-                    adf_recipients = []
-                    sftp_config = {}
-                    oem_partner = ""
+        # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
+        if request_product == "chat_ai" and activity_type == "appointment":
+            try:
+                adf_recipients = []
+                sftp_config = {}
+                oem_partner = ""
 
-                    if dip_metadata:
-                        adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                        sftp_config = dip_metadata.get("adf_sftp_config", {})
-                        oem_partner = dip_metadata.get("oem_partner", "")
-                    else:
-                        logger.warning(f"No metadata found for dealer: {dealer_partner_db.id}")
+                if dip_metadata:
+                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
+                    sftp_config = dip_metadata.get("adf_sftp_config", {})
+                    oem_partner = dip_metadata.get("oem_partner", "")
+                else:
+                    logger.warning(f"No metadata found for dealer: {dip_id}")
 
-                    # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                    activity_due_dealer_ts = apply_dealer_timezone(
-                        activity_due_ts, dealer_timezone, dealer_partner_db.id
-                    )
-                    payload = {
-                        "lead_id": lead_id,
-                        "recipients": adf_recipients,
-                        "partner_name": partner_name,
-                        "sftp_config": sftp_config,
-                        "oem_partner": oem_partner,
-                        "activity_time": activity_due_dealer_ts
-                    }
+                # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
+                activity_due_dealer_ts = apply_dealer_timezone(
+                    activity_due_ts, dealer_timezone, dip_id
+                )
+                payload = {
+                    "lead_id": lead_id,
+                    "recipients": adf_recipients,
+                    "partner_name": partner_name,
+                    "sftp_config": sftp_config,
+                    "oem_partner": oem_partner,
+                    "activity_time": activity_due_dealer_ts
+                }
 
-                    sqs_client = boto3.client('sqs')
+                sqs_client = boto3.client('sqs')
 
-                    sqs_client.send_message(
-                        QueueUrl=ADF_ASSEMBLER_QUEUE,
-                        MessageBody=dumps(payload)
-                    )
-                except Exception as e:
-                    raise ADFAssemblerSyndicationError(e)
+                sqs_client.send_message(
+                    QueueUrl=ADF_ASSEMBLER_QUEUE,
+                    MessageBody=dumps(payload)
+                )
+            except Exception as e:
+                raise ADFAssemblerSyndicationError(e)
 
-            elif writeback_disabled:
-                logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
-            else:
-                create_on_crm(partner_name=partner_name, payload=payload)
+        elif writeback_disabled:
+            logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
+        else:
+            create_on_crm(partner_name=partner_name, payload=payload)
 
         return {
             "statusCode": 201,
@@ -301,7 +326,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
     except ADFAssemblerSyndicationError as e:
         logger.error(f"Error syndicating activity {activity_id} to ADF Assembler: {e}.")
         send_alert_notification(activity_id, e)
-
     except ValidationError as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {

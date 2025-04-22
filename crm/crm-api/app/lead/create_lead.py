@@ -131,7 +131,7 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
-        body:CreateLeadRequest = validate_request_body(event, CreateLeadRequest)        
+        body:CreateLeadRequest = validate_request_body(event, CreateLeadRequest)
         request_product = event["headers"]["partner_id"]
         consumer_id = body.consumer_id
         salespersons = body.salespersons
@@ -181,7 +181,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                                 }
                             ),
                         }
-                
+
                 if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                     error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
                     logger.error(error_msg)
@@ -190,7 +190,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                         "statusCode": 404,
                         "body": dumps({"error": error_msg})
                     }
-                
+
                 dealer_metadata = dealer_db.metadata_
                 if dealer_metadata:
                     dealer_timezone = dealer_metadata.get("timezone", "UTC")
@@ -250,7 +250,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     vo_data["stock_num"] = vo_data.pop("stock_number", None)
                     vo_data["vehicle_class"] = vo_data.pop("class_", None)
                     vo_data["manufactured_year"] = vo_data.pop("year", None)
-                    
+
                     vo_data["metadata_"] = vehicle.metadata.model_dump() if vehicle.metadata else None
 
                     vehicle = Vehicle(**vo_data)
@@ -303,7 +303,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.rollback()
                 logger.info(f"Error occurred: {e}")
                 raise e
-            
+
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
@@ -325,6 +325,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         if request_product == "chat_ai":
             adf_recipients = []
             sftp_config = {}
+            oem_partner = {}
 
             try:
                 if dip_metadata:
@@ -338,7 +339,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "lead_id": lead_id,
                     "recipients": adf_recipients,
                     "partner_name": integration_partner_name,
-                    "sftp_config": sftp_config, 
+                    "sftp_config": sftp_config,
                     "oem_partner": oem_partner
                 }
                 sqs_client = boto3.client('sqs')

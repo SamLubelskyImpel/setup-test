@@ -4,7 +4,7 @@ from json import loads
 from os import environ
 import logging
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -52,6 +52,69 @@ def get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key):
 
     except Exception as e:
         logger.error(f"Error getting existing lead from CRM API: {e}")
+        raise
+
+
+def get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key):
+    """Get existing consumer by CRM Consumer ID through CRM API."""
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params={"crm_dealer_id": crm_dealer_id, "integration_partner_name": "MOMENTUM"},
+        )
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()["consumer_id"]
+        elif status_code == 404:
+            return None
+        else:
+            raise Exception(f"Error getting existing consumer from CRM API: {e}")
+
+    except Exception as e:
+        logger.error(f"Error getting existing consumer from CRM API: {e}")
+        raise
+
+
+def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
+    """Check if a lead exists for a Consumer and VIN created in the last 30 days from CRM API."""
+    params = {
+        "dealer_id": product_dealer_id,
+        "consumer_id": consumer_id,
+        "db_creation_date_start": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "db_creation_date_end": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+
+    try:
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads",
+            headers={"partner_id": UPLOAD_SECRET_KEY, "x_api_key": crm_api_key},
+            params=params,
+        )
+
+        status_code = response.status_code
+        if status_code == 404:
+            return None
+
+        response.raise_for_status()
+        response_json = response.json()
+
+        leads = response_json.get("leads", [])
+
+        if not vin:
+            # If no vin, return the lead_id of the first lead
+            return leads[0].get("lead_id") if leads else None
+
+        for lead in leads:
+            vehicles_of_interest = lead.get("vehicles_of_interest", [])
+            for vehicle in vehicles_of_interest:
+                if vehicle.get("vin") == vin:
+                    return lead.get("lead_id")
+
+        return None
+
+    except Exception as e:
+        logger.error(f"Error getting leads in the last 30 days from CRM API: {e}")
         raise
 
 
@@ -147,6 +210,7 @@ def parse_lead(product_dealer_id, data):
         db_consumer = {
             "first_name": data.get("firstName"),
             "last_name": data.get("lastName"),
+            "crm_consumer_id": data.get("personApiID"),
             "phone": parse_phone_number(data),
             "email": data.get("email"),
             "address": parse_address(data),
@@ -176,11 +240,11 @@ def parse_lead(product_dealer_id, data):
         db_vehicle = {
             "vin": data.get("vin")[:20] if data.get("vin") is not None else None,
             "stock_num": data.get("stock")[:50] if data.get("stock") is not None else None,
-            "make": data.get("make")[:80] if data.get("make") is not None else None,
+            "make": data.get("make")[:150] if data.get("make") is not None else None,
             "model": data.get("model")[:100] if data.get("model") is not None else None,
-            "year": data.get("year"),
-            "exterior_color": data.get("color")[:80] if data.get("color") is not None else None,
-            "trim": data.get("trim")[:100] if data.get("trim") is not None else None,
+            "year": int(data.get("year")) if data.get("year") and data.get("year").isdigit() else None,
+            "exterior_color": data.get("color")[:150] if data.get("color") is not None else None,
+            "trim": data.get("trim")[:150] if data.get("trim") is not None else None,
             "condition": vehicleType
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}
@@ -216,9 +280,9 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Record: {record}")
     try:
         message = loads(record["body"])
-        bucket = message["detail"]["bucket"]["name"]
-        key = message["detail"]["object"]["key"]
-        product_dealer_id = key.split('/')[2]
+        bucket = message["bucket"]
+        key = message["key"]
+        product_dealer_id = message["product_dealer_id"]
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
@@ -239,6 +303,20 @@ def record_handler(record: SQSRecord) -> None:
         if existing_lead:
             logger.warning(f"Existing lead detected: DB Lead ID {existing_lead}. Ignoring duplicate lead.")
             return
+
+        crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
+        existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
+        if existing_consumer_id:
+            vin = parsed_lead["vehicle"].get("vin")
+            consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
+            logger.info(f"Retrieved recent lead ID: {consumer_recent_lead_id} for consumer ID: {existing_consumer_id} and dealer ID: {product_dealer_id}")
+
+            if consumer_recent_lead_id:
+                logger.warning(
+                    f"Duplicate lead detected for CRM Lead ID {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
+                    f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer and vin."
+                )
+                return
 
         consumer = parsed_lead["consumer"]
         if consumer.get("email") is None and consumer.get("phone") is None:

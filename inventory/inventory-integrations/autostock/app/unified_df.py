@@ -70,7 +70,7 @@ def validate_unified_df_columns(df):
 
 
 def convert_unified_df(json_list):
-    df = pd.json_normalize(json_list)
+    df = pd.json_normalize(json_list, max_level=1)
     df.columns = [str(col).replace(".", "|") for col in df.columns]
     return df
 

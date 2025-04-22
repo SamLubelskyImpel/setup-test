@@ -40,32 +40,35 @@ paths:
                 dms_id:
                   type: string
                   description: The DMS ID assigned to the dealer.
+                  example: "string"
                   minimum: 1
                 impel_dealer_id:
-                  type: integer
+                  type: string
                   description: The unique id of the dealer assigned by Impel.
-                  minimum: 1
-                  maximum: 10000
                 location_name:
                   type: string
                   description: The name of dealer's location.
-                  example: 3371 Fort Meade Rd
+                  example: "3371 Fort Meade Rd"
                 state:
                   type: string
                   description: The state where the dealer is located.
-                  example: Maryland
+                  example: "Maryland"
                 city:
                   type: string
                   description: The city where the dealer is located.
-                  example: Laurel
-                zipcode:
+                  example: "Laurel"
+                zip_code:
                   type: integer
                   description: The zipcode where the dealer being created is located.
                   example: 20724
+                impel_integration_partner_id:
+                  type: string
+                  description: The integration partner ID.
+                  example: "reyrey"
                 full_name:
                   type: string
                   description: The full name of the dealer.
-                  example: Ourisman Honda VW of Laurel
+                  example: "Ourisman Honda VW of Laurel"
       responses:
         '200':
           description: Success
@@ -74,23 +77,17 @@ paths:
               schema:
                 type: object
                 properties:
-                  next_fetch_key:
+                  message:
                     type: string
-                  repair_orders:
-                    type: array
-                    items:
-                      "$ref": "#/components/schemas/RepairOrderResponse"
-                  received_date_utc:
-                    type: string
-                    description: The date Impel received the request in ISO 8601 coordinated universal time format.
-                    format: date-time
-                    example: '2021-11-19T16:57:31+0000'
+                    example: "Dealer created successfully."
         '400':
           description: Bad Request.
         '401':
           description: This request is unauthorized.
         '500':
           description: Internal Server Error. Please contact Impel support.
+        '409':
+          description: Dealer with the provided impel_dealer_id already exists.
       #{{CREATE_DEALER_LAMBDA_INFO}}
   /repair-order/v1:
     get:
@@ -392,6 +389,13 @@ paths:
         name: impel_integration_partner_id
         required: false
         description: The id of the DMS assigned by Impel to query for.
+      - schema:
+          type: string
+          enum: [ENABLED, IN_PROGRESS, FINISHED, DISABLED]
+        in: query
+        name: historical_pull_status
+        required: false
+        description: Filter dealers by the status of their historical pull configuration.
       responses:
         '200':
           description: Success
@@ -406,6 +410,41 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{DEALER_LAMBDA_INFO}}
+    patch:
+      summary: Update historical pull metadata for dealers.
+      operationId: update-dealer-historical-progress
+      description: |-
+        Updates the historical pull progress for one or more dealers by DMS ID.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DealerHistoricalProgressUpdateRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DealerHistoricalProgressUpdateResponse"
+        '400':
+          description: Bad Request.
+        '500':
+          description: Internal Server Error.
+      #{{PATCH_DEALER_LAMBDA_INFO}}
   /appointment/v1:
     get:
       summary: Get DMS appointment data.
@@ -535,6 +574,45 @@ paths:
         '500':
           description: Internal Server Error. Please contact Impel support.
       #{{APPOINTMENT_LAMBDA_INFO}}
+  /customer/v1/{customer_id}:
+    get:
+      summary: Get DMS customer data.
+      operationId: get-customer
+      description: |-
+        This API endpoint enables the retrieval of DMS customer data.
+      parameters:
+      - schema:
+          type: string
+        in: header
+        name: client_id
+        required: true
+        description: Client ID provided by Impel.
+      - schema:
+          type: string
+        in: header
+        name: x_api_key
+        required: true
+        description: API Key provided by Impel
+      - schema:
+          type: string
+        in: path
+        name: customer_id
+        required: true
+        description: The DMS or dealer's ID assigned to the customer.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CustomerResponse"
+        '400':
+          description: Bad Request.
+        '401':
+          description: This request is unauthorized.
+        '500':
+          description: Internal Server Error. Please contact Impel support.
+      #{{CUSTOMER_LAMBDA_INFO}}
 components:
   schemas:
     AppointmentResponse:
@@ -671,6 +749,62 @@ components:
                     $ref: '#/components/schemas/IntegrationPartner'
         has_next_page:
           type: boolean
+    DealerHistoricalProgressUpdateRequest:
+      type: object
+      properties:
+        dms_ids:
+          type: array
+          description: A list of DMS IDs to update historical progress for.
+          items:
+            type: string
+        historical_progress:
+          type: object
+          description: Metadata object to be written under 'historical_pull'.
+          properties:
+            status:
+              type: string
+              description: Status of the historical pull progress (e.g., "IN_PROGRESS", "FINISHED").
+    DealerHistoricalProgressUpdateResponse:
+      type: object
+      properties:
+        updated:
+          type: array
+          items:
+            type: object
+            properties:
+              dms_id:
+                type: string
+              historical_progress:
+                type: object
+                properties:
+                  status:
+                    type: string
+    CustomerResponse:
+      type: object
+      properties:
+        received_date_utc:
+          type: string
+        results:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Consumer'
+              - type: object
+                properties:
+                  dealer:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_dealer_id:
+                        type: string
+                  integration_partner:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      impel_integration_partner_id:
+                        type: string
     IntegrationPartner:
       type: object
       properties:
@@ -721,6 +855,8 @@ components:
         db_creation_date:
           type: string
           format: date-time
+        metadata:
+            type: string
     OpCode:
       type: object
       properties:

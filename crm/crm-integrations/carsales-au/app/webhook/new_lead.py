@@ -51,9 +51,9 @@ def get_secrets():
     secret = SECRET_CLIENT.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
     )
-    secret = loads(secret['SecretString'])['impel']
+    secret = loads(secret['SecretString'])['internal_carsales']
     secret_data = loads(secret)
-    return 'impel', secret_data["api_key"]
+    return 'internal_carsales', secret_data["api_key"]
 
 
 def get_dealers(integration_partner_name: str):

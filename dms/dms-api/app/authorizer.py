@@ -37,11 +37,8 @@ def _lambda_handler(event, context):
         secret = json.loads(secret["SecretString"]).get(str(client_id), {})
         # potential update -- to raise a keyerror with 401 status code when secret is empty currently it leads to 500 error
         if not secret:
-            logger.error("Invalid client_id: %s, secret is not present", client_id)
-            return {
-                "statusCode": 401,
-                "body": json.dumps({"message": "Unauthorized: Invalid client_id"})
-            }
+            logger.error("Invalid client_id: %s, secret is not present", client_id)       
+            raise Exception("Unauthorized")
         else:
             secret_data = json.loads(secret)
     except ClientError as e:
@@ -49,22 +46,13 @@ def _lambda_handler(event, context):
         if e.response["Error"]["Code"] == "ResourceNotFoundException":
             return {"policyDocument": policy, "principalId": client_id}
         else:
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"message": "Internal Server Error"})
-            }
+            raise
     except KeyError:
         logger.error("Invalid client_id: %s", client_id)
-        return {
-            "statusCode": 401,
-            "body": json.dumps({"message": "Unauthorized"})
-        }
+        raise Exception("Unauthorized")
     except Exception as e:
         logger.exception("Unexpected error occurred")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": "Internal Server Error"})
-        }
+        raise
 
     authorized = api_key == secret_data.get("api_key")
     logger.info("Authorization status: %s", "Authorized" if authorized else "Unauthorized")
@@ -74,10 +62,7 @@ def _lambda_handler(event, context):
         return {"policyDocument": policy, "principalId": client_id}
     
     logger.warning("Unauthorized access attempt by client_id: %s", client_id)
-    return {
-        "statusCode": 401,
-        "body": json.dumps({"message": "Unauthorized"})
-    }
+    raise Exception("Unauthorized")
 
 def lambda_handler(event, context):
     """Run the authorization Lambda."""
@@ -85,7 +70,4 @@ def lambda_handler(event, context):
         return _lambda_handler(event, context)
     except Exception as e:
         logger.exception("Exception in lambda_handler: %s", e)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"message": "Internal Server Error"})
-        }
+        raise

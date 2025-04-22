@@ -30,7 +30,7 @@ paths:
               $ref: '#/components/schemas/CarSalesVehicle'
       responses:
         '200':
-          description: Success. 
+          description: Success.
         '400':
           description: This indicates Bad Request. For example this error can occur if a required property in the request JSON is missing.
         '401':

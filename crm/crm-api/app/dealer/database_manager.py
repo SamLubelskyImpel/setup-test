@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from json import dumps
@@ -80,14 +80,20 @@ class DatabaseManager:
                 raise InvalidFilterException(f"Invalid key attribute in schema: {key}")
         return None
 
-    def get_dealers_config(self) -> List[Dict[str, str]]:
-        """Fetches dealer configurations from the database based on filters."""
+    def get_dealers_config(self, page=1, max_results=1000) -> Tuple[List[Dict[str, str]], bool]:
         with DBSession() as session:
-            query = self._build_query(session)
+            query = self._build_query(session)            
+            paginated_query = query.order_by(DealerIntegrationPartner.id)\
+                .limit(max_results + 1)\
+                .offset((page - 1) * max_results)
+            
+            all_results = paginated_query.all()
+            has_next_page = len(all_results) > max_results
             self.dealer_records = [
-                self._build_dealer_record(*res) for res in query.all()
+                self._build_dealer_record(*res) for res in all_results[:max_results]
             ]
-        return self.dealer_records
+            
+        return self.dealer_records, has_next_page
 
     def post_dealers_config(self, dealer_info: DealerInfo) -> Dict[str, str]:
         """Inserts a new dealer configuration into the database."""
@@ -117,7 +123,7 @@ class DatabaseManager:
                     "statusCode": 404,
                     "body": dumps({"error": f"Integration Partner '{dealer_info.integration_partner_name}' not found"}),
                 }
-            
+
             if not isinstance(dealer_info.metadata, dict):
                 dealer_metadata = dealer_info.metadata.to_dict()
             else:
@@ -152,7 +158,12 @@ class DatabaseManager:
 
                 return {
                     "statusCode": 201,
-                    "body": dumps({"message": f"Dealer configuration created successfully dealer_id {dealer.id}"}),
+                    "body": dumps({
+                        "message": (
+                            f"Dealer configuration created successfully "
+                            f"dealer_integration_partner_id {dealer_integration_partner.id}"
+                        )
+                    }),
                 }
 
             except Exception as e:
@@ -182,20 +193,20 @@ class DatabaseManager:
 
                 if not dip:
                     return {
-                        "statusCode": 404, 
+                        "statusCode": 404,
                         "body": dumps({"message": "Dealer configuration not found"})
                     }
-                
+
                 if len(dip) > 1:
                     return {
-                        "statusCode": 409, 
+                        "statusCode": 409,
                         "body": dumps({
                             "message": f"Update operation failed: Multiple records found for {dealer_status.product_dealer_id}. Update is only allowed when exactly one record exists."
                         })
                     }
 
                 dip = dip[0]
-                
+
                 if dealer_status.is_active_salesai is not None:
                     dip.is_active_salesai = dealer_status.is_active_salesai
 
@@ -221,7 +232,7 @@ class DatabaseManager:
                     "statusCode": 200,
                     "body": dumps({"message": "Information updated"})
                 }
-            
+
         except SQLAlchemyError as e:
             session.rollback()
             return {"statusCode": 500, "body": dumps({"error": f"Database error: {str(e)}"})}
