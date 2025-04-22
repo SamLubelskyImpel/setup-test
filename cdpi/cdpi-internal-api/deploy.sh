@@ -4,7 +4,7 @@ cd "$(dirname "$0")" || return
 
 function help() {
   echo "
-    Deploy the shared inventory resources.
+    Deploy the Ford Direct CDPI resources.
     Usage:
      ./deploy.sh <parameters>
     Options:
@@ -39,7 +39,6 @@ fi
 user=$(aws iam get-user --output json | jq -r .User.UserName | sed 's/\./-/g')
 commit_id=$(git log -1 --format=%H)
 
-python3 ./swagger/oas_interpolator.py
 sam build --parallel
 
 if [[ $config_env == "prod" ]]; then
@@ -58,7 +57,7 @@ else
   env="$user-$(git rev-parse --abbrev-ref HEAD)"
   sam deploy \
     --tags "Commit=\"$commit_id\" Environment=\"$env\" UserLastModified=\"$user\"" \
-    --stack-name "shared-inventory-resources-$env" \
+    --stack-name "cdpi-internal-api-$env" \
     --region "$region" \
     --s3-bucket "spincar-deploy-$region" \
     --parameter-overrides "Environment=\"$env\" DomainSuffix=\"-$env\""

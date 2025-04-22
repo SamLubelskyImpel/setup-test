@@ -80,7 +80,7 @@ def create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_
     return new_dealer  
 
 
-def create_dealer_integration(session, integration_partner, impel_dealer_id, dms_id, dealer_id, is_active=True):
+def create_dealer_integration(session, integration_partner, impel_dealer_id, dms_id, dealer_id, dealer_metadata=None, is_active=True):
     """
     Creates a new dealer integration in the database if it does not already exist.
 
@@ -108,13 +108,13 @@ def create_dealer_integration(session, integration_partner, impel_dealer_id, dms
     
     if existing_integration:
         raise ValueError(f"Dealer Integration {existing_integration.id} already exists.")
-    
     new_integration = DealerIntegrationPartner(
         integration_partner_id=integration_partner.id, 
         dealer_id=dealer_id, 
         dms_id=dms_id, 
         is_active=is_active,
         db_creation_date=datetime.utcnow(),
+        metadata_=dealer_metadata
     )
     session.add(new_integration)
     session.commit()
@@ -146,6 +146,7 @@ def create_dealer_handler(event, context):
     city = body.get('city')
     zip_code = body.get('zip_code')
     full_name = body.get('full_name')
+    dealer_metadata = body.get('metadata')
 
 
     with DBSession() as session:
@@ -153,7 +154,7 @@ def create_dealer_handler(event, context):
             integration_partner = check_integration_partner_exists(session, impel_integration_partner_id)
             dealer = create_new_dealer(session, impel_dealer_id, location_name, state, city, zip_code, full_name)
             dealer_id = dealer.id
-            dealer_integration = create_dealer_integration(session, integration_partner, impel_dealer_id, dms_id, dealer_id)
+            dealer_integration = create_dealer_integration(session, integration_partner, impel_dealer_id, dms_id, dealer_id, dealer_metadata)
             logger.info(f"Dealer integration created: {dealer_integration}")
         except IntegrityError:
             error_message = f"Dealer with impel_dealer_id '{impel_dealer_id}' already exists."
