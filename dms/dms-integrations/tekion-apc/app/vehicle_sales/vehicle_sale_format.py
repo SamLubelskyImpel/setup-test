@@ -105,7 +105,7 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     return first_payment_date.strftime("%Y-%m-%d")
 
 def calculate_payment_term(term, frequency):
-
+    """Determine the length of the payment term in months if the frequency is not monthly"""
     if not term:
         raise ValueError(f"term is missing or none")
 
@@ -132,13 +132,14 @@ def calculate_payment_term(term, frequency):
 
 
 def extract_communication_preference(comms, key):
-    # TODO: Confirm with product which mapping to use
+    """Get the optin flag for a given communication format"""
     communications_obj = default_get(comms, key, [])[0]
     preference_mapping = default_get(default_get(communications_obj, "usagePreference", {}), "preferenceMapping", {})
     return preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES"
 
 
-def parse_service_contract(fni, deal_id):
+def parse_service_contract(fni):
+    """Extract and map data to unified service contract columns"""
     start_date = default_get(fni, "createdTime")
     term = default_get(fni, "term", {})
     term_type = default_get(term, "type", "").upper()
@@ -152,8 +153,7 @@ def parse_service_contract(fni, deal_id):
         "service_contracts|amount": default_get(plan, "price"),
         "service_contracts|cost": default_get(plan, "cost"),
         "service_contracts|deductible": default_get(plan, "deductibleAmount"),
-        "service_contracts|service_package_flag": True,
-        "service_contracts|vehicle_sale_id": deal_id
+        "service_contracts|service_package_flag": True
     }
 
     if term_type == "MONTH":
@@ -162,6 +162,7 @@ def parse_service_contract(fni, deal_id):
     return db_service_contract
 
 def parse_deal_payment(deal_payment, deal, db_vehicle_sale):
+    """Extract and map data to unified vehicle sale columns"""
     total = default_get(deal_payment, "total", {})
     yearly_miles = default_get(deal_payment, "yearlyMiles", {})
     apr = default_get(deal_payment, "apr", {})
@@ -209,6 +210,7 @@ def parse_deal_payment(deal_payment, deal, db_vehicle_sale):
 
 
 def parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warranties={}, is_trade_in=False):
+    """Extract and map data to unified vehicle columns"""
     db_vehicle.update({
         "vin": default_get(vehicle, "vin"),
         "make": default_get(specification, "make"),
@@ -277,6 +279,7 @@ def parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warrantie
 
 
 def parse_consumer(db_target, customer, comms):
+    """Extract and map data to unified consumer columns"""
     details = default_get(customer, "customerDetails", {})
 
     name = default_get(details, "name", {})
@@ -331,6 +334,7 @@ def parse_consumer(db_target, customer, comms):
 
 
 def parse_assignee(db_vehicle_sale, assignee):
+    """Extract and map data to unified salesperson columns"""
     db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
     name_details = default_get(assignee, "userNameDetails", {})
     first_name = default_get(name_details, "firstName", "")
@@ -366,11 +370,8 @@ def parse_json_to_entries(json_data, s3_uri):
 
         db_vehicle_sale["transaction_id"] = deal_id
 
-        delivery_date = default_get(deal, "deliveryDate", default_get(deal, "promisedDeliveryDate"))
-        db_vehicle_sale["delivery_date"] = delivery_date
-
-        contract_date = default_get(deal, "contractDate")
-        db_vehicle_sale["sale_date"] = contract_date
+        db_vehicle_sale["delivery_date"] = default_get(deal, "deliveryDate", default_get(deal, "promisedDeliveryDate"))
+        db_vehicle_sale["sale_date"] = default_get(deal, "contractDate")
 
         # gross_details = default_get(deal, "grossDetails", {})
         # vehicle_gross = default_get(gross_details, "vehicleGross", {})
