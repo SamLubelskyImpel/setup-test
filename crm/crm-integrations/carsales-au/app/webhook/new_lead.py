@@ -117,9 +117,8 @@ def lambda_handler(event: dict, context: Any):
             dealersocket_dealers = get_dealers('DEALERSOCKET_AU')
             dealer = next((
                 d for d in dealersocket_dealers
-                if (crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', []))
-                and (d.get('metadata', {}).get('lead_vendor') == 'carsales')
-            ), None)
+                if crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', [])
+                ), None)
             if not dealer:
                 raise DealershipNotActive()
             partner_name = 'DEALERSOCKET_AU'
