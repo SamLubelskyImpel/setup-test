@@ -3,3 +3,4 @@ aws-lambda-powertools==2.26.0
 pandas==2.2.2
 psycopg2-binary==2.9.9
 paramiko==3.4.1
+requests==2.29.0
