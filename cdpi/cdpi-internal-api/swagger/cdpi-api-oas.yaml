@@ -1,0 +1,331 @@
+openapi: 3.0.0
+info:
+  title: CDPI API
+  version: 1.0.0
+  description: API for CDPI
+servers:
+  - description: Impel test environment
+    url: https://lo12s28io0.execute-api.us-east-1.amazonaws.com/Stage/
+  - description: Impel production environment
+    url: https://lo12s28io0.execute-api.us-east-1.amazonaws.com/Stage/
+paths:
+  /dealer:
+    get:
+      summary: Retrieve a list of dealers with optional filters
+      description: >
+        Retrieve dealer records. If no query parameters are provided, all dealers are returned.
+        You can filter by fields such as dealer_name, sfdc_account_id, salesai_dealer_id,
+        or serviceai_dealer_id. Supports pagination via 'page' and 'limit' parameters.
+      parameters:
+        - $ref: '#/components/parameters/partnerId'
+        - $ref: '#/components/parameters/xApiKey'
+        - in: query
+          name: dealer_name
+          schema:
+            type: string
+          description: Filter by dealer name.
+        - in: query
+          name: sfdc_account_id
+          schema:
+            type: string
+          description: Filter by SFDC account ID.
+        - in: query
+          name: impel_integration_partner_name
+          schema:
+            type: string
+          description: Filter by Impel integration partner name.
+        - in: query
+          name: is_active
+          schema:
+            type: string
+          description: Filter by active dealers.
+        - in: query
+          name: salesai_dealer_id
+          schema:
+            type: string
+          description: Filter by SalesAI dealer ID.
+        - in: query
+          name: serviceai_dealer_id
+          schema:
+            type: string
+          description: Filter by ServiceAI dealer ID.
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: The page number for pagination (default is 1).
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+          description: The maximum number of records to return per page (default is 100).
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
+      responses:
+        '200':
+          description: A paginated list of dealer records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealerListResponse'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '500':
+          "$ref": "#/components/responses/500"
+    post:
+      summary: Create a new dealer.
+      description: Create a new dealer record along with its integration partner details.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
+      parameters:
+        - $ref: '#/components/parameters/partnerId'
+        - $ref: '#/components/parameters/xApiKey'
+      requestBody:
+        description: Dealer creation payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerCreateRequest'
+      responses:
+        '201':
+          description: Dealer created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealerCreatedResponse'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '409':
+          "$ref": "#/components/responses/409"
+        '500':
+          "$ref": "#/components/responses/500"
+    put:
+      summary: Update an existing dealer.
+      description: Update the details of an existing dealer.
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DealerFunction.Arn}/invocations
+        passthroughBehavior: never
+        httpMethod: POST
+        type: aws_proxy
+      parameters:
+        - $ref: '#/components/parameters/partnerId'
+        - $ref: '#/components/parameters/xApiKey'
+      requestBody:
+        description: Dealer update payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DealerUpdateRequest'
+      responses:
+        '200':
+          description: Dealer updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dealer'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '500':
+          "$ref": "#/components/responses/500"
+components:
+  schemas:
+    Dealer:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the dealer.
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        db_creation_date:
+          type: string
+          format: date-time
+          description: Timestamp when the record was created.
+        db_update_date:
+          type: string
+          format: date-time
+          description: Timestamp when the record was last updated.
+      required:
+        - id
+        - dealer_name
+        - sfdc_account_id
+        - salesai_dealer_id
+        - serviceai_dealer_id
+    DealerCreateRequest:
+      type: object
+      properties:
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        cdp_dealer_id:
+          type: string
+          description: Custom dealer identifier.
+        impel_integration_partner_name:
+          type: string
+          description: Integration partner name for the dealer (e.g., FORD_DIRECT).
+      required:
+        - dealer_name
+        - sfdc_account_id
+        - salesai_dealer_id
+        - serviceai_dealer_id
+        - cdp_dealer_id
+        - impel_integration_partner_name
+    DealerUpdateRequest:
+      type: object
+      properties:
+        dealer_id:
+          type: integer
+          description: Unique identifier for the dealer to update.
+        dealer_name:
+          type: string
+          description: The dealer's name.
+        sfdc_account_id:
+          type: string
+          description: Salesforce account identifier.
+        salesai_dealer_id:
+          type: string
+          description: SalesAI dealer identifier.
+        serviceai_dealer_id:
+          type: string
+          description: ServiceAI dealer identifier.
+        cdp_dealer_id:
+          type: string
+          description: Custom dealer identifier.
+        impel_integration_partner_name:
+          type: string
+          description: Integration partner name for the dealer.
+      required:
+        - dealer_id
+    DealerListResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number.
+        limit:
+          type: integer
+          description: Maximum number of records returned per page.
+        dealers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dealer'
+        has_next_page:
+          type: boolean
+          description: Flag indicating if there is a next page.
+      required:
+        - page
+        - limit
+        - dealers
+        - has_next_page
+    DealerCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Confirmation message.
+        dealer_id:
+          type: integer
+          description: Unique identifier of the created dealer.
+      required:
+        - message
+        - dealer_id
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: A human-readable error message.
+        errors:
+          type: string
+          description: Additional error details.
+      required:
+        - message
+
+  responses:
+    '200':
+      description: Successful response.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+    '201':
+      description: Lead successfully created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              lead_id:
+                type: integer
+                description: ID of the lead that was created.
+    '400':
+      description: This indicates Bad Request. For example this error can occur if
+        a required property in the request JSON is missing.
+    '401':
+      description: This request is unauthorized. The authorization credentials are
+        missing or are wrong. For example if the partner_id or the x_api_key provided
+        in the header are wrong/missing. This error can also occur if the dealer_id
+        provided hasn't been configured with Impel.
+    '404':
+      description: Not Found. The lead_id of the request didn't match any existing records on Impel.
+    '409':
+      description: Conflict. Lead record couldn't be created due to a conflict with an existing record with the same lead_id on Impel.
+    '500':
+      description: Internal Server Error. Please contact Impel support.
+
+  parameters:
+    partnerId:
+      name: partner_id
+      in: header
+      description: This parameter uniquely identifies an Impel partner and will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
+    xApiKey:
+      name: x_api_key
+      in: header
+      description: An API Key provided by CE team that will be used for API authentication and authorization.
+      required: true
+      schema:
+        type: string
