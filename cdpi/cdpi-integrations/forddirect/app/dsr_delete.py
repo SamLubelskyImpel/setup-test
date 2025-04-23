@@ -3,6 +3,7 @@ from os import environ
 from json import dumps, loads
 from utils import create_audit_dsr, call_events_api, send_alert_notification, log_dev
 from uuid import uuid4
+from datetime import datetime
 
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.consumer import Consumer
@@ -83,6 +84,28 @@ def lambda_handler(event, context):
                 }
 
             consumer_profile, consumer, dealer, product, integration_partner = consumer_db
+
+            # FD data only needs to be deleted if recorded prior to the delete request
+            dsr_request_time = body["dsr_request_timestamp"]
+            dt = datetime.fromisoformat(dsr_request_time.replace("Z", "+00:00"))
+            old_event = False
+            if consumer_profile.score_update_date:
+                if consumer_profile.score_update_date > dt:
+                    old_event = True
+            elif consumer_profile.db_creation_date > dt:
+                old_event = True
+
+            if old_event:
+                logger.info("DSR Request Timestamp prior to latest score. Ignoring delete request.")
+                return {
+                    "statusCode": 200,
+                    "body": dumps(
+                        {
+                            "message": "Success"
+                        }
+                    ),
+                    "headers": {"Content-Type": "application/json"},
+                }
 
             session.delete(consumer_profile)
 
