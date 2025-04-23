@@ -73,8 +73,8 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
         MessageStructure="json",
     )
 
-def send_missing_inbound_file_notification(details: dict) -> None:
-    """Send missing inbound files alert notification to CE team."""
+def send_missing_files_notification(subject: str, details: dict) -> None:
+    """Send missing inbound files or missing consumer profile summary notification to CE team."""
     data = {
         "message": f"{details}",
     }
@@ -82,7 +82,7 @@ def send_missing_inbound_file_notification(details: dict) -> None:
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
         Message=dumps({"default": dumps(data)}),
-        Subject=f"CDPI FORD DIRECT: Missing Inbound Files Alert",
+        Subject=subject,
         MessageStructure="json",
     )
 

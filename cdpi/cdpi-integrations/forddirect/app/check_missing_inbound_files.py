@@ -3,7 +3,7 @@ from os import environ
 from uuid import uuid4
 import boto3
 from datetime import datetime, timedelta
-from utils import send_missing_inbound_file_notification, send_alert_notification
+from utils import send_missing_files_notification, send_alert_notification
 
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -31,7 +31,7 @@ def lambda_handler(event, context):
 
     request_id = str(uuid4())
     logger.info(f"Request ID: {request_id}")
-    logger.info("Chekcing missing inbound files")
+    logger.info("Checking missing inbound files")
     
     try:
         date = datetime.now() - timedelta(days=2) # to make sure 24 hours have passed
@@ -66,9 +66,9 @@ def lambda_handler(event, context):
             inbound_files = s3_client.list_objects_v2(Bucket=SHARED_BUCKET, Prefix=inbound_prefix)
             logger.info(f"Inbound Files: {inbound_files}")
 
-            inbound_file_exists = f'{inbound_prefix}/eid_pii_match_result_impel_{dealer_id}_{dip.cdp_dealer_id}' in inbound_files
+            inbound_file_exists = f'{inbound_prefix}/eid_pii_match_result_impel_{dealer_id}_{dip.cdp_dealer_id}' in str(inbound_files)
             if inbound_file_exists:
-                logger.info(f"File {key} has a matching inbound file on: {inbound_files.get('Contents', [])}")
+                logger.info(f"File {key} has a matching inbound file.")
             else:
                 any_missing_files = True
                 logger.info(f"Missing file: {key}")
@@ -77,7 +77,7 @@ def lambda_handler(event, context):
         
         if any_missing_files:
             logger.info(f"Missing files dict: {dealers_obj}")
-            send_missing_inbound_file_notification(dealers_obj)
+            send_missing_files_notification(f"CDPI FORD DIRECT: Missing Inbound Files Alert", dealers_obj)
     
     except Exception as e:
         logger.exception(f"Error invoking ford direct missing inbound files: {e}")
