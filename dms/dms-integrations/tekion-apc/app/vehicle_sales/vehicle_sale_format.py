@@ -286,11 +286,7 @@ def parse_consumer(db_target, customer, comms):
 
     db_target["dealer_customer_no"] = default_get(customer, "id")
 
-    # Business Schema use case
-    if not name:
-        name = default_get(default_get(details, "principalOwner", {}), "name", {})
-    if not residences:
-        residences = default_get(details, "businessLocation", [])
+
 
     db_target["first_name"] = default_get(name, "firstName")
     db_target["last_name"] = default_get(name, "lastName")
@@ -436,7 +432,12 @@ def parse_json_to_entries(json_data, s3_uri):
         comms = {}
 
         for customer in customers:
+            if default_get(customer, "customerType", "").upper() == 'BUSINESS':
+                logger.warning("Cannot parse business entity as a consumer")
+                continue
+
             customer_type = default_get(customer, "type", "")
+                
             if customer_type == "BUYER":
                 db_target = db_consumer
                 comms = buyer_comms
