@@ -92,6 +92,87 @@ Resources:
       ToPort: 5432
       SourceSecurityGroupId: !GetAtt TekionSecurityGroup.GroupId
 
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: AccessSecretsManager
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/dms-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stage/dms-integrations-partner*",
+                    ]
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:ListBucket"
+                  - "s3:*Object"
+                Resource:
+                  - !If [ IsProd,
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-prod/*",
+                      !Sub "arn:aws:s3:::integrations-${AWS::Region}-test/*"
+                  ]
+        - PolicyName: SNSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "sns:Publish"
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
+        - PolicyName: InvokeTokenRefreshPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt RefreshTokenLambda.Arn
+        - PolicyName: SQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "sqs:SendMessage"
+                  - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
+                  - "sqs:GetQueueAttributes"
+                Resource:
+                  - !GetAtt ProcessDealsQueue.Arn
+
   SchedulerIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -148,6 +229,26 @@ Resources:
     Properties:
       QueueName: !Sub "tekion-apc-dms-${Environment}-DealsDLQ"
       MessageRetentionPeriod: 1209600
+
+  ProcessDealsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tekion-apc-dms-${Environment}-ProcessDeals"
+      Description: Tekion Vehicle Sale Data Enrichment
+      CodeUri: app/
+      Handler: vehicle_sales.process_vehicle_sale.process_vehicle_sales_handler
+      Timeout: 900
+      MemorySize: 1024
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          Environment: !Ref Environment
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Enabled: True
+            Queue: !GetAtt ProcessDealsQueue.Arn
 
   ProcessDealsQueue:
     Type: AWS::SQS::Queue

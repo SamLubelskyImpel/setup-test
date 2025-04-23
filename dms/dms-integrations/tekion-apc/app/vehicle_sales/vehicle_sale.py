@@ -21,7 +21,7 @@ eventbridge_client = boto3.client('scheduler')
 BATCH_SIZE = int(environ.get("BATCH_SIZE"))
 
 
-def create_schedules(s3_keys):
+def create_schedules(s3_keys, dms_id):
     last_schedule = datetime.now()
     for key in s3_keys:
         last_schedule += timedelta(minutes=15)
@@ -30,7 +30,8 @@ def create_schedules(s3_keys):
         schedule_dlq = environ.get('SCHEDULER_DLQ')
         scheduler_role = environ.get('SCHEDULER_ROLE')
         body = dumps({
-            "s3_key": key
+            "s3_key": key,
+            "dms_id": dms_id
         })
 
         schedule_name = f"tekion_process_deal_schedule_{last_schedule.strftime('%Y_%m_%d_%H_%M_%S')}"
@@ -89,7 +90,7 @@ def parse_data(record: SQSRecord):
     for chunk in chunked_list:
         s3_keys.append(save_chunk(chunk, tekion_wrapper))
 
-    create_schedules(s3_keys)
+    create_schedules(s3_keys, data["dealer_id"])
         
 def lambda_handler(event, context):
     """Query Tekion deals API."""

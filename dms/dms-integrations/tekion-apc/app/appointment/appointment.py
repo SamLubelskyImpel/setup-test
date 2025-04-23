@@ -18,7 +18,7 @@ def parse_data(data):
         end_dt_str=data["end_dt_str"]
     )
 
-    api_data = tekion_wrapper.get_appointments()
+    api_data = tekion_wrapper.get_appointments_v3()
 
     for element in api_data:
         element.update({"dms_id": tekion_wrapper.dealer_id})
