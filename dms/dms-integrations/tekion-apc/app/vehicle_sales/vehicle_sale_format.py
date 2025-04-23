@@ -384,7 +384,7 @@ def parse_json_to_entries(json_data, s3_uri):
         for fni in fnis:
             disclosure_type = default_get(fni, "disclosureType", "")
             if disclosure_type.upper() == "SERVICE_CONTRACT":
-                db_service_contracts.append(parse_service_contract(fni, deal_id))
+                db_service_contracts.append(parse_service_contract(fni))
 
         db_vehicle_sale["has_service_contract"] = True if db_service_contracts else False
 
