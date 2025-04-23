@@ -286,8 +286,6 @@ def parse_consumer(db_target, customer, comms):
 
     db_target["dealer_customer_no"] = default_get(customer, "id")
 
-
-
     db_target["first_name"] = default_get(name, "firstName")
     db_target["last_name"] = default_get(name, "lastName")
     
@@ -455,13 +453,17 @@ def parse_json_to_entries(json_data, s3_uri):
         parse_assignee(db_vehicle_sale, assignee)
           
         metadata = dumps(db_metadata)
+
+        db_metadata["optin_updated"] = True
+        consumer_metadata = dumps(db_metadata)
+
         db_vehicle["metadata"] = metadata
-        db_consumer["metadata"] = metadata
+        db_consumer["metadata"] = consumer_metadata
+    
         db_vehicle_sale["metadata"] = metadata
 
         if db_cobuyer_consumer:
-            db_cobuyer_consumer["metadata"] = metadata
-
+            db_cobuyer_consumer["metadata"] = consumer_metadata
         if db_trade_in_vehicle:
             db_trade_in_vehicle["metadata"] = metadata
 
