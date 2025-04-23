@@ -37,7 +37,7 @@ def save_vehicle_sales(data, dms_id):
     logger.info(f"Saved raw response to {key}")
 
 
-def enrich_vehicle_sale(data, dms_id, api):
+def enrich_vehicle_sale(data, api):
 
     deal_id = data["id"]
 

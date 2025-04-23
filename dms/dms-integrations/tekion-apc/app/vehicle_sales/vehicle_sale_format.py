@@ -89,10 +89,8 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
 def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
     """Calculate the First Payment Date"""
     if contract_date:
-        #date = datetime.utcfromtimestamp(contract_date / 1000)
         date = contract_date
     elif delivery_date:
-        #date = datetime.utcfromtimestamp(delivery_date / 1000)
         date = delivery_date
     else:
         raise ValueError("Neither contract date nor delivery date are provided")
@@ -116,7 +114,7 @@ def calculate_payment_term(term, frequency):
     frequency_intervals = {
         "BI_WEEKLY": 14,
         "FORTNIGHTLY": 14,
-        "ONE_TIME": 0,
+        "ONE_TIME": 1,
         "SEMI_MONTHLY": 15,
         "WEEKLY": 7,
         "YEARLY": 365,
@@ -137,14 +135,218 @@ def extract_communication_preference(comms, key):
     # TODO: Confirm with product which mapping to use
     communications_obj = default_get(comms, key, [])[0]
     preference_mapping = default_get(default_get(communications_obj, "usagePreference", {}), "preferenceMapping", {})
-    return True if preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES" else False
+    return preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES"
 
 
+def parse_service_contract(fni, deal_id):
+    start_date = default_get(fni, "createdTime")
+    term = default_get(fni, "term", {})
+    term_type = default_get(term, "type", "").upper()
+    term_value = default_get(term, "value")
+    plan = default_get(fni, "plan", {})
 
+    db_service_contract = {
+        "service_contracts|contract_name": default_get(fni, "name"),
+        "service_contracts|start_date": convert_unix_to_timestamp(start_date),
+        "service_contracts|expiration_miles": default_get(fni, "coverageMileage"),
+        "service_contracts|amount": default_get(plan, "price"),
+        "service_contracts|cost": default_get(plan, "cost"),
+        "service_contracts|deductible": default_get(plan, "deductibleAmount"),
+        "service_contracts|service_package_flag": True,
+        "service_contracts|vehicle_sale_id": deal_id
+    }
+
+    if term_type == "MONTH":
+        db_service_contract["service_contracts|expiration_months"] = term_value
+
+    return db_service_contract
+
+def parse_deal_payment(deal_payment, deal, db_vehicle_sale):
+    total = default_get(deal_payment, "total", {})
+    yearly_miles = default_get(deal_payment, "yearlyMiles", {})
+    apr = default_get(deal_payment, "apr", {})
+    payment_options = default_get(deal_payment, "paymentOption", {})
+    residual = default_get(deal_payment, "residual", {})
+
+    contract_date = default_get(deal, "contractDate")
+    contract_datetime = datetime.strptime(contract_date, '%Y-%m-%d') if contract_date else None
+
+    delivery_date = default_get(deal, "deliveryDate", default_get(deal, "promisedDeliveryDate"))
+    delivery_datetime = datetime.strptime(delivery_date, "%Y-%m-%d") if delivery_date else None
+
+    db_vehicle_sale.update({
+        "sales_tax": default_get(total, "taxAmount"),
+        "deal_type": default_get(deal_payment, "paymentType"),
+        "sale_type": default_get(deal, "type"),
+        "miles_per_year": default_get(yearly_miles, "baseMileage"),
+        "finance_rate": default_get(apr, "financingRate"),
+        "finance_amount": default_get(deal_payment, "amountFinanced"),
+        "residual_value": default_get(residual, "totalValue"),
+        "monthly_payment_amount": default_get(deal_payment, "monthlyPaymentBeforeTax"),
+        "lease_mileage_limit": default_get(yearly_miles, "totalMileage"),
+    })
+
+    # Handle finance term separately due to conditional logic
+    frequency = default_get(payment_options, "paymentFrequency", "").upper()
+    term = default_get(payment_options, "term")
+
+    db_vehicle_sale["finance_term"] = (
+        calculate_payment_term(term, frequency) if frequency and frequency != "MONTHLY" else term
+    )
+
+    # Calculate first and expected payoff dates
+    db_vehicle_sale["first_payment"] = calculate_first_payment_date(
+        deal_payment, contract_datetime, delivery_datetime
+    )
+
+    try:
+        db_vehicle_sale["expected_payoff_date"] = calculate_expected_payoff_date(
+            deal_payment, contract_datetime, delivery_datetime
+        )
+    except Exception as e:
+        logger.warning(f"Error calculating expected payoff date: {e}")
+        db_vehicle_sale["expected_payoff_date"] = None
+
+
+def parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warranties={}, is_trade_in=False):
+    db_vehicle.update({
+        "vin": default_get(vehicle, "vin"),
+        "make": default_get(specification, "make"),
+        "model": default_get(specification, "model"),
+        "year": default_get(specification, "year"),
+        "stock_num": default_get(vehicle, "stockId"),
+        "oem_name": default_get(specification, "make"),
+        "vehicle_class": default_get(specification, "bodyClass")
+    })
+
+    # Mileage
+    mileage = default_get(vehicle, "odometerReading", {})
+    mileage_val = default_get(mileage, "value")
+    db_vehicle["mileage"] = mileage_val
+    db_vehicle_sale["mileage_on_vehicle"] = mileage_val
+
+    # Stock type
+    stock_type = default_get(vehicle, "stockType", "").upper()
+    db_vehicle["new_or_used"] = "N" if stock_type == "NEW" else "U" if stock_type == "USED" else None
+
+    # Trim details
+    trim_details = default_get(specification, "trimDetails", {})
+    db_vehicle.update({
+        "trim": default_get(trim_details, "trim"),
+        "type": default_get(trim_details, "bodyType")
+    })
+
+    # Exterior color
+    colors = default_get(specification, "vehicleColors", [])
+    for color in colors:
+        if default_get(color, "type", "").upper() == "EXTERIOR":
+            db_vehicle["exterior_color"] = default_get(color, "color")
+            break
+
+    # Sale details
+    if not is_trade_in:
+        pricing = default_get(vehicle, "pricingDetails", {})
+        prices = default_get(pricing, "price", [])
+        costs = default_get(pricing, "costs", [])
+        adjustments = default_get(vehicle, "costAdjustments", [])
+
+        for price in prices:
+            price_type = default_get(price, "type", "").upper()
+            price_amount = default_get(price, "amount")
+            if not price_type or not price_amount:
+                continue
+            if price_type == "RETAIL_PRICE":
+                db_vehicle_sale["listed_price"] = price_amount
+            elif price_type == "MSRP":
+                db_vehicle_sale["oem_msrp"] = price_amount
+
+        db_vehicle_sale["adjustment_on_price"] = sum(
+            default_get(adj, "costAdjustment", 0) for adj in adjustments
+        )
+
+        for cost in costs:
+            if default_get(cost, "type", "").upper() == "INVOICE_PRICE":
+                db_vehicle_sale["cost_of_vehicle"] = default_get(cost, "amount")
+                break
+
+        warranty_id = default_get(vehicle, "vehicleInventoryId", "")
+        warranty = default_get(warranties, warranty_id, {})
+        end_odo = default_get(warranty, "endOdometer", {})
+        db_vehicle["warranty_expiration_miles"] = default_get(end_odo, "value")
+        db_vehicle["warranty_expiration_date"] = default_get(warranty, "endDate")
+
+
+def parse_consumer(db_target, customer, comms):
+    details = default_get(customer, "customerDetails", {})
+
+    name = default_get(details, "name", {})
+    emails = default_get(details, "emailCommunications", [])
+    phones = default_get(details, "phoneCommunications", [])
+    residences = default_get(details, "residences", [])
+
+    db_target["dealer_customer_no"] = default_get(customer, "id")
+
+    # Business Schema use case
+    if not name:
+        name = default_get(default_get(details, "principalOwner", {}), "name", {})
+    if not residences:
+        residences = default_get(details, "businessLocation", [])
+
+    db_target["first_name"] = default_get(name, "firstName")
+    db_target["last_name"] = default_get(name, "lastName")
+    
+    db_target["email"] = default_get(emails[0], "email") if emails else None
+
+    db_target["email_optin_flag"] = extract_communication_preference(comms, "emailCommunications")
+    db_target["phone_optin_flag"] = extract_communication_preference(comms, "phoneCommunications")
+    db_target["postal_mail_optin_flag"] = extract_communication_preference(comms, "postalEmailCommunications")
+    db_target["sms_optin_flag"] = extract_communication_preference(comms, "smsCommunications")
+
+    for residence in residences:
+        if default_get(residence, "addressType", "").upper() != "CURRENT":
+            continue
+
+        address = default_get(residence, "address", {})
+        loc_units = default_get(address, "locationUnits", [])
+
+        for unit in loc_units:
+            loc_type = default_get(unit, "type", "").upper()
+            if loc_type == "CITY":
+                db_target["city"] = default_get(unit, "value")
+            elif loc_type == "STATE":
+                db_target["state"] = default_get(unit, "value")
+
+        db_target["postal_code"] = default_get(address, "postalCode")
+        addr1 = default_get(address, "addressLine1", "")
+        addr2 = default_get(address, "addressLine2", "")
+        db_target["address"] = f"{addr1} {addr2}".strip()
+        break
+
+    for phone in phones:
+        phone_type = default_get(phone, "phoneType", "").upper()
+        phone_data = default_get(phone, "phone", {})
+        phone_number = default_get(phone_data, "completeNumber")
+
+        if not phone_type or not phone_number:
+            continue
+
+        if phone_type == "HOME":
+            db_target["home_phone"] = phone_number
+        elif phone_type == "MOBILE":
+            db_target["cell_phone"] = phone_number
+
+
+def parse_assignee(db_vehicle_sale, assignee):
+    db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
+    name_details = default_get(assignee, "userNameDetails", {})
+    first_name = default_get(name_details, "firstName", "")
+    last_name = default_get(name_details, "lastName", "")
+    db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
+        
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
     entries = []
-    dms_id = None
+    dms_id = s3_uri.split("/")[3]
     for entry in json_data:
         db_dealer_integration_partner = {}
         db_vehicle_sale = {}
@@ -164,109 +366,39 @@ def parse_json_to_entries(json_data, s3_uri):
 
         deal = default_get(entry, "deal", {})
 
-        dms_id = default_get(deal, "dms_id")  # Added to payload from parent lambda
+        deal_id = default_get(deal, "id")
+
         db_dealer_integration_partner["dms_id"] = dms_id
 
-        db_vehicle_sale["transaction_id"] = default_get(deal, "externalDealNumber")
+        db_vehicle_sale["transaction_id"] = deal_id
 
         delivery_date = default_get(deal, "deliveryDate", default_get(deal, "promisedDeliveryDate"))
-        delivery_datetime = datetime.strptime(delivery_date, "%Y-%m-%d") if delivery_date else None
         db_vehicle_sale["delivery_date"] = delivery_date
 
         contract_date = default_get(deal, "contractDate")
-        contract_datetime = datetime.strptime(contract_date, '%Y-%m-%d') if contract_date else None
         db_vehicle_sale["sale_date"] = contract_date
 
         # gross_details = default_get(deal, "grossDetails", {})
         # vehicle_gross = default_get(gross_details, "vehicleGross", {})
         # db_vehicle_sale["vehicle_gross"] = default_get(vehicle_gross, "amount")
 
+        # Parse Service Contracts
+
         fnis = default_get(entry, "api_service_contracts", [])
-        db_vehicle_sale["has_service_contract"] = True if fnis else False
-        if fnis:
-            for fni in fnis:
-                disclosure_type = default_get(fni, "disclosureType")
-                if disclosure_type and disclosure_type.upper() == "SERVICE_CONTRACT":
-                    db_service_contract = {}
-                    db_service_contract[
-                        "service_contracts|contract_name"
-                    ] = default_get(fni, "name")
-                    start_date = default_get(fni, "createdTime")
-                    db_service_contract["service_contracts|start_date"] = convert_unix_to_timestamp(start_date)
+        
+        for fni in fnis:
+            disclosure_type = default_get(fni, "disclosureType", "")
+            if disclosure_type.upper() == "SERVICE_CONTRACT":
+                db_service_contracts.append(parse_service_contract(fni, deal_id))
 
-                    db_service_contract[
-                        "service_contracts|expiration_miles"
-                    ] = default_get(fni, "coverageMileage")
+        db_vehicle_sale["has_service_contract"] = True if db_service_contracts else False
 
-                    term = default_get(fni, "term", {})
-                    term_type = default_get(term, "type")
-                    term_value = default_get(term, "value")
-                    if term_type and term_type.upper() == "MONTH":
-                        db_service_contract[
-                            "service_contracts|expiration_months"
-                        ] = term_value
-
-                    plan = default_get(fni, "plan", {})
-
-                    db_service_contract["service_contracts|amount"] = default_get(
-                        plan, "price"
-                    )
-
-                    db_service_contract["service_contracts|cost"] = default_get(
-                        plan, "cost"
-                    )
-
-                    db_service_contract["service_contracts|deductible"] = default_get(
-                        plan, "deductibleAmount"
-                    )
-
-                    db_service_contract["service_contracts|extended_warranty"] = dumps(
-                        fni
-                    )
-                    db_service_contract["service_contracts|service_package_flag"] = True
-
-                    db_service_contracts.append(db_service_contract)
+        # Parse Deal Payment
 
         deal_payment = default_get(entry, "api_payment", {})
-        total = default_get(deal_payment, "total", {})
-        db_vehicle_sale["sales_tax"] = default_get(total, "taxAmount")
+        parse_deal_payment(deal_payment, deal, db_vehicle_sale)
 
-        db_vehicle_sale["deal_type"] = default_get(deal_payment, "paymentType")
-        db_vehicle_sale["sale_type"] = default_get(deal, "type")
-
-        yearly_miles = default_get(deal_payment, "yearlyMiles", {})
-        db_vehicle_sale["miles_per_year"] = default_get(yearly_miles, "baseMileage")
-
-        apr = default_get(deal_payment, "apr", {})
-        db_vehicle_sale["finance_rate"] = default_get(apr, "financingRate")
-
-        payment_options = default_get(deal_payment, "paymentOption", {})
-        frequency = default_get(payment_options, "paymentFrequency")
-
-        if frequency and frequency.upper() != 'MONTHLY':
-            db_vehicle_sale["finance_term"] = calculate_payment_term(default_get(payment_options, "term"), frequency)
-        else:
-            db_vehicle_sale["finance_term"] = default_get(payment_options, "term")
-
-        db_vehicle_sale["finance_amount"] = default_get(deal_payment, "amountFinanced")
-
-        residual = default_get(deal_payment, "residual", {})
-        db_vehicle_sale["residual_value"] = default_get(residual, "totalValue")
-
-        db_vehicle_sale["monthly_payment_amount"] = default_get(deal_payment, "monthlyPaymentBeforeTax")
-
-        lease_mileage = default_get(deal_payment, "yearlyMiles", {})
-        db_vehicle_sale["lease_mileage_limit"] = default_get(lease_mileage, "totalMileage")
-
-        first_payment_date = calculate_first_payment_date(deal_payment, contract_datetime, delivery_datetime)
-        db_vehicle_sale["first_payment"] = first_payment_date
-    
-        try:
-            expected_payoff_date = calculate_expected_payoff_date(deal_payment, contract_datetime, delivery_datetime)
-            db_vehicle_sale["expected_payoff_date"] = expected_payoff_date
-        except Exception as e:
-            logger.warning(f"Error calculating expected payoff date: {e}")
-            db_vehicle_sale["expected_payoff_date"] = None
+        # Parse Deal Vehicles
 
         vehicles = default_get(entry, "api_vehicles", [])
         warranties = default_get(entry, "api_warranties", {})
@@ -276,79 +408,9 @@ def parse_json_to_entries(json_data, s3_uri):
                 
                 specification = default_get(vehicle, "vehicleSpecification", {})
 
-                db_vehicle["vin"] = default_get(vehicle, "vin")
-                db_vehicle["make"] = default_get(specification, "make")
-                db_vehicle["model"] = default_get(specification, "model")
-                db_vehicle["year"] = default_get(specification, "year")
+                parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warranties)
 
-                mileage = default_get(vehicle, "odometerReading", {})
-                db_vehicle["mileage"] = default_get(mileage, "value")
-                db_vehicle_sale["mileage_on_vehicle"] = default_get(mileage, "value")
-
-                db_vehicle["stock_num"] = default_get(vehicle, "stockId")
-                stock_type = default_get(vehicle, "stockType", "")
-                if stock_type and stock_type.upper() == "NEW":
-                    db_vehicle["new_or_used"] = "N"
-                elif stock_type and stock_type.upper() == "USED":
-                    db_vehicle["new_or_used"] = "U"
-                else:
-                    db_vehicle["new_or_used"] = None
-
-                trim_details = default_get(specification, "trimDetails", {})
-                db_vehicle["oem_name"] = default_get(specification, "make")
-                db_vehicle["trim"] = default_get(trim_details, "trim")
-                db_vehicle["type"] = default_get(trim_details, "bodyType")
-                db_vehicle["vehicle_class"] = default_get(specification, "bodyClass")
-
-                colors = default_get(specification, "vehicleColors", [])
-                for color in colors:
-                    if default_get(color, "type", "").upper() == 'EXTERIOR':
-                        db_vehicle["exterior_color"] = default_get(color, "color")
-                        break
-
-                if warranties:
-                    warranty = default_get(warranties, default_get(vehicle, "vehicleInventoryId", ""), {})
-                    if warranty:
-                        endOdometer = default_get(warranty, "endOdometer", {})
-                        db_vehicle["warranty_expiration_miles"] = default_get(endOdometer, "value")
-                        db_vehicle["warranty_expiration_date"] = default_get(warranty, "endDate")
-
-                db_retail_price = None
-                db_oem_msrp = None
-                db_adjustment_on_price = 0
-                db_cost_of_vehicle = None
- 
-                pricing = default_get(vehicle, "pricingDetails", {})
-                prices = default_get(pricing, "price", [])
-                costs = default_get(pricing, "costs", [])
-                adjustments = default_get(vehicle, "costAdjustments", [])
-                if prices:
-                    for price in prices:
-                        price_type = default_get(price, "type")
-                        price_amount = default_get(price, "amount")
-                        if price_type and price_amount:
-                            if price_type.upper() == "RETAIL_PRICE":
-                                db_retail_price = price_amount
-                            if price_type.upper() == "MSRP":
-                                db_oem_msrp = price_amount
-
-                if adjustments:
-                    for adj in adjustments:
-                        db_adjustment_on_price += default_get(adj, "costAdjustment", 0)
-
-                if costs:
-                    for cost in costs:
-                        cost_type = default_get(cost, "type")
-                        cost_amount = default_get(cost, "amount")
-                        if cost_type and cost_amount:
-                            if cost_type.upper() == "INVOICE_PRICE":
-                                db_cost_of_vehicle = cost_amount
-        
-                db_vehicle_sale["listed_price"] = db_retail_price 
-                db_vehicle_sale["oem_msrp"] = db_oem_msrp
-                db_vehicle_sale["adjustment_on_price"] = db_adjustment_on_price
-                db_vehicle_sale["cost_of_vehicle"] = db_cost_of_vehicle
-
+        # Parse Trade ins
 
         trade_in_vehicles = default_get(entry, "api_trade_ins", [])
         if trade_in_vehicles:
@@ -356,32 +418,14 @@ def parse_json_to_entries(json_data, s3_uri):
             vehicle = default_get(trade_in_vehicle, "vehicle", {})
             specification = default_get(vehicle, "vehicleSpecification", {})
 
-            db_trade_in_vehicle["vin"] = default_get(vehicle, "vin")
-            db_trade_in_vehicle["make"] = default_get(specification, "make")
-            db_trade_in_vehicle["model"] = default_get(specification, "model")
-            db_trade_in_vehicle["year"] = default_get(specification, "year")
-            db_trade_in_vehicle["stock_num"] = default_get(vehicle, "stockId")
+            db_vehicle_sale.update({
+                "trade_in_value": default_get(trade_in_vehicle, "actualCashValue"),
+                "payoff_on_trade": default_get(trade_in_vehicle, "tradePayOff")
+            })
 
-            colors = default_get(specification, "vehicleColors", [])
-            for color in colors:
-                if default_get(color, "type", "").upper() == 'EXTERIOR':
-                    db_trade_in_vehicle["exterior_color"] = default_get(color, "color")
-                    break
+            parse_vehicle(db_vehicle_sale, db_trade_in_vehicle, vehicle, specification, is_trade_in=True)
 
-            mileage = default_get(vehicle, "odometerReading", {})
-            db_vehicle["mileage"] = default_get(mileage, "value")
-
-            trim_details = default_get(specification, "trimDetails", {})
-            db_trade_in_vehicle["oem_name"] = default_get(specification, "make")
-            db_trade_in_vehicle["type"] = default_get(trim_details, "bodyType")
-            db_trade_in_vehicle["vehicle_class"] = default_get(specification, "bodyClass")
-            db_trade_in_vehicle["trim"] = default_get(trim_details, "trim")
-
-            db_vehicle_sale["trade_in_value"] = default_get(
-                trade_in_vehicle, "actualCashValue"
-            )
-            db_vehicle_sale["payoff_on_trade"] = default_get(trade_in_vehicle, "tradePayOff")
-
+        # Parse Buyer / Cobuyer
 
         buyer = default_get(entry, "api_buyer", {})
         cobuyer = default_get(entry, "api_cobuyer", {})
@@ -390,89 +434,24 @@ def parse_json_to_entries(json_data, s3_uri):
 
         customers = [buyer, cobuyer]
         comms = {}
-        if customers:
-            for customer in customers:
-                customer_type = default_get(customer, "type", "")
-                if customer_type == "BUYER":
-                    db_target = db_consumer
-                    comms = buyer_comms
-                elif customer_type == "CO_BUYER":
-                    db_target = db_cobuyer_consumer
-                    comms = cobuyer_comms
-                else:
-                    logger.warning(f"Unknown customer type: {customer_type}")
-                    continue
 
-                details = default_get(customer, "customerDetails", {})
+        for customer in customers:
+            customer_type = default_get(customer, "type", "")
+            if customer_type == "BUYER":
+                db_target = db_consumer
+                comms = buyer_comms
+            elif customer_type == "CO_BUYER":
+                db_target = db_cobuyer_consumer
+                comms = cobuyer_comms
+            else:
+                logger.warning(f"Unknown customer type: {customer_type}")
+                continue
+            parse_consumer(db_target, customer, comms)
 
-
-                if customer_type == "BUYER":
-                    name = default_get(details, "name", {})
-                elif customer_type == "CO_BUYER":
-                    db_target = db_cobuyer_consumer
-                    comms = cobuyer_comms
-
-                
-                emails = default_get(details, "emailCommunications", [])
-                phones = default_get(details, "phoneCommunications", [])
-                residences = default_get(details, "residences", [])
-
-                db_target["dealer_customer_no"] = default_get(customer, "id")
-
-                # Business Schema use case
-                if not name:
-                    name = default_get(default_get(details, "principalOwner", {}), "name", {})
-                if not residences:
-                    residences = default_get(details, "businessLocation", [])
-
-                db_target["first_name"] = default_get(name, "firstName")
-                db_target["last_name"] = default_get(name, "lastName")
-              
-                db_target["email"] = default_get(emails[0], "email") if emails else None
-
-                db_target["email_optin_flag"] = extract_communication_preference(comms, "emailCommunications")
-                db_target["phone_optin_flag"] = extract_communication_preference(comms, "phoneCommunications")
-                db_target["postal_mail_optin_flag"] = extract_communication_preference(comms, "postalEmailCommunications")
-                db_target["sms_optin_flag"] = extract_communication_preference(comms, "smsCommunications")
-
-                for residence in residences:
-                    address = default_get(residence, 'address', {})
-                    if default_get(residence, "addressType", "").upper() == "CURRENT":
-                        loc_units = default_get(address, "locationUnits", [])
-                        for unit in loc_units:
-                            loc_type = default_get(unit, "type", "").upper()
-                            if loc_type == "CITY":
-                                db_target["city"] = default_get(unit, "value")
-                            elif loc_type == "STATE":
-                                db_target["state"] = default_get(unit, "value")
-                        db_target["postal_code"] = default_get(address, "postalCode")
-                        address_line1 = default_get(address, "addressLine1")
-                        address_line2 = default_get(address, "addressLine2")
-                        if address_line1 and address_line2:
-                            db_target["address"] = f"{address_line1} {address_line2}"
-                        elif address_line1:
-                            db_target["address"] = address_line1
-
-                db_cell_phone = None
-                db_home_phone = None
-                if phones:
-                    for phone in phones:
-                        phone_type = default_get(phone, "phoneType")
-                        phone_number = default_get(default_get(phone, "phone", {}), "completeNumber")
-                        if phone_type and phone_number:
-                            if phone_type.upper() == "HOME":
-                                db_home_phone = phone_number
-                            elif phone_type.upper() == "MOBILE":
-                                db_cell_phone = phone_number
-                db_target["cell_phone"] = db_cell_phone
-                db_target["home_phone"] = db_home_phone
+        # Parse Salesperson
 
         assignee = default_get(entry, "api_salesperson", {})
-        db_vehicle_sale["assignee_dms_id"] = default_get(assignee, "id")
-        name_details = default_get(assignee, "userNameDetails", {})
-        first_name = default_get(name_details, "firstName", "")
-        last_name = default_get(name_details, "lastName", "")
-        db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
+        parse_assignee(db_vehicle_sale, assignee)
           
         metadata = dumps(db_metadata)
         db_vehicle["metadata"] = metadata
