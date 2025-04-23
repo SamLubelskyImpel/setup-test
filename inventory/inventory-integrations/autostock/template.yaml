@@ -16,27 +16,6 @@ Conditions:
     - 196800776222
   IsUsEast1: !Equals [ !Ref 'AWS::Region', 'us-east-1' ]
 
-Mappings:
-  Subnets:
-    us-east-1:
-      '196800776222':
-        - subnet-0d29a385efe83bf1c
-        - subnet-0e88ecdd743701e96
-        - subnet-00291e028e21cb78f
-        - subnet-0b1555d5fa3c8ba8e
-      '143813444726':
-        - subnet-030d57e39ec0df603
-        - subnet-01044d580678ea63c
-        - subnet-0b29db0aeb6cdabec
-        - subnet-0e28d592f2ca28fb7
-  VpcId:
-    us-east-1:
-      '196800776222': vpc-03417e688cee5bc07
-      '143813444726': vpc-0b28df8980a1905d5
-  SslCertificates:
-    us-east-1:
-      '143813444726': 'arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d'
-      '196800776222': 'arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be'
 
 Globals:
   Function:
@@ -50,28 +29,13 @@ Globals:
         LOGLEVEL: INFO
         SFTP_SECRET_KEY: AUTOSTOCK_SFTP
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
-    VpcConfig:
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
+        INVENTORY_INTERNAL_API_URL: !If [
+          IsProd,
+          !Sub "https://2oeudyys52.execute-api.us-east-1.amazonaws.com/prod",
+          !Sub "https://e1r6z92cq7.execute-api.us-east-1.amazonaws.com/test"
+        ]
 
 Resources:
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    DeletionPolicy: Delete
-    Properties:
-      GroupDescription: Permit traffic from the AutoStock inv integration
-      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-      SecurityGroupEgress:
-        - Description: AllowAll
-          CidrIp: 0.0.0.0/0
-          IpProtocol: '-1'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Product
-          Value: autostock-inv-integration
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -145,16 +109,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
                     ]
-        - PolicyName: LambdaVPCAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: "*"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/InventoryInternalApi*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/InventoryInternalApi*",
+                    ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
