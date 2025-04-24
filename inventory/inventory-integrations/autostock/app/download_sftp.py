@@ -10,7 +10,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from utils import get_sftp_secrets, connect_sftp_server
+from utils import get_secrets, connect_sftp_server
 from datetime import datetime, timezone
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
@@ -73,7 +73,8 @@ def record_handler(record: SQSRecord) -> Any:
             return
 
         # Get SFTP secrets
-        hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)
+        secret = get_secrets("inventory-integrations-sftp", SECRET_KEY)
+        hostname, port, username, password = secret["hostname"], secret["port"], secret["username"], secret["password"]
 
         # Connect to SFTP server
         sftp_conn = connect_sftp_server(hostname, port, username, password)
