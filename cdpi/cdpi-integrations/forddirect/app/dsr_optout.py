@@ -51,6 +51,7 @@ def lambda_handler(event, context):
     try:
         consumer_id = body["ext_consumer_id"]
         dealer_id = body["dealer_identifier"]
+        dsr_request_id = body["dsr_optout_request_id"]
 
         logger.info(f"consumer_id: {consumer_id}, dealer_id: {dealer_id}")
 
@@ -86,7 +87,14 @@ def lambda_handler(event, context):
 
             session.delete(consumer_profile)
 
-            audit_dsr = create_audit_dsr(integration_partner.id, consumer_id, event_type, complete_date=None, complete_flag=False)
+            audit_dsr = create_audit_dsr(
+                integration_partner.id,
+                consumer_id,
+                event_type,
+                dsr_request_id=dsr_request_id,
+                complete_date=None,
+                complete_flag=False
+            )
             session.add(audit_dsr)
 
             call_events_api(event_type, integration_partner.id, consumer_id, consumer.source_consumer_id, dealer_id,

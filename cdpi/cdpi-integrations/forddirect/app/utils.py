@@ -18,10 +18,11 @@ IS_PROD = True if ENVIRONMENT == "prod" else False
 secret_client = boto3.client("secretsmanager")
 lambda_client = boto3.client("lambda")
 
-def create_audit_dsr(integration_partner_id, consumer_id, event_type, complete_date=None, complete_flag=False):
+
+def create_audit_dsr(integration_partner_id, consumer_id, event_type, dsr_request_id, complete_date=None, complete_flag=False):
     '''Method to create audit_dsr object'''
     datetime_now = datetime.now(timezone.utc)
-    
+
     audit_dsr = AuditDsr(
         consumer_id=consumer_id,
         integration_partner_id=integration_partner_id,
@@ -29,16 +30,27 @@ def create_audit_dsr(integration_partner_id, consumer_id, event_type, complete_d
         request_date=datetime_now,
         complete_flag=complete_flag,
         complete_date=complete_date,
+        dsr_request_id=dsr_request_id
     )
 
-    logger.info(f"Created audit_dsr successfully.")
+    logger.info("Created audit_dsr successfully.")
 
     return audit_dsr
 
-def call_events_api(event_type, integration_partner_id, consumer_id, source_consumer_id, dealer_id, salesai_dealer_id, serviceai_dealer_id, product_name):
+
+def call_events_api(
+    event_type,
+    integration_partner_id,
+    consumer_id,
+    source_consumer_id,
+    dealer_id,
+    salesai_dealer_id,
+    serviceai_dealer_id,
+    product_name
+):
     '''Method to call events publishing api lambda function'''
 
-    logger.info(f"call_events_api started")
+    logger.info("call_events_api started")
 
     response = lambda_client.invoke(
         FunctionName=EVENTS_LAMBDA_ARN,
@@ -57,9 +69,10 @@ def call_events_api(event_type, integration_partner_id, consumer_id, source_cons
         )
         raise
 
-    logger.info(f"Event created on event publishing api")
+    logger.info("Event created on event publishing api")
     return loads(response_json["body"])
-    
+
+
 def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> None:
     """Send alert notification to CE team."""
     data = {
@@ -73,6 +86,7 @@ def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> Non
         MessageStructure="json",
     )
 
+
 def send_missing_files_notification(subject: str, details: dict) -> None:
     """Send missing inbound files or missing consumer profile summary notification to CE team."""
     data = {
@@ -85,6 +99,7 @@ def send_missing_files_notification(subject: str, details: dict) -> None:
         Subject=subject,
         MessageStructure="json",
     )
+
 
 def log_dev(log_msg):
     if not IS_PROD:

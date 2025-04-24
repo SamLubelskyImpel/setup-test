@@ -49,9 +49,13 @@ def record_handler(record: SQSRecord):
             raise ValueError("Missing required fields: consumer_id or event_type")
 
         with DBSession() as session:
-            audit_dsr = session.query(AuditDsr).filter(
+            audit_dsr = session.query(
+                AuditDsr
+            ).filter(
                 AuditDsr.consumer_id == consumer_id,
                 AuditDsr.dsr_request_type == event_type,
+            ).order_by(
+                AuditDsr.request_date.desc()
             ).first()
 
             if not audit_dsr:
@@ -60,9 +64,11 @@ def record_handler(record: SQSRecord):
 
             audit_dsr.complete_flag = completed_flag
             audit_dsr.complete_date = datetime.now(timezone.utc) if completed_flag else None
+            dsr_request_id = audit_dsr.dsr_request_id
 
             session.commit()
             logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
+            data["dsr_request_id"] = dsr_request_id
 
             if completed_flag:
                 logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")

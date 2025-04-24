@@ -302,3 +302,26 @@ create trigger tr_update_db_update_date_and_role before
 update
     on
     prod.cdpi_consumer_profile for each row execute function prod.update_db_update_date_and_role();
+
+-- test.cdpi_audit_dsr definition
+
+-- Drop table
+
+-- DROP TABLE test.cdpi_audit_dsr;
+
+CREATE TABLE test.cdpi_audit_dsr (
+	id serial4 NOT NULL,
+	consumer_id int4 NOT NULL,
+	integration_partner_id int4 NOT NULL,
+	dsr_request_type varchar NOT NULL,
+	complete_flag bool NULL,
+	request_date timestamptz NULL,
+	complete_date timestamptz NULL,
+	CONSTRAINT cdpi_audit_dsr_pkey PRIMARY KEY (id)
+);
+
+
+-- test.cdpi_audit_dsr foreign keys
+
+ALTER TABLE test.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES test.cdpi_consumer(id);
+ALTER TABLE test.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES test.cdpi_integration_partner(id);

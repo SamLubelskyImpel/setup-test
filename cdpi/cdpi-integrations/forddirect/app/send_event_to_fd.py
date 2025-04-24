@@ -56,14 +56,14 @@ def record_handler(record: SQSRecord):
         logger.info(f"[SQS] Processing record | MessageBody: {record.body}")
         data = json.loads(record.body)
 
-        source_consumer_id = data.get("source_consumer_id")
-        source_dealer_id = data.get("source_dealer_id")
+        consumer_id = data.get("consumer_id")
+        dealer_id = data.get("dealer_id")
         event_type = data.get("event_type")
-        request_id = str(uuid4())
+        dsr_request_id = data.get("dsr_request_id")
 
-        if not source_consumer_id or not source_dealer_id or not event_type:
+        if not consumer_id or not dealer_id or not event_type:
             logger.warning(f"[Validation] Missing required fields | Data: {data}")
-            raise ValueError("Missing required fields: source_consumer_id, source_dealer_id, or event_type")
+            raise ValueError("Missing required fields: consumer_id, dealer_id, or event_type")
 
         secret_name = f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/CDPI/FD-DSR"
         secret = get_secret(secret_name)
@@ -75,19 +75,19 @@ def record_handler(record: SQSRecord):
         fd_request_body = {
             "record_timestamp": datetime.now(timezone.utc).isoformat(),
             "is_enterprise": "0",  # '0' means DSR request is on dealer level
-            "ext_consumer_id": source_consumer_id,
-            "dealer_identifier": source_dealer_id,
+            "ext_consumer_id": consumer_id,
+            "dealer_identifier": dealer_id,
             "response": "1",
         }
 
         if event_type == "cdp.dsr.optout":
-            fd_request_body["dsr_optout_request_id"] = request_id
+            fd_request_body["dsr_optout_request_id"] = dsr_request_id
             fd_url += "/optout/response"
         else:
-            fd_request_body["dsr_delete_request_id"] = request_id
+            fd_request_body["dsr_delete_request_id"] = dsr_request_id
             fd_url += "/delete/response"
 
-        logger.info(f"[SQS] Sending request to FD | RequestID: {request_id} | Endpoint: {fd_url}")
+        logger.info(f"[SQS] Sending request to FD | RequestID: {dsr_request_id} | Endpoint: {fd_url}")
         send_request_to_fd(fd_url, fd_headers, fd_request_body)
 
     except json.JSONDecodeError as e:
