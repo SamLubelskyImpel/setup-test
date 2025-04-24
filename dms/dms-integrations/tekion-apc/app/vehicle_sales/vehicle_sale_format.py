@@ -179,7 +179,7 @@ def parse_deal_payment(deal_payment, deal, db_vehicle_sale):
         "sales_tax": default_get(total, "taxAmount"),
         "deal_type": default_get(deal_payment, "paymentType"),
         "sale_type": default_get(deal, "type"),
-        "miles_per_year": default_get(yearly_miles, "baseMileage"),
+        "miles_per_year": default_get(yearly_miles, "totalMileage"),
         "finance_rate": default_get(apr, "financingRate"),
         "finance_amount": default_get(deal_payment, "amountFinanced"),
         "residual_value": default_get(residual, "totalValue"),
