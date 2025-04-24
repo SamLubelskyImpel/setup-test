@@ -171,6 +171,7 @@ Resources:
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
       Timeout: 30
+      MemorySize: 512
       Environment:
         Variables:
           GENERATE_PII_QUEUE: !Ref GeneratePIIOutboundQueue
@@ -233,7 +234,8 @@ Resources:
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
-      Timeout: 60
+      Timeout: 90
+      MemorySize: 512
 
   GeneratePIIOutboundDLQ:
     Type: AWS::SQS::Queue
@@ -302,6 +304,7 @@ Resources:
       Handler: upload_pii_outbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
+      MemorySize: 512
       Policies:
         - !Ref LambdaExecutionPolicy
         - Version: '2012-10-17'
@@ -622,6 +625,7 @@ Resources:
       Handler: matching_pii_inbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
+      MemorySize: 1024
       Policies:
         - !Ref LambdaExecutionPolicy
         - Version: '2012-10-17'

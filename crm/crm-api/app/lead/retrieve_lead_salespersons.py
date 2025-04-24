@@ -113,7 +113,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             db_results = session.query(
-                Lead, DealerIntegrationPartner, IntegrationPartner.impel_integration_partner_name
+                Lead, Consumer.crm_consumer_id, DealerIntegrationPartner, IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
@@ -131,7 +131,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
 
-            lead_db, dip_db, partner_name = db_results
+            lead_db, crm_consumer_id, dip_db, partner_name = db_results
 
             logger.info(f"lead: {lead_db.as_dict()}")
 
@@ -141,7 +141,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "lead_id": lead_id,
             "dealer_integration_partner_id": dip_db.id,
             "crm_lead_id": lead_db.crm_lead_id,
-            "crm_dealer_id": dip_db.crm_dealer_id
+            "crm_dealer_id": dip_db.crm_dealer_id,
+            "crm_consumer_id": crm_consumer_id
         }
 
         lambda_arn = get_lambda_arn(partner_name)
