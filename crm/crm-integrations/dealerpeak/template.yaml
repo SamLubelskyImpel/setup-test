@@ -26,8 +26,7 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SECRET_KEY: "DEALERPEAK"
-        UPLOAD_SECRET_KEY: "impel"
-        DA_SECRET_KEY: "DA_EVENT_LISTENER"
+        UPLOAD_SECRET_KEY: "internal_dealerpeak"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         REPORTING_TOPIC_ARN: !If [

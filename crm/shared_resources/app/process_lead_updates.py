@@ -15,36 +15,36 @@ from aws_lambda_powertools.utilities.batch import (
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 CRM_API_URL = environ.get("CRM_API_URL")
-PARTNER_ID = environ.get("PARTNER_ID")
+PARTNER_ID_MAPPINGS = loads(environ.get("PARTNER_ID_MAPPINGS", "{}"))
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
 
 
-def get_secrets():
+def get_secrets(partner_id: str):
     """Get CRM API secrets."""
     secret = secret_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
     )
-    secret = loads(secret["SecretString"])[str(PARTNER_ID)]
+    secret = loads(secret["SecretString"])[str(partner_id)]
     secret_data = loads(secret)
 
     return secret_data["api_key"]
 
 
-def send_update_request(lead_id: str, request_body: dict) -> Any:
+def send_update_request(lead_id: str, request_body: dict, partner_id: str) -> Any:
     """Send update request to CRM API."""
     if not request_body:
         logger.info(f"No updates for lead {lead_id}")
         return
 
-    api_key = get_secrets()
+    api_key = get_secrets(partner_id)
     response = requests.put(
         url=f"{CRM_API_URL}leads/{lead_id}",
         headers={
             "Content-Type": "application/json",
-            "partner_id": PARTNER_ID,
+            "partner_id": partner_id,
             "x_api_key": api_key
         },
         json=request_body
@@ -54,6 +54,15 @@ def send_update_request(lead_id: str, request_body: dict) -> Any:
         logger.error(f"Error updating lead {lead_id}: {response.text}")
         raise
 
+def get_partner_id(sender_id: str) -> str:
+    """Get PARTNER_ID based on sender"""
+    if "dealerpeak" in sender_id.lower():
+        return PARTNER_ID_MAPPINGS.get("dealerpeak", "impel")
+    elif "tekion" in sender_id.lower():
+        return PARTNER_ID_MAPPINGS.get("tekion", "impel")
+    elif "pbs" in sender_id.lower():
+        return PARTNER_ID_MAPPINGS.get("pbs", "impel")
+    return "impel"
 
 def record_handler(record: SQSRecord):
     """Process lead updates."""
@@ -64,6 +73,8 @@ def record_handler(record: SQSRecord):
         lead_id = body["lead_id"]
         status = body.get("status", "")
         salespersons = body.get("salespersons", [])
+        sender_id = record["attributes"]["SenderId"]
+        logger.info(f"Sender ID: {sender_id}")
 
         # Make request to CRM API to update lead
         request_body = {}
@@ -84,7 +95,8 @@ def record_handler(record: SQSRecord):
         if lead_salespersons:
             request_body.update({"salespersons": lead_salespersons})
 
-        send_update_request(lead_id=lead_id, request_body=request_body)
+        partner_id = get_partner_id(sender_id=sender_id)
+        send_update_request(lead_id=lead_id, request_body=request_body, partner_id=partner_id)
 
     except Exception as e:
         logger.error(f"Error processing record: {e}")

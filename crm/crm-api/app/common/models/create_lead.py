@@ -42,7 +42,7 @@ class VehicleOfInterest(BaseModel):
     )
     oem_name: Optional[str] = Field(None, max_length=80, description="OEM name")
     trim: Optional[str] = Field(
-        None, max_length=100, description="Trim level of the vehicle"
+        None, max_length=150, description="Trim level of the vehicle"
     )
     body_style: Optional[str] = Field(
         None, max_length=100, description="Body style of the vehicle"
@@ -51,10 +51,10 @@ class VehicleOfInterest(BaseModel):
         None, max_length=80, description="Transmission type"
     )
     interior_color: Optional[str] = Field(
-        None, max_length=80, description="Interior color of the vehicle"
+        None, max_length=150, description="Interior color of the vehicle"
     )
     exterior_color: Optional[str] = Field(
-        None, max_length=80, description="Exterior color of the vehicle"
+        None, max_length=150, description="Exterior color of the vehicle"
     )
     price: Optional[float] = Field(
         None, gt=-2147483649, lt=2147483648, description="Price of the vehicle"

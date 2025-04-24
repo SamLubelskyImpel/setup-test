@@ -11,7 +11,7 @@ SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 CONFIG_FILE_KEY = "configurations/tekion_api_version_config.json"
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN", "crm-api-test.testenv.impel.io")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "impel")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY", "internal_tekion")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -59,12 +59,19 @@ def get_product_dealer_id(crm_dealer_id: str) -> Optional[str]:
     try:
         api_key = loads(secret_data[CRM_API_SECRET_KEY])["api_key"]
         response = get(
-            url=f"https://{CRM_API_DOMAIN}/dealers/config",
-            params={"crm_dealer_id": crm_dealer_id},
+            url=f"https://{CRM_API_DOMAIN}/dealers",
+            params={"integration_partner_name": "TEKION"},
             headers={"x_api_key": api_key, "partner_id": CRM_API_SECRET_KEY},
         )
         response.raise_for_status()
-        return response.json()[0].get("product_dealer_id", "")
+
+        dealers = response.json()
+        matching_dealer = next(
+            (dealer for dealer in dealers if dealer.get("crm_dealer_id") == crm_dealer_id),
+            None
+        )
+
+        return matching_dealer.get("product_dealer_id", "") if matching_dealer else None
     except RequestException as e:
         logger.exception(f"Failed to get product dealer ID: {e}")
     return None

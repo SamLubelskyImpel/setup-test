@@ -50,20 +50,6 @@ Mappings:
       '196800776222': vpc-03417e688cee5bc07
       '143813444726': vpc-0b28df8980a1905d5
 
-
-  InstanceType:
-    us-east-1:
-      '143813444726':
-        - InstanceType: t3a.small
-        - InstanceType: t3.small
-      '196800776222':
-        - InstanceType: t3a.small
-        - InstanceType: t2.large
-        - InstanceType: t4g.small
-        - InstanceType: t3.medium
-        - InstanceType: t3a.medium
-        - InstanceType: t2.medium
-
 Conditions:
   IsProd: !Equals [ !Ref 'AWS::AccountId', '196800776222' ]
 
@@ -258,6 +244,13 @@ Resources:
             Action:
               - lambda:InvokeFunction
             Resource: "*"
+          # PID-1340
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource:
+            - 'arn:aws:s3:::spincar-deploy-us-east-1/sentinelone/*'
+
 
   LifecycleHookTerminate:
     Type: AWS::AutoScaling::LifecycleHook
@@ -408,7 +401,7 @@ Resources:
         IamInstanceProfile:
           Name: !Ref InstanceProfile
         ImageId: !Ref AmiId
-        InstanceType: t3a.small
+        InstanceType: t3a.medium # PID-1340 minimum 4GiB memory for SentinelOne
         KeyName: !FindInMap [ KeyPair, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
         Monitoring:
           Enabled: !If [ IsProd, true, false ]
@@ -418,16 +411,31 @@ Resources:
           Fn::Base64:
             !Sub |
               #!/bin/bash
-              wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
-              dpkg -i /tmp/amazon-cloudwatch-agent.deb
               apt-get update
-              apt-get install -y build-essential python3-pip wget ruby-full nginx libpcre3 libpcre3-dev net-tools jq
-              apt-get install -y python-setuptools
+              apt-get install --yes build-essential python3-pip wget ruby-full nginx libpcre3 libpcre3-dev net-tools jq python-setuptools unzip
+
+              wget --no-verbose https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip --output-document=/tmp/awscliv2.zip
+              unzip /tmp/awscliv2.zip -d /tmp
+              /tmp/aws/install
+
+              # PID-1340
+              declare package=SentinelAgent_linux_x86_64_v24_3_3_6.deb
+              aws s3 cp --no-progress "s3://spincar-deploy-us-east-1/sentinelone/$package" /tmp
+              dpkg --install "/tmp/$package"
+              # base 64 encoding of: {"url": "https://usea1-017.sentinelone.net", "site_key": "g_0f96afda50805b63"}
+              # site_key is "Impel - Endpoint Onboarding" group
+              declare token=eyJ1cmwiOiAiaHR0cHM6Ly91c2VhMS0wMTcuc2VudGluZWxvbmUubmV0IiwgInNpdGVfa2V5IjogImdfMGY5NmFmZGE1MDgwNWI2MyJ9
+              sentinelctl management token set "$token"
+              sentinelctl control start
+
+              wget --no-verbose https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
+              dpkg --install /tmp/amazon-cloudwatch-agent.deb
+
               pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
               pip3 install awscli
 
               cd /home/ubuntu
-              wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/latest/install
+              wget --no-verbose https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/latest/install
               chmod +x ./install
               ./install auto
 

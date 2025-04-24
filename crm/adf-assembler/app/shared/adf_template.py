@@ -78,8 +78,8 @@ OEM_MAPPING = {
         "stock_number": "<stock>{stock_number_value}</stock>",
     },
     "customer": {
-        "first_name": '<name part="first" type="individual">{first_name_value}</name>',
-        "last_name": '<name part="last" type="individual">{last_name_value}</name>',
+        "first_name": '<name part="first" type="individual"><![CDATA[{first_name_value}]]></name>',
+        "last_name": '<name part="last" type="individual"><![CDATA[{last_name_value}]]></name>',
         "phone": "<phone><![CDATA[{phone_value}]]></phone>",
         "email": "<email>{email_value}</email>",
         "address": {
