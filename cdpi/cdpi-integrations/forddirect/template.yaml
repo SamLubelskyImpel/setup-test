@@ -234,7 +234,7 @@ Resources:
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
-      Timeout: 60
+      Timeout: 90
       MemorySize: 512
 
   GeneratePIIOutboundDLQ:
