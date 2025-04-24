@@ -79,7 +79,7 @@ def parse_data(record: SQSRecord):
         end_dt_str=data["end_dt_str"]
     )
 
-    api_data = tekion_wrapper.get_deals()
+    api_data = tekion_wrapper.get_deals_v4()
 
     for deal in api_data:
         deal.update({"dms_id": tekion_wrapper.dealer_id})

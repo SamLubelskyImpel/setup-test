@@ -182,7 +182,7 @@ class TekionWrapper:
             logger.exception(f"Unable to parse {path} response {resp}")
             raise
 
-    def get_repair_orders_v4(self, next_fetch_key=""):
+    def get_repair_orders_v3(self, next_fetch_key=""):
         """Retrieve Tekion Repair Order."""
         return self._call_tekion("openapi/v3.1.0/repair-orders", next_fetch_key=next_fetch_key)
 
