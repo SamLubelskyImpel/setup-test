@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from api_wrappers import MomentumApiWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -307,7 +308,7 @@ def record_handler(record: SQSRecord) -> None:
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         
         # Get all possible consumer IDs from Momentum
-        momentum_api = MomentumApiWrapper(activity=parsed_lead)
+        momentum_api = MomentumApiWrapper(activity=parsed_lead) 
         alternate_ids = momentum_api.get_alternate_person_ids(crm_consumer_id)
         
         # Check each possible consumer ID for duplicates
