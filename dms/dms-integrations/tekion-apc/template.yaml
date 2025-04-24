@@ -336,6 +336,26 @@ Resources:
       QueueName: !Sub "tekion-apc-dms-${Environment}-HistoricalDataDLQ"
       MessageRetentionPeriod: 1209600
 
+  HistoricalDataDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub tekion-apc-dms-${Environment}-HistoricalDataDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the HistoricalDataDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt HistoricalDataDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   InvokeTekionFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -587,11 +607,10 @@ Resources:
 
   RepairOrderDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-RepairOrderDLQAlarm"
       AlarmDescription: There are messages in the Tekion repair order DLQ
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
@@ -608,11 +627,10 @@ Resources:
 
   DealsDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-DealsDLQAlarm"
       AlarmDescription: There are messages in the Tekion deals DLQ
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
@@ -752,11 +770,10 @@ Resources:
 
   TekionFormatRODLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatRODLQAlarm"
       AlarmDescription: Messages are in the Tekion format RO lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
@@ -861,11 +878,10 @@ Resources:
 
   TekionFormatFIDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatFIDLQAlarm"
       AlarmDescription: Messages are in the Tekion format FI lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
@@ -970,11 +986,10 @@ Resources:
 
   TekionFormatHistoricalRODLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalRODLQAlarm"
       AlarmDescription: Messages are in the Tekion format Historical RO lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
@@ -1079,11 +1094,10 @@ Resources:
 
   TekionFormatHistoricalFIDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalFIDLQAlarm"
       AlarmDescription: Messages are in the Tekion format Historical FI lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
@@ -1171,11 +1185,10 @@ Resources:
 
   AppointmentsDLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-AppointmentsDLQAlarm"
       AlarmDescription: There are messages in the Tekion service appointments DLQ
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
       Dimensions:
@@ -1280,11 +1293,10 @@ Resources:
 
   TekionFormatSADLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatSADLQAlarm"
       AlarmDescription: Messages are in the Tekion format SA lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
@@ -1389,11 +1401,10 @@ Resources:
 
   TekionFormatHistoricalSADLQAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
     Properties:
       AlarmName: !Sub "tekion-apc-dms-${Environment}-FormatHistoricalSADLQAlarm"
       AlarmDescription: Messages are in the Tekion format Historical SA lambda
-      ActionsEnabled: true
+      ActionsEnabled: !If [ IsProd, true, false ]
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
       Dimensions:
