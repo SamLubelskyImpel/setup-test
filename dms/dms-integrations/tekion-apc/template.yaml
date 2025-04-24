@@ -172,6 +172,16 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                   - !GetAtt ProcessDealsQueue.Arn
+        - PolicyName: LambdaEC2ENIManagement
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                Resource: "*"
 
   SchedulerIAMRole:
     Type: AWS::IAM::Role
@@ -789,7 +799,7 @@ Resources:
       Endpoint: !GetAtt TekionFormatFIQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"tekion-apc/raw/fi_closed_deal"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   TekionFormatFIQueuePolicy:
     Type: AWS::SQS::QueuePolicy
