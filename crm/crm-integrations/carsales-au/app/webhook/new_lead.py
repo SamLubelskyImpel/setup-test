@@ -103,22 +103,25 @@ def lambda_handler(event: dict, context: Any):
         if not crm_lead_id or not crm_dealer_id:
             raise ValidationError('Invalid request body. Identifier and Seller.Identifier are required.')
 
-        dealers = get_dealers('CARSALES_AU|DEALERSOCKET_AU')
+        carsales_dealers = get_dealers('CARSALES_AU')
 
-        partner_name = 'CARSALES_AU'
-        dealer = next(iter([
-            d for d in dealers 
-            if d['crm_dealer_id'] == crm_dealer_id
-            or crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', []) 
-        ]), None)
+        dealer = next((
+            d for d in carsales_dealers
+            if (d['crm_dealer_id'] == crm_dealer_id)
+            or (crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', []))
+        ), None)
+        if dealer:
+            partner_name = 'CARSALES_AU'
 
-        if not dealer:
+        else:
+            dealersocket_dealers = get_dealers('DEALERSOCKET_AU')
+            dealer = next((
+                d for d in dealersocket_dealers
+                if crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', [])
+                ), None)
+            if not dealer:
+                raise DealershipNotActive()
             partner_name = 'DEALERSOCKET_AU'
-            dealer = next(iter([
-                d for d in dealers
-                if d.get('metadata', {}).get('lead_vendor') == 'carsales'
-                and crm_dealer_id in d.get('metadata', {}).get('carsales_dealer_ids', [])
-            ]), None)
 
         if not dealer:
             raise DealershipNotActive()

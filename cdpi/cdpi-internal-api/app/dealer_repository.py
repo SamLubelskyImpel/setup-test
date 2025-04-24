@@ -205,6 +205,7 @@ class DealerRepository:
             "salesai_dealer_id": dealer.salesai_dealer_id,
             "serviceai_dealer_id": dealer.serviceai_dealer_id,
             "sfdc_account_id": dealer.sfdc_account_id,
+            "cdp_dealer_id": dealer_integration_partner.cdp_dealer_id,
             "is_active": dealer_integration_partner.is_active
         }
 
