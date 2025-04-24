@@ -297,3 +297,20 @@ class MomentumApiWrapper:
         logger.info(f"Response from CRM: {response_json}")
 
         return response_json
+
+    def get_alternate_person_ids(self, person_api_id: str):
+        """Retrieve all associated personApiIDs for a given consumer.
+        
+        Args:
+            person_api_id (str): The personApiID to look up alternate IDs for
+            
+        Returns:
+            dict: Response containing the alternate personApiIDs
+        """
+        url = f"{self.__api_url}/customer/personApiID/{person_api_id}"
+        response = self.__call_api(url=url, method="GET")
+        response.raise_for_status()
+        response_json = response.json()
+        logger.info(f"Response from CRM for alternate person IDs: {response_json}")
+        
+        return response_json
