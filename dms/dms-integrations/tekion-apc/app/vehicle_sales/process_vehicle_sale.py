@@ -172,7 +172,7 @@ def fetch_and_process_vehicle_sales(body: Dict[str, Any]):
 
         with ThreadPoolExecutor() as executor:
             futures = [
-                executor.submit(enrich_vehicle_sale, vehicle_sale, dms_id, api)
+                executor.submit(enrich_vehicle_sale, vehicle_sale, api)
                 for vehicle_sale in vehicle_sale_chunk
             ]
 
