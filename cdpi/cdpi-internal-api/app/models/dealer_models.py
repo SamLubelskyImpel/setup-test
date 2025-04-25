@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, Extra
 
 class DealerCreateRequest(BaseModel):
     dealer_name: str = Field(..., max_length=80, description="Name of the dealer")
-    sfdc_account_id: str = Field(None, max_length=40, description="Salesforce Account ID")
+    sfdc_account_id: str = Field(..., max_length=40, description="Salesforce Account ID")
     salesai_dealer_id: str = Field(None, max_length=80, description="SalesAI Dealer ID")
     serviceai_dealer_id: str = Field(None, max_length=80, description="ServiceAI Dealer ID")
     cdp_dealer_id: str = Field(..., max_length=80, description="CDP Dealer ID")
