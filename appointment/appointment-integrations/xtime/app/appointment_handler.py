@@ -8,15 +8,19 @@ from os import environ
 from typing import Any
 
 from models import GetAppointments, CreateAppointment, AppointmentSlots, UpdateAppointment
-from utils import parse_event, validate_data, handle_exception, format_and_filter_timeslots
+from utils import parse_event, validate_data, handle_response, format_and_filter_timeslots, send_alert_notification
 from xtime_api_wrapper import XTimeApiWrapper
+from uuid import uuid4
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-
+DEFAULT_ERROR_MSG = "Vendor integration had an unexpected error. Please contact Impel support."
+                      
 def get_appt_time_slots(event: Any, context: Any) -> Any:
     """Get available appointment time slots from XTime."""
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
     try:
@@ -32,35 +36,24 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
             timeslots = format_and_filter_timeslots(appt_time_slots["availableAppointments"],
                                                     start_time=appointment_slots.start_time,
                                                     end_time=appointment_slots.end_time)
-            return {
-                "statusCode": 200,
-                "body": dumps(
-                    {
-                        "available_timeslots": timeslots
-                    }
-                )
-            }
 
-        return {
-            "statusCode": 500,
-            "body": dumps(
-                {
-                    "error": {
-                        "code": "V002",
-                        "message": "XTime responded with an error: {} {}".format(
-                            appt_time_slots["code"], appt_time_slots["message"]
-                        ),
-                    }
-                }
-            ),
-        }
+            body = {"available_timeslots": timeslots}
+            return handle_response(request_id, "get_appt_time_slot", 200, body)
+
+        error_msg = f"XTime responded with an error: {appt_time_slots['code']} - {appt_time_slots['message']}"
+        body = {"error": {"code": "V002", "message": error_msg}}
+        
+        return handle_response(request_id, "get_appt_time_slot", 500, body)
 
     except Exception as e:
-        return handle_exception(e, "get_appt_time_slot")
+        body = {"error": {"code": "V002", "message": DEFAULT_ERROR_MSG}}
+        return handle_response(request_id, "get_appt_time_slot", 500, body, e)
 
 
 def create_appointment(event: Any, context: Any) -> Any:
     """Create an appointment on XTime."""
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
     try:
@@ -71,35 +64,24 @@ def create_appointment(event: Any, context: Any) -> Any:
         create_appointment = api_wrapper.create_appointments(create_appointment_data)
 
         if create_appointment["success"]:
-            return {
-                "statusCode": 201,
-                "body": dumps(
-                    {
-                        "appointment_id": create_appointment["appointmentId"]
-                    }
-                ),
-            }
+            body = {"appointment_id": create_appointment["appointmentId"]}
+            return handle_response(request_id, "create_appointment", 201, body)
 
-        return {
-            "statusCode": 500,
-            "body": dumps(
-                {
-                    "error": {
-                        "code": "V002",
-                        "message": "XTime responded with an error: {} {}".format(
-                            create_appointment["code"], create_appointment["message"]
-                        ),
-                    }
-                }
-            ),
-        }
+        error_msg = f"XTime responded with an error: {create_appointment['code']} - {create_appointment['message']}"
+        body = {"error": {"code": "V002", "message": error_msg}}
+
+        return handle_response(request_id, "create_appointment", 500, body)
+    
 
     except Exception as e:
-        return handle_exception(e, "create_appointment")
+        body = {"error": {"code": "V002", "message": DEFAULT_ERROR_MSG}}
+        return handle_response(request_id, "create_appointment", 500, body, e)
 
 
 def get_appointments(event: Any, context: Any) -> Any:
     """Get appointments from XTime."""
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
     try:
@@ -131,31 +113,24 @@ def get_appointments(event: Any, context: Any) -> Any:
                 }
                 for appt in appointments_data["appointments"]
             ]
-            return {
-                "statusCode": 200,
-                "body": dumps({
-                    "appointments": appointments
-                })
-            }
 
-        return {
-            "statusCode": 500,
-            "body": dumps({
-                "error": {
-                    "code": "V002",
-                    "message": "XTime responded with an error: {} {}".format(
-                        appointments_data["code"], appointments_data["message"]
-                    ),
-                }
-            })
-        }
+            body = {"appointments": appointments}
+            return handle_response(request_id, "get_appointments", 200, body)
+
+        error_msg = f"XTime responded with an error: {appointments_data['code']} - {appointments_data['message']}"
+        body = {"error": {"code": "V002", "message": error_msg}}
+
+        return handle_response(request_id, "get_appointments", 500, body)
 
     except Exception as e:
-        return handle_exception(e, "get_appointments")
+        body = {"error": {"code": "V002", "message": DEFAULT_ERROR_MSG}}
+        return handle_response(request_id, "get_appointments", 500, body, e)
 
 
 def update_appointment(event: Any, context: Any) -> Any:
     """Update an appointment in XTime."""
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
     try:
@@ -166,30 +141,17 @@ def update_appointment(event: Any, context: Any) -> Any:
         update_appointment = api_wrapper.update_appointment(update_appointment_data)
 
         if update_appointment["success"]:
-            return {
-                "statusCode": 200,
-                "body": dumps({
-                    "message": "Appointment successfully rescheduled"
-                }
-                )
-            }
+            body = {"message": "Appointment successfully rescheduled"}
+            return handle_response(request_id, "update_appointment", 200, body)
 
-        return {
-            "statusCode": 500,
-            "body": dumps(
-                {
-                    "error": {
-                        "code": "V002",
-                        "message": "XTime responded with an error: {} {}".format(
-                            update_appointment["code"], update_appointment["message"]
-                        ),
-                    }
-                }
-            ),
-        }
+        error_msg = f"XTime responded with an error: {update_appointment['code']} - {update_appointment['message']}"
+        body = {"error": {"code": "V002", "message": error_msg}}
+
+        return handle_response(request_id, "update_appointment", 500, body)
 
     except Exception as e:
-        return handle_exception(e, "update_appointment")
+        body = {"error": {"code": "V002", "message": DEFAULT_ERROR_MSG}}
+        return handle_response(request_id, "update_appointment", 500, body, e)
 
 
 def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
@@ -213,6 +175,8 @@ def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
 
 def get_dealer_codes(event, context):
     """Get standard dealer opcodes from XTime."""
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
     try:
@@ -237,17 +201,10 @@ def get_dealer_codes(event, context):
                     logger.error(f"Unhandled exception for dealer {dealer_id}: {e}")
                     dealer_codes[dealer_id] = "ERROR"
 
-        return {
-            "statusCode": 200,
-            "body": dumps({
-                "dealer_codes": dealer_codes
-            })
-        }
+        body = {"dealer_codes": dealer_codes}
+        return handle_response(request_id, "get_dealer_codes", 200, body)
+
     except Exception as e:
-        logger.exception(f"Error in get_dealer_codes: {e}")
-        return {
-            "statusCode": 500,
-            "body": dumps({
-                "error": "XTime responded with an error: {}".format(e)
-            })
-        }
+        error_msg = f"XTime responded with an error: {e}"
+        body = {"error": {"code": "V002", "message": error_msg}}
+        return handle_response(request_id, "get_dealer_codes", 500, body, e)
