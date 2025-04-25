@@ -1426,7 +1426,6 @@ Resources:
     Properties:
       FunctionName: !Sub tekion-apc-dms-${Environment}-InvokeCustomerEnrichment
       Handler: customer_enrichment.invoke_handler
-      Runtime: python3.9
       CodeUri: app/
       Timeout: 30
       Policies:
@@ -1455,6 +1454,7 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(40 minutes)
+      VpcConfig: !Ref AWS::NoValue
 
   InvokeCustomerEnrichmentAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -1470,7 +1470,7 @@ Resources:
         - Name: FunctionName
           Value: !Ref InvokeCustomerEnrichment
       Statistic: Sum
-      Period: 300
+      Period: 3000
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
