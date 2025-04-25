@@ -5,10 +5,12 @@ from os import environ
 from json import loads, dumps
 from logging import getLogger
 from datetime import datetime
+import boto3
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 def parse_event(event: Any) -> Any:
     """Parse the event to extract the body or return the raw event if no body is found."""
@@ -38,20 +40,35 @@ def validate_data(data: dict, data_class: type) -> Any:
         logger.error(f"Invalid data for {data_class.__name__}: {e}")
         raise ValueError(f"Invalid data for {data_class.__name__}: {str(e)}")
 
+def send_alert_notification(request_id: str, endpoint: str, exception: Exception) -> None:
+    """Send alert notification to CE team."""
+    data = {
+        "message": f"Error occurred in {endpoint} for request_id {request_id}: {exception}",
+    }
+    sns_client = boto3.client("sns")
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=dumps({"default": dumps(data)}),
+        Subject=f"Appointment Integration Xtime: {endpoint} Failure Alert",
+        MessageStructure="json",
+    )
 
-def handle_exception(e, context):
-    """Generates lambda response for runtime exceptions."""
-    logger.exception(f"Error in {context}: {e}")
+def handle_response(request_id, endpoint, status_code, body, exception=None) -> dict:
+    """Generates lambda response for runtime success or error/exception."""
+    if exception:
+        logger.exception(f"Error in {endpoint}: {exception}")
+        send_alert_notification(request_id=request_id, endpoint=endpoint, e=exception)
+
+    elif body.get("error"):
+        logger.error(f"Error in {endpoint}: {body['error']['message']}")
+        send_alert_notification(request_id=request_id, endpoint=endpoint, e=body["error"]["message"])
+    
+    else:
+        logger.info(f"Success in {endpoint}: {body}")
+    
     return {
-        "statusCode": 500,
-        "body": dumps(
-            {
-                "error": {
-                    "code": "V001",
-                    "message": "Vendor integration an unexpected error. Please contact Impel support.",
-                }
-            }
-        ),
+        "statusCode": status_code,
+        "body": dumps(body)
     }
 
 
