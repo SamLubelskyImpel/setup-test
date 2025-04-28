@@ -1,7 +1,7 @@
 import logging
 from os import environ
 from json import dumps, loads
-from utils import create_audit_dsr, call_events_api, send_alert_notification, log_dev
+from utils import create_audit_dsr, call_events_api, send_alert_notification, log_dev, send_message_to_sqs
 from uuid import uuid4
 from datetime import datetime
 
@@ -11,6 +11,8 @@ from cdpi_orm.models.consumer_profile import ConsumerProfile
 from cdpi_orm.models.dealer import Dealer
 from cdpi_orm.models.product import Product
 from cdpi_orm.models.integration_partner import IntegrationPartner
+
+FORD_DIRECT_QUEUE_URL = environ.get("FORD_DIRECT_QUEUE_URL")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -98,7 +100,15 @@ def lambda_handler(event, context):
 
             # May have to generate a response to Ford still
             if old_event:
-                logger.info("DSR Request Timestamp prior to latest score. Ignoring delete request.")
+                logger.info("DSR Request Timestamp prior to latest score. Auto-completing delete request.")
+                data = {
+                    "consumer_id": consumer_id,
+                    "dealer_id": dealer_id,
+                    "event_type": event_type,
+                    "dsr_request_id": dsr_request_id,
+                    "completed_flag": True
+                }
+                send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
                 return {
                     "statusCode": 200,
                     "body": dumps(

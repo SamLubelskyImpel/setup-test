@@ -1,13 +1,12 @@
-import boto3
 import logging
 import json
 from os import environ
-from typing import Any, Dict
 from aws_lambda_powertools.utilities.batch import BatchProcessor, EventType, process_partial_response
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from datetime import datetime, timezone
-from utils import send_alert_notification
+from utils import send_alert_notification, send_message_to_sqs
 from uuid import uuid4
+from typing import Any
 
 from cdpi_orm.session_config import DBSession
 from cdpi_orm.models.audit_dsr import AuditDsr
@@ -17,21 +16,6 @@ FORD_DIRECT_QUEUE_URL = environ.get("FORD_DIRECT_QUEUE_URL")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-sqs = boto3.client("sqs")
-
-
-def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
-    """Send a message to the SQS queue."""
-    try:
-        response = sqs.send_message(
-            QueueUrl=queue_url,
-            MessageBody=json.dumps(message_body),
-        )
-        logger.info(f"[SQS] Message sent successfully | MessageId: {response['MessageId']} | Queue: {queue_url}")
-    except Exception as e:
-        logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
-        raise
 
 
 def record_handler(record: SQSRecord):
@@ -73,6 +57,8 @@ def record_handler(record: SQSRecord):
             if completed_flag:
                 logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
                 send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
+            else:
+                logger.warning("DSR request was not completed and will not be forwarded to FD.")
 
     except Exception as e:
         logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
@@ -87,7 +73,8 @@ def lambda_handler(event: Any, context: Any):
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         return process_partial_response(
-            event=event, record_handler=record_handler, processor=processor, context=context
+            event=event, record_handler=record_handler,
+            processor=processor, context=context
         )
     except Exception as e:
         send_alert_notification(request_id, 'dsr_event_processing', e)

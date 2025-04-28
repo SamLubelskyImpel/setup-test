@@ -11,7 +11,6 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from uuid import uuid4
 from utils import log_dev
 
 logger = logging.getLogger(__name__)
@@ -60,6 +59,7 @@ def record_handler(record: SQSRecord):
         dealer_id = data.get("dealer_id")
         event_type = data.get("event_type")
         dsr_request_id = data.get("dsr_request_id")
+        completed_flag = data.get("completed_flag", False)
 
         if not consumer_id or not dealer_id or not event_type:
             logger.warning(f"[Validation] Missing required fields | Data: {data}")
@@ -77,7 +77,7 @@ def record_handler(record: SQSRecord):
             "is_enterprise": "0",  # '0' means DSR request is on dealer level
             "ext_consumer_id": consumer_id,
             "dealer_identifier": dealer_id,
-            "response": "1",
+            "response": "1" if completed_flag else "0",
         }
 
         if event_type == "cdp.dsr.optout":

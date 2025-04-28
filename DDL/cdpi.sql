@@ -303,13 +303,13 @@ update
     on
     prod.cdpi_consumer_profile for each row execute function prod.update_db_update_date_and_role();
 
--- test.cdpi_audit_dsr definition
+-- prod.cdpi_audit_dsr definition
 
 -- Drop table
 
--- DROP TABLE test.cdpi_audit_dsr;
+-- DROP TABLE prod.cdpi_audit_dsr;
 
-CREATE TABLE test.cdpi_audit_dsr (
+CREATE TABLE prod.cdpi_audit_dsr (
 	id serial4 NOT NULL,
 	consumer_id int4 NOT NULL,
 	integration_partner_id int4 NOT NULL,
@@ -321,7 +321,7 @@ CREATE TABLE test.cdpi_audit_dsr (
 );
 
 
--- test.cdpi_audit_dsr foreign keys
+-- prod.cdpi_audit_dsr foreign keys
 
-ALTER TABLE test.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES test.cdpi_consumer(id);
-ALTER TABLE test.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES test.cdpi_integration_partner(id);
+ALTER TABLE prod.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES prod.cdpi_consumer(id);
+ALTER TABLE prod.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES prod.cdpi_integration_partner(id);

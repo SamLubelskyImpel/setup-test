@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
-import requests
 from os import environ
 from json import loads, dumps
 import boto3
 import logging
+from typing import Any, Dict
 
 from cdpi_orm.models.audit_dsr import AuditDsr
 
@@ -17,6 +17,20 @@ IS_PROD = True if ENVIRONMENT == "prod" else False
 
 secret_client = boto3.client("secretsmanager")
 lambda_client = boto3.client("lambda")
+sqs = boto3.client("sqs")
+
+
+def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
+    """Send a message to the SQS queue."""
+    try:
+        response = sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=dumps(message_body),
+        )
+        logger.info(f"[SQS] Message sent successfully | MessageId: {response['MessageId']} | Queue: {queue_url}")
+    except Exception as e:
+        logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
+        raise
 
 
 def create_audit_dsr(integration_partner_id, consumer_id, event_type, dsr_request_id, complete_date=None, complete_flag=False):
