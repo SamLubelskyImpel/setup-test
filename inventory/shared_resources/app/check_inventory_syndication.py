@@ -13,6 +13,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 def order_dealers_by_product(active_dealers, ordered_dealers):
     """Order active dealers by product and store their SFTP keys."""
+    logger.info("Ordering active dealers by product...")
 
     for dealer in active_dealers:
         dealer_id, impel_dealer_id, metadata = dealer[0], dealer[1], dealer[2]
@@ -21,7 +22,11 @@ def order_dealers_by_product(active_dealers, ordered_dealers):
         if metadata:
             syndications = metadata.get("syndications", {})
             for product, extra_data in syndications.items():
+                logger.info(f"Product: {product} - Extra data: {extra_data}")
+
                 if extra_data.get("active", False):
+                    logger.info(f"Dealer {dealer_id} is active for product {product}.")
+
                     if not product in ordered_dealers:
                         ordered_dealers[product] = {"dealers": [], "sftp_key": ""}
                     if not ordered_dealers[product]["sftp_key"]:
@@ -50,11 +55,15 @@ def lambda_handler(event, context):
 
         for product,dealers_data in ordered_dealers.items():
             logger.info(f"Checking for files on {dealers_data['sftp_key']}...")
-                
+            
+            if not dealers_data['sftp_key']:
+                logger.info(f"No SFTP key found for product {product}. Skipping...")
+                continue
+
             hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", dealers_data['sftp_key'])
             
             with connect_sftp_server(hostname, port, username, password) as sftp:
-                logger.info(f"Connected to {dealers_data['sftp_key']} SFTP server.")
+                logger.info(f"Connected to {dealers_data['sftp_key']} server.")
 
                 for dealer in dealers_data["dealers"]:
                     dealer_id, impel_dealer_id = dealer["dealer_id"], dealer["impel_dealer_id"]
