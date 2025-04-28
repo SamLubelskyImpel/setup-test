@@ -40,10 +40,10 @@ def validate_data(data: dict, data_class: type) -> Any:
         logger.error(f"Invalid data for {data_class.__name__}: {e}")
         raise ValueError(f"Invalid data for {data_class.__name__}: {str(e)}")
 
-def send_alert_notification(request_id: str, endpoint: str, exception: Exception) -> None:
+def send_alert_notification(request_id: str, endpoint: str, error: str) -> None:
     """Send alert notification to CE team."""
     data = {
-        "message": f"Error occurred in {endpoint} for request_id {request_id}: {exception}",
+        "message": f"Error occurred in {endpoint} for request_id {request_id}: {error}",
     }
     sns_client = boto3.client("sns")
     sns_client.publish(
@@ -57,11 +57,11 @@ def handle_response(request_id, endpoint, status_code, body, exception=None) -> 
     """Generates lambda response for runtime success or error/exception."""
     if exception:
         logger.exception(f"Error in {endpoint}: {exception}")
-        send_alert_notification(request_id=request_id, endpoint=endpoint, e=exception)
+        send_alert_notification(request_id=request_id, endpoint=endpoint, error=exception)
 
     elif body.get("error"):
         logger.error(f"Error in {endpoint}: {body['error']['message']}")
-        send_alert_notification(request_id=request_id, endpoint=endpoint, e=body["error"]["message"])
+        send_alert_notification(request_id=request_id, endpoint=endpoint, error=body["error"]["message"])
     
     else:
         logger.info(f"Success in {endpoint}: {body}")
