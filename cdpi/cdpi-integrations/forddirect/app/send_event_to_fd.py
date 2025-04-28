@@ -60,6 +60,7 @@ def record_handler(record: SQSRecord):
         event_type = data.get("event_type")
         dsr_request_id = data.get("dsr_request_id")
         completed_flag = data.get("completed_flag", False)
+        is_enterprise = data.get("is_enterprise", "0")
 
         if not consumer_id or not dealer_id or not event_type:
             logger.warning(f"[Validation] Missing required fields | Data: {data}")
@@ -74,7 +75,7 @@ def record_handler(record: SQSRecord):
 
         fd_request_body = {
             "record_timestamp": datetime.now(timezone.utc).isoformat(),
-            "is_enterprise": "0",  # '0' means DSR request is on dealer level
+            "is_enterprise": is_enterprise if is_enterprise else "0",  # '0' means DSR request is on dealer level
             "ext_consumer_id": consumer_id,
             "dealer_identifier": dealer_id,
             "response": "1" if completed_flag else "0",

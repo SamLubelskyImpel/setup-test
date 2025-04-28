@@ -55,6 +55,7 @@ def lambda_handler(event, context):
         consumer_id = body["ext_consumer_id"]
         dealer_id = body["dealer_identifier"]
         dsr_request_id = body["dsr_delete_request_id"]
+        is_enterprise = body["is_enterprise"]
 
         logger.info(f"consumer_id: {consumer_id}, dealer_id: {dealer_id}")
 
@@ -106,7 +107,8 @@ def lambda_handler(event, context):
                     "dealer_id": dealer_id,
                     "event_type": event_type,
                     "dsr_request_id": dsr_request_id,
-                    "completed_flag": True
+                    "completed_flag": False,
+                    "is_enterprise": is_enterprise
                 }
                 send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
                 return {
