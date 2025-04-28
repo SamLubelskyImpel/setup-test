@@ -4,7 +4,7 @@ from json import dumps
 import boto3
 from json import loads
 import requests
-from datetime import datetime, timezone
+from datetime import datetime
 
 secret_client = boto3.client("secretsmanager")
 
@@ -22,32 +22,30 @@ def get_token():
     secret = loads(loads(secret["SecretString"])[key])
     return key, secret['api_key']
 
+
 def lambda_handler(event, context):
     event_type = event["event_type"]
-    integration_partner_id = event["integration_partner_id"]
     consumer_id = event["consumer_id"]
     source_consumer_id = event["source_consumer_id"]
     dealer_id = event["dealer_id"]
-    salesai_dealer_id = event["salesai_dealer_id"]
-    serviceai_dealer_id = event["serviceai_dealer_id"]
+    source_dealer_id = event["source_dealer_id"]
     product_name = event["product_name"]
 
     logger.info("call events api starting")
     logger.info(f"Event: {event}")
 
     try:
-        client_id,token = get_token()
-        
-        logger.info(f"client_id: {client_id}, token: {token}, integration_partner_id: {integration_partner_id}, consumer_id: {consumer_id}, source_consumer_id: {source_consumer_id}, dealer_id: {dealer_id}, product_name: {product_name}")
+        client_id, token = get_token()
+
+        logger.info(f"client_id: {client_id}, token: {token}, consumer_id: {consumer_id}, source_consumer_id: {source_consumer_id}, dealer_id: {dealer_id}, product_name: {product_name}")
 
         product_name = 'sales_ai' if product_name == 'Sales AI' else 'service_ai'
-        source_dealer_id = salesai_dealer_id if product_name == "sales_ai" else serviceai_dealer_id
 
         event_json = {
             "event_json": [
                 {
                     "event_type": event_type,
-                    "integration_partner": integration_partner_id,
+                    "integration_partner": "FORD_DIRECT",
                     "consumer_id": consumer_id,
                     "dealer_id": dealer_id,
                     "source_consumer_id": source_consumer_id,
@@ -72,12 +70,12 @@ def lambda_handler(event, context):
 
         if response.status_code != 200:
             raise Exception(response.text)
-        
+
         logger.info(f"Event created successfully. Response: {response.text}")
 
-    except Exception as e:
+    except Exception:
         logger.error(f"Failed to create event: {response.text}")
-        
+
         return {
             "statusCode": 500,
             "body": dumps(

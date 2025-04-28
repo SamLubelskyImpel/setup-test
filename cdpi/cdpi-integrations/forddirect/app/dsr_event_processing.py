@@ -61,7 +61,7 @@ def record_handler(record: SQSRecord):
                 logger.warning("DSR request was not completed and will not be forwarded to FD.")
 
     except Exception as e:
-        logger.exception(f"[Handler] Error processing record | ConsumerID: {data.get('consumer_id', 'Unknown')} | Error: {e}")
+        logger.exception(f"[Handler] Error processing record | ConsumerID: {consumer_id} | Error: {e}")
         raise Exception("Internal server error")
 
 

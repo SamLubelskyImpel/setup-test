@@ -51,8 +51,6 @@ Globals:
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         DOWNLOAD_QUEUE: !Ref DownloadQueue
         ALERT_CLIENT_ENGINEERING_TOPIC: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
-        EVENTS_API_URL:
-          !If [IsProd, "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod", "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"]
         FORD_DIRECT_QUEUE_URL:
           !If 
             - IsProd
@@ -163,6 +161,7 @@ Resources:
             Resource:
               - !GetAtt DownloadQueue.Arn
               - !GetAtt SendEventToFordDirectQueue.Arn
+              - !GetAtt DsrHandlerQueue.Arn
           - Effect: "Allow"
             Action:
               - "ssm:GetParameter"
@@ -906,7 +905,7 @@ Resources:
             Method: POST
       Environment:
         Variables:
-          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
+          DSR_HANDLER_QUEUE_URL: !Ref DsrHandlerQueue
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
@@ -938,7 +937,7 @@ Resources:
             Method: POST
       Environment:
         Variables:
-          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
+          DSR_HANDLER_QUEUE_URL: !Ref DsrHandlerQueue
       Policies:
         - !Ref LambdaExecutionPolicy
       Layers:
@@ -962,6 +961,13 @@ Resources:
       MemorySize: 128
       Timeout: 30
       VpcConfig: !Ref "AWS::NoValue"
+      Environment:
+        Variables:
+          EVENTS_API_URL: !If [
+            IsProd,
+            "https://fh3n1vkpn2.execute-api.us-east-1.amazonaws.com/prod",
+            "https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test"
+          ]
       Policies:
         - !Ref LambdaExecutionPolicy
   
@@ -970,7 +976,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-call-events-api"
 
-  # 🚀 EVENT Processing SQS and Lambda
   DsrEventProcessingQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -1191,3 +1196,72 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-CheckMissingConsumerProfileSummary"
+
+  DsrHandler:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: app/
+      Handler: dsr_handler.lambda_handler
+      FunctionName: !Sub cdpi-${Environment}-ford-direct-dsr-handler
+      MemorySize: 128
+      Timeout: 30
+      Policies:
+        - !Ref LambdaExecutionPolicy
+      Environment:
+        Variables:
+          EVENTS_LAMBDA_ARN: !Ref CallEventsAPI
+      Layers:
+        - !If [
+            IsProd,
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+          ]
+
+  DsrHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/cdpi-${Environment}-ford-direct-dsr-handler"
+
+  DsrHandlerQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrHandlerQueue
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 30
+      RedrivePolicy:
+          deadLetterTargetArn: !GetAtt DsrHandlerDLQ.Arn
+          maxReceiveCount: 3
+  
+  DsrHandlerEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt DsrHandlerQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt DsrHandler.Arn
+
+  DsrHandlerDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub cdpi-${Environment}-ford-direct-DsrHandlerDLQ
+      MessageRetentionPeriod: 1209600
+  
+  DsrHandlerDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub cdpi-${Environment}-ford-direct-DsrHandlerDLQAlarm
+      AlarmDescription: There are over 1 unprocessed messages in the DsrHandlerDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DsrHandlerDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from os import environ
 from json import loads, dumps
 import boto3
@@ -20,46 +19,31 @@ lambda_client = boto3.client("lambda")
 sqs = boto3.client("sqs")
 
 
-def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
-    """Send a message to the SQS queue."""
-    try:
-        response = sqs.send_message(
-            QueueUrl=queue_url,
-            MessageBody=dumps(message_body),
-        )
-        logger.info(f"[SQS] Message sent successfully | MessageId: {response['MessageId']} | Queue: {queue_url}")
-    except Exception as e:
-        logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
-        raise
+class ValidationErrorResponse(Exception):
+    def __init__(self, errors, full_errors):
+        self.errors = errors
+        self.full_errors = full_errors
 
 
-def create_audit_dsr(integration_partner_id, consumer_id, event_type, dsr_request_id, complete_date=None, complete_flag=False):
-    '''Method to create audit_dsr object'''
-    datetime_now = datetime.now(timezone.utc)
-
-    audit_dsr = AuditDsr(
-        consumer_id=consumer_id,
-        integration_partner_id=integration_partner_id,
-        dsr_request_type=event_type,
-        request_date=datetime_now,
-        complete_flag=complete_flag,
-        complete_date=complete_date,
-        dsr_request_id=dsr_request_id
-    )
-
-    logger.info("Created audit_dsr successfully.")
-
-    return audit_dsr
+def sanitize_errors(errors):
+    """
+    Convert the detailed Pydantic errors into a simplified version for the user.
+    For example, this function returns only the field name and a user-friendly message.
+    """
+    sanitized = []
+    for error in errors:
+        field = ".".join(map(str, error.get("loc", [])))
+        message = error.get("msg", "Invalid input")
+        sanitized.append({"field": field, "message": message})
+    return sanitized
 
 
 def call_events_api(
     event_type,
-    integration_partner_id,
     consumer_id,
     source_consumer_id,
     dealer_id,
-    salesai_dealer_id,
-    serviceai_dealer_id,
+    source_dealer_id,
     product_name
 ):
     '''Method to call events publishing api lambda function'''
@@ -69,9 +53,11 @@ def call_events_api(
     response = lambda_client.invoke(
         FunctionName=EVENTS_LAMBDA_ARN,
         InvocationType="RequestResponse",
-        Payload=dumps({"event_type": event_type, "integration_partner_id": integration_partner_id, "consumer_id": consumer_id,
-                       "source_consumer_id": source_consumer_id, "dealer_id": dealer_id, "salesai_dealer_id": salesai_dealer_id,
-                       "serviceai_dealer_id": serviceai_dealer_id, "product_name": product_name}),
+        Payload=dumps({
+            "event_type": event_type, "consumer_id": consumer_id, "source_consumer_id": source_consumer_id,
+            "dealer_id": dealer_id, "source_dealer_id": source_dealer_id, "product_name": product_name
+            }
+        ),
     )
     logger.info(f"Response from lambda: {response}")
     response_json = loads(response["Payload"].read().decode("utf-8"))
@@ -85,6 +71,35 @@ def call_events_api(
 
     logger.info("Event created on event publishing api")
     return loads(response_json["body"])
+
+
+def send_message_to_sqs(queue_url: str, message_body: Dict[str, Any]):
+    """Send a message to the SQS queue."""
+    try:
+        response = sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=dumps(message_body),
+        )
+        logger.info(f"[SQS] Message sent successfully | MessageId: {response['MessageId']} | Queue: {queue_url}")
+    except Exception as e:
+        logger.exception(f"[SQS] Failed to send message | Queue: {queue_url} | Error: {e}")
+        raise
+
+
+def create_audit_dsr(integration_partner_id, consumer_id, event_type, dsr_request_id, request_date, complete_date=None, complete_flag=False):
+    '''Method to create audit_dsr object'''
+    audit_dsr = AuditDsr(
+        consumer_id=consumer_id,
+        integration_partner_id=integration_partner_id,
+        dsr_request_type=event_type,
+        request_date=request_date,
+        complete_flag=complete_flag,
+        complete_date=complete_date,
+        dsr_request_id=dsr_request_id
+    )
+
+    logger.info("Created audit_dsr successfully.")
+    return audit_dsr
 
 
 def send_alert_notification(request_id: str, endpoint: str, e: Exception) -> None:
