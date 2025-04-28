@@ -395,10 +395,10 @@ class RDSInstance:
     
     def get_active_dealers(self):
         """
-        Retrieve the active dealer_ids and impel_dealer_id
+        Retrieve the active dealer_ids, impel_dealer_id and dip metadata
         """
         query = f"""
-            SELECT dealer.id, dealer.impel_dealer_id
+            SELECT dealer.id, dealer.impel_dealer_id, dip.metadata
             FROM {self.schema}.inv_dealer AS dealer
             JOIN {self.schema}.inv_dealer_integration_partner AS dip
             ON dip.dealer_id = dealer.id
