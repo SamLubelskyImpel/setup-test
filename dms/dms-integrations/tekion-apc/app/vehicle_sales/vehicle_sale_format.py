@@ -82,7 +82,7 @@ def calculate_expected_payoff_date(deal_payment, contract_date, delivery_date):
             expected_payoff_date = add_half_years(expected_payoff_date, 1)
     else:
         raise ValueError(f"Unsupported frequency: {frequency}")
-    
+
     return expected_payoff_date.strftime("%Y-%m-%d")
 
 
@@ -99,7 +99,7 @@ def calculate_first_payment_date(deal_payment, contract_date, delivery_date):
 
     if not isinstance(days_to_first_payment, int):
         raise ValueError("daysToFirstPayment must be an integer")
-        
+
     first_payment_date = date + timedelta(days=days_to_first_payment)
 
     return first_payment_date.strftime("%Y-%m-%d")
@@ -295,7 +295,7 @@ def parse_consumer(db_target, customer, comms):
 
     db_target["first_name"] = default_get(name, "firstName")
     db_target["last_name"] = default_get(name, "lastName")
-    
+
     db_target["email"] = default_get(emails[0], "email") if emails else None
 
     db_target["email_optin_flag"] = extract_communication_preference(comms, "emailCommunications")
@@ -344,7 +344,7 @@ def parse_assignee(db_vehicle_sale, assignee):
     first_name = default_get(name_details, "firstName", "")
     last_name = default_get(name_details, "lastName", "")
     db_vehicle_sale["assignee_name"] = f"{first_name} {last_name}"
-        
+
 def parse_json_to_entries(json_data, s3_uri):
     """Format tekion data to unified format."""
     entries = []
@@ -384,7 +384,7 @@ def parse_json_to_entries(json_data, s3_uri):
         # Parse Service Contracts
 
         fnis = default_get(entry, "api_service_contracts", [])
-        
+
         for fni in fnis:
             disclosure_type = default_get(fni, "disclosureType", "")
             if disclosure_type.upper() == "SERVICE_CONTRACT":
@@ -404,7 +404,7 @@ def parse_json_to_entries(json_data, s3_uri):
         if vehicles:
             for vehicle in vehicles:
                 db_vehicle_sale["vin"] = default_get(vehicle, "vin")
-                
+
                 specification = default_get(vehicle, "vehicleSpecification", {})
 
                 parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warranties)
@@ -440,7 +440,7 @@ def parse_json_to_entries(json_data, s3_uri):
                 continue
 
             customer_type = default_get(customer, "type", "")
-                
+
             if customer_type == "BUYER":
                 db_target = db_consumer
                 comms = buyer_comms
@@ -456,7 +456,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
         assignee = default_get(entry, "api_salesperson", {})
         parse_assignee(db_vehicle_sale, assignee)
-          
+
         metadata = dumps(db_metadata)
 
         db_metadata["optin_updated"] = True
@@ -464,7 +464,7 @@ def parse_json_to_entries(json_data, s3_uri):
 
         db_vehicle["metadata"] = metadata
         db_consumer["metadata"] = consumer_metadata
-    
+
         db_vehicle_sale["metadata"] = metadata
 
         if db_cobuyer_consumer:
