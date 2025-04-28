@@ -31,7 +31,7 @@ def parse_datetime(datetime_str, parse_format, return_format):
         parsed_datetime = datetime.strptime(datetime_str, parse_format)
         return parsed_datetime.strftime(return_format)
     except (ValueError, TypeError) as e:
-        logger.error(f"Unable to parse datetime: {datetime_str}")
+        logger.exception(f"Unable to parse datetime: {datetime_str}")
         raise e
 
 
@@ -42,7 +42,7 @@ def parse_float(float_str):
             return None
         return float(float_str)
     except (ValueError, TypeError) as e:
-        logger.error(f"Unable to parse float: {float_str}")
+        logger.exception(f"Unable to parse float: {float_str}")
         raise e
 
 
@@ -53,7 +53,7 @@ def parse_int(int_str):
             return None
         return int(int_str)
     except (ValueError, TypeError) as e:
-        logger.error(f"Unable to parse int: {int_str}")
+        logger.exception(f"Unable to parse int: {int_str}")
         raise e
 
 
@@ -64,7 +64,7 @@ def parse_date(date_str):
             return None
         return datetime.strptime(date_str, '%Y%m%d')
     except (ValueError, TypeError) as e:
-        logger.error(f"Unable to parse date: {date_str}")
+        logger.exception(f"Unable to parse date: {date_str}")
         raise e
 
 
@@ -101,7 +101,7 @@ def parse_consumers(customers):
             parsed_consumers[customer_id] = consumer
         return parsed_consumers
     except Exception as e:
-        logger.error("Unable to parse customers")
+        logger.exception("Unable to parse customers")
         raise e
 
 
@@ -145,5 +145,30 @@ def parse_vehicles(vehicles):
 
         return parsed_vehicles
     except Exception as e:
-        logger.error("Unable to parse vehicles")
+        logger.exception("Unable to parse vehicles")
         raise e
+
+
+def parse_op_codes(op_codes):
+    try:
+        parsed_op_codes = {}
+
+        for op_code_xml in op_codes:
+            if not is_valid_xml(op_code_xml):
+                logger.error(f"[SUPPORT ALERT] Unable to parse op code [CONTENT] Invalid XML for op code: {op_code_xml}")
+                continue
+
+            root = ET.fromstring(op_code_xml)
+            ns0 = {'ns0': 'opentrack.dealertrack.com/transitional'}
+
+            op_code = root.find('ns0:OperationCode', ns0).text
+            op_code_desc = ' '.join([root.find('ns0:Description1', ns0).text or '',
+                                     root.find('ns0:Description2', ns0).text or '',
+                                     root.find('ns0:Description3', ns0).text or '',
+                                     root.find('ns0:Description4', ns0).text or ''])
+            parsed_op_codes[op_code] = op_code_desc.strip()[:305]
+
+        return parsed_op_codes
+    except Exception:
+        logger.exception("Unable to parse op codes")
+        raise

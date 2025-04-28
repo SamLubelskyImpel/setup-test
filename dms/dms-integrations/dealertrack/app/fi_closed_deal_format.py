@@ -158,7 +158,7 @@ def parse_xml_to_entries(deal_json, s3_uri):
                 "vin": root.find('ns0:VIN', ns0).text,
                 "finance_rate": details_root.find('ns0:APR', ns0).text,
                 "finance_term": finance_term,
-                "finance_amount": details_root.find('ns0:LeasePrice', ns0).text,
+                "finance_amount": details_root.find('ns0:AmountFinanced', ns0).text,
                 "transaction_id": details_root.find('ns0:DealNumber', ns0).text,
                 "first_payment": parse_datetime(details_root.find('ns0:DateFirstPayment', ns0).text, parse_format='%Y%m%d',
                     return_format='%Y-%m-%d'),
