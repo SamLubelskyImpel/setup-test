@@ -8,7 +8,7 @@ from os import environ
 from typing import Any
 
 from models import GetAppointments, CreateAppointment, AppointmentSlots, UpdateAppointment
-from utils import parse_event, validate_data, handle_response, format_and_filter_timeslots, send_alert_notification
+from utils import parse_event, validate_data, handle_response, format_and_filter_timeslots
 from xtime_api_wrapper import XTimeApiWrapper
 from uuid import uuid4
 
