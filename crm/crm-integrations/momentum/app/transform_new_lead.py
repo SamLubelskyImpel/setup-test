@@ -103,7 +103,7 @@ def get_recent_leads(product_dealer_id, consumer_id, vin, crm_api_key):
 
         if not vin:
             # If no vin, return the lead_id of the first lead
-            return leads[0].get("lead_id")
+            return leads[0].get("lead_id") if leads else None
 
         for lead in leads:
             vehicles_of_interest = lead.get("vehicles_of_interest", [])
@@ -240,11 +240,11 @@ def parse_lead(product_dealer_id, data):
         db_vehicle = {
             "vin": data.get("vin")[:20] if data.get("vin") is not None else None,
             "stock_num": data.get("stock")[:50] if data.get("stock") is not None else None,
-            "make": data.get("make")[:80] if data.get("make") is not None else None,
+            "make": data.get("make")[:150] if data.get("make") is not None else None,
             "model": data.get("model")[:100] if data.get("model") is not None else None,
-            "year": data.get("year"),
-            "exterior_color": data.get("color")[:80] if data.get("color") is not None else None,
-            "trim": data.get("trim")[:100] if data.get("trim") is not None else None,
+            "year": int(data.get("year")) if data.get("year") and data.get("year").isdigit() else None,
+            "exterior_color": data.get("color")[:150] if data.get("color") is not None else None,
+            "trim": data.get("trim")[:150] if data.get("trim") is not None else None,
             "condition": vehicleType
         }
         db_vehicle = {key: value for key, value in db_vehicle.items() if value is not None}

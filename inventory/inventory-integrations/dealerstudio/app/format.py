@@ -111,7 +111,7 @@ def process_entry(entry, received_datetime, source_s3_uri):
     Returns:
         dict: The processed entry.
     """
-    metadata = dumps(source_s3_uri)
+    metadata = {"source_s3": source_s3_uri}
     if 'inv_inventory' in entry:
         entry['inv_inventory']['metadata'] = metadata
         entry['inv_inventory']['on_lot'] = True

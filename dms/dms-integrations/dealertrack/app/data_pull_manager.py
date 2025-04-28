@@ -25,12 +25,19 @@ class DataPullManager:
         self.api = DealerTrackApi(self.enterprise_code, self.company_number)
 
 
+    def get_op_codes(self):
+        op_codes = self.api.op_codes_table()
+        return [xml_to_string(op_code) for op_code in op_codes]
+
+
     def start(self):
         if self.resource == "service_appointment":
+            self.op_codes = self.get_op_codes()
             self.__appointments_pull()
         elif self.resource == "fi_closed_deal":
             self.__deals_pull()
         elif self.resource == "repair_order":
+            self.op_codes = self.get_op_codes()
             self.__ro_pull()
         else:
             raise Exception(f"Resource {self.resource} not supported")
@@ -91,7 +98,8 @@ class DataPullManager:
         file_content = {
             "root_appointments": appointments,
             "vehicles": vehicles,
-            "customers": customers
+            "customers": customers,
+            "op_codes": self.op_codes
         }
 
         self.__upload_to_s3(file_content)
@@ -166,7 +174,8 @@ class DataPullManager:
             "root_repair_orders": ros,
             "vehicles": vehicles,
             "customers": customers,
-            "ro_details": ros_details
+            "ro_details": ros_details,
+            "op_codes": self.op_codes
         }
 
         self.__upload_to_s3(file_content)

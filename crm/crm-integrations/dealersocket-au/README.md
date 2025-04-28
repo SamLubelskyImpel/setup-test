@@ -1,6 +1,11 @@
 # DealerSocket AU CRM Integration
 
-The DealerSocket AU CRM integration at Impel is designed to seamlessly handle CRM data ingestion, transformation, and storage. This process is divided into two main parts. The first part of the integration is managed through the CarSales AU New Lead Webhook, which enables us to receive leads associated with DealerSocket dealerships. In this repository, we handle the second part, which consists of CRM lead lookup, transformation and load process. The raw data received from DealerSocket AU is transformed and stored in a unified shared CRM database via CRM API. Additionally, we have logic in place for writing activities back to DealerSocket AU CRM. Architecture details and partner documentation can be found on the Confluence page. See the appendix for more information.
+The DealerSocket AU CRM integration at Impel is designed to seamlessly handle CRM data ingestion, transformation, and storage. This process is divided into two main parts.
+* The first part of the integration is managed through the CarSales AU New Lead Webhook, which enables us to receive leads associated with DealerSocket dealerships.
+* The second part of the integration is managed by Pentana, which enables us to lookup the CarSales leads in the DealerSocket CRM. After which the transformation and load process occurs. The raw data received from CarSales and DealerSocket (via Pentana) is transformed and stored in a unified shared CRM database via CRM API.
+* The third part of the integration enables us to writeback activity events to DealerSocket CRM. Unlike the other parts, writeback integrates directly with DealerSocket APIs.
+
+Architecture details and partner documentation can be found on the Confluence page. See the appendix for more information.
 
 ## Deployment and teardown
 
