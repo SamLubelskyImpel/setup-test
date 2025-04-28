@@ -154,16 +154,16 @@ class TekionWrapper:
             "accept": "application/json",
         }
         resp = requests.get(url, headers=headers, params=params)
-        logger.info(f"Url: {url} Params: {params} Status: {resp.status_code} {resp.text}")
+        logger.info(f"Url: {url} Params: {params} Status: {resp.status_code}")
 
         if resp.status_code != 200:
             logger.error(f"Tekion responded with {resp.status_code} {resp.text}")
 
         if resp.status_code in (429, 403):
             self._alert_ce(url, resp.status_code)
-            
+
         resp.raise_for_status()
-   
+
         try:
             resp_json = resp.json()
             meta = resp_json["meta"]
@@ -173,7 +173,7 @@ class TekionWrapper:
                     f"{path} returned {resp.status_code} but metadata of {meta}"
                 )
             if meta.get("nextFetchKey", None):
-                return resp_json["data"] + self._call_tekion(
+                return resp_json["data"] + self._call_tekion_v4(
                     path, next_fetch_key=meta["nextFetchKey"]
                 )
             else:
@@ -225,7 +225,7 @@ class TekionWrapper:
     def get_deal_gross_details_v4(self, deal_id: str):
         """Retrieve Gross Details associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/gross-details", set_date_filter=False)
-        
+
     def get_deal_vehicles_v4(self, deal_id: str):
         """Retrieve all Vehicles associated with a Deal by Deal id"""
         return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/vehicles", set_date_filter=False)
