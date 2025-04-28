@@ -186,7 +186,7 @@ Resources:
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundQueue
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 60
+      VisibilityTimeout: 90
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt GeneratePIIOutboundDLQ.Arn
           maxReceiveCount: 3
