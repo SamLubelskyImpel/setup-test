@@ -10,10 +10,28 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-SUPPORTED_PRODUCTS = {
-    'merch': "MERCH_SFTP",
-    'salesai': "SALESAI_SFTP"
-}
+
+def order_dealers_by_product(active_dealers, ordered_dealers):
+    """Order active dealers by product and store their SFTP keys."""
+
+    for dealer in active_dealers:
+        dealer_id, impel_dealer_id, metadata = dealer[0], dealer[1], dealer[2]
+        logger.info(f"Processing dealer_id: {dealer_id} - impel_dealer_id: {impel_dealer_id} - metadata: {metadata}")
+        
+        if metadata:
+            syndications = metadata.get("syndications", {})
+            for product, extra_data in syndications.items():
+                if extra_data.get("active", False):
+                    if not product in ordered_dealers:
+                        ordered_dealers[product] = {"dealers": [], "sftp_key": ""}
+                    if not ordered_dealers[product]["sftp_key"]:
+                        ordered_dealers[product]["sftp_key"] = extra_data.get("sftp_key", "")
+                    
+                    dealer_data = {"dealer_id": dealer_id, "impel_dealer_id": impel_dealer_id}
+                    ordered_dealers[product]["dealers"].append(dealer_data)
+
+    logger.info(f"Active dealers by product: {ordered_dealers}")
+
 
 def lambda_handler(event, context):
     """Lambda handler for checking missing inventory files."""
@@ -23,28 +41,28 @@ def lambda_handler(event, context):
     logger.info("Checking missing inbound files")
     
     error_report = []
+    ordered_dealers = {}
 
     try:
         rds_instance = RDSInstance()
         active_dealers = rds_instance.get_active_dealers()
+        order_dealers_by_product(active_dealers, ordered_dealers)
 
-        logger.info(f"Active dealers: {active_dealers}")
-
-        for product,secret_key in SUPPORTED_PRODUCTS.items():
-            logger.info(f"Checking for files on {secret_key}...")
+        for product,dealers_data in ordered_dealers.items():
+            logger.info(f"Checking for files on {dealers_data['sftp_key']}...")
                 
-            hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", secret_key)
+            hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", dealers_data['sftp_key'])
             
             with connect_sftp_server(hostname, port, username, password) as sftp:
-                logger.info(f"Connected to {secret_key} SFTP server.")
+                logger.info(f"Connected to {dealers_data['sftp_key']} SFTP server.")
 
-                for dealer in active_dealers:
-                    dealer_id, impel_dealer_id = dealer[0], dealer[1]
+                for dealer in dealers_data["dealers"]:
+                    dealer_id, impel_dealer_id = dealer["dealer_id"], dealer["impel_dealer_id"]
                     logger.info(f"Checking dealer_id: {dealer_id} - impel_dealer_id: {impel_dealer_id}")
 
                     error_msg = ""
                     filename = f"{impel_dealer_id}.csv"
-                    logger.info(f"Checking for file: {filename} on {secret_key}")
+                    logger.info(f"Checking for file: {filename} on {dealers_data['sftp_key']}")
 
                     try:
                         file_attr = sftp.stat(filename)
@@ -54,11 +72,11 @@ def lambda_handler(event, context):
                         logger.info(f"File {filename} exists. Last modified: {modified_datetime.isoformat()}")
 
                         if modified_datetime < datetime.now() - timedelta(hours=24):
-                            error_msg = f"File {filename} is older than 24 hours, Dealer is outdated on {secret_key}."
+                            error_msg = f"File {filename} is older than 24 hours, Dealer is outdated on {dealers_data['sftp_key']}."
                             logger.info(error_msg)
 
                     except FileNotFoundError:
-                        error_msg = f"File {filename} does not exist on {secret_key}."
+                        error_msg = f"File {filename} does not exist on {dealers_data['sftp_key']}."
                         logger.info(error_msg)
                     
                     if error_msg:
