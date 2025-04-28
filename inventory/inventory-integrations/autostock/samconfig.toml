@@ -1,0 +1,33 @@
+version=0.1
+[default.global.parameters]
+s3_prefix = "143813444726"
+
+[prod.global.parameters]
+s3_prefix = "196800776222"
+
+[test.global.parameters]
+s3_prefix = "143813444726"
+
+[default.deploy.parameters]
+profile = "unified-test"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
+
+[test.deploy.parameters]
+profile = "unified-test"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+role_arn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
+stack_name = "autostock-inv-integration-test"
+parameter_overrides = "Environment=\"test\""
+
+[prod.deploy.parameters]
+profile = "unified-prod"
+confirm_changeset = true
+capabilities = "CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+role_arn = "arn:aws:iam::196800776222:role/cfn-deployer-universal-integration"
+stack_name = "autostock-inv-integration-prod"
+parameter_overrides = """\
+    Environment=\"prod\"\
+"""

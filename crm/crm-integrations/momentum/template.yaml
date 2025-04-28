@@ -103,6 +103,7 @@ Resources:
                   - !GetAtt SendActivityQueue.Arn
                   - !GetAtt TransformNewLeadQueue.Arn
                   - !GetAtt TransformLeadUpdateQueue.Arn
+                  - !GetAtt DeduplicateNewLeadsQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -156,16 +157,18 @@ Resources:
   TransformNewLeadQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue"
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadQueue.fifo"
+      FifoQueue: true
       VisibilityTimeout: 60
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt TransformNewLeadDeadLetterQueue.Arn
         maxReceiveCount: 3
-        
+
   TransformNewLeadDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ"
+      QueueName: !Sub "momentum-${Environment}-TransformNewLeadDLQ.fifo"
+      FifoQueue: true
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 10
 
@@ -189,11 +192,73 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
-  TransformNewLeadQueuePolicy:
+  DeduplicateNewLeads:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub momentum-${Environment}-DeduplicateNewLeads
+      CodeUri: app/
+      Handler: deduplicate_new_leads.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          TRANSFORM_NEW_LEAD_QUEUE: !Ref TransformNewLeadQueue
+
+  DeduplicateNewLeadsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/momentum-${Environment}-DeduplicateNewLeads"
+
+  DeduplicateNewLeadsEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt DeduplicateNewLeadsQueue.Arn
+      MaximumBatchingWindowInSeconds: 0
+      FunctionName: !GetAtt DeduplicateNewLeads.Arn
+
+  DeduplicateNewLeadsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-DeduplicateNewLeadsQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeduplicateNewLeadsDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  DeduplicateNewLeadsDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "momentum-${Environment}-DeduplicateNewLeadsDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 10
+
+  DeduplicateNewLeadsDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "momentum-${Environment}-DeduplicateNewLeadsDLQ"
+      AlarmDescription: There are over 1 unprocessed messages in the Momentum Deduplicate New Leads DLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DeduplicateNewLeadsDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  DeduplicateNewLeadsPolicy:
     Type: "AWS::SQS::QueuePolicy"
     Properties:
       Queues:
-        - !Ref TransformNewLeadQueue
+        - !Ref DeduplicateNewLeadsQueue
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -201,7 +266,7 @@ Resources:
             Principal:
               Service: events.amazonaws.com
             Action: sqs:SendMessage
-            Resource: !GetAtt TransformNewLeadQueue.Arn
+            Resource: !GetAtt DeduplicateNewLeadsQueue.Arn
             Condition:
               ArnEquals:
                 aws:SourceArn: !GetAtt EventBridgeRuleNewLead.Arn
@@ -222,8 +287,8 @@ Resources:
             key:
               - { "prefix": "raw/momentum/" }
       Targets:
-        - Id: "TransformNewLeadTarget"
-          Arn: !GetAtt TransformNewLeadQueue.Arn
+        - Id: "DeduplicateNewLeadsTarget"
+          Arn: !GetAtt DeduplicateNewLeadsQueue.Arn
   
   SendActivityQueue:
     Type: AWS::SQS::Queue
@@ -442,5 +507,16 @@ Resources:
       - TransformLeadUpdateLogGroup
     Properties:
       LogGroupName: !Ref TransformLeadUpdateLogGroup
+      DestinationArn: !GetAtt MonitoringMomentum.Arn
+      FilterPattern: "SUPPORT ALERT"
+
+  MonitoringDeduplicateNewLeadsSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn:
+      - LogGroupInvokeLambdaPermission
+      - MonitoringMomentum
+      - DeduplicateNewLeadsLogGroup
+    Properties:
+      LogGroupName: !Ref DeduplicateNewLeadsLogGroup
       DestinationArn: !GetAtt MonitoringMomentum.Arn
       FilterPattern: "SUPPORT ALERT"

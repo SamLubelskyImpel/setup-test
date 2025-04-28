@@ -76,16 +76,6 @@ Resources:
         - Key: Product
           Value: appointment-service
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "appointment service rds access"
-      GroupId: !If [IsProd, "sg-00e12bc4c116eb820", "sg-00b911ee260ce5153"]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -330,6 +320,30 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-RetrieveTimeslots"
 
+  UpdateAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "appointment-service-${Environment}-UpdateAppointment"
+      CodeUri: app/
+      Handler: update_appointment.lambda_handler
+      Timeout: 30
+      MemorySize: 1024
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Put:
+          Type: Api
+          Properties:
+            RestApiId: !Ref AppointmentServiceApiGateway
+            Path: /appointments/v1
+            Method: PUT
+      Layers:
+        - !Ref ApptOrmLayer
+
+  UpdateAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-UpdateAppointment"
+
   ApptOrmLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -401,6 +415,26 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  UpdateAppointmentErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub appointment-service-${Environment}-UpdateAppointment
+      AlarmDescription: Appointment service failed to process incoming request
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref UpdateAppointment
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   CheckDealerOpCodes:
     Type: AWS::Serverless::Function
     Properties:
@@ -430,3 +464,33 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt CheckOpCodesScheduledEvent.Arn
+
+  DealerOnboarding:
+      Type: AWS::Serverless::Function
+      Properties:
+        FunctionName: !Sub "appointment-service-${Environment}-DealerOnboarding"
+        CodeUri: app/
+        Handler: dealer_onboarding_handler.lambda_handler
+        Timeout: 30
+        MemorySize: 1536
+        Role: !GetAtt LambdaRole.Arn
+        Events:
+          Get:
+            Type: Api
+            Properties:
+              RestApiId: !Ref AppointmentServiceApiGateway
+              Path: /appointments/v1/dealer/onboarding
+              Method: GET
+          Post:
+            Type: Api
+            Properties:
+              RestApiId: !Ref AppointmentServiceApiGateway
+              Path: /appointments/v1/dealer/onboarding
+              Method: POST
+        Layers:
+          - !Ref ApptOrmLayer
+
+  DealerOnboardingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/appointment-service-${Environment}-DealerOnboarding"

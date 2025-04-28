@@ -40,6 +40,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveInternalLead.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 RETRIEVE_LEAD_BY_CRM_IDS_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -193,6 +202,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+DEALER_LEAD_STATUSES_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetDealerLeadStatuses.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 CRM_API_INTERPOLATION_DATA = {
     "CRM_API_AWS_VALIDATION": CRM_API_AWS_VALIDATION,
     "CREATE_LEAD_LAMBDA_INFO": CREATE_LEAD_LAMBDA_INFO,
@@ -214,5 +232,7 @@ CRM_API_INTERPOLATION_DATA = {
     "RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO": RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO,
     "UPDATE_ACTIVITY_LAMBDA_INFO": UPDATE_ACTIVITY_LAMBDA_INFO,
     "DEALERS_CONFIG_LAMBDA_INFO": DEALERS_CONFIG_LAMBDA_INFO,
-    "RETRIEVE_ACTIVITY_LAMBDA_INFO": RETRIEVE_ACTIVITY_LAMBDA_INFO
+    "RETRIEVE_ACTIVITY_LAMBDA_INFO": RETRIEVE_ACTIVITY_LAMBDA_INFO,
+    "DEALER_LEAD_STATUSES_LAMBDA_INFO": DEALER_LEAD_STATUSES_LAMBDA_INFO,
+    "RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO": RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO
 }

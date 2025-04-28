@@ -183,3 +183,36 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/xtime-${Environment}-GetDealerOpcodes"
+
+  UpdateAppointment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub xtime-${Environment}-UpdateAppointment
+      CodeUri: app/
+      Handler: appointment_handler.update_appointment
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+
+  UpdateAppointmentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/xtime-${Environment}-UpdateAppointment"
+
+  UpdateAppointmentCloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "xtime-${Environment}-UpdateAppointmentFailureAlarm"
+      AlarmDescription: "Alarm for failed invocations of UpdateAppointment Lambda"
+      Namespace: "AWS/Lambda"
+      MetricName: "Errors"
+      Dimensions:
+        - Name: "FunctionName"
+          Value: !Ref UpdateAppointment
+      Statistic: "Sum"
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'

@@ -50,21 +50,6 @@ class RDSInstance:
         self.rds_connection.commit()
         return cursor
 
-    def select_db_dealer_sftp_details(self, provider_dealer_id):
-        """Get the db dealer id for the given provider dealer id."""
-        db_dealer_sftp_details_query = f"""
-            select iv.merch_dealer_id, iv.salesai_dealer_id, iv.merch_is_active, iv.salesai_is_active
-            from {self.schema}.inv_dealer iv
-            join {self.schema}.inv_dealer_integration_partner idipv on idipv.dealer_id = iv.id
-            where idipv.provider_dealer_id = '{provider_dealer_id}' and idipv.is_active;
-        """
-        results = self.execute_rds(db_dealer_sftp_details_query)
-        db_dealer_sftp_details = results.fetchall()
-        if not results:
-            return []
-        else:
-            return db_dealer_sftp_details
-
     def select_db_dip_metadata(self, provider_dealer_id) -> dict:
         """Get the db dip metadata for the given provider dealer id."""
         query = f"""
@@ -160,6 +145,7 @@ class RDSInstance:
         in the current_feed_inventory_ids list, but only if on_lot is currently true.
         """
         try:
+            logger.info(f'Batch updating on_lot for dealer_integration_partner_id {dealer_integration_partner_id}')
             with self.rds_connection.cursor() as cursor:
                 select_query = f"""
                 SELECT id FROM {self.schema}.inv_inventory
@@ -249,14 +235,15 @@ class RDSInstance:
                 new_or_used = data.new_or_used,
                 oem_name = data.oem_name,
                 make = data.make,
-                year = data.year
-            FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year)
+                year = data.year,
+                metadata = to_jsonb(data.metadata)
+            FROM (VALUES %s) AS data(id, type, new_or_used, oem_name, make, year, metadata)
             WHERE v.id = data.id;
             """
             update_values = [
                 (
                     v['id'], v.get('type'), v.get('new_or_used'),
-                    v.get('oem_name'), v.get('make'), v.get('year')
+                    v.get('oem_name'), v.get('make'), v.get('year'), v.get('metadata')
                 )
                 for v in update_data
             ]
@@ -269,7 +256,7 @@ class RDSInstance:
             logger.info(f"Inserting {len(insert_data)} new vehicles.")
 
             insert_query = f"""
-            INSERT INTO {self.schema}.inv_vehicle (vin, dealer_integration_partner_id, model, stock_num, mileage, type, new_or_used, oem_name, make, year)
+            INSERT INTO {self.schema}.inv_vehicle (vin, dealer_integration_partner_id, model, stock_num, mileage, type, new_or_used, oem_name, make, year, metadata)
             VALUES %s
             RETURNING id, vin, dealer_integration_partner_id, model, stock_num, mileage;
             """
@@ -278,7 +265,7 @@ class RDSInstance:
                 batch = insert_data[i:i+100]
                 insert_values = [
                     (v['vin'], dealer_integration_partner_id, v['model'], v['stock_num'], v['mileage'],
-                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'])
+                     v['type'], v['new_or_used'], v['oem_name'], v['make'], v['year'], v['metadata'])
                     for v in batch
                 ]
 
@@ -304,10 +291,15 @@ class RDSInstance:
         inventory_ids = set()
 
         insert_query = f"""
-        INSERT INTO {self.schema}.inv_inventory (vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color, 
-        interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin, interior_material, trim, 
-        factory_certified, region, on_lot, metadata, received_datetime, photo_url, vdp, comments, options, priority_options)
-        VALUES %s
+        INSERT INTO {self.schema}.inv_inventory (
+            vehicle_id, dealer_integration_partner_id, list_price, special_price, fuel_type, exterior_color,
+            interior_color, doors, seats, transmission, drive_train, cylinders, body_style, series, vin,
+            interior_material, trim, factory_certified, region, on_lot, metadata, received_datetime,
+            photo_url, vdp, comments, options, priority_options, cost_price, inventory_status,
+            source_data_drive_train, source_data_interior_material_description, source_data_transmission,
+            source_data_transmission_speed, transmission_speed, build_data, highway_mpg, city_mpg,
+            engine, engine_displacement
+        ) VALUES %s
         ON CONFLICT (vehicle_id, dealer_integration_partner_id) DO UPDATE SET
             list_price = EXCLUDED.list_price,
             special_price = EXCLUDED.special_price,
@@ -333,7 +325,19 @@ class RDSInstance:
             vdp = EXCLUDED.vdp,
             comments = EXCLUDED.comments,
             options = EXCLUDED.options,
-            priority_options = EXCLUDED.priority_options
+            priority_options = EXCLUDED.priority_options,
+            cost_price = EXCLUDED.cost_price,
+            inventory_status = EXCLUDED.inventory_status,
+            source_data_drive_train = EXCLUDED.source_data_drive_train,
+            source_data_interior_material_description = EXCLUDED.source_data_interior_material_description,
+            source_data_transmission = EXCLUDED.source_data_transmission,
+            source_data_transmission_speed = EXCLUDED.source_data_transmission_speed,
+            transmission_speed = EXCLUDED.transmission_speed,
+            build_data = EXCLUDED.build_data,
+            highway_mpg = EXCLUDED.highway_mpg,
+            city_mpg = EXCLUDED.city_mpg,
+            engine = EXCLUDED.engine,
+            engine_displacement = EXCLUDED.engine_displacement
         RETURNING id;
         """
         new_inventory_records = []
@@ -348,7 +352,10 @@ class RDSInstance:
                     inv.get('transmission'), inv.get('drive_train'), inv.get('cylinders'), inv.get('body_style'), inv.get('series'),
                     inv['vin'], inv.get('interior_material'), inv.get('trim'), inv.get('factory_certified'), inv.get('region'),
                     inv.get('on_lot'), inv.get('metadata'), inv.get('received_datetime'), inv.get('photo_url'), inv.get('vdp'),
-                    inv.get('comments'), inv.get('options'), inv.get('priority_options')
+                    inv.get('comments'), inv.get('options'), inv.get('priority_options'), inv.get('cost_price'), inv.get('inventory_status'),
+                    inv.get('source_data_drive_train'), inv.get('source_data_interior_material_description'), inv.get('source_data_transmission'),
+                    inv.get('source_data_transmission_speed'), inv.get('transmission_speed'), inv.get('build_data'), inv.get('highway_mpg'), inv.get('city_mpg'),
+                    inv.get('engine'), inv.get('engine_displacement')
                 )
                 for inv in batch
             ]
@@ -368,3 +375,103 @@ class RDSInstance:
             raise ValueError("Mismatch between existing and new inventory records.")
 
         return inventory_ids
+
+    def get_active_dealer_integration_partners(self, integration_partner):
+        """
+        Retrieve the active dealer integration partner IDs and provider dealer IDs
+        for the specified integration partner.
+        """
+        query = f"""
+            SELECT dip.id, dip.provider_dealer_id
+            FROM {self.schema}.inv_dealer_integration_partner AS dip
+            JOIN {self.schema}.inv_integration_partner AS ip
+            ON ip.id = dip.integration_partner_id
+            WHERE ip.impel_integration_partner_id = '{integration_partner}'
+            AND dip.is_active = 'TRUE';
+        """
+        results = self.execute_rds(query)
+        dip_result = results.fetchall()
+        return dip_result
+
+    def get_on_lot_inventory(self, dip_id):
+        """
+        Retrieve the on_lot inventory data for the specified
+        dealer integration partner IDs
+        """
+        query = f"""
+            SELECT
+                dip.provider_dealer_id AS "inv_dealer_integration_partner|provider_dealer_id",
+                veh.vin AS "inv_vehicle|vin",
+                veh.type AS "inv_vehicle|type",
+                veh.mileage AS "inv_vehicle|mileage",
+                veh.make AS "inv_vehicle|make",
+                veh.model AS "inv_vehicle|model",
+                veh.year AS "inv_vehicle|year",
+                veh.new_or_used AS "inv_vehicle|new_or_used",
+                veh.stock_num AS "inv_vehicle|stock_num",
+                inv.cost_price AS "inv_inventory|cost_price",
+                inv.fuel_type AS "inv_inventory|fuel_type",
+                inv.exterior_color AS "inv_inventory|exterior_color",
+                inv.interior_color AS "inv_inventory|interior_color",
+                inv.doors AS "inv_inventory|doors",
+                inv.transmission AS "inv_inventory|transmission",
+                inv.photo_url AS "inv_inventory|photo_url",
+                inv.comments AS "inv_inventory|comments",
+                inv.drive_train AS "inv_inventory|drive_train",
+                inv.cylinders AS "inv_inventory|cylinders",
+                inv.body_style AS "inv_inventory|body_style",
+                inv.interior_material AS "inv_inventory|interior_material",
+                inv.source_data_drive_train AS "inv_inventory|source_data_drive_train",
+                inv.source_data_interior_material_description AS "inv_inventory|source_data_interior_material_description",
+                inv.list_price AS "inv_inventory|list_price",
+                inv.special_price AS "inv_inventory|special_price",
+                inv.source_data_transmission AS "inv_inventory|source_data_transmission",
+                inv.source_data_transmission_speed AS "inv_inventory|source_data_transmission_speed",
+                inv.transmission_speed AS "inv_inventory|transmission_speed",
+                inv.build_data AS "inv_inventory|build_data",
+                inv.highway_mpg AS "inv_inventory|highway_mpg",
+                inv.city_mpg AS "inv_inventory|city_mpg",
+                inv.vdp AS "inv_inventory|vdp",
+                inv.trim AS "inv_inventory|trim",
+                inv.engine AS "inv_inventory|engine",
+                inv.engine_displacement AS "inv_inventory|engine_displacement",
+                inv.factory_certified AS "inv_inventory|factory_certified",
+                inv.options AS "inv_inventory|options",
+                inv.priority_options AS "inv_inventory|priority_options"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            WHERE inv.dealer_integration_partner_id = {dip_id}
+            AND inv.on_lot = 'TRUE'
+            GROUP BY inv.id, veh.id, dip.id;
+            """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+    def get_vehicle_metadata(self, provider_dealer_id, vin_list):
+
+        vin_list = [f'\'{s}\'' for s in vin_list]
+        query = f"""
+            SELECT
+                veh.vin AS "vin",
+                veh.metadata AS "metadata"
+            FROM {self.schema}.inv_inventory AS inv
+            JOIN {self.schema}.inv_vehicle AS veh ON inv.vehicle_id = veh.id
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip ON inv.dealer_integration_partner_id = dip.id
+            WHERE dip.provider_dealer_id = '{provider_dealer_id}'
+            AND inv.on_lot = 'TRUE'
+            AND veh.vin in ({",".join(vin_list)});
+        """
+        results = self.execute_rds(query)
+        inv_rows = results.fetchall()
+        inv_columns = [desc[0] for desc in results.description]
+        return [dict(zip(inv_columns, row)) for row in inv_rows]
+
+
+    def find_impel_integration_partner_id(self, provider_dealer_id):
+        """Query for DIP ID based on provider dealer ID."""
+        query = f"SELECT ip.impel_integration_partner_id FROM {self.schema}.inv_dealer_integration_partner AS dip JOIN {self.schema}.inv_integration_partner AS ip ON ip.id = dip.integration_partner_id WHERE dip.provider_dealer_id = '{provider_dealer_id}';"
+        result = self.execute_rds(query).fetchone()
+        return result[0] if result else None

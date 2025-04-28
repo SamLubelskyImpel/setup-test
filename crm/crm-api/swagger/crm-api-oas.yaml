@@ -61,7 +61,7 @@ paths:
                       type: string
                       description: Lead ID in the CRM
                       example: 'D973DAF4-D0F2'
-                      maxLength: 50
+                      maxLength: 100
                     lead_ts:
                       type: string
                       description: Lead timestamp in UTC format
@@ -71,10 +71,6 @@ paths:
                 - required:
                     - consumer_id
                     - lead_status
-                    - lead_substatus
-                    - lead_comment
-                    - lead_origin
-                    - lead_source
                     - vehicles_of_interest
                 - type: object
                   properties:
@@ -98,12 +94,6 @@ paths:
                       items:
                         allOf:
                           - $ref: '#/components/schemas/Salesperson'
-                          - required:
-                              - crm_salesperson_id
-                              - first_name
-                              - last_name
-                              - email
-                              - phone
                 - type: object
                   properties:
                     metadata:
@@ -158,7 +148,7 @@ paths:
                           type: string
                           description: The first point of contact or channel through which the lead is generated
                           example: "INTERNET"
-                          maxLength: 50
+                          maxLength: 100
                         lead_source:
                           type: string
                           description: The specific channel through which the lead was generated
@@ -228,6 +218,20 @@ paths:
           required: false
           schema:
             type: string
+        - name: consumer_id
+          in: query
+          description: The ID of the consumer. Requires `dealer_id` to be provided when querying by `consumer_id`.
+          required: false
+          schema:
+            type: integer
+        - name: sort_order
+          in: query
+          description: Determines the sorting order of the response data by "db_creation_date". Accepts "asc" for ascending and "desc" for descending.
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - "$ref": '#/components/parameters/page'
         - "$ref": '#/components/parameters/resultCount'
   /leads/{lead_id}:
@@ -293,11 +297,11 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
+      operationId: put-lead
       summary: This endpoint updates an existing lead in the CRM persistence data layer. The existing vehicles in the 'vehicles_of_interest' array won't be modified. Instead, new vehicles will be added to the array.
       #{{UPDATE_LEAD_LAMBDA_INFO}}
       tags:
         - Leads
-      operationId: put-lead
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.
@@ -340,9 +344,81 @@ paths:
                       type: object
                       additionalProperties: true
                       example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
+  
+  /internal/leads/{lead_id}:
+    get:
+      operationId: get-internal-lead
+      summary: Retrieve a specific lead by ID for internal usage
+      #{{RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - "$ref": "#/components/parameters/leadId"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      consumer_id:
+                        type: integer
+                        description: Unique identifier for the associated consumer
+                        example: 2
+                      crm_lead_id:
+                        type: string
+                        description: The unique lead ID in the CRM system
+                        example: "12345-67890"
+                      crm_vendor_name:
+                        type: string
+                        description: The name of the CRM vendor integration partner
+                        example: "VinSolutions"
+                  - $ref: '#/components/schemas/Lead'
+                  - type: object
+                    properties:
+                      vehicles_of_interest:
+                        allOf:
+                          - $ref: '#/components/schemas/VehiclesOfInterest'
+                          - type: array
+                            items:
+                              type: object
+                              properties:
+                                db_creation_date:
+                                  type: string
+                                  format: date-time
+                                  description: The created datetime of the vehicle in the unified CRM layer.
+                                  example: "2023-10-16T20:44:12.027184+00:00"
+                      metadata:
+                        description: Metadata for a lead
+                        type: object
+                        additionalProperties: true
+                        example: {"crmLeadStatus": "Active", "appraisalLink": "https://abc.com"}
+                      lead_ts:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the CRM.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+                      db_creation_date:
+                        type: string
+                        format: date-time
+                        description: The created datetime of the lead in the unified CRM layer.
+                        example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
 
   /leads/{lead_id}/status:
     get:
+      operationId: get-lead-status
       summary: Retrieve the current status of a specific lead.
       #{{RETRIEVE_LEAD_STATUS_LAMBDA_INFO}}
       tags:
@@ -384,6 +460,7 @@ paths:
 
   /leads/{lead_id}/salespersons:
     get:
+      operationId: get-lead-salespersons
       summary: Get an array of salespersons assigned to a lead, with the primary salesperson listed first.
       #{{RETRIEVE_SALESPERSONS_DATA_LAMBDA_INFO}}
       tags:
@@ -413,6 +490,7 @@ paths:
           "$ref": "#/components/responses/500"
   /leads/{lead_id}/activities:
     get:
+      operationId: get-lead-activities
       summary: This endpoint returns all existing activites for a given lead ID.
       #{{RETRIEVE_LEAD_ACTIVITIES_LAMBDA_INFO}}
       tags:
@@ -516,11 +594,11 @@ paths:
 
   /consumers:
     post:
+      operationId: post-consumer
       summary: This endpoint creates a record for a Consumer in the CRM persistence data layer. The crm_consumer_id field should only be included in the request body if the caller is creating a consumer on behalf of the CRM. Chat AI should not include this field.
       #{{CREATE_CONSUMER_LAMBDA_INFO}}
       tags:
         - Consumers
-      operationId: post-consumer
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
@@ -564,11 +642,11 @@ paths:
 
   /consumers/{consumer_id}:
     get:
+      operationId: get-consumer
       summary: Retrieve consumer by ID
       #{{RETRIEVE_CONSUMER_LAMBDA_INFO}}
       tags:
         - Consumers
-      operationId: get-customer
       description: Returns a consumer by their ID.
       parameters:
         - "$ref": "#/components/parameters/partnerId"
@@ -598,11 +676,11 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
+      operationId: put-consumer
       summary: This endpoint updates an existing consumer in the CRM persistence data layer.
       #{{UPDATE_CONSUMER_LAMBDA_INFO}}
       tags:
         - Consumers
-      operationId: put-consumer
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.
@@ -668,6 +746,7 @@ paths:
 
   /activities:
     post:
+      operationId: post-activity
       summary: This endpoint allows for the creation of a new activity associated with a specific lead in the CRM persistence layer. The "activity_type" and "activity_requested_ts" fields are required for all activities. For activities needing scheduling or completion by a specific date and time, the "activity_due_ts" is essential. Additionally, when the activity_type is set to "note", the notes field becomes mandatory.
       #{{CREATE_ACTIVITY_LAMBDA_INFO}}
       tags:
@@ -708,6 +787,7 @@ paths:
           "$ref": "#/components/responses/500"
   /activities/{activity_id}:
     put:
+      operationId: put-activity
       summary: This endpoint updates an existing activity in the CRM persistence data layer.
       #{{UPDATE_ACTIVITY_LAMBDA_INFO}}
       tags:
@@ -798,6 +878,7 @@ paths:
           "$ref": "#/components/responses/500"
   /dealers:
     get:
+      operationId: get-dealers
       summary: This endpoint returns all active dealers for a given integration partner.
       #{{RETRIEVE_DEALERS_LAMBDA_INFO}}
       tags:
@@ -805,7 +886,13 @@ paths:
       parameters:
         - "$ref": "#/components/parameters/partnerId"
         - "$ref": "#/components/parameters/xApiKey"
-        - "$ref": "#/components/parameters/integrationPartnerName"
+        - name: integration_partner_name
+          in: query
+          description: The name of the integration partner assigned by Impel. Can query for multiple partner names when concatenated by the | operator
+          required: true
+          schema:
+            type: string
+            example: "TESTCRM"
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.
@@ -825,6 +912,7 @@ paths:
           "$ref": "#/components/responses/500"
   /dealers/config:
     get:
+      operationId: get-dealers-config
       summary: This endpoint returns dealers config for a given params.
       #{{DEALERS_CONFIG_LAMBDA_INFO}}
       tags:
@@ -852,6 +940,7 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     put:
+      operationId: put-dealers-config
       summary: This endpoint updates dealer config in shared layer.
       #{{DEALERS_CONFIG_LAMBDA_INFO}}
       tags:
@@ -911,6 +1000,7 @@ paths:
         '500':
           "$ref": "#/components/responses/500"
     post:
+      operationId: post-dealers-config
       summary: This endpoint will create new dealer config in shared layer.
       #{{DEALERS_CONFIG_LAMBDA_INFO}}
       tags:
@@ -983,7 +1073,7 @@ paths:
                         type: string
       responses:
         '201':
-          description: Dealer configuration created successfully dealer_id.
+          description: Dealer configuration created successfully dealer_integration_partner_id.
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -996,6 +1086,7 @@ paths:
           "$ref": "#/components/responses/500"
   /dealers/{dealer_id}:
     get:
+      operationId: get-dealer
       summary: Get active dealer by ID. For internal use only.
       #{{RETRIEVE_DEALER_BY_ID_LAMBDA_INFO}}
       tags:
@@ -1049,8 +1140,45 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/{dealer_id}/lead_statuses:
+    get:
+      summary: Get lead statuses from CRM API.
+      #{{DEALER_LEAD_STATUSES_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: dealer_id
+          in: path
+          description: The ID assigned to the dealership by Impel during onboarding.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            example: "test_dealer_id"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: object
+                items:
+                  $ref: '#/components/schemas/DealerLeadStatuses'
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No lead status found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
+
   /dealers/{dealer_id}/salespersons:
     get:
+      operationId: get-dealer-salespersons
       summary: Get saleslpersons from CRM API.
       #{{RETRIEVE_SALESPERSONS_BY_DEALER_ID_LAMBDA_INFO}}
       tags:
@@ -1086,6 +1214,7 @@ paths:
           "$ref": "#/components/responses/500"
   /upload:
     post:
+      operationId: post-upload
       summary: This endpoint is designated for internal operations, specifically for uploading standardized, transformed data into the CRM API database.
       #{{UPLOAD_DATA_LAMBDA_INFO}}
       tags:
@@ -1299,6 +1428,24 @@ components:
           type: string
           description: The name of the dealer.
           example: "Test Dealership"
+    DealerLeadStatuses:
+      description: Object containing generic and custom lead statuses
+      type: object
+      properties:
+        generic_statuses:
+          description: List of generic lead statuses.
+          type: array
+          items:
+            description: The generic status name.
+            type: string
+            example: "New Lead"
+        custom_statuses:
+          description: List of custom lead statuses.
+          type: array
+          items:
+            description: The custom status name.
+            type: string
+            example: "Follow Up"
     VehiclesOfInterest:
       description: An array of vehicles the lead was interested in
       type: array
@@ -1390,7 +1537,7 @@ components:
           condition:
             type: string
             description: Condition of the vehicle
-            enum: [New, Used]
+            enum: [New, Used, CPO]
             example: Used
             maxLength: 20
           odometer_units:
@@ -1499,41 +1646,37 @@ components:
         lead_status:
           type: string
           description: A status that can be used to group leads that are in similar state
-          minLength: 1
           maxLength: 50
           example: "ACTIVE"
         lead_substatus:
           type: string
           description: Current state of the lead
-          minLength: 1
           maxLength: 50
           example: "Appointment Set"
         lead_comment:
           type: string
           description: Comment about the lead or generated text from the source on behalf of the lead
-          minLength: 1
-          maxLength: 5000
+          maxLength: 10000
           example: "Does this car have a sunroof?"
         lead_origin:
           type: string
           description: The first point of contact or channel through which the lead is generated
           enum: [INTERNET, CALL, WALK-IN, THIRD PARTY, OTHER]
           example: "INTERNET"
-          maxLength: 50
+          maxLength: 100
         lead_source:
           type: string
           description: The specific channel through which the lead was generated.
-          minLength: 1
           maxLength: 200
           example: cars.com
         lead_source_detail:
           type: string
           description: The specific detail about the lead source.
-          minLength: 1
-          maxLength: 100
+          maxLength: 200
           example: "Inventory Leads Website"
         vehicles_of_interest:
           $ref: '#/components/schemas/VehiclesOfInterest'
+
     Salesperson:
       description: An object containing all information about a salesperson
       type: object
@@ -1714,7 +1857,7 @@ components:
       schema:
         type: string
         example: "test_crm_lead_id"
-        maxLength: 50
+        maxLength: 100
     crmConsumerId:
       name: crm_consumer_id
       in: path

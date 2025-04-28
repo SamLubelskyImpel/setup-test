@@ -17,9 +17,18 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 s3_client = boto3.client('s3')
 
+
 class NoDealerIdFound(Exception):
     def __init__(self, message=""):
         super().__init__(message)
+
+
+def alert_ce(msg: str):
+    boto3.client("sns").publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=f"[TEKION APC DMS] {msg}",
+    )
+
 
 def get_ftp_credentials():
     """Get FTP credentials from Secrets Manager."""
@@ -79,11 +88,11 @@ def process_file(file: str, ftp: FTP, dealer_id, s3_date_path):
                 file_dealer_id = normalized_row.get("vendor dealer id")
                 if file_dealer_id:
                     break
-        
+
         if not file_dealer_id:
             raise NoDealerIdFound(f"No dealer ID found in file {file}")
-        
-        if file_dealer_id == dealer_id:    
+
+        if file_dealer_id == dealer_id:
             if any(keyword in file for keyword in ["SV"]):
                 s3_key = f"tekion-apc/historical/repair_order/{dealer_id}/{s3_date_path}/{file}"
             elif any(keyword in file for keyword in ["SL"]):
@@ -92,10 +101,10 @@ def process_file(file: str, ftp: FTP, dealer_id, s3_date_path):
                 raise ValueError(f"Unknown file type for file {file}")
 
             upload_file_to_s3(local_file, s3_key)
-            
+
     except Exception as e:
-        logger.error(f"Error processing file {file}: {e}")
-        raise
+        alert_ce(f"Error processing file {file}: {e}")
+        logger.exception(f"Error processing file {file}")
 
 
 def parse_data(data):
@@ -115,10 +124,7 @@ def parse_data(data):
             logger.info(f"New files found in the last 24 hours: {new_files}")
             if new_files:
                 for file in new_files:
-                    try:
-                        process_file(file, ftp, dealer_id, s3_date_path)
-                    except Exception as e:
-                        logger.error(f"Error processing file {file}: {e}")
+                    process_file(file, ftp, dealer_id, s3_date_path)
             else:
                 logger.info(f"No new files found in the last 24 hours for dealer {dealer_id}.")
         else:

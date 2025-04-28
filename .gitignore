@@ -139,3 +139,5 @@ dmypy.json
 
 # Sript files
 inventory/scripts/inserted_inventory_records
+*poetry.lock
+*pyproject.toml

@@ -76,19 +76,6 @@ Resources:
         - Key: Product
           Value: dms-service
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "dms service rds access"
-      GroupId: !If [ IsProd,
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   DmsDataServiceGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -115,7 +102,7 @@ Resources:
                 - x_api_key
               Context:
                 - resourcePath
-              ReauthorizeEvery: 300
+              ReauthorizeEvery: 0
       AccessLogSetting:
         DestinationArn: !GetAtt APILogGroup.Arn
         Format: >-
@@ -140,10 +127,6 @@ Resources:
           ResponseTemplates:
             application/json: '{"message": "$context.authorizer.key"}'
           StatusCode: '403'
-        BAD_REQUEST_BODY:
-          ResponseTemplates:
-            application/json: '{"message": "Dealer with impel_dealer_id already exists."}'
-          StatusCode: '409'
         DEFAULT_5xx:
           ResponseTemplates:
             application/json: |
@@ -324,6 +307,32 @@ Resources:
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
                       ]
 
+  CustomerInbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: customer_inbound.lambda_handler
+      Timeout: 60
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref DmsDataServiceGateway
+            Path: /customer/v1/{customer_id}
+            Method: GET
+      Policies:
+        - Id: DBAuthorizerPermissions
+          Version: '2012-10-17'
+          Statement:
+          - Sid: AllowGetDBInfo
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !If [ IsProd,
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/DMS*",
+                        !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/DMS*"
+                      ]
+
   RepairInboundAlarm:
     Type: AWS::CloudWatch::Alarm
     Condition: IsProd
@@ -399,6 +408,27 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref AppointmentInbound
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      TreatMissingData: notBreaching
+
+  CustomerInboundAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub CustomerInboundAlarm-${Environment}
+      AlarmDescription: An error has occurred in the Customer Inbound Lambda
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CustomerInbound
       EvaluationPeriods: 1
       MetricName: Errors
       Namespace: AWS/Lambda

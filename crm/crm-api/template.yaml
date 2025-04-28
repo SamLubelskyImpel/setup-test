@@ -57,6 +57,7 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
         ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
+        # PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -78,16 +79,6 @@ Resources:
           Value: !Ref Environment
         - Key: Product
           Value: crm-api
-
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "crm api rds access"
-      GroupId: !If [IsProd, "sg-00e12bc4c116eb820", "sg-00b911ee260ce5153"]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
 
   LambdaRole:
     Type: AWS::IAM::Role
@@ -201,7 +192,6 @@ Resources:
                       !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/notification-service-test-EventBus"
                     ]
 
-
   CrmApiGateway:
     Type: AWS::Serverless::Api
     Properties:
@@ -308,8 +298,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "crm-api-${Environment}-CreateLead"
-      CodeUri: app/lead/
-      Handler: create_lead.lambda_handler
+      CodeUri: app/
+      Handler: lead.create_lead.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -358,6 +348,25 @@ Resources:
           Properties:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/{lead_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
+  RetrieveInternalLead:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveInternalLead"
+      CodeUri: app/lead/
+      Handler: retrieve_internal_lead.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /internal/leads/{lead_id}
             Method: GET
       Layers:
         - !Ref CrmOrmLayer
@@ -846,3 +855,42 @@ Resources:
         - python3.9
       LicenseInfo: MIT
       RetentionPolicy: Retain
+
+  GetDealerLeadStatuses:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-GetDealerLeadStatuses"
+      CodeUri: app/dealer/
+      Handler: get_dealer_lead_statuses_by_dealer_id.lambda_handler
+      Timeout: 30
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/{dealer_id}/lead_statuses
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
+  GetDealerLeadStatusesError:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub pbs-${Environment}-GetDealerLeadStatusesError
+      AlarmDescription: The Lambda function has failed 3 times within a 15 minute period while attempting to get dealer lead statuses
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref GetDealerLeadStatuses
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 900
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching

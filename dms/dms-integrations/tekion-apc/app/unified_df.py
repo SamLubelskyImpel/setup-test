@@ -88,10 +88,11 @@ def convert_unified_df(json_list):
 def upload_unified_json(json_list, integration_type, source_s3_uri, dms_id):
     """Upload dataframe to unified s3 path for insertion."""
     is_historical = source_s3_uri.split("/")[1] == "historical"
+    is_raw = source_s3_uri.split("/")[1] == "raw"
 
-    upload_year = source_s3_uri.split("/")[2] if not is_historical else source_s3_uri.split("/")[4]
-    upload_month = source_s3_uri.split("/")[3] if not is_historical else source_s3_uri.split("/")[5]
-    upload_date = source_s3_uri.split("/")[4] if not is_historical else source_s3_uri.split("/")[6]
+    upload_year = source_s3_uri.split("/")[2] if not is_historical and not is_raw else source_s3_uri.split("/")[4]
+    upload_month = source_s3_uri.split("/")[3] if not is_historical and not is_raw else source_s3_uri.split("/")[5]
+    upload_date = source_s3_uri.split("/")[4] if not is_historical and not is_raw else source_s3_uri.split("/")[6]
     df = convert_unified_df(json_list)
     if len(df) > 0:
         validate_unified_df_columns(df)

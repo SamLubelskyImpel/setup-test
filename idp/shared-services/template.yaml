@@ -1,0 +1,296 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: idp shared services
+
+Parameters:
+  Environment:
+    Description: The name of the runtime environment
+    Type: String
+    AllowedPattern: "^[a-zA-z0-9-]+$"
+    ConstraintDescription: Must contain only lowercase, uppercase, numbers, or hyphens
+
+Conditions:
+  IsProd:
+    Fn::Equals:
+      - Ref: AWS::AccountId
+      - 196800776222
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Environment:
+      Variables:
+        AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+        ENVIRONMENT: !Ref Environment
+        LOGLEVEL: INFO
+
+Resources:
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub 'idp-shared-services-${Environment}-EventBus'
+      DeadLetterConfig:
+        Arn: !GetAtt EventBusDLQ.Arn
+      Description: Event bus for the IDP Shared Services
+
+  EventBusDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-EventBusDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  EventBusDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "idp-shared-services-${Environment}-EventBusDLQAlarm"
+      AlarmDescription: Events failed to be processed by the IDP EventBus
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventBusDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  EnterpriseBusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub EnterpriseBus-${Environment}-CrossAccountRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub EnterpriseBusPolicy-${Environment}-CrossAccountPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-staging'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Prod1-Unified-Event-Data-Requests-v1',
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Dev1-Unified-Event-Data-Requests-v1'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-staging'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-staging'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
+                    'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
+                  ]
+
+  EnterpriseBusQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !GetAtt ServiceAIEventRuleDLQ.QueueName
+        - !GetAtt IDPEventRuleDLQ.QueueName
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'sqs:SendMessage'
+            Resource: !GetAtt EventBusDLQ.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt EventBus.Arn
+
+  ServiceAIConsumerUnsubEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIConsumerUnsubEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["consumer_unsubscribed"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: consumerUnsubscribeSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-consumer-unsubscribe-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIVinDispoEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIVinDispoEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["vin_disposed"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: vinDisposedSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-vin-disposed-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIApptSchdleEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIApptSchdleEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["service_appointment_scheduled"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: appointmentScheduledSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-appointment-scheduled-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIROSchdleEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-ServiceAIROSchdleEventRule
+      EventPattern:
+        {
+          "source": [{ "prefix": "IDP" }],
+          "detail": {
+            "event_type": ["repair_order_completed"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: roScheduledSQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
+            'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt ServiceAIEventRuleDLQ.Arn
+
+  ServiceAIEventRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-ServiceAIEventRuleDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  IDPEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-IDPEventRule
+      EventPattern: '{"source":[{"prefix":"service_ai"},{"prefix":"sales_ai"}]}'
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Prod1-Unified-Event-Data-Requests-v1',
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Campaign-ETL-Dev1-Unified-Event-Data-Requests-v1'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt IDPEventRuleDLQ.Arn
+
+  IDPEventRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-IDPEventRuleDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  MonitoringRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-MonitoringRule
+      EventPattern: '{"source":[{"prefix":""}]}'
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: Lambda
+          Arn: !GetAtt MonitoringLambda.Arn
+
+  MonitoringInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MonitoringLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt MonitoringRule.Arn
+
+  MonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "idp-shared-services-${Environment}-MonitoringLambda"
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+
+  EventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      Action: events:PutEvents
+      EventBusName: !Ref EventBus
+      Principal: !Ref AWS::AccountId
+      StatementId: 'IDPEventBusStatement'
+
+  IDPEventBusArchive:
+    Type: 'AWS::Events::Archive'
+    Properties: 
+      ArchiveName: !Sub "idp-shared-services-${Environment}-EventBusArchive"
+      Description: Archive for all IDP Event Bus events
+      RetentionDays: 0
+      SourceArn: !GetAtt EventBus.Arn

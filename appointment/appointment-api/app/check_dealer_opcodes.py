@@ -8,7 +8,6 @@ from appt_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from appt_orm.models.dealer import Dealer
 from appt_orm.models.integration_partner import IntegrationPartner
 from appt_orm.models.op_code import OpCode
-from appt_orm.models.op_code_appointment import OpCodeAppointment
 
 
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:143813444726:alert_client_engineering")
@@ -20,47 +19,53 @@ lambda_client = boto3.client("lambda")
 
 def send_opcode_report(report: str) -> None:
     """Send opcode report to CE team."""
-    message = f"OpCode Report by Vendor: {report}"
-    sns_client = boto3.client('sns')
-    sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
-        Message=message,
-        Subject='Appointment Service: Dealer OpCode Report',
-    )
+    try:
+        message = f"OpCode Report by Vendor: {report}"
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=message,
+            Subject='Appointment Service: Dealer OpCode Report',
+            MessageAttributes={
+                "alert_type": {
+                    "DataType": "String",
+                    "StringValue": "support_report"
+                }
+            }
+        )
+        logger.info("OpCode report sent successfully")
+    except Exception as e:
+        logger.error(f"Failed to send opcode report: {e}")
 
 
 def get_opcode_mappings(partner_name: str):
-    dealer_codes = []
     with DBSession() as session:
-        dealer_partners = session.query(
-            DealerIntegrationPartner, Dealer.dealer_name
+        dealer_data = session.query(
+            Dealer.dealer_name,
+            DealerIntegrationPartner.integration_dealer_id,
+            OpCode.op_code
         ).join(
-            Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
+            DealerIntegrationPartner, DealerIntegrationPartner.dealer_id == Dealer.id
         ).join(
             IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+        ).join(
+            OpCode, DealerIntegrationPartner.id == OpCode.dealer_integration_partner_id
         ).filter(
             IntegrationPartner.impel_integration_partner_name == partner_name,
             DealerIntegrationPartner.is_active == True
         ).all()
 
-        for dealer in dealer_partners:
-            op_codes = session.query(
-                OpCodeAppointment, OpCode  # , OpCodeProduct
-            ).join(
-                OpCode, OpCodeAppointment.op_code_id == OpCode.id
-            ).filter(
-                OpCode.dealer_integration_partner_id == dealer.DealerIntegrationPartner.id
-            ).all()
+        dealer_mappings = {}
+        for dealer_name, integration_dealer_id, op_code in dealer_data:
+            if integration_dealer_id not in dealer_mappings:
+                dealer_mappings[integration_dealer_id] = {
+                    "dealer_name": dealer_name,
+                    "integration_dealer_id": integration_dealer_id,
+                    "op_codes": []
+                }
+            dealer_mappings[integration_dealer_id]["op_codes"].append(op_code)
 
-            dealer_op_codes = [code.OpCode.op_code for code in op_codes]
-
-            dealer_codes.append({
-                "dealer_name": dealer.dealer_name,
-                "integration_dealer_id": dealer.DealerIntegrationPartner.integration_dealer_id,
-                "op_codes": dealer_op_codes
-            })
-
-    return dealer_codes
+        return list(dealer_mappings.values())
 
 
 def lambda_handler(event, context):
@@ -72,8 +77,12 @@ def lambda_handler(event, context):
         try:
             # Get mapped opcodes
             db_dealers = get_opcode_mappings(partner)
+            logger.info(f"DB Dealers OpCode Mappings: {db_dealers}")
+
             if not db_dealers:
                 continue
+
+            logger.info(f"DB Dealers: {db_dealers}")
 
             integration_dealer_ids = [
                 dealer["integration_dealer_id"] for dealer in db_dealers
@@ -112,11 +121,19 @@ def lambda_handler(event, context):
                     failed_dealers.append(db_dealer["dealer_name"])
                     continue
 
-                codes = dealer_codes[db_dealer["integration_dealer_id"]]
+                codes_from_vendor = dealer_codes[db_dealer["integration_dealer_id"]]
+                if not codes_from_vendor:
+                    failed_dealers.append(db_dealer["dealer_name"])
+                    continue
+
+                if codes_from_vendor == "ERROR":
+                    failed_dealers.append(db_dealer["dealer_name"])
+                    continue
+
                 missing_codes = []
                 for db_code in db_dealer["op_codes"]:
-                    for code in codes:
-                        if str(db_code) == str(code):
+                    for v_code in codes_from_vendor:
+                        if str(db_code) == str(v_code):
                             break
                     else:
                         missing_codes.append(db_code)

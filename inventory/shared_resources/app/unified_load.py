@@ -20,7 +20,10 @@ def extract_vehicle_data(json_data):
     year_value = json_data.get('inv_vehicle|year')
     try:
         # Only attempt the conversion if year_value is not an empty string
-        year = int(year_value) if year_value.strip() else None
+        if isinstance(year_value, str):
+            year = int(year_value) if year_value.strip() else None
+        else:
+            year = year_value
     except (ValueError, TypeError, AttributeError):
         # Set to None if conversion fails or if year_value is None
         year = None
@@ -43,6 +46,8 @@ def extract_vehicle_data(json_data):
         'year': year,
         'stock_num': json_data.get('inv_vehicle|stock_num', ''),
         'new_or_used': new_or_used,
+        'metadata': json_data.get('inv_vehicle|metadata'),
+        'vehicle_class': json_data.get('inv_vehicle|vehicle_class', '')
     }
     return vehicle_data
 
@@ -58,9 +63,9 @@ def extract_inventory_data(json_data):
             value = value.strip().replace(' ', '')
 
         if ftype == 'int':
-            return int(value.strip())
+            return value if isinstance(value, int) else int(value.strip())
         elif ftype == 'float':
-            return float(value.strip())
+            return value if isinstance(value, float) else float(value.strip())
         elif ftype == 'str':
             return value.strip()
         elif ftype == 'list':
@@ -95,7 +100,19 @@ def extract_inventory_data(json_data):
         'comments': extract_field('inv_inventory|comments'),
         'options': extract_field('inv_inventory|options', ftype='list'),
         'priority_options': extract_field('inv_inventory|priority_options', ftype='list'),
-        "vehicle_data": {  # Fields used to match vehicle data
+        'cost_price': extract_field('inv_inventory|cost_price', ftype='float'),
+        'inventory_status': extract_field('inv_inventory|inventory_status'),
+        'source_data_drive_train': extract_field('inv_inventory|source_data_drive_train'),
+        'source_data_interior_material_description': extract_field('inv_inventory|source_data_interior_material_description'),
+        'source_data_transmission': extract_field('inv_inventory|source_data_transmission'),
+        'source_data_transmission_speed': extract_field('inv_inventory|source_data_transmission_speed'),
+        'transmission_speed': extract_field('inv_inventory|transmission_speed'),
+        'build_data': extract_field('inv_inventory|build_data'),
+        'highway_mpg': extract_field('inv_inventory|highway_mpg', ftype='int'),
+        'city_mpg': extract_field('inv_inventory|city_mpg', ftype='int'),
+        'engine': extract_field('inv_inventory|engine'),
+        'engine_displacement': extract_field('inv_inventory|engine_displacement'),
+        'vehicle_data': {  # Fields used to match vehicle data
             'vin': json_data.get('inv_vehicle|vin', ''),
             'model': json_data.get('inv_vehicle|model', ''),
             'stock_num': json_data.get('inv_vehicle|stock_num', ''),
@@ -172,7 +189,9 @@ def process_and_upload_data(bucket, key, rds_instance: RDSInstance):
                     len(json_data_list))
 
         # Use dealer_integration_partner_id to update the value of on_lot for vehicles
-        rds_instance.update_dealers_other_vehicles(dealer_integration_partner_id, processed_inventory_ids)
+        partner = key.split('/')[1]
+        if partner not in ['carsales']:
+            rds_instance.update_dealers_other_vehicles(dealer_integration_partner_id, processed_inventory_ids)
         logger.info(f"Data processing and upload completed for {decoded_key}")
 
     except Exception:

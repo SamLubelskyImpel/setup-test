@@ -36,7 +36,7 @@ class TekionWrapper:
                 boto3.client("secretsmanager").get_secret_value(SecretId=secret_id)[
                     "SecretString"
                 ]
-            )["TEKION_V3"])
+            )["TEKION_V4"])
 
             return secret["app_id"], secret["secret_key"], secret["url"]
         except ClientError as e:
@@ -69,7 +69,7 @@ class TekionWrapper:
         try:
             resp_data = resp.json()["data"]
             token = resp_data["access_token"]
-            # Refreshes token if request within 10 seconds of expirey time for server leeway.
+            # Refreshes token if request within 10 seconds of expire time for server leeway.
             expire_seconds = int(resp_data["expire_in"]) - 10
             expire_datetime = datetime.utcnow() + timedelta(
                 seconds=expire_seconds
@@ -135,21 +135,111 @@ class TekionWrapper:
             logger.exception(f"Unable to parse {path} response {resp}")
             raise
 
-    def get_repair_orders(self, next_fetch_key=""):
+    def _call_tekion_v4(self, path, next_fetch_key="", params: dict={}, set_date_filter=True):
+        """Retrieve Tekion data from api v4.0.0"""
+        url = f"{self.base_url}/{path}"
+        url_params = params
+        if set_date_filter:
+            end_date = self.end_dt.replace(hour=0, minute=0, second=0)
+            start_date = end_date - timedelta(days=1)
+            url_params["createdStartTime"] = int(start_date.timestamp() * 1000)
+            url_params["createdEndTime"] = int(end_date.timestamp() * 1000)
+        if next_fetch_key:
+            url_params["nextFetchKey"] = next_fetch_key
+        token = self._get_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "dealer_id": self.dealer_id,
+            "app_id": self.app_id,
+            "accept": "application/json",
+        }
+        resp = requests.get(url, headers=headers, params=params)
+        logger.info(f"Url: {url} Params: {params} Status: {resp.status_code}")
+
+        if resp.status_code != 200:
+            logger.error(f"Tekion responded with {resp.status_code} {resp.text}")
+
+        if resp.status_code in (429, 403):
+            self._alert_ce(url, resp.status_code)
+
+        resp.raise_for_status()
+
+        try:
+            resp_json = resp.json()
+            meta = resp_json["meta"]
+
+            if meta["status"] != "success":
+                raise RuntimeError(
+                    f"{path} returned {resp.status_code} but metadata of {meta}"
+                )
+            if meta.get("nextFetchKey", None):
+                return resp_json["data"] + self._call_tekion_v4(
+                    path, next_fetch_key=meta["nextFetchKey"]
+                )
+            else:
+                return resp_json["data"]
+        except JSONDecodeError:
+            logger.exception(f"Unable to parse {path} response {resp}")
+            raise
+
+    def get_repair_orders_v3(self, next_fetch_key=""):
         """Retrieve Tekion Repair Order."""
         return self._call_tekion("openapi/v3.1.0/repair-orders", next_fetch_key=next_fetch_key)
 
-    def get_deals(self, next_fetch_key=""):
+    def get_deals_v4(self, next_fetch_key=""):
         """Retrieve Deals by dealer id"""
-        return self._call_tekion("openapi/v3.1.0/deals", next_fetch_key=next_fetch_key)
+        return self._call_tekion_v4("openapi/v4.0.0/deals", next_fetch_key=next_fetch_key)
 
-    def get_appointments(self, next_fetch_key=""):
+    def get_appointments_v3(self, next_fetch_key=""):
         """Retrieve Appointments by dealer id"""
         return self._call_tekion("openapi/v3.1.0/appointments", next_fetch_key=next_fetch_key)
 
-    def get_customer(self, id: str):
+    def get_customer_v3(self, id: str):
         """Retrieve Customer by id."""
         return self._call_tekion(f"openapi/v3.1.0/customers", params={ "id": id }, set_date_filter=False)
+
+    def get_customer_v4(self, id: str):
+        """Retrieve Customer by id."""
+        return self._call_tekion_v4(f"openapi/v4.0.0/customers/", params={ "customerId": id }, set_date_filter=False)
+
+    def get_employee_v4(self, id: str):
+        """Retrieve User (Employee) by id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/users/{id}", set_date_filter=False)
+
+    def get_deal_customers_v4(self, deal_id: str):
+        """Retrieve all Customers associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/customers", set_date_filter=False)
+
+    def get_deal_payment_v4(self, deal_id: str):
+        """Retrieve Payment Details associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment", set_date_filter=False)
+
+    def get_deal_service_contracts_v4(self, deal_id: str):
+        """Retrieve all Service Contracts (fnis) associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/deal-payment/fnis", set_date_filter=False)
+
+    def get_deal_trade_ins_v4(self, deal_id: str):
+        """Retrieve all Trade Ins associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/trade-ins", set_date_filter=False)
+
+    def get_deal_gross_details_v4(self, deal_id: str):
+        """Retrieve Gross Details associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/gross-details", set_date_filter=False)
+
+    def get_deal_vehicles_v4(self, deal_id: str):
+        """Retrieve all Vehicles associated with a Deal by Deal id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/vehicles", set_date_filter=False)
+
+    def get_vehicle_warranties_v4(self, vehicle_inventory_id: str):
+        """Retrieve all Warranties associated with a Vehicle by Vehicle Inventory id"""
+        return self._call_tekion_v4(f"openapi/v4.0.0/vehicle-inventory/{vehicle_inventory_id}/warranties", set_date_filter=False)
+
+    def get_deal_assignees_v4(self, deal_id: str):
+        """
+        Retrieve all Sales Associates associated with a Deal by Deal id.
+        Further API call is required for specific information about assignees
+        """
+        return self._call_tekion_v4(f"openapi/v4.0.0/deals/{deal_id}/assignees", set_date_filter=False)
 
     def upload_data(self, api_data, key):
         """Upload API data to S3."""
