@@ -133,11 +133,9 @@ def calculate_payment_term(term, frequency):
 
 def extract_communication_preference(comms, key):
     """Get the optin flag for a given communication format"""
-    communications_obj = default_get(comms, key, [])
-    for obj in communications_obj:
-        preference_mapping = default_get(default_get(obj, "usagePreference", {}), "preferenceMapping", {})
-        return preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES"
-    return False
+    communications_obj = default_get(comms, key, [])[0]
+    preference_mapping = default_get(default_get(communications_obj, "usagePreference", {}), "preferenceMapping", {})
+    return preference_mapping and default_get(preference_mapping, "MARKETING", "").upper() == "YES"
 
 
 def parse_service_contract(fni):
@@ -274,12 +272,10 @@ def parse_vehicle(db_vehicle_sale, db_vehicle, vehicle, specification, warrantie
                 break
 
         warranty_id = default_get(vehicle, "vehicleInventoryId", "")
-        warranty = default_get(warranties, warranty_id, [])
-        if warranty: #skip if null or empty list
-            warranty = warranty[0]
-            end_odo = default_get(warranty, "endOdometer", {})
-            db_vehicle["warranty_expiration_miles"] = default_get(end_odo, "value")
-            db_vehicle["warranty_expiration_date"] = default_get(warranty, "endDate")
+        warranty = default_get(warranties, warranty_id, {})
+        end_odo = default_get(warranty, "endOdometer", {})
+        db_vehicle["warranty_expiration_miles"] = default_get(end_odo, "value")
+        db_vehicle["warranty_expiration_date"] = default_get(warranty, "endDate")
 
 
 def parse_consumer(db_target, customer, comms):
@@ -311,7 +307,7 @@ def parse_consumer(db_target, customer, comms):
         loc_units = default_get(address, "locationUnits", [])
 
         for unit in loc_units:
-            loc_type = default_get(unit, "unit", "").upper()
+            loc_type = default_get(unit, "type", "").upper()
             if loc_type == "CITY":
                 db_target["city"] = default_get(unit, "value")
             elif loc_type == "STATE":
