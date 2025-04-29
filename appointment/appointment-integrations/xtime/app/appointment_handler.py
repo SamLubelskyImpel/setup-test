@@ -52,7 +52,7 @@ def get_appt_time_slots(event: Any, context: Any) -> Any:
 
 def create_appointment(event: Any, context: Any) -> Any:
     """Create an appointment on XTime."""
-    request_id = str(uuid4())
+    request_id = event.get("request_id", str(uuid4()))
     logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
@@ -80,7 +80,7 @@ def create_appointment(event: Any, context: Any) -> Any:
 
 def get_appointments(event: Any, context: Any) -> Any:
     """Get appointments from XTime."""
-    request_id = str(uuid4())
+    request_id = event.get("request_id", str(uuid4()))
     logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
@@ -129,7 +129,7 @@ def get_appointments(event: Any, context: Any) -> Any:
 
 def update_appointment(event: Any, context: Any) -> Any:
     """Update an appointment in XTime."""
-    request_id = str(uuid4())
+    request_id = event.get("request_id", str(uuid4()))
     logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
@@ -175,7 +175,7 @@ def fetch_codes_from_xtime(api_wrapper, integration_dealer_id):
 
 def get_dealer_codes(event, context):
     """Get standard dealer opcodes from XTime."""
-    request_id = str(uuid4())
+    request_id = event.get("request_id", str(uuid4()))
     logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
