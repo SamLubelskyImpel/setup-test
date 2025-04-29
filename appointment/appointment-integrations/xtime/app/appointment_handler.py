@@ -19,7 +19,7 @@ DEFAULT_ERROR_MSG = "Vendor integration had an unexpected error. Please contact 
                       
 def get_appt_time_slots(event: Any, context: Any) -> Any:
     """Get available appointment time slots from XTime."""
-    request_id = str(uuid4())
+    request_id = event.get("request_id", str(uuid4()))
     logger.info(f"Request ID: {request_id}")
     logger.info(f"Event: {event}")
 
