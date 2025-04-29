@@ -15,7 +15,7 @@ from aws_lambda_powertools.utilities.batch import (
 )
 
 from unified_df import upload_unified_json
-from format_utils import parse_consumers, parse_vehicles, parse_datetime
+from format_utils import parse_consumers, parse_vehicles, parse_datetime, parse_op_codes
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -45,6 +45,7 @@ def parse_xml_to_entries(appointment_json, s3_uri):
         # Parse customers
         parsed_consumers = parse_consumers(appointment_json.get('customers'))
         parsed_vehicles = parse_vehicles(appointment_json.get('vehicles'))
+        parsed_op_codes = parse_op_codes(appointment_json.get('op_codes'))
 
         for appointment_xml in appointment_json.get('root_appointments'):
             root = ET.fromstring(appointment_xml)
@@ -77,11 +78,13 @@ def parse_xml_to_entries(appointment_json, s3_uri):
             details_element = root.find('ns0:Details', ns0)
             if details_element is not None:
                 for appointment_detail in details_element.findall('ns0:AppointmentDetail', ns0):
-                    labor_op_code = appointment_detail.find('ns0:LaborOpCode', ns0).text
                     line_type = appointment_detail.find('ns0:LineType', ns0).text
+                    if line_type != 'A':
+                        continue   # only LineType A refers to op code
+                    labor_op_code = appointment_detail.find('ns0:LaborOpCode', ns0).text
                     db_op_codes.append({
                         "op_code|op_code": labor_op_code,
-                        "op_code|op_code_desc": line_type
+                        "op_code|op_code_desc": parsed_op_codes.get(labor_op_code, '')
                     })
 
             metadata = dumps(db_metadata)

@@ -79,19 +79,6 @@ Resources:
         - Key: Product
           Value: forddirect-cdpi-integration
 
-  RDSInboundRule:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: "cdpi forddirect integration rds access"
-      GroupId: !If [ IsProd,
-                      'sg-00e12bc4c116eb820',
-                      'sg-00b911ee260ce5153'
-                    ]
-      IpProtocol: tcp
-      FromPort: 5432
-      ToPort: 5432
-      SourceSecurityGroupId: !GetAtt SecurityGroup.GroupId
-
   LambdaExecutionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -203,6 +190,7 @@ Resources:
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
           ]
       Timeout: 30
+      MemorySize: 512
       Environment:
         Variables:
           GENERATE_PII_QUEUE: !Ref GeneratePIIOutboundQueue
@@ -230,7 +218,7 @@ Resources:
     Properties:
       QueueName: !Sub cdpi-${Environment}-ford-direct-GeneratePIIOutboundQueue
       MessageRetentionPeriod: 1209600
-      VisibilityTimeout: 60
+      VisibilityTimeout: 90
       RedrivePolicy:
           deadLetterTargetArn: !GetAtt GeneratePIIOutboundDLQ.Arn
           maxReceiveCount: 3
@@ -265,7 +253,8 @@ Resources:
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:4", # TODO: deploy shared-resources first so the layer version do exist
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:14"
           ]
-      Timeout: 60
+      Timeout: 90
+      MemorySize: 512
 
   GeneratePIIOutboundDLQ:
     Type: AWS::SQS::Queue
@@ -334,6 +323,7 @@ Resources:
       Handler: upload_pii_outbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
+      MemorySize: 512
       Policies:
         - !Ref LambdaExecutionPolicy
         - Version: '2012-10-17'
@@ -654,6 +644,7 @@ Resources:
       Handler: matching_pii_inbound.lambda_handler
       CodeUri: ./app
       Timeout: 300
+      MemorySize: 1024
       Policies:
         - !Ref LambdaExecutionPolicy
         - Version: '2012-10-17'

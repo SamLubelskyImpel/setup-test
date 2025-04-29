@@ -392,6 +392,21 @@ class RDSInstance:
         results = self.execute_rds(query)
         dip_result = results.fetchall()
         return dip_result
+    
+    def get_active_dealers(self):
+        """
+        Retrieve the active dealer_ids, impel_dealer_id and dip metadata
+        """
+        query = f"""
+            SELECT dealer.id, dealer.impel_dealer_id, dip.metadata
+            FROM {self.schema}.inv_dealer AS dealer
+            JOIN {self.schema}.inv_dealer_integration_partner AS dip
+            ON dip.dealer_id = dealer.id
+            WHERE dip.is_active = 'TRUE';
+        """
+        results = self.execute_rds(query)
+        active_dealers = results.fetchall()
+        return active_dealers
 
     def get_on_lot_inventory(self, dip_id):
         """

@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 import json
 import boto3
 from typing import Any
-from utils import get_sftp_secrets, connect_sftp_server
-from rds_instance import RDSInstance
+from utils import get_secrets, connect_sftp_server, call_inventory_internal_api
 from paramiko import SFTPClient
 
 
@@ -53,12 +52,12 @@ def lambda_handler(event: Any, _: Any) -> Any:
     try:
         current_time = datetime.now(timezone.utc)
 
-        rds_instance = RDSInstance()
-        active_dealers = rds_instance.select_db_active_dealer_partners("autostock")
-        active_dealers = [dealer[0] for dealer in active_dealers]
+        active_dealers = call_inventory_internal_api('dealer/v1/?integration_partner_name=autostock')
         logger.info(f"Active dealers: {active_dealers}")
 
-        hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)
+        secret = get_secrets("inventory-integrations-sftp", SECRET_KEY)
+        
+        hostname, port, username, password = secret["hostname"], secret["port"], secret["username"], secret["password"]
         sftp_conn = connect_sftp_server(hostname, port, username, password)
 
         folder_name = "."
