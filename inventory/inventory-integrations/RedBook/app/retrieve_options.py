@@ -1,9 +1,13 @@
-import boto3
-from botocore.exceptions import ClientError
+"""This module retrieves RedBook options for a given RedBook code."""
+
+import json
 import logging
 from os import environ
-import json
+
+import boto3
 import requests
+from botocore.exceptions import ClientError
+
 from utils.db_config import get_connection
 
 secrets_client = boto3.client("secretsmanager")
@@ -18,6 +22,8 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
 def lambda_handler(event, context):
+    """This function is the entry point for the Lambda function."""
+    logger.info(f"Event: {event}")
     conn = None
     cursor = None
     redbook_code = str(event.get("redbookCode"))
@@ -50,7 +56,7 @@ def lambda_handler(event, context):
 
         processed_data = process(redbook_data)
         data = {"success": True, "results": processed_data}
-        
+
         conn = get_connection()
         cursor = conn.cursor()
         save_data_to_db(redbook_code, processed_data, conn, cursor)
@@ -71,8 +77,10 @@ def lambda_handler(event, context):
 
 def check_db(cursor=None, rbc=None):
     """Checks db for RedBook data."""
-    if not cursor or not rbc:
-        raise Exception("The cursor and rbc are mandatory")
+    if not cursor:
+        raise ValueError("Database cursor is required.")
+    if not rbc:
+        raise ValueError("RedBook code (rbc) is required.")
 
     query = f"""
         SELECT options
@@ -81,13 +89,19 @@ def check_db(cursor=None, rbc=None):
     """
     cursor.execute(query, (rbc,))
     rows = cursor.fetchall()
+    logger.info(f"Rows fetched from DB: {rows}")
+
+    if not rows:
+        logger.info(f"No data found in the database for RedBook code: {rbc}")
+        return None
+
     return list(rows[0][0]) if rows[0] else None
 
 
 def fetch_redbook_data(retries=3, rbc=None):
     """Fetches data from RedBook API using a valid token, with a retry mechanism."""
     if not rbc:
-        raise Exception("RedBook code is mandatory")
+        raise ValueError("RedBook code (rbc) is required.")
 
     token = retrieve_token()
     if not token:
@@ -98,6 +112,7 @@ def fetch_redbook_data(retries=3, rbc=None):
     for _ in range(retries):
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(endpoint, headers=headers)
+        logger.info(f"Response from RedBook API: {response.status_code} - {response.text}")
 
         if response.status_code == 200:
             return response.json()
@@ -150,7 +165,7 @@ def save_token(token):
     """Saves the new token in AWS Secrets Manager."""
     token_secret_id = f"{'prod' if ENV == 'prod' else 'test'}/redbook-token"
     token_dict = json.dumps({"token": token})
-    
+
     try:
         secrets_client.put_secret_value(SecretId=token_secret_id, SecretString=token_dict)
         logger.info("New token saved successfully in Secrets Manager.")
