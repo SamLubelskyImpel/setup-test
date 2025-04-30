@@ -152,7 +152,7 @@ class AdfCreation(BaseClass):
 
         return category_data
 
-    def create_adf_data(self, lead_id, appointment_time=None, add_summary_to_appointment_comment=True):
+    def create_adf_data(self, lead_id, dealer, appointment_time=None, add_summary_to_appointment_comment=True, remove_xml_tag=False):
         """
         Creates ADF data from the given lead ID and appointment time if available.
 
@@ -177,7 +177,8 @@ class AdfCreation(BaseClass):
             consumer |= {"comment": self._create_comment(appointment_time, lead_comment, add_summary_to_appointment_comment)}
             self.customer, self.customer_contact, self.customer_address = self._create_customer(consumer)
 
-            dealer = self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/{consumer.get('dealer_id')}")
+            if remove_xml_tag:
+                self.adf_file = self.adf_file.replace("<?xml version=\"1.0\"?>", "")
 
             return self.adf_file.format(
                 lead_id=lead_id,

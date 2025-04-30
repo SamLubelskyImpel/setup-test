@@ -18,10 +18,11 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sqs_client = client("sqs")
 s3_client = client("s3")
 
-BUCKET = environ.get("INTEGRATIONS_BUCKET")
+BUCKET = environ.get("INTEGRATIONS_BUCKET", "")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 
 processor = BatchProcessor(event_type=EventType.SQS)
+
 
 def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
     """Retrieve configuration from S3."""
@@ -33,6 +34,7 @@ def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
         logger.error(f"Error fetching configuration from S3: {e}")
         raise
 
+
 def send_to_sqs(queue_url: str, message_body: str) -> None:
     """Send a message to SQS."""
     try:
@@ -42,6 +44,7 @@ def send_to_sqs(queue_url: str, message_body: str) -> None:
     except Boto3Error as e:
         logger.error(f"Failed to send message to SQS: {e}")
         raise
+
 
 def process_record(record: SQSRecord) -> None:
     """Process a single SQS record."""
@@ -74,7 +77,8 @@ def process_record(record: SQSRecord) -> None:
         logger.exception(f"Error processing record: {e}")
         raise
 
-def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
+
+def lambda_handler(event: Any, context: Any):
     """Lambda function handler."""
     logger.info("Lambda invocation started.")
     try:

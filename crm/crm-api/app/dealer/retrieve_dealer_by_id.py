@@ -62,7 +62,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 # Activation flags
                 "is_active": dip_db.is_active,
                 "is_active_salesai": dip_db.is_active_salesai,
-                "is_active_chatai": dip_db.is_active_chatai
+                "is_active_chatai": dip_db.is_active_chatai,
+                "metadata": dip_db.metadata_
             }
 
         return {

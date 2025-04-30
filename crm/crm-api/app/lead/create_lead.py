@@ -5,7 +5,6 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from datetime import datetime, timezone
 from json import dumps, loads
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,6 +12,7 @@ from lead.utils import send_alert_notification
 
 from common.validation import validate_request_body, ValidationErrorResponse
 from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
+from event_service.events import dispatch_event, Event, Resource
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -24,7 +24,6 @@ from crm_orm.session_config import DBSession
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
 
-from event_service.events import dispatch_event, Event, Resource
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
@@ -131,7 +130,7 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
-        body:CreateLeadRequest = validate_request_body(event, CreateLeadRequest)
+        body: CreateLeadRequest = validate_request_body(event, CreateLeadRequest)
         request_product = event["headers"]["partner_id"]
         consumer_id = body.consumer_id
         salespersons = body.salespersons
@@ -227,17 +226,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 # Create lead
                 lead = Lead(
-                    consumer_id = consumer_id,
-                    status = body.lead_status,
-                    substatus = body.lead_substatus,
-                    comment = body.lead_comment,
-                    origin_channel = body.lead_origin,
-                    source_channel = body.lead_source,
-                    source_detail = body.lead_source_detail,
-                    crm_lead_id = crm_lead_id,
-                    request_product = request_product,
-                    lead_ts = lead_ts,
-                    metadata_ = body.metadata.model_dump() if body.metadata else None,
+                    consumer_id=consumer_id,
+                    status=body.lead_status,
+                    substatus=body.lead_substatus,
+                    comment=body.lead_comment,
+                    origin_channel=body.lead_origin,
+                    source_channel=body.lead_source,
+                    source_detail=body.lead_source_detail,
+                    crm_lead_id=crm_lead_id,
+                    request_product=request_product,
+                    lead_ts=lead_ts,
+                    metadata_=body.metadata.model_dump() if body.metadata else None,
                 )
 
                 session.add(lead)
@@ -323,24 +322,19 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
         if request_product == "chat_ai":
-            adf_recipients = []
-            sftp_config = {}
-            oem_partner = {}
-
             try:
                 if dip_metadata:
-                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                    oem_partner = dip_metadata.get("oem_partner", "")
-                    sftp_config = dip_metadata.get("adf_sftp_config", {})
+                    oem_partner = dip_metadata.get("oem_partner", {})
                 else:
                     logger.warning(f"No metadata found for dealer: {product_dealer_id}")
+                    oem_partner = {}
 
                 payload = {
+                    "event_type": "Lead",
                     "lead_id": lead_id,
-                    "recipients": adf_recipients,
                     "partner_name": integration_partner_name,
-                    "sftp_config": sftp_config,
-                    "oem_partner": oem_partner
+                    "oem_partner": oem_partner,
+                    "product_dealer_id": product_dealer_id,
                 }
                 sqs_client = boto3.client('sqs')
 
@@ -396,5 +390,4 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps({"error": "An error occurred while processing the request."}),
         }
 
-    # TODO add exception for events
     return {"statusCode": 201, "body": dumps({"lead_id": lead_id})}

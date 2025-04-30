@@ -11,7 +11,7 @@ from uuid import uuid4
 logger = logging.getLogger()
 logger.setLevel(os.environ.get("LOGLEVEL", "INFO").upper())
 
-IS_PROD = int(os.environ.get("IS_PROD", 0))
+IS_PROD = os.environ.get("ENVIRONMENT") == "prod"
 SM = boto3.client('secretsmanager')
 
 
@@ -181,3 +181,15 @@ class DealerTrackApi:
         xml_root = self.__call_api("serviceapi", xml_body, "AppointmentLookup")
         result = get_xml_tag(xml_root, 'AppointmentLookupResult', first=True)
         return get_xml_tag(result, 'Result')
+
+
+    def op_codes_table(self):
+        xml_body = f'''
+            <ServiceLaborOpcodesTableRequest
+                xmlns="opentrack.dealertrack.com">
+                {self.__common_auth_tag}
+            </ServiceLaborOpcodesTableRequest>'''
+
+        xml_root = self.__call_api("serviceapi", xml_body, "ServiceLaborOpcodesTable")
+        result = get_xml_tag(xml_root, "ServiceLaborOpcodesTableResult", first=True)
+        return get_xml_tag(result, "Result")
