@@ -46,18 +46,19 @@ def load_adf_config() -> Dict[str, str]:
 # Load configuration at module load time to avoid multiple S3 calls
 adf_config = load_adf_config()
 
-def send_to_adf_assembler(record: Dict[str, Any]) -> None:
+
+def send_to_adf_assembler(record: SQSRecord) -> None:
     """Send event to ADF Assembler based on event type."""
     logger.info(f"This is event: {record.json_body}")
     try:
         event = record.json_body
-        attributes = record.get("attributes", {})
         queue_url = None
         queue_key = "STANDARD_ADF_QUEUE"
         logger.info(f"adf_config: {adf_config}")
 
         is_oem_partner_event = False
 
+        event_type = event.get("event_type")
         oem_partner = event.get("oem_partner")
         oem_partner_name = oem_partner["name"].upper() if oem_partner else ""
 
@@ -82,8 +83,8 @@ def send_to_adf_assembler(record: Dict[str, Any]) -> None:
 
         logger.info(f"queue_key: {queue_key}")
 
-        if is_oem_partner_event and 'CreateActivity' in attributes.get('SenderId', ''):
-            logger.info(f"Skipping OEM Partner ADF Assembler for CreateActivity event.")
+        if is_oem_partner_event and event_type == "Appointment":
+            logger.info("Skipping OEM Partner ADF Assembler for Appointment event.")
             return
 
         if not queue_url:
@@ -100,14 +101,13 @@ def send_to_adf_assembler(record: Dict[str, Any]) -> None:
         raise ADFAssemblerError(error_message)
 
 
-
 def record_handler(record: SQSRecord) -> None:
     """Process each SQS record."""
     logger.info(f"Processing record with message ID: {record.message_id}")
     send_to_adf_assembler(record)
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], context: Any):
     """Lambda entry point to process events."""
     logger.info("Starting batch event processing.")
     try:
