@@ -39,7 +39,7 @@ def record_handler(record: SQSRecord):
                 AuditDsr.consumer_id == consumer_id,
                 AuditDsr.dsr_request_type == event_type,
             ).order_by(
-                AuditDsr.request_date.desc()
+                AuditDsr.db_creation_date.desc()
             ).first()
 
             if not audit_dsr:
@@ -54,11 +54,8 @@ def record_handler(record: SQSRecord):
             logger.info(f"[DB] Updated AuditDsr | ConsumerID: {consumer_id} | CompletedFlag: {completed_flag}")
             data["dsr_request_id"] = dsr_request_id
 
-            if completed_flag:
-                logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
-                send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
-            else:
-                logger.warning("DSR request was not completed and will not be forwarded to FD.")
+            logger.info(f"Sending message to Ford Direct Queue URL: {FORD_DIRECT_QUEUE_URL}")
+            send_message_to_sqs(str(FORD_DIRECT_QUEUE_URL), data)
 
     except Exception as e:
         logger.exception(f"[Handler] Error processing record | ConsumerID: {consumer_id} | Error: {e}")

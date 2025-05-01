@@ -317,6 +317,9 @@ CREATE TABLE prod.cdpi_audit_dsr (
 	complete_flag bool NULL,
 	request_date timestamptz NULL,
 	complete_date timestamptz NULL,
+    db_update_role varchar(255) null;
+    db_update_date timestamptz null;
+    db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT null;
 	CONSTRAINT cdpi_audit_dsr_pkey PRIMARY KEY (id)
 );
 
@@ -325,3 +328,15 @@ CREATE TABLE prod.cdpi_audit_dsr (
 
 ALTER TABLE prod.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_consumer FOREIGN KEY (consumer_id) REFERENCES prod.cdpi_consumer(id);
 ALTER TABLE prod.cdpi_audit_dsr ADD CONSTRAINT fk_cdpi_integration_partner FOREIGN KEY (integration_partner_id) REFERENCES prod.cdpi_integration_partner(id);
+
+
+-- Table Triggers
+
+create trigger tr_create_db_creation_date_and_role before
+insert
+    on
+    prod.cdpi_audit_dsr for each row execute function prod.create_db_creation_date_and_role();
+create trigger tr_update_db_update_date_and_role before
+update
+    on
+    prod.cdpi_audit_dsr for each row execute function prod.update_db_update_date_and_role();

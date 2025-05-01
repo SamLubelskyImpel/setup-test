@@ -187,7 +187,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
       Timeout: 30
       MemorySize: 512
@@ -251,7 +251,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:4", # TODO: deploy shared-resources first so the layer version do exist
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:14"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
       Timeout: 90
       MemorySize: 512
@@ -427,7 +427,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   ConsumerSummaryBatcherLogGroup:
@@ -544,7 +544,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:6"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   ConsumerSummaryLogGroup:
@@ -659,7 +659,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:7"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   MatchingPIIInboundQueue:
@@ -903,7 +903,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   DsrOptoutLogGroup:
@@ -935,7 +935,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   DsrDeleteLogGroup:
@@ -1021,7 +1021,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
   DsrEventProcessingLogGroup:
@@ -1086,7 +1086,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   SendEventToFordDirectLogGroup:
@@ -1143,7 +1143,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
   CheckMissingInboundFilesLogGroup:
@@ -1180,7 +1180,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:12"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
   CheckMissingConsumerProfileSummaryLogGroup:
@@ -1205,7 +1205,7 @@ Resources:
         - !If [
             IsProd,
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:19"
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
   DsrHandlerLogGroup:
