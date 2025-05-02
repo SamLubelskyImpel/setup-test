@@ -214,7 +214,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             if not any([dip_is_active, dip_is_active_salesai, dip_is_active_chatai]):
                 error_msg = f"Dealer integration partner {dip_id} is not active. Activity failed to be created."
                 logger.error(error_msg)
-                send_general_alert_notification(subject=f'CRM API: Activity creation failure', message=error_msg)
+                send_general_alert_notification(subject='CRM API: Activity creation failure', message=error_msg)
                 return {
                     "statusCode": 404,
                     "body": dumps({"error": error_msg})
@@ -280,28 +280,23 @@ def lambda_handler(event: Any, context: Any) -> Any:
         # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
         if request_product == "chat_ai" and activity_type == "appointment":
             try:
-                adf_recipients = []
-                sftp_config = {}
-                oem_partner = ""
-
                 if dip_metadata:
-                    adf_recipients = dip_metadata.get("adf_email_recipients", [])
-                    sftp_config = dip_metadata.get("adf_sftp_config", {})
-                    oem_partner = dip_metadata.get("oem_partner", "")
+                    oem_partner = dip_metadata.get("oem_partner", {})
                 else:
                     logger.warning(f"No metadata found for dealer: {dip_id}")
+                    oem_partner = {}
 
                 # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
                 activity_due_dealer_ts = apply_dealer_timezone(
                     activity_due_ts, dealer_timezone, dip_id
                 )
                 payload = {
+                    "event_type": "Appointment",
                     "lead_id": lead_id,
-                    "recipients": adf_recipients,
                     "partner_name": partner_name,
-                    "sftp_config": sftp_config,
                     "oem_partner": oem_partner,
-                    "activity_time": activity_due_dealer_ts
+                    "activity_time": activity_due_dealer_ts,
+                    "product_dealer_id": product_dealer_id,
                 }
 
                 sqs_client = boto3.client('sqs')
@@ -314,7 +309,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 raise ADFAssemblerSyndicationError(e)
 
         elif writeback_disabled:
-            logger.info(f"Writeback disabled for {partner_name}. Activity {activity_id} will not be sent to CRM.")
+            logger.info(f"Partner {partner_name} disabled custom writeback. Activity {activity_id} will not be sent to integration resource.")
         else:
             create_on_crm(partner_name=partner_name, payload=payload)
 

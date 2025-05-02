@@ -13,17 +13,18 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+
 class CRMApiError(Exception):
     pass
 
 
 class OemAdfCreation(BaseClass):
     """Class for creating an ADF (Automotive Dealership Format) from a lead ID and appointment time if necessary."""
-    def __init__(self, oem_partner:object) -> None:
+    def __init__(self, oem_partner: dict) -> None:
         """Initialize API Wrapper."""
         super().__init__()
 
-        self.oem_name = oem_partner.get("name").upper()
+        self.oem_name = oem_partner.get("name", "").upper()
         self.oem_dealer_code = oem_partner.get("dealer_code")
         self.oem_api = self._get_secrets("crm-integrations-partner", f"{self.oem_name}_OEM")
 
@@ -36,16 +37,16 @@ class OemAdfCreation(BaseClass):
         self.vendor = ""
 
         self.default_mapper = {
-            "ACURA":{
+            "ACURA": {
                 "contact": 95081,
-                "lead":95079,
+                "lead": 95079,
                 "first_name": "Anonamous First",
                 "last_name": "Anonamous First",
                 'postal_code': "00000"
             },
             "HONDA": {
                 "contact": 90534,
-                "lead":90534,
+                "lead": 90534,
                 "first_name": "1 Not Available",
                 "last_name": "1 Not Available",
                 'postal_code': "00000"
@@ -111,7 +112,7 @@ class OemAdfCreation(BaseClass):
         comment_tag = f"\n<comments><![CDATA[{comment_value}]]></comments>" if comment_value else ""
 
         return (
-            f"<customer>\n<contact>\n"
+            "<customer>\n<contact>\n"
             + '\n'.join(consumer_data)
             + f"\n</contact>{comment_tag}\n</customer>"
         )

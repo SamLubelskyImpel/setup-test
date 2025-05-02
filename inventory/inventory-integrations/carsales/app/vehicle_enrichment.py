@@ -80,7 +80,7 @@ def get_redbook_data(vehicle_data):
 
     if "results" not in redbook_data or not redbook_data["results"]:
         logger.warning("Redbook data contains no results.")
-        raise Exception("No results found in Redbook data.")
+        return None
 
     return redbook_data
 
@@ -111,8 +111,12 @@ def record_handler(record: SQSRecord):
         redbook_data = get_redbook_data(vehicle_data)
 
         # Merge the vehicle data with the RedBook data
-        merged_data = merge_data(vehicle_data, redbook_data)
-        logger.info(f"Enriched data: {merged_data}")
+        if redbook_data:
+            merged_data = merge_data(vehicle_data, redbook_data)
+            logger.info(f"Enriched data: {merged_data}")
+        else:
+            logger.warning("No RedBook data found, skipping merge.")
+            merged_data = vehicle_data
 
         # Call the VDP Lambda function to get the VDP data
         vdp_api = VDPApiWrapper()

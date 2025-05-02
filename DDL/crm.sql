@@ -158,6 +158,9 @@ update
     on
     prod.crm_salesperson for each row execute function public.update_db_update_date_and_role();
 
+CREATE INDEX idx_crm_salesperson_lookup 
+ON prod.crm_salesperson(crm_salesperson_id, dealer_integration_partner_id);
+
 
 -- prod.crm_consumer definition
 
@@ -325,6 +328,7 @@ update
     on
     prod.crm_vehicle for each row execute function public.update_db_update_date_and_role();
 
+CREATE INDEX idx_crm_vehicle_lead_id_db_creation_date ON prod.crm_vehicle (lead_id, db_creation_date DESC);
 
 -- prod.crm_activity definition
 
