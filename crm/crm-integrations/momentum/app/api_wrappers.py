@@ -307,7 +307,7 @@ class MomentumApiWrapper:
         Returns:
             dict: Response containing the alternate personApiIDs
         """
-        url = f"{self.__api_url}/customer/personApiID/{person_api_id}"
+        url = f"{self.__api_url}/v2.1/customer/personApiID/{person_api_id}"
         response = self.__call_api(url=url, method="GET")
         response.raise_for_status()
         response_json = response.json()
