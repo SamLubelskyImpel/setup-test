@@ -307,12 +307,12 @@ def record_handler(record: SQSRecord) -> None:
 
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
         
-         # Check each possible consumer ID for duplicates
-        all_consumer_ids = [crm_consumer_id]
-
         # Get all possible consumer IDs from Momentum
         momentum_api = MomentumApiWrapper(activity=parsed_lead) 
         alternate_ids = momentum_api.get_alternate_person_ids(crm_consumer_id)
+        
+        # Check each possible consumer ID for duplicates
+        all_consumer_ids = [crm_consumer_id]
         
         # The Momentum API returns:
         # - personApiID: A single ID (not a list)
@@ -322,6 +322,9 @@ def record_handler(record: SQSRecord) -> None:
             all_consumer_ids.append(alternate_ids["personApiID"])
         if alternate_ids.get("mergedPersonApiIDs"):
             all_consumer_ids.extend(alternate_ids["mergedPersonApiIDs"])
+        
+        # Remove any duplicate IDs before checking for existing consumers while preserving order
+        all_consumer_ids = list(dict.fromkeys(all_consumer_ids))
         
         for consumer_id in all_consumer_ids:
             existing_consumer_id = get_existing_consumer(consumer_id, crm_dealer_id, crm_api_key)
