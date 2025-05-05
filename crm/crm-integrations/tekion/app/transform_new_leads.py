@@ -373,7 +373,7 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Raw data: {json_data}")
 
         # Determine API version using gating config
-        api_version = version_config.get(product_dealer_id, "v3")
+        api_version = version_config.get(product_dealer_id, "v4")
         logger.info(f"api_version is: {api_version}")
         if api_version == "v4":
             entries = parse_json_to_entries(product_dealer_id, json_data)
