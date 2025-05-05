@@ -305,7 +305,15 @@ class MomentumApiWrapper:
             person_api_id (str): The personApiID to look up alternate IDs for
             
         Returns:
-            dict: Response containing the alternate personApiIDs
+            dict: Response containing:
+                - personApiID (str): A single ID representing the main person ID
+                - mergedPersonApiIDs (list, optional): A list of IDs that have been merged with the main person ID
+                
+        Example response:
+            {
+                "personApiID": "12345",
+                "mergedPersonApiIDs": ["67890", "11111"]
+            }
         """
         url = f"{self.__api_url}/v2.1/customer/personApiID/{person_api_id}"
         response = self.__call_api(url=url, method="GET")
