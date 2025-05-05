@@ -298,6 +298,11 @@ def record_handler(record: SQSRecord) -> None:
         if parsed_lead["lead"]["lead_origin"] != "Internet":
             logger.warning(f"Lead type is not Internet: {parsed_lead['lead']['lead_origin']}. Ignoring lead.")
             return
+            
+        consumer = parsed_lead["consumer"]
+        if consumer.get("email") is None and consumer.get("phone") is None:
+            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
+            return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
@@ -339,11 +344,6 @@ def record_handler(record: SQSRecord) -> None:
                         f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer and vin."
                     )
                     return
-
-        consumer = parsed_lead["consumer"]
-        if consumer.get("email") is None and consumer.get("phone") is None:
-            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
-            return
 
         consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
         lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]
