@@ -40,9 +40,6 @@ def get_api_version_config():
         return {}
 
 
-version_config = get_api_version_config()
-
-
 def convert_to_epoch(timestamp_str):
     """Convert a timestamp in the format YYYY-MM-DDTHH:MM:SSZ to epoch time in milliseconds."""
     datetime_obj = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
@@ -249,6 +246,7 @@ def record_handler(record: SQSRecord):
         product_dealer_id = body['product_dealer_id']
 
         # Determine API version using gating config
+        version_config = get_api_version_config()
         api_version = version_config.get(product_dealer_id, "v4")  # Default to v4
         logger.info(f"api_version is:{api_version}")
 

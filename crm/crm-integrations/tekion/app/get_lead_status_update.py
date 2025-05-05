@@ -151,10 +151,10 @@ def get_api_version_config():
 
 def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_partner_id) -> ApiResponse:
     """Get lead from Tekion."""
-    
     version_config = get_api_version_config()
     product_dealer_id = get_product_dealer_id(crm_dealer_id)
-    api_version = version_config.get(product_dealer_id, "v3")
+    api_version = version_config.get(product_dealer_id, "v4")
+    logger.info(f"API version: {api_version}")
 
     tekion_res = call_tekion_api(
         endpoint=(
@@ -170,8 +170,8 @@ def get_lead_status_update_from_crm(crm_dealer_id, crm_lead_id, lead_id, dealer_
         lead = next(iter(tekion_res["data"]), None)
         if not lead:
             logger.info(f"Lead not found. "
-            f"lead_id={lead_id}, "
-            f"crm_lead_id={crm_lead_id}")
+                        f"lead_id={lead_id}, "
+                        f"crm_lead_id={crm_lead_id}")
             body = {"error": f"Lead not found. lead_id={lead_id}, crm_lead_id={crm_lead_id}"}
             return ApiResponse(404, body)
         status = lead.get("status")
@@ -229,4 +229,3 @@ def lambda_handler(event: Dict[str, Any], _: Any) -> Dict[str, Any]:
             crm_lead_id,
         )
         raise
-
