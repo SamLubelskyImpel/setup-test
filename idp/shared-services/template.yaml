@@ -142,6 +142,16 @@ Resources:
                     'arn:aws:sqs:us-east-1:261695625069:ditto-prod-IntegrationStack-processOptOutsQueueAAD3A8FD-LwrSb7wOLfsW',
                     'arn:aws:sqs:us-east-1:261695625069:ditto-staging-IntegrationStack-processOptOutsQueueAAD3A8FD-tpQ5tvDEzKWs'
                   ]
+                  - !If [
+                    IsProd,
+                    '',
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGenerated-v1'
+                  ]
+                  - !If [
+                    IsProd,
+                    '',
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGeneratedPriority-v1'
+                  ]
                   
   EnterpriseBusQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -289,6 +299,62 @@ Resources:
       QueueName: !Sub "idp-shared-services-${Environment}-IDPEventRuleDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
+
+  MarketingAIEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-MarketingAIEventRule
+      EventPattern:
+        {
+          "source": [{"prefix":"agent_platform"},{"prefix":"marketing_ai"}],
+          "detail": {
+            "event_type": ["message_generated"],
+            "data": {
+              "priority": [{
+                "exists": false
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            '',
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGenerated-v1'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt IDPEventRuleDLQ.Arn
+  
+  MarketingAIPriorityEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-MarketingAIPriorityEventRule
+      EventPattern:
+        {
+          "source": [{"prefix":"agent_platform"},{"prefix":"marketing_ai"}],
+          "detail": {
+            "event_type": ["message_generated"],
+            "data": {
+              "priority": ["high"]
+            }
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            '',
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGeneratedPriority-v1'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt IDPEventRuleDLQ.Arn
   
   DSRInboundEventRule:
     Type: AWS::Events::Rule
