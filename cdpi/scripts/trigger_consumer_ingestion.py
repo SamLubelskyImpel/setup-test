@@ -57,17 +57,27 @@ dms_consumer_ids = [
 
 crm_lead_ids = [
     6683,
-    170,
+    457130,
     13029,
     13056,
     13066,
     13075,
     13079,
-    13081
+    13081,
+    457131,
+    454039,
+    453301,
+    453229,
+    457200,
+    457201,
+    453225,
+    452962,
+    452963,
+    454022
 ]
 
 
-def generate_rows(dealer_id: str, salesforce_id: str, row_count=5, product="sales-ai"):
+def generate_rows(dealer_id: str, salesforce_id: str, row_count=50, product="sales-ai"):
     """Generate a CSV file with random data."""
     rows: list[dict] = []
 
@@ -131,22 +141,22 @@ def upload_product_file(dealer_id: str, salesforce_id: str, product: str):
     writer.writerows(rows)
 
     # Write to local CSV file
-    # local_filename = f"customer_data_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}.csv"
-    # with open(local_filename, 'w', newline='') as csv_file:
-    #     csv_file.write(csv_buffer.getvalue())
-    # print(f"CSV file written to: {local_filename}")
+    local_filename = f"customer_data_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}.csv"
+    with open(local_filename, 'w', newline='') as csv_file:
+        csv_file.write(csv_buffer.getvalue())
+    print(f"CSV file written to: {local_filename}")
 
-    s3_client = boto3.client('s3')
-    s3_client.put_object(
-        Bucket='cdpi-shared-us-east-1-test',
-        Key=s3_key,
-        Body=csv_buffer.getvalue()
-    )
+    # s3_client = boto3.client('s3')
+    # s3_client.put_object(
+    #     Bucket='cdpi-shared-us-east-1-test',
+    #     Key=s3_key,
+    #     Body=csv_buffer.getvalue()
+    # )
 
 
 if __name__ == '__main__':
     upload_product_file(
-        dealer_id='impel-test-dealer',
+        dealer_id='wise_auto_group-north_bay_nissan',
         salesforce_id='11110000',
         product='service-ai'
     )

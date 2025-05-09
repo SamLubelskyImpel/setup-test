@@ -25,13 +25,13 @@ s3_client = boto3.client('s3')
 sm_client = boto3.client('secretsmanager')
 
 DMS_VENDORS = {
-    "DealerVault": "DEALERVAULT",
-    "DealerTrack": "DEALERTRACK",
-    "CDK Impel": "CDK",
-    "DealerVault FTP": "DEALERVAULT",
-    "CDK": "CDK",
-    "Reyrey" : "REYNOLDS_REYNOLDS",
-    "Tekion": "TEKION",
+    "dealervault": "DEALERVAULT",
+    "dealertrack": "DEALERTRACK",
+    "cdk impel": "CDK",
+    "dealervault ftp": "DEALERVAULT",
+    "cdk": "CDK",
+    "reyrey": "REYNOLDS_REYNOLDS",
+    "tekion": "TEKION",
     "dealertrack-dms": "DEALERTRACK",
 }
 
@@ -49,6 +49,7 @@ def get_secret(secret_name, secret_key):
     secret_data = loads(secret)
 
     return secret_data
+
 
 def make_dms_api_request(url: str, method: str, dms_api_key: str, data=None):
     """Generic helper function to make DMS API requests."""
@@ -84,7 +85,7 @@ def parse(csv_object):
             # Check if the consumer_id is not empty
             if not consumer_id:
                 logger.warning("Consumer ID is empty. Skipping this row.")
-                writer.writerow(row) # Leave the row as it is if the consumer_id is empty
+                writer.writerow(row)  # Leave the row as it is if the consumer_id is empty
                 continue
 
             url = f'https://{DMS_API_DOMAIN}/customer/v1/{consumer_id}'
@@ -102,7 +103,7 @@ def parse(csv_object):
 
                 db_vendor_name = response.json().get("results")[0]["integration_partner"]["impel_integration_partner_id"]
 
-                vendor_name = DMS_VENDORS.get(db_vendor_name, db_vendor_name)
+                vendor_name = DMS_VENDORS.get(db_vendor_name.lower(), db_vendor_name)
                 dms_consumer_id = response.json().get("results")[0]["dealer_customer_no"]
 
             row["dms_vendor_name"] = vendor_name
