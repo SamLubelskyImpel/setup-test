@@ -85,6 +85,13 @@ def upload_lead_to_db(lead: Dict[str, Any], api_key: str, index: int) -> Any:
 
 def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
     """Format pbs json data to unified format."""
+    def extract_phone(contact):
+        if contact.get("CellPhone", ""):
+            return contact.get("CellPhone", "")
+        elif contact.get("HomePhone", ""):
+            return contact.get("HomePhone", "")
+        return None
+
     entries = []
     try:
         for deal in json_data:
@@ -169,7 +176,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "middle_name": contact.get('MiddleName', ''),
                 "last_name": contact.get('LastName'),
                 "email": contact.get('EmailAddress', ''),
-                "phone": contact.get("CellPhone", ''),
+                "phone": extract_phone(contact),
                 "address": contact.get('Address'),
                 "city": contact.get('City'),
                 "postal_code": contact.get('ContactZipCode')
