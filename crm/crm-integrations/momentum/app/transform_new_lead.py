@@ -264,6 +264,7 @@ def parse_lead(product_dealer_id, data):
         parsed_data = {
             "product_dealer_id": product_dealer_id,
             "lead": db_lead,
+            "crm_dealer_id": data.get("dealerID"),
             "consumer": db_consumer,
             "vehicle": db_vehicle,
             "salesperson": db_salesperson
