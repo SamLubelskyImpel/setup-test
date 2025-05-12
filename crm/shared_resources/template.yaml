@@ -26,6 +26,8 @@ Globals:
         LOGLEVEL: INFO
         CRM_API_URL:
           !If [IsProd, "https://crm-api.impel.io/", "https://crm-api-test.testenv.impel.io/"]
+        CRM_API_SECRET_KEY: !If [IsProd, "impel", "test"]
+        CRM_EVENT_BUS_NAME: !Ref CrmEventBus
         PARTNER_ID_MAPPINGS: |
           {
             "dealerpeak": "internal_dealerpeak",
@@ -82,6 +84,7 @@ Resources:
                   - "sqs:GetQueueAttributes"
                 Resource:
                 - !GetAtt ProcessLeadUpdatesQueue.Arn
+                - !GetAtt EventEnricherQueue.Arn
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -95,6 +98,14 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
+        - PolicyName: EventBridgePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "events:PutEvents"
+                Resource: !GetAtt CrmEventBus.Arn
 
   GetActiveDealers:
     Type: AWS::Serverless::Function
@@ -207,3 +218,107 @@ Resources:
       QueueName: !Sub "crm-shared-${Environment}-LeadUpdatesDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
+
+  EventEnricher:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub crm-shared-${Environment}-EventEnricher
+      CodeUri: app/
+      Handler: event_enricher.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  EventEnricherQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-EventEnricherQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  EventEnricherDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-EventEnricherDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+
+  EventEnricherEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt EventEnricherQueue.Arn
+      MaximumBatchingWindowInSeconds: 30
+      FunctionName: !GetAtt EventEnricher.Arn
+
+  CrmEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub 'crm-shared-${Environment}-CrmEventBus'
+      DeadLetterConfig:
+        Arn: !GetAtt CrmEventBusDLQ.Arn
+      Description: Event bus for the IDP Shared Services
+
+  CrmEventBusDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-CrmEventBusDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  CrmEventBusDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-shared-${Environment}-CrmEventBusDLQAlarm"
+      AlarmDescription: Events failed to be processed by the CRM Event Bus
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CrmEventBusDLQ.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
+  MonitoringRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-MonitoringRule"
+      EventPattern:
+        source:
+          - "crm-api"
+      State: ENABLED
+      EventBusName: !GetAtt CrmEventBus.Arn
+      Targets:
+        - Id: Lambda
+          Arn: !GetAtt MonitoringLambda.Arn
+
+  MonitoringInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MonitoringLambda
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt MonitoringRule.Arn
+
+  MonitoringLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-shared-${Environment}-MonitoringLambda"
+      CodeUri: app/
+      Handler: monitoring.lambda_handler
+      Role: !GetAtt LambdaRole.Arn
+
+Outputs:
+  EventEnricherQueueUrl:
+    Description: URL of the EventEnricherQueue
+    Value: !Ref EventEnricherQueue
+    Export:
+      Name: !Sub "crm-shared-EventEnricherQueueUrl"
