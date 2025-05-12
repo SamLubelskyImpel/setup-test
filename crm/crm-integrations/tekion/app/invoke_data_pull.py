@@ -40,9 +40,6 @@ def get_api_version_config():
         return {}
 
 
-version_config = get_api_version_config()
-
-
 def convert_to_epoch(timestamp_str):
     """Convert a timestamp in the format YYYY-MM-DDTHH:MM:SSZ to epoch time in milliseconds."""
     datetime_obj = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
@@ -66,7 +63,7 @@ def get_credentials_from_secrets():
     return app_id, secret_key, url
 
 
-def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str, api_version: str = "v3"):
+def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str, api_version: str):
     """Fetch new leads from Tekion CRM."""
     token_from_s3 = get_token_from_s3()
     token = token_from_s3.token
@@ -84,10 +81,12 @@ def fetch_new_leads(start_time: str, end_time: str, crm_dealer_id: str, api_vers
         "createdEndTime": convert_to_epoch(end_time)
     }
 
-    if api_version == "v4":
+    if api_version == "v3":
+        api_url = f"{url}/openapi/v3.1.0/crm-leads"
+    elif api_version == "v4":
         api_url = f"{url}/openapi/v4.0.0/leads"
     else:
-        api_url = f"{url}/openapi/v3.1.0/crm-leads"
+        raise Exception(f"Invalid API version: {api_version}")
 
     logger.info(f"Calling Tekion API: {api_url}", extra={"params": params})
 
@@ -247,7 +246,8 @@ def record_handler(record: SQSRecord):
         product_dealer_id = body['product_dealer_id']
 
         # Determine API version using gating config
-        api_version = version_config.get(product_dealer_id, "v3")
+        version_config = get_api_version_config()
+        api_version = version_config.get(product_dealer_id, "v4")  # Default to v4
         logger.info(f"api_version is:{api_version}")
 
         leads = fetch_new_leads(start_time, end_time, crm_dealer_id, api_version)

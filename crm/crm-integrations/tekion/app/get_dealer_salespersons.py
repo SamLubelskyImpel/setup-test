@@ -49,7 +49,7 @@ def get_api_version_config():
     except Exception as e:
         logger.error(f"Failed to fetch API version config: {e}")
         return {}
-    
+
 def get_product_dealer_id(crm_dealer_id: str) -> Optional[str]:
     """Fetch product dealer ID from CRM API."""
     secret_data = get_secret(f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api")
@@ -113,8 +113,9 @@ def get_dealer_salespersons(crm_dealer_id):
     """Fetch and return the dealer's salespersons list from Tekion."""
     version_config = get_api_version_config()
     product_dealer_id = get_product_dealer_id(crm_dealer_id)
-    api_version = version_config.get(product_dealer_id, "v3")
-    
+    api_version = version_config.get(product_dealer_id, "v4")
+    logger.info(f"API version: {api_version}")
+
     salespersons = []
     roles = ["SALES_PERSON", "SALES_MANAGER"]
 
@@ -125,13 +126,11 @@ def get_dealer_salespersons(crm_dealer_id):
 
         while True:
             response = hit_tekion_api(
-                "openapi/v4.0.0/users" if api_version == "v4" else "openapi/v3.1.0/employees", 
-                params, 
+                "openapi/v4.0.0/users" if api_version == "v4" else "openapi/v3.1.0/employees",
+                params,
                 crm_dealer_id
             )
 
-
-            
             if api_version == "v4":
                 if response.get("meta", {}).get("status", "").lower() != "success":
                     logger.error(f"Error fetching salespersons for role: {role}.")
