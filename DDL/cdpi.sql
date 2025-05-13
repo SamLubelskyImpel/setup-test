@@ -317,6 +317,7 @@ CREATE TABLE prod.cdpi_audit_dsr (
 	complete_flag bool NULL,
 	request_date timestamptz NULL,
 	complete_date timestamptz NULL,
+    dsr_request_id varchar NULL,
     db_update_role varchar(255) null;
     db_update_date timestamptz null;
     db_creation_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT null;
