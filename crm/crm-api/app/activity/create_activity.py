@@ -7,7 +7,7 @@ from typing import Any
 import boto3
 import botocore.exceptions
 from .utils import apply_dealer_timezone, send_general_alert_notification
-from common.utils import get_secret, send_message_to_event_enricher
+from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -316,15 +316,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
         else:
             create_on_crm(partner_name=partner_name, payload=payload)
 
-        secret = get_secret("crm-api", request_product)
-        source_application = 'INTEGRATION'
-        if secret.get("source_application"):
-            source_application = secret["source_application"]
-
         payload_details = {
             "lead_id": lead_id,
             "activity_id": activity_id,
-            "source_application": source_application,
+            "source_application": event["requestContext"]["authorizer"]["source_application"],
             "idp_dealer_id": idp_dealer_id,
             "event_type": "Activity Created",
         }

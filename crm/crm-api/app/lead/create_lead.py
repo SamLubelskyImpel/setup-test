@@ -12,7 +12,7 @@ from lead.utils import send_alert_notification
 
 from common.validation import validate_request_body, ValidationErrorResponse
 from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
-from common.utils import get_secret, send_message_to_event_enricher
+from common.utils import send_message_to_event_enricher
 from event_service.events import dispatch_event, Event, Resource
 
 from crm_orm.models.lead import Lead
@@ -299,15 +299,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 logger.info("Transactions committed")
                 lead_id = lead.id
 
-                secret = get_secret("crm-api", request_product)
-                source_application = 'INTEGRATION'
-                if secret.get("source_application"):
-                    source_application = secret["source_application"]
-
                 payload_details = {
                     "lead_id": lead_id,
                     "consumer_id": consumer_id,
-                    "source_application": source_application,
+                    "source_application": event["requestContext"]["authorizer"]["source_application"],
                     "idp_dealer_id": dealer_db.idp_dealer_id,
                     "event_type": "Lead Created",
                 }

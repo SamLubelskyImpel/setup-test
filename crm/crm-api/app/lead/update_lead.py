@@ -4,7 +4,7 @@ from json import loads, dumps
 from os import environ
 from typing import Any
 from .utils import send_alert_notification
-from common.utils import get_secret, send_message_to_event_enricher
+from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.consumer import Consumer
@@ -135,7 +135,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
     integration_partner = event["requestContext"]["authorizer"]["integration_partner"]
     lead_id = event["pathParameters"]["lead_id"]
-    request_product = event["headers"]["partner_id"]
 
     try:
         body = loads(event["body"])
@@ -269,15 +268,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             modify_salespersons(session, lead_id, dealer_partner_id, body.get("salespersons", []))
 
-            secret = get_secret("crm-api", request_product)
-            source_application = 'INTEGRATION'
-            if secret.get("source_application"):
-                source_application = secret["source_application"]
-
             payload_details = {
                 "lead_id": lead_id,
                 "consumer_id": consumer_id,
-                "source_application": source_application,
+                "source_application": event["requestContext"]["authorizer"]["source_application"],
                 "idp_dealer_id": idp_dealer_id,
                 "event_type": "Lead Updated",
             }

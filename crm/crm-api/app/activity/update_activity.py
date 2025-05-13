@@ -5,7 +5,7 @@ from os import environ
 from json import dumps, loads
 from typing import Any
 from .utils import send_general_alert_notification
-from common.utils import get_secret, send_message_to_event_enricher
+from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.activity import Activity
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
@@ -69,15 +69,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             logger.info(f"Request product: {request_product} has updated activity {activity_id}")
 
-        secret = get_secret("crm-api", request_product)
-        source_application = 'INTEGRATION'
-        if secret.get("source_application"):
-            source_application = secret["source_application"]
-
         payload_details = {
             "lead_id": lead_id,
             "activity_id": activity_id,
-            "source_application": source_application,
+            "source_application": event["requestContext"]["authorizer"]["source_application"],
             "idp_dealer_id": idp_dealer_id,
             "event_type": "Activity Updated",
         }
