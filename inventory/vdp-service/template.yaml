@@ -367,7 +367,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub vdp-service-${Environment}-download-vdp-queue
-      VisibilityTimeout: 300
+      VisibilityTimeout: 900
       MessageRetentionPeriod: 86400
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DownloadVDPQueueDLQ.Arn
