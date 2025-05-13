@@ -1167,7 +1167,7 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
-  /dealers/idp_dealer_id/{idp_dealer_id}:
+  /dealers/idp/{idp_dealer_id}:
     get:
       operationId: get-dealer-by-idp-dealer-id
       summary: Get active dealer by idp_dealer_id. For internal use only.
