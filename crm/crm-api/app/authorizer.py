@@ -93,10 +93,11 @@ def _lambda_handler(event: Any, context: Any) -> Any:
     if authorized and endpoint_allowed:
         policy["Statement"][0]["Effect"] = "Allow"
         return {
-            "policyDocument": policy, 
+            "policyDocument": policy,
             "principalId": partner_id,
             "context": {
-                "integration_partner": secret_data.get("integration_partner", None)
+                "integration_partner": secret_data.get("integration_partner", None),
+                "source_application": secret_data.get("source_application", 'INTEGRATION')
             }
         }
     else:
