@@ -244,12 +244,32 @@ Resources:
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
 
+  EventEnricherDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-shared-${Environment}-EventEnricherDLQAlarm"
+      AlarmDescription: There are over 1 unprocessed messages in the EventEnricherDLQ
+      ActionsEnabled: !If [ IsProd, true, false ]
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt EventEnricherDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   EventEnricherEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 10
       EventSourceArn: !GetAtt EventEnricherQueue.Arn
-      MaximumBatchingWindowInSeconds: 30
+      MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt EventEnricher.Arn
 
   CrmEventBus:
@@ -293,7 +313,7 @@ Resources:
       Name: !Sub "crm-shared-${Environment}-MonitoringRule"
       EventPattern:
         source:
-          - "crm-api"
+          - "EventEnricher"
       State: ENABLED
       EventBusName: !GetAtt CrmEventBus.Arn
       Targets:
@@ -321,4 +341,4 @@ Outputs:
     Description: URL of the EventEnricherQueue
     Value: !Ref EventEnricherQueue
     Export:
-      Name: !Sub "crm-shared-EventEnricherQueueUrl"
+      Name: !Sub "crm-shared-${Environment}-EventEnricherQueueUrl"
