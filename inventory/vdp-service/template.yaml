@@ -389,6 +389,8 @@ Resources:
       Handler: download_vdp.lambda_handler
       CodeUri: app/
       Role: !GetAtt LambdaRole.Arn
+      Timeout: 900
+      MemorySize: 1024
 
   DownloadVDPLogGroup:
     Type: AWS::Logs::LogGroup
