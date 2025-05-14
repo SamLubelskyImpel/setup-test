@@ -62,6 +62,27 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  EnterpriseBusRouterTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub idp-shared-services-${Environment}-EnterpriseBusRouter
+
+  RouterDSRSalesOutboundSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref EnterpriseBusRouterTopic
+      Protocol: sqs
+      Endpoint: !If [
+                IsProd,
+                'arn:aws:sqs:us-west-2:078045093221:ford-integration-opt-outs-prod',
+                'arn:aws:sqs:us-west-2:856787491001:ford-integration-opt-outs-dev'
+              ]
+      FilterPolicyScope: "MessageBody"
+      FilterPolicy:
+        source: [{ "prefix": "cdp_integration_layer" }]
+        detail.event_type: ["cdp.dsr.delete", "cdp.dsr.optout"]
+        detail.source_application: ["sales_ai"]
+
   EnterpriseBusRole:
     Type: AWS::IAM::Role
     Properties:
@@ -78,6 +99,10 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref EnterpriseBusRouterTopic
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
@@ -107,13 +132,35 @@ Resources:
                     'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-prod',
                     'arn:aws:sqs:us-east-1:261695625069:combined-service-ro-scheduled-queue-staging'
                   ]
-
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:196800776222:cdpi-prod-ford-direct-DsrEventProcessingQueue',
+                    'arn:aws:sqs:us-east-1:143813444726:cdpi-test-ford-direct-DsrEventProcessingQueue'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:261695625069:ditto-prod-IntegrationStack-processOptOutsQueueAAD3A8FD-LwrSb7wOLfsW',
+                    'arn:aws:sqs:us-east-1:261695625069:ditto-staging-IntegrationStack-processOptOutsQueueAAD3A8FD-tpQ5tvDEzKWs'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Prod1-MessageGenerated-v1',
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGenerated-v1'
+                  ]
+                  - !If [
+                    IsProd,
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Prod1-MessageGeneratedPriority-v1',
+                    'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGeneratedPriority-v1'
+                  ]
+                  
   EnterpriseBusQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
       Queues:
         - !GetAtt ServiceAIEventRuleDLQ.QueueName
         - !GetAtt IDPEventRuleDLQ.QueueName
+        - !GetAtt DSRInboundEventRuleDLQ.QueueName
+        - !GetAtt DSROutboundEventRuleDLQ.QueueName
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -232,7 +279,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub idp-shared-services-${Environment}-IDPEventRule
-      EventPattern: '{"source":[{"prefix":"service_ai"},{"prefix":"sales_ai"}]}'
+      EventPattern: '{"source":[{"prefix":"service_ai"},{"prefix":"sales_ai"},{"prefix":"marketing_ai"}]}'
       State: ENABLED
       EventBusName: !GetAtt EventBus.Name
       Targets:
@@ -252,6 +299,144 @@ Resources:
       QueueName: !Sub "idp-shared-services-${Environment}-IDPEventRuleDLQ"
       MessageRetentionPeriod: 1209600
       VisibilityTimeout: 300
+
+  MarketingAIEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-MarketingAIEventRule
+      EventPattern:
+        {
+          "source": [{"prefix":"agent_platform"},{"prefix":"marketing_ai"}],
+          "detail": {
+            "event_type": ["message_generated"],
+            "data": {
+              "priority": [{
+                "exists": false
+              }]
+            }
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Prod1-MessageGenerated-v1',
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGenerated-v1'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt IDPEventRuleDLQ.Arn
+  
+  MarketingAIPriorityEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-MarketingAIPriorityEventRule
+      EventPattern:
+        {
+          "source": [{"prefix":"agent_platform"},{"prefix":"marketing_ai"}],
+          "detail": {
+            "event_type": ["message_generated"],
+            "data": {
+              "priority": ["high"]
+            }
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Prod1-MessageGeneratedPriority-v1',
+            'arn:aws:sqs:us-east-1:610667881604:DEP-Domain-Messaging-ETL-Dev1-MessageGeneratedPriority-v1'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt IDPEventRuleDLQ.Arn
+  
+  DSRInboundEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-DSRInbound
+      EventPattern:
+        {
+          "source": [{"prefix":"service_ai"},{"prefix":"sales_ai"}],
+          "detail": {
+            "event_type": ["cdp.dsr.delete", "cdp.dsr.optout"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:196800776222:cdpi-prod-ford-direct-DsrEventProcessingQueue',
+            'arn:aws:sqs:us-east-1:143813444726:cdpi-test-ford-direct-DsrEventProcessingQueue'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt DSRInboundEventRuleDLQ.Arn
+
+  DSRInboundEventRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-DSRInboundEventRuleDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+
+  DSROutboundSalesEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-DSROutboundSales
+      EventPattern:
+        {
+          "source": [{"prefix":"cdp_integration_layer"}],
+          "detail": {
+            "event_type": ["cdp.dsr.delete", "cdp.dsr.optout"],
+            "source_application": ["sales_ai"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: CrossAccountSNS
+          Arn: !Ref EnterpriseBusRouterTopic
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+
+  DSROutboundEventRuleDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "idp-shared-services-${Environment}-DSROutboundEventRuleDLQ"
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 300
+  
+  DSROutboundServiceEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub idp-shared-services-${Environment}-DSROutboundService
+      EventPattern:
+        {
+          "source": [{"prefix":"cdp_integration_layer"}],
+          "detail": {
+            "event_type": ["cdp.dsr.delete", "cdp.dsr.optout"],
+            "source_application": ["service_ai"]
+          }
+        }
+      State: ENABLED
+      EventBusName: !GetAtt EventBus.Name
+      Targets:
+        - Id: SQS
+          Arn: !If [
+            IsProd,
+            'arn:aws:sqs:us-east-1:261695625069:ditto-prod-IntegrationStack-processOptOutsQueueAAD3A8FD-LwrSb7wOLfsW',
+            'arn:aws:sqs:us-east-1:261695625069:ditto-staging-IntegrationStack-processOptOutsQueueAAD3A8FD-tpQ5tvDEzKWs'
+          ]
+          RoleArn: !GetAtt EnterpriseBusRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt DSROutboundEventRuleDLQ.Arn
 
   MonitoringRule:
     Type: AWS::Events::Rule

@@ -40,59 +40,123 @@ PRODUCT_COLUMNS = [
     "record_date"
 ]
 
+dms_consumer_ids = [
+    17351574,
+    17351575,
+    17351576,
+    17351577,
+    17351578,
+    17351579,
+    17351580,
+    26244888,
+    26244889,
+    26244890,
+    26244891,
+    26244892
+]
 
-def generate_rows(dealer_id: str, salesforce_id: str, row_count=50):
+crm_lead_ids = [
+    6683,
+    457130,
+    13029,
+    13056,
+    13066,
+    13075,
+    13079,
+    13081,
+    457131,
+    454039,
+    453301,
+    453229,
+    457200,
+    457201,
+    453225,
+    452962,
+    452963,
+    454022
+]
+
+
+def generate_rows(dealer_id: str, salesforce_id: str, row_count=50, product="sales-ai"):
     """Generate a CSV file with random data."""
-    rows = []
+    rows: list[dict] = []
 
     for _ in range(row_count):
         faker = Faker()
-        rows.append([
-            dealer_id,
-            str(uuid4()),
-            salesforce_id,
-            faker.first_name()[:80],
-            faker.last_name()[:80],
-            faker.phone_number()[:15],
-            faker.email()[:100],
-            random.choice([0, 1]),
-            random.choice([0, 1]),
-            random.choice([0, 1]),
-            faker.street_address()[:80],
-            faker.secondary_address()[:80],
-            faker.building_number()[:80],
-            faker.city()[:80],
-            faker.state_abbr()[:80],
-            faker.state()[:80],
-            faker.country()[:80],
-            faker.zipcode()[:10],
-            faker.building_number()[:10],
-            faker.building_number()[:80],
-            datetime.now().isoformat()
-        ])
+        # Create base row with standard columns
+        row = {
+            "dealer_id": dealer_id,
+            "customer_id": str(uuid4()),
+            "salesforce_id": salesforce_id,
+            "first_name": faker.first_name()[:80],
+            "last_name": faker.last_name()[:80],
+            "phone_number": faker.phone_number()[:15],
+            "email_address": faker.email()[:100],
+            "email_optin_flag": random.choice([0, 1]),
+            "phone_optin_flag": random.choice([0, 1]),
+            "sms_optin_flag": random.choice([0, 1]),
+            "address_1": faker.street_address()[:80],
+            "address_2": faker.secondary_address()[:80],
+            "suite": faker.building_number()[:80],
+            "city": faker.city()[:80],
+            "areatype": faker.state_abbr()[:80],
+            "area": faker.state()[:80],
+            "country": faker.country()[:80],
+            "zip": faker.zipcode()[:10],
+            "zipextra": faker.building_number()[:10],
+            "pobox": faker.building_number()[:80],
+            "record_date": datetime.now().isoformat()
+        }
+
+        # Add product-specific columns
+        if product == "sales-ai":
+            row["crm_lead_id"] = random.choice(crm_lead_ids)
+            row["crm_vendor_name"] = "unified_crm_layer"
+        elif product == "service-ai":
+            row["dms_consumer_id"] = random.choice(dms_consumer_ids)
+            row["dms_vendor_name"] = "impel unified data"
+        else:
+            raise Exception("Invalid product parameter.")
+
+        rows.append(row)
 
     return rows
 
 
 def upload_product_file(dealer_id: str, salesforce_id: str, product: str):
-    rows = generate_rows(dealer_id, salesforce_id)
+    rows = generate_rows(dealer_id, salesforce_id, product=product)
+    s3_key = (f"customer-inbound/{product}/{salesforce_id}_"
+              f"{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}.csv")
 
-    s3_key = f"customer-inbound/{product}/{salesforce_id}_{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}.csv"
+    # Get all column names (standard + product specific)
+    columns = PRODUCT_COLUMNS + (
+        ["crm_lead_id", "crm_vendor_name"] if product == "sales-ai"
+        else ["dms_consumer_id", "dms_vendor_name"]
+    )
 
     csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow(PRODUCT_COLUMNS)
+    writer = csv.DictWriter(csv_buffer, fieldnames=columns)
+
+    writer.writeheader()
     writer.writerows(rows)
 
-    s3_client = boto3.client('s3')
+    # Write to local CSV file
+    local_filename = f"customer_data_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}.csv"
+    with open(local_filename, 'w', newline='') as csv_file:
+        csv_file.write(csv_buffer.getvalue())
+    print(f"CSV file written to: {local_filename}")
 
-    # Upload the in-memory CSV to S3
-    s3_client.put_object(Bucket='cdpi-shared-us-east-1-test', Key=s3_key, Body=csv_buffer.getvalue())
+    # s3_client = boto3.client('s3')
+    # s3_client.put_object(
+    #     Bucket='cdpi-shared-us-east-1-test',
+    #     Key=s3_key,
+    #     Body=csv_buffer.getvalue()
+    # )
 
 
 if __name__ == '__main__':
     upload_product_file(
-        dealer_id='impel-test-dealer',
+        dealer_id='wise_auto_group-north_bay_nissan',
         salesforce_id='11110000',
         product='service-ai'
     )
