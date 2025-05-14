@@ -186,7 +186,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
       Timeout: 30
@@ -250,7 +250,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:4", # TODO: deploy shared-resources first so the layer version do exist
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
       Timeout: 90
@@ -426,7 +426,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -543,7 +543,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -658,7 +658,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -902,7 +902,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -934,7 +934,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -990,7 +990,7 @@ Resources:
               AWS: 
                 - !If
                   - IsProd
-                  - "arn:aws:iam::143813444726:role/EnterpriseBus-prod-CrossAccountRole"
+                  - "arn:aws:iam::196800776222:role/EnterpriseBus-prod-CrossAccountRole"
                   - "arn:aws:iam::143813444726:role/EnterpriseBus-test-CrossAccountRole"
             Action: "SQS:SendMessage"
             Resource: !GetAtt DsrEventProcessingQueue.Arn
@@ -1020,7 +1020,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
@@ -1085,7 +1085,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
@@ -1142,7 +1142,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
@@ -1179,7 +1179,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
   
@@ -1204,7 +1204,7 @@ Resources:
       Layers:
         - !If [
             IsProd,
-            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:3",
+            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-prod:7",
             !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:cdpi_orm_layer-test:20"
           ]
 
