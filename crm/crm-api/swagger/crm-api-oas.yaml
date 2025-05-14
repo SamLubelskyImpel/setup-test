@@ -1167,6 +1167,62 @@ paths:
           description: Not Found. No active dealership found with matching dealer_id.
         '500':
           "$ref": "#/components/responses/500"
+  /dealers/idp/{idp_dealer_id}:
+    get:
+      operationId: get-dealer-by-idp-dealer-id
+      summary: Get active dealer by idp_dealer_id. For internal use only.
+      #{{RETRIEVE_DEALER_BY_IDP_DEALER_ID_LAMBDA_INFO}}
+      tags:
+        - Dealers
+      parameters:
+        - "$ref": "#/components/parameters/partnerId"
+        - "$ref": "#/components/parameters/xApiKey"
+        - name: idp_dealer_id
+          in: path
+          description: The UUID assigned to the dealership.
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+            example: "e4b8c3d4-2f1e-4a5b-8c3d-4e1e2f1e2c3d"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A dealership or rooftop in the CRM layer.
+                properties:
+                  product_dealer_id:
+                    type: string
+                    description: The ID assigned to the dealership by Impel during onboarding. Corresponds to the dealer_id in the request.
+                    example: "test_dealer_id"
+                  dealer_integration_partner_id:
+                    type: number
+                    description: The ID of the dealer integration partner in the CRM layer.
+                    example: 24
+                  dealer_name:
+                    type: string
+                    description: The name of the dealer.
+                    example: "Test Dealership"
+                  timezone:
+                    type: string
+                    description: The timezone of the dealership or rooftop (IANA Time Zone Database Format)
+                    example: "America/New_York"
+                  integration_partner_name:
+                    type: string
+                    description: The name of the integration partner assigned by Impel.
+                    example: "TESTCRM"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          description: Not Found. No active dealership found with matching dealer_id.
+        '500':
+          "$ref": "#/components/responses/500"
   /dealers/{dealer_id}/lead_statuses:
     get:
       summary: Get lead statuses from CRM API.

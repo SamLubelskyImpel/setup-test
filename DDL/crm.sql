@@ -35,6 +35,7 @@ CREATE TABLE prod.crm_dealer (
 	id serial4 NOT NULL,
 	product_dealer_id varchar(100) NOT NULL,
 	sfdc_account_id varchar(40) NOT NULL,
+    idp_dealer_id varchar(40) NOT NULL,
 	dealer_name varchar(80) NULL,
 	dealer_location_name varchar(80) NULL,
 	country varchar(40) NULL,
@@ -46,7 +47,8 @@ CREATE TABLE prod.crm_dealer (
 	db_update_date timestamptz NULL,
 	db_update_role varchar(255) NULL,
 	CONSTRAINT pk_crm_dealer PRIMARY KEY (id),
-	CONSTRAINT uq_product_dealer_id UNIQUE (product_dealer_id)
+	CONSTRAINT uq_product_dealer_id UNIQUE (product_dealer_id),
+    CONSTRAINT uq_idp_dealer_id UNIQUE (idp_dealer_id)
 );
 
 -- Table Triggers

@@ -12,6 +12,7 @@ from lead.utils import send_alert_notification
 
 from common.validation import validate_request_body, ValidationErrorResponse
 from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
+from common.utils import send_message_to_event_enricher
 from event_service.events import dispatch_event, Event, Resource
 
 from crm_orm.models.lead import Lead
@@ -30,7 +31,6 @@ EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
-
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -130,6 +130,7 @@ def process_lead_ts(input_ts: Any, dealer_timezone: Any) -> Any:
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create lead."""
     try:
+        logger.info(f"Event: {event}")
         body: CreateLeadRequest = validate_request_body(event, CreateLeadRequest)
         request_product = event["headers"]["partner_id"]
         consumer_id = body.consumer_id
@@ -297,6 +298,17 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 session.commit()
                 logger.info("Transactions committed")
                 lead_id = lead.id
+
+                payload_details = {
+                    "lead_id": lead_id,
+                    "consumer_id": consumer_id,
+                    "source_application": event["requestContext"]["authorizer"]["source_application"],
+                    "idp_dealer_id": dealer_db.idp_dealer_id,
+                    "event_type": "Lead Created",
+                }
+
+                send_message_to_event_enricher(payload_details)
+
             except SQLAlchemyError as e:
                 # Rollback in case of any error
                 session.rollback()
