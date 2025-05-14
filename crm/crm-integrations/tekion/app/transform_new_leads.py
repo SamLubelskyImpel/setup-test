@@ -212,7 +212,7 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 
             vehicles = item.get('vehicles', [])
             trade_ins = item.get('tradeIns', [{}])[0] if item.get('tradeIns') else {}
-            if not vehicles: 
+            if not vehicles:
                 logger.warning(f"Lead {crm_lead_id}: No vehicles found, setting vehicles_of_interest to an empty list.")
             else:
                 for vehicle in vehicles:
@@ -273,6 +273,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
                 "email_optin_flag": email["optedForCommunication"],
                 "sms_optin_flag": phone["optedForCommunication"]
             }
+            if consumer.get('id'):
+                db_consumer["crm_consumer_id"] = consumer.get('id')
 
             if not db_consumer["email"] and not db_consumer["phone"]:
                 logger.warning(f"Email or phone number is required. Skipping lead {crm_lead_id}")
@@ -371,7 +373,7 @@ def record_handler(record: SQSRecord) -> None:
         logger.info(f"Raw data: {json_data}")
 
         # Determine API version using gating config
-        api_version = version_config.get(product_dealer_id, "v3")
+        api_version = version_config.get(product_dealer_id, "v4")
         logger.info(f"api_version is: {api_version}")
         if api_version == "v4":
             entries = parse_json_to_entries(product_dealer_id, json_data)

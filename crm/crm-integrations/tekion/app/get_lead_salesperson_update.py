@@ -1,10 +1,7 @@
 import logging
-from datetime import datetime, timezone
 from json import dumps, loads
 from os import environ
 from typing import Any, Dict, Optional
-from uuid import uuid4
-
 import boto3
 from dataclasses import dataclass, asdict
 from requests import get
@@ -41,7 +38,7 @@ def get_tekion_secrets():
     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
     secret_data = loads(secret)
     token = loads(
-        s3_client.get_object(Bucket=BUCKET, Key=f"tekion_crm/token.json")["Body"]
+        s3_client.get_object(Bucket=BUCKET, Key="tekion_crm/token.json")["Body"]
         .read()
         .decode("utf-8")
     )
