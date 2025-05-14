@@ -34,6 +34,7 @@ Globals:
           !Sub "https://2oeudyys52.execute-api.us-east-1.amazonaws.com/prod",
           !Sub "https://e1r6z92cq7.execute-api.us-east-1.amazonaws.com/test"
         ]
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
 
 Resources:
   LambdaRole:

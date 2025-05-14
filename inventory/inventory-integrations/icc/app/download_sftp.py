@@ -10,8 +10,9 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from utils import get_sftp_secrets, connect_sftp_server
+from utils import get_sftp_secrets, connect_sftp_server, send_alert_notification
 from datetime import datetime, timezone
+from uuid import uuid4
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
@@ -68,8 +69,15 @@ def record_handler(record: SQSRecord) -> Any:
         folder_name = body["folder"]
         files = body["files"]
 
+        request_id = str(uuid4())
+
         if not files:
             logger.info("No files to download from the SFTP server.")
+            send_alert_notification(
+                request_id=request_id,
+                endpoint="download_sftp",
+                e=Exception("No files to download from the SFTP server.")
+            )
             return
 
         # Get SFTP secrets

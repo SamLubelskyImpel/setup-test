@@ -3,8 +3,10 @@ import json
 from os import environ
 from typing import Any
 import paramiko
+import logging
 
 ENVIRONMENT = environ["ENVIRONMENT"]
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 sm_client = boto3.client("secretsmanager")
 
@@ -26,3 +28,20 @@ def connect_sftp_server(hostname, port, username, password):
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
+
+
+def send_alert_notification(request_id: str, endpoint: str, e: Exception):
+    """Send alert notification to CE team."""
+    data = {
+        "message": f"Error occurred in {endpoint} for request_id {request_id}: {e}",
+    }
+    sns_client = boto3.client("sns")
+
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=json.dumps({"default": json.dumps(data)}),
+        Subject=f"Inventory Integration ICC: {endpoint} Failure Alert",
+        MessageStructure="json",
+    )
+
+    logging.info(f"Alert sent to CE team for {endpoint} with request_id {request_id}")
