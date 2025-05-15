@@ -587,6 +587,26 @@ Resources:
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt PartnerSyndication.Arn
 
+  MissingICCFilesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub shared-inv-${Environment}-MissingICCFiles
+      AlarmDescription: Triggers when ICC files are not received in the inventory bucket
+      ActionsEnabled: !If [IsProd, true, false]
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt PartnerSyndicationQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: NumberOfMessagesReceived
+      Namespace: AWS/SQS
+      Period: 14400
+      Statistic: Sum
+      Threshold: 0
+      TreatMissingData: notBreaching
+
   SharedDBAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
