@@ -65,6 +65,7 @@ Globals:
         LOGLEVEL: INFO
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         CE_SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        MAX_THREADS: 3
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -549,6 +550,7 @@ Resources:
           CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
           SECRET_KEY: !If [IsProd, "impel", "impel"]
       VpcConfig: !Ref AWS::NoValue
+      ReservedConcurrentExecutions: 10
 
   SalesfileFormatLogGroup:
     Type: AWS::Logs::LogGroup
@@ -645,6 +647,7 @@ Resources:
           DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
           SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
+      ReservedConcurrentExecutions: 10
 
   ServicefileFormatLogGroup:
     Type: AWS::Logs::LogGroup

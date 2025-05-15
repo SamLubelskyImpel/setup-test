@@ -12,11 +12,13 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 LOG_LEVEL = environ.get('LOG_LEVEL', 'INFO')
 CRM_API_DOMAIN = environ.get('CRM_API_DOMAIN')
 ENVIRONMENT = environ.get('ENVIRONMENT')
 SECRET_KEY = environ.get('SECRET_KEY')
+MAX_THREADS = environ.get('MAX_THREADS')
 
 logger = logging.getLogger()
 logger.setLevel(LOG_LEVEL)
@@ -75,8 +77,34 @@ def make_crm_api_request(url: str, method: str, crm_api_key: str, data=None):
     return response
 
 
+def worker_process_api_row(row, crm_api_key):
+    """Worker function to process a single CSV row that requires a CRM API call"""
+    lead_id = row["crm_lead_id"]
+    logger.info(f"Updating vendor name for lead with CRM Lead ID {lead_id}")
+
+    url = f'https://{CRM_API_DOMAIN}/internal/leads/{lead_id}'
+    response = make_crm_api_request(url, "GET", crm_api_key)
+
+    if response.status_code != 200:
+        logger.warning(f"Lead with CRM Lead ID {lead_id} not found. {response.text}")
+
+        vendor_name = ""
+        crm_lead_id = ""
+    else:
+        logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {lead_id}")
+
+        db_vendor_name = response.json().get("crm_vendor_name", "")
+
+        vendor_name = CRM_VENDORS.get(db_vendor_name, db_vendor_name)
+        crm_lead_id = response.json().get("crm_lead_id", "")
+
+    row["crm_vendor_name"] = vendor_name
+    row["crm_lead_id"] = crm_lead_id
+    return row
+
+
 def parse(csv_object):
-    """Parse CSV object and extract entries"""
+    """Parse CSV object, update entries using a thread pool for API calls, and return updated CSV string"""
     csv_reader = csv.DictReader(StringIO(csv_object))
     fieldnames = csv_reader.fieldnames
     output_stream = StringIO()
@@ -89,33 +117,36 @@ def parse(csv_object):
         logger.warning('No rows found in the CSV')
         raise EmptyFileError
 
-    for row in rows:
-        if row.get("crm_vendor_name", "").lower() == 'unified_crm_layer':
-            lead_id = row["crm_lead_id"]
-            logger.info(f"Updating vendor name for lead with CRM Lead ID {lead_id}")
+    # List to store the final rows after processing in their original order
+    final_processed_rows = [None] * len(rows)
+    # Dictionary to map future objects to the original index of the row
+    futures_to_index_map = {}
 
-            url = f'https://{CRM_API_DOMAIN}/internal/leads/{lead_id}'
+    crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"]
 
-            crm_api_key = get_secret("crm-api", SECRET_KEY)["api_key"]
-            response = make_crm_api_request(url, "GET", crm_api_key)
+    with ThreadPoolExecutor(max_workers=int(MAX_THREADS)) as executor:
+        # If a row needs API processing, submit it to the thread pool, store the Future
+        # object and map it to the original index of the row to maintain order. If no API
+        # call is needed, place it directly into the list with the final results (final_processed_rows).
+        for index, row in enumerate(rows):
+            row_copy = dict(row)
 
-            if response.status_code != 200:
-                logger.warning(f"Lead with CRM Lead ID {lead_id} not found. {response.text}")
-
-                vendor_name = ""
-                crm_lead_id = ""
+            if row_copy.get("crm_vendor_name", "").lower() == 'unified_crm_layer':
+                future = executor.submit(
+                    worker_process_api_row,
+                    row_copy,
+                    crm_api_key
+                )
+                futures_to_index_map[future] = index
             else:
-                logger.info(f"CRM API responded with: {response.status_code} for lead with CRM Lead ID {lead_id}")
+                final_processed_rows[index] = row_copy
 
-                db_vendor_name = response.json().get("crm_vendor_name", "")
+        for future in as_completed(futures_to_index_map):
+            original_index = futures_to_index_map[future]
+            final_processed_rows[original_index] = future.result()
 
-                vendor_name = CRM_VENDORS.get(db_vendor_name, db_vendor_name)
-                crm_lead_id = response.json().get("crm_lead_id", "")
-
-            row["crm_vendor_name"] = vendor_name
-            row["crm_lead_id"] = crm_lead_id
-
-        writer.writerow(row)
+    for row_to_write in final_processed_rows:
+        writer.writerow(row_to_write)
 
     updated_csv = output_stream.getvalue()
 
