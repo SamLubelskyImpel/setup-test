@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from shared.adf_creation_class import AdfCreation
+from temporary import standard_event_handler
 
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -28,6 +29,14 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Processing record with message ID: {record.message_id}")
     body = record.json_body
     logger.info(f"Body: {body}")
+
+    if body.get("id") and body.get("detail-type"):
+        logger.info("EventBridge message received.")
+        return standard_event_handler(record)
+    else:
+        # To deprecate, following CRM API deployment
+        logger.info("SQS message received. Ignored.")
+        return
 
     required_keys = ["partner_name", "lead_id", "event_type", "product_dealer_id"]
     for key in required_keys:

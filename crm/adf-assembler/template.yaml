@@ -201,7 +201,7 @@ Resources:
             Statistic: Sum
             ComparisonOperator: GreaterThanThreshold
             Threshold: 1
-            TreatMissingData: notBreaching            
+            TreatMissingData: notBreaching
 
 
 #   Honda/Acura ADF Assembler Resources

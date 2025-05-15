@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from shared.shared_class import BaseClass as CRMAPIWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -53,7 +54,19 @@ def process_record(record: SQSRecord) -> None:
         body = record.json_body
         logger.debug(f"Record body: {body}")
 
-        oem_partner = body.get("oem_partner", {})
+        # Get oem_partner attribute of dealer
+        if body.get("id") and body.get("detail-type"):
+            body = body.get("detail", {})
+            logger.info("EventBridge message received.")
+            crm_api_wrapper = CRMAPIWrapper()
+            dealer_db = crm_api_wrapper.get_idp_dealer(body["idp_dealer_id"])
+            oem_partner = dealer_db.get("metadata", {}).get("oem_partner", {})
+        else:
+            # To deprecate, following CRM API deployment
+            logger.info("SQS message received.")
+            oem_partner = body.get("oem_partner", {})
+            return
+
         lead_id = body.get("lead_id")
         if not lead_id:
             logger.warning("Missing 'lead_id' in record body.")

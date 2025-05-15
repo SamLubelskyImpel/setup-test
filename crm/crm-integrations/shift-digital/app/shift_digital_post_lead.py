@@ -9,7 +9,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from api_wrappers import ShiftDigitalAPIWrapper
+from api_wrappers import ShiftDigitalAPIWrapper, CRMAPIWrapper
 from boto3.exceptions import Boto3Error
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -29,6 +29,7 @@ class MissingConfigurationError(Exception):
     """Exception raised when required configuration is missing."""
     pass
 
+
 def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
     """
     Retrieve configuration from S3.
@@ -44,6 +45,7 @@ def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
         logger.error(f"Error fetching configuration from S3: {e}")
         raise
 
+
 def send_to_sqs(queue_url: str, message_body: str) -> None:
     """Send a message to SQS."""
     try:
@@ -54,10 +56,25 @@ def send_to_sqs(queue_url: str, message_body: str) -> None:
         logger.error(f"Failed to send message to SQS: {e}")
         raise
 
-def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
-    """Process incoming lead"""
+
+def record_handler(record: SQSRecord) -> None:
+    """Processes incoming lead."""
+    logger.info(f"Processing record: {record}")
+    body = record.json_body
+
+    if body.get("id") and body.get("detail-type"):
+        body = body.get("detail", {})
+        logger.info("EventBridge message received.")
+        crm_api_wrapper = CRMAPIWrapper()
+        dealer_db = crm_api_wrapper.get_idp_dealer(body["idp_dealer_id"])
+        oem_partner = dealer_db.get("metadata", {}).get("oem_partner", {})
+    else:
+        # To deprecate, following CRM API deployment
+        logger.info("SQS message received.")
+        oem_partner = body.get("oem_partner", {})
+        return
+
     lead_id = body.get("lead_id")
-    oem_partner = body.get("oem_partner", {})
     dealer_code = oem_partner.get("dealer_code")
 
     if not lead_id or not dealer_code:
@@ -106,14 +123,7 @@ def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
         raise
 
 
-
-def record_handler(record: SQSRecord) -> None:
-    """Processes each SQS record."""
-    logger.info(f"Processing record: {record}")
-    process_record(record.json_body)
-
-
-def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Any, context: Any):
     """Lambda function handler."""
     logger.info("Lambda invocation started.")
     try:
