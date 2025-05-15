@@ -318,7 +318,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref DmsDataServiceGateway
-            Path: /customer/v1/{customer_id}
+            Path: /customer/v1
             Method: GET
       Policies:
         - Id: DBAuthorizerPermissions
