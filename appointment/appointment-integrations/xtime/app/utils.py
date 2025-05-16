@@ -61,7 +61,6 @@ def handle_response(request_id, endpoint, status_code, body, exception=None) -> 
 
     elif body.get("error"):
         logger.error(f"Error in {endpoint}: {body['error']['message']}")
-        send_alert_notification(request_id=request_id, endpoint=endpoint, error=body["error"]["message"])
     
     else:
         logger.info(f"Success in {endpoint}: {body}")
