@@ -6,7 +6,8 @@ from json import dumps, loads
 from typing import Any
 import boto3
 import botocore.exceptions
-from utils import apply_dealer_timezone, send_general_alert_notification
+from .utils import apply_dealer_timezone, send_general_alert_notification
+from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.activity import Activity
@@ -177,6 +178,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 DealerIntegrationPartner.is_active_chatai,
                 Dealer.metadata_,
                 Dealer.product_dealer_id,
+                Dealer.idp_dealer_id,
                 IntegrationPartner.impel_integration_partner_name
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
@@ -209,6 +211,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
              dip_is_active_chatai,
              dealer_metadata,
              product_dealer_id,
+             idp_dealer_id,
              partner_name) = db_results
 
             if not any([dip_is_active, dip_is_active_salesai, dip_is_active_chatai]):
@@ -312,6 +315,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Partner {partner_name} disabled custom writeback. Activity {activity_id} will not be sent to integration resource.")
         else:
             create_on_crm(partner_name=partner_name, payload=payload)
+
+        payload_details = {
+            "lead_id": lead_id,
+            "activity_id": activity_id,
+            "source_application": event["requestContext"]["authorizer"]["source_application"],
+            "idp_dealer_id": idp_dealer_id,
+            "event_type": "Activity Created",
+        }
+
+        send_message_to_event_enricher(payload_details)
 
         return {
             "statusCode": 201,

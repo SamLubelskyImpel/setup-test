@@ -57,6 +57,8 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
         ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
+        EVENT_ENRICHER_QUEUE_URL: !ImportValue
+                                  Fn::Sub: crm-shared-${Environment}-EventEnricherQueueUrl
         # PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
@@ -115,6 +117,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
@@ -394,8 +401,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "crm-api-${Environment}-UpdateLead"
-      CodeUri: app/lead/
-      Handler: update_lead.lambda_handler
+      CodeUri: app
+      Handler: lead.update_lead.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -546,8 +553,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "crm-api-${Environment}-CreateActivity"
-      CodeUri: app/activity/
-      Handler: create_activity.lambda_handler
+      CodeUri: app/
+      Handler: activity.create_activity.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -566,8 +573,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "crm-api-${Environment}-UpdateActivity"
-      CodeUri: app/activity/
-      Handler: update_activity.lambda_handler
+      CodeUri: app/
+      Handler: activity.update_activity.lambda_handler
       Timeout: 30
       MemorySize: 1536
       Role: !GetAtt LambdaRole.Arn
@@ -665,6 +672,25 @@ Resources:
           Properties:
             RestApiId: !Ref CrmApiGateway
             Path: /dealers/{dealer_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
+  RetrieveDealerByIdpDealerId:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveDealerByIdpDealerId"
+      CodeUri: app/dealer/
+      Handler: retrieve_dealer_by_idp_dealer_id.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /dealers/idp/{idp_dealer_id}
             Method: GET
       Layers:
         - !Ref CrmOrmLayer

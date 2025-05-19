@@ -28,8 +28,8 @@ def process_batch(batch, bucket, product_name, filename, batch_count):
 
     csv_writer.writerows(batch)
 
-    # Example key: customer-inbound-processed/product/0010a00001e7M7dAAE_2024-09-24T14_00_25Z/batch_0.csv
-    batch_s3_key = f'customer-inbound-processed/{product_name}/{filename}/batch_{batch_count}.csv'
+    # Example key: customer-inbound-preprocessed/product/0010a00001e7M7dAAE_2024-09-24T14_00_25Z/batch_0.csv
+    batch_s3_key = f'customer-inbound-preprocessed/{product_name}/{filename}/batch_{batch_count}.csv'
     s3_client.put_object(Bucket=bucket, Key=batch_s3_key, Body=csv_buffer.getvalue())
 
     logger.info(f'Uploading batch to S3: {batch_s3_key}')

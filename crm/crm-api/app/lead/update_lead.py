@@ -3,7 +3,8 @@ import logging
 from json import loads, dumps
 from os import environ
 from typing import Any
-from utils import send_alert_notification
+from .utils import send_alert_notification
+from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.consumer import Consumer
@@ -13,6 +14,7 @@ from crm_orm.models.salesperson import Salesperson
 from crm_orm.session_config import DBSession
 from crm_orm.models.dealer_integration_partner import DealerIntegrationPartner
 from crm_orm.models.integration_partner import IntegrationPartner
+from crm_orm.models.dealer import Dealer
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -152,13 +154,15 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             db_query = session.query(
-                Lead, Consumer, DealerIntegrationPartner
+                Lead, Consumer, DealerIntegrationPartner, Dealer.idp_dealer_id
             ).join(
                 Consumer, Lead.consumer_id == Consumer.id
             ).join(
                 DealerIntegrationPartner, Consumer.dealer_integration_partner_id == DealerIntegrationPartner.id
             ).join(
                 IntegrationPartner, DealerIntegrationPartner.integration_partner_id == IntegrationPartner.id
+            ).join(
+                Dealer, DealerIntegrationPartner.dealer_id == Dealer.id
             ).filter(
                 Lead.id == lead_id
             )
@@ -174,7 +178,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"error": f"Lead not found {lead_id}"})
                 }
 
-            lead_db, consumer_db, dip_db = db_results
+            lead_db, consumer_db, dip_db, idp_dealer_id = db_results
 
             if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                 error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be updated."
@@ -263,6 +267,16 @@ def lambda_handler(event: Any, context: Any) -> Any:
             logger.info(f"Lead is updated {lead_id}")
 
             modify_salespersons(session, lead_id, dealer_partner_id, body.get("salespersons", []))
+
+            payload_details = {
+                "lead_id": lead_id,
+                "consumer_id": consumer_id,
+                "source_application": event["requestContext"]["authorizer"]["source_application"],
+                "idp_dealer_id": idp_dealer_id,
+                "event_type": "Lead Updated",
+            }
+
+            send_message_to_event_enricher(payload_details)
 
         return {
             "statusCode": 200,

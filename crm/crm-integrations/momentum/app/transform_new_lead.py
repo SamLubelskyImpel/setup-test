@@ -11,6 +11,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
+from api_wrappers import MomentumApiWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOG_LEVEL", "INFO").upper())
@@ -263,6 +264,7 @@ def parse_lead(product_dealer_id, data):
         parsed_data = {
             "product_dealer_id": product_dealer_id,
             "lead": db_lead,
+            "crm_dealer_id": data["dealerID"],
             "consumer": db_consumer,
             "vehicle": db_vehicle,
             "salesperson": db_salesperson
@@ -297,6 +299,11 @@ def record_handler(record: SQSRecord) -> None:
         if parsed_lead["lead"]["lead_origin"] != "Internet":
             logger.warning(f"Lead type is not Internet: {parsed_lead['lead']['lead_origin']}. Ignoring lead.")
             return
+            
+        consumer = parsed_lead["consumer"]
+        if consumer.get("email") is None and consumer.get("phone") is None:
+            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
+            return
 
         crm_api_key = get_secret(secret_name="crm-api", secret_key=UPLOAD_SECRET_KEY)["api_key"]
         existing_lead = get_existing_lead(crm_lead_id, crm_dealer_id, crm_api_key)
@@ -305,23 +312,39 @@ def record_handler(record: SQSRecord) -> None:
             return
 
         crm_consumer_id = parsed_lead["consumer"]["crm_consumer_id"]
-        existing_consumer_id = get_existing_consumer(crm_consumer_id, crm_dealer_id, crm_api_key)
-        if existing_consumer_id:
-            vin = parsed_lead["vehicle"].get("vin")
-            consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
-            logger.info(f"Retrieved recent lead ID: {consumer_recent_lead_id} for consumer ID: {existing_consumer_id} and dealer ID: {product_dealer_id}")
+        
+        # Get all possible consumer IDs from Momentum
+        momentum_api = MomentumApiWrapper(activity=parsed_lead) 
+        alternate_ids = momentum_api.get_alternate_person_ids(crm_consumer_id)
+        
+        # Check each possible consumer ID for duplicates
+        all_consumer_ids = [crm_consumer_id]
+        
+        # The Momentum API returns:
+        # - personApiID: A single ID (not a list)
+        # - mergedPersonApiIDs: An optional list of IDs
+        # We use append() for the single personApiID and extend() for the list of mergedPersonApiIDs
+        if alternate_ids.get("personApiID"):
+            all_consumer_ids.append(alternate_ids["personApiID"])
+        if alternate_ids.get("mergedPersonApiIDs"):
+            all_consumer_ids.extend(alternate_ids["mergedPersonApiIDs"])
+        
+        # Remove any duplicate IDs before checking for existing consumers while preserving order
+        all_consumer_ids = list(dict.fromkeys(all_consumer_ids))
+        
+        for consumer_id in all_consumer_ids:
+            existing_consumer_id = get_existing_consumer(consumer_id, crm_dealer_id, crm_api_key)
+            if existing_consumer_id:
+                vin = parsed_lead["vehicle"].get("vin")
+                consumer_recent_lead_id = get_recent_leads(product_dealer_id, existing_consumer_id, vin, crm_api_key)
+                logger.info(f"Retrieved recent lead ID: {consumer_recent_lead_id} for consumer ID: {existing_consumer_id} and dealer ID: {product_dealer_id}")
 
-            if consumer_recent_lead_id:
-                logger.warning(
-                    f"Duplicate lead detected for CRM Lead ID {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
-                    f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer and vin."
-                )
-                return
-
-        consumer = parsed_lead["consumer"]
-        if consumer.get("email") is None and consumer.get("phone") is None:
-            logger.warning(f"Email or phone number is required. Ignoring lead {crm_lead_id}")
-            return
+                if consumer_recent_lead_id:
+                    logger.warning(
+                        f"Duplicate lead detected for CRM Lead ID {crm_lead_id} and CRM Consumer ID {crm_consumer_id}. "
+                        f"Pre-existing lead {consumer_recent_lead_id} was created in the last 30 days for the same consumer and vin."
+                    )
+                    return
 
         consumer_id = create_consumer(parsed_lead, crm_api_key)["consumer_id"]
         lead_id = create_lead(parsed_lead, consumer_id, crm_api_key)["lead_id"]

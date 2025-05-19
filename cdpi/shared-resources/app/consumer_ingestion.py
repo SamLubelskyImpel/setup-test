@@ -51,7 +51,10 @@ FIELD_MAPPINGS = {
     "zip": "zip",
     "zipextra": "zipextra",
     "pobox": "pobox",
-    "record_date": "record_date"
+    "record_date": "record_date",
+    "vendor_name": "",
+    "crm_lead_id": "crm_lead_id",
+    "dms_consumer_id": "dms_consumer_id",
 }
 
 
@@ -68,7 +71,7 @@ def alert_topic(subject, message):
     )
 
 
-def parse(csv_object):
+def parse(csv_object, product_name):
     """Parse CSV object and extract entries"""
     csv_reader = csv.DictReader(StringIO(csv_object))
     entries = []
@@ -104,8 +107,14 @@ def parse(csv_object):
                 elif cdpi_field == 'email':
                     if not row.get(inbound_data_field):
                         missing_email = True
+                elif cdpi_field == 'vendor_name':
+                    if product_name == 'Sales AI':
+                        inbound_data_field = 'crm_vendor_name'
+                    elif product_name == 'Service AI':
+                        inbound_data_field = 'dms_vendor_name'
 
-                entry[cdpi_field] = row.get(inbound_data_field, None)
+                value = row.get(inbound_data_field, None)
+                entry[cdpi_field] = value if value else None
 
         if missing_phone and missing_email:
             skipped_rows.append(row)
@@ -202,7 +211,7 @@ def record_handler(record: SQSRecord):
             logger.error(f"Product {product} not found in PRODUCT_MAPPING")
             return
 
-        entries, product_dealer_id, sfdc_account_id, skipped_rows = parse(csv_object)
+        entries, product_dealer_id, sfdc_account_id, skipped_rows = parse(csv_object, product_name)
 
         if skipped_rows:
             logger.warning(f'Skipped rows with missing phone and email: ({len(skipped_rows)}) - {skipped_rows}')

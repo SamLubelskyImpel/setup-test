@@ -9,7 +9,7 @@ function help() {
      ./deploy.sh <parameters>
     Options:
      -e       REQUIRED: environment to deploy to, e.g. dev, test, prod
-     -r       an an Impel region, e.g. us, eu
+     -r       an Impel region, e.g. us, eu
      -h       display this help
     "
   exit 2
