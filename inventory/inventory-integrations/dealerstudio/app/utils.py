@@ -31,18 +31,15 @@ def connect_sftp_server(hostname, port, username, password):
     return sftp
 
 
-def send_alert_notification(request_id: str, endpoint: str, e: Exception):
+def send_alert_notification(request_id: str, endpoint: str, message: str):
     """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred in {endpoint} for request_id {request_id}: {e}",
-    }
     sns_client = boto3.client("sns")
 
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
-        Message=json.dumps({"default": json.dumps(data)}),
-        Subject=f"Inventory Integration Dealerstudio: {endpoint} Failure Alert",
-        MessageStructure="json",
+        Message=f"Alert in {endpoint} for request_id {request_id}: {message}",
+        Subject=f"Inventory Integration Dealerstudio: {endpoint} Alert",
+        MessageStructure="string",
     )
 
     logging.info(f"Alert sent to CE team for {endpoint} with request_id {request_id}")

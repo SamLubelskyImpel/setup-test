@@ -63,20 +63,20 @@ def upload_to_s3(local_filename, provider_dealer_id):
 def record_handler(record: SQSRecord) -> Any:
     """Download files from the SFTP server and upload to S3."""
     logger.info(f"Record: {record}")
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
 
     try:
         body = json.loads(record["body"])
         folder_name = body["folder"]
         files = body["files"]
 
-        request_id = str(uuid4())
-
         if not files:
             logger.info("No files to download from the SFTP server.")
             send_alert_notification(
                 request_id=request_id,
                 endpoint="download_sftp",
-                e=Exception("No files to download from the SFTP server.")
+                message="No files to download from the SFTP server."
             )
             return
 

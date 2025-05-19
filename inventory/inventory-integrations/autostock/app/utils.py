@@ -65,18 +65,15 @@ def call_inventory_internal_api(endpoint: str):
         raise e
 
 
-def send_alert_notification(request_id: str, endpoint: str, e: Exception):
+def send_alert_notification(request_id: str, endpoint: str, message: str):
     """Send alert notification to CE team."""
-    data = {
-        "message": f"Error occurred in {endpoint} for request_id {request_id}: {e}",
-    }
     sns_client = boto3.client("sns")
 
     sns_client.publish(
         TopicArn=SNS_TOPIC_ARN,
-        Message=json.dumps({"default": json.dumps(data)}),
-        Subject=f"Inventory Integration Autostock: {endpoint} Failure Alert",
-        MessageStructure="json",
+        Message=f"Alert in {endpoint} for request_id {request_id}: {message}",
+        Subject=f"Inventory Integration Autostock: {endpoint} Alert",
+        MessageStructure="string",
     )
 
     logging.info(f"Alert sent to CE team for {endpoint} with request_id {request_id}")
