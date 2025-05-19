@@ -4,8 +4,10 @@ from datetime import datetime, timezone
 from os import environ
 from typing import Any
 import paramiko
+import logging
 
 ENVIRONMENT = environ["ENVIRONMENT"]
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 sm_client = boto3.client("secretsmanager")
 
@@ -27,3 +29,17 @@ def connect_sftp_server(hostname, port, username, password):
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
+
+
+def send_alert_notification(request_id: str, endpoint: str, message: str):
+    """Send alert notification to CE team."""
+    sns_client = boto3.client("sns")
+
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=f"Alert in {endpoint} for request_id {request_id}: {message}",
+        Subject=f"Inventory Integration Dealerstudio: {endpoint} Alert",
+        MessageStructure="string",
+    )
+
+    logging.info(f"Alert sent to CE team for {endpoint} with request_id {request_id}")
