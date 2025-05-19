@@ -602,7 +602,7 @@ Resources:
       EvaluationPeriods: 1
       MetricName: NumberOfMessagesReceived
       Namespace: AWS/SQS
-      Period: 14400
+      Period: 28800 # 8 hours
       Statistic: Sum
       Threshold: 0
       TreatMissingData: notBreaching
