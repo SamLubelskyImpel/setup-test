@@ -58,6 +58,26 @@ class CrmApiWrapper:
             raise Exception(f"No salespersons found for lead {lead_id}")
         return salespersons[0]
 
+    def get_activity(self, activity_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
     def update_activity(self, activity_id, crm_activity_id):
         try:
             res = requests.put(
