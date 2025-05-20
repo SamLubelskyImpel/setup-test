@@ -272,6 +272,52 @@ Resources:
       MaximumBatchingWindowInSeconds: 0
       FunctionName: !GetAtt EventEnricher.Arn
 
+  CrmEventBusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CrmEventBusPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: !GetAtt CrmEventBus.Arn
+        - PolicyName: CrmEventBusDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt CrmEventBusDLQ.Arn
+        - PolicyName: DealPeakQueuePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
+        - PolicyName: DealerPeakDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+
   CrmEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -307,6 +353,29 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  DealerpeakEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-DealerpeakEventRule"
+      EventPattern:
+        source:
+          - "EventEnricher"
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "DEALERPEAK"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: DealerPeakQueue
+          Arn:
+            Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
+          DeadLetterConfig:
+            Arn:
+              Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+    
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
@@ -315,7 +384,7 @@ Resources:
         source:
           - "EventEnricher"
       State: ENABLED
-      EventBusName: !GetAtt CrmEventBus.Arn
+      EventBusName: !Ref CrmEventBus
       Targets:
         - Id: Lambda
           Arn: !GetAtt MonitoringLambda.Arn
