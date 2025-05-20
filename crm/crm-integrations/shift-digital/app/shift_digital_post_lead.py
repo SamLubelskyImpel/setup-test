@@ -62,7 +62,10 @@ def record_handler(record: SQSRecord) -> None:
     logger.info(f"Processing record: {record}")
     body = record.json_body
 
+    sqs_message = True
+
     if body.get("id") and body.get("detail-type"):
+        sqs_message = False
         body = body.get("detail", {})
         logger.info("EventBridge message received.")
         crm_api_wrapper = CRMAPIWrapper()
@@ -107,16 +110,39 @@ def record_handler(record: SQSRecord) -> None:
             logger.info(f"Queued Shift Digital Lead ID {shift_digital_lead_id} for callback processing.")
 
         else:
-            # If NOT a Vehicle of Interest, send to STANDARD_ADF_QUEUE
-            config_key = f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
-            config_data = get_configuration(BUCKET, config_key)
-            queue_url = config_data.get("STANDARD_ADF_QUEUE")
+            if not sqs_message:
+                logger.info("Sending message to ADF Assembler via EventRouting Bus")
+                event_bus_client = boto3.client('events')
+                event_body = {
+                    "lead_id": lead_id,
+                    "consumer_id": body.get("consumer_id"),
+                    "source_application": body.get("source_application"),
+                    "idp_dealer_id": body.get("idp_dealer_id"),
+                    "event_type": "Lead Created",
+                }
+                response = event_bus_client.put_events(
+                    Entries=[
+                            {
+                                "Source": "JDPAADFAssembler",
+                                "DetailType": "JSON",
+                                "Detail": json.dumps(event_body),
+                                "EventBusName": f"crm-shared-{ENVIRONMENT}-CrmEventBus"
+                            }
+                    ]
+                )
+                logger.info(f"Event forwarded to ADF Assembler via EventBus: {response}")
+            else:
+                logger.info("Sending message to ADF Assembler via SQS")
+                # If NOT a Vehicle of Interest, send to STANDARD_ADF_QUEUE
+                config_key = f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
+                config_data = get_configuration(BUCKET, config_key)
+                queue_url = config_data.get("STANDARD_ADF_QUEUE")
 
-            if not queue_url:
-                raise MissingConfigurationError("STANDARD_ADF_QUEUE not found in configuration.")
+                if not queue_url:
+                    raise MissingConfigurationError("STANDARD_ADF_QUEUE not found in configuration.")
 
-            send_to_sqs(queue_url, json.dumps(body))
-            logger.info(f"Lead {lead_id} was a CONTACT LEAD and has been sent to STANDARD_ADF_QUEUE.")
+                send_to_sqs(queue_url, json.dumps(body))
+                logger.info(f"Lead {lead_id} was a CONTACT LEAD and has been sent to STANDARD_ADF_QUEUE.")
 
     except Exception as e:
         logger.exception(f"Error posting lead to Shift Digital: {e}")
