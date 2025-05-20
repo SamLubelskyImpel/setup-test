@@ -74,7 +74,8 @@ def parse_consumers(customers):
         parsed_consumers = {}
         for customer_id, customer_xml in customers.items():
             if not is_valid_xml(customer_xml):
-                logger.error(f"[SUPPORT ALERT] Unable to parse consumer [CONTENT] Invalid XML for customer ID: {customer_id}")
+                if str(customer_id) != '0':
+                    logger.error(f"[SUPPORT ALERT] Unable to parse consumer [CONTENT] Invalid XML for customer ID: {customer_id}")
                 parsed_consumers[customer_id] = {}
                 continue
 
