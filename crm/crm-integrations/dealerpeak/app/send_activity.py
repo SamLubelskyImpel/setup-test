@@ -4,7 +4,6 @@ import boto3
 import logging
 from typing import Any
 from os import environ
-from json import loads
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
@@ -12,11 +11,6 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from api_wrappers import CrmApiWrapper, CRMApiError, DealerpeakApiWrapper
-
-ENVIRONMENT = environ.get("ENVIRONMENT")
-SECRET_KEY = environ.get("SECRET_KEY")
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -27,23 +21,31 @@ crm_api = CrmApiWrapper()
 def record_handler(record: SQSRecord):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")
+    activity = {}
+
     try:
-        activity = loads(record['body'])
-        salesperson = crm_api.get_salesperson(activity["lead_id"])
+        body = record.json_body
+        details = body.get("detail", {})
+
+        salesperson = crm_api.get_salesperson(details["lead_id"])
+        activity = crm_api.get_activity(details["activity_id"])
+
+        if not activity:
+            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
 
         dealer_peak_api = DealerpeakApiWrapper(activity=activity, salesperson=salesperson)
 
         dealerpeak_task_id = dealer_peak_api.create_activity()
         logger.info(f"Dealerpeak responded with task ID: {dealerpeak_task_id}")
 
-        crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
+        crm_api.update_activity(details["activity_id"], dealerpeak_task_id)
 
     except CRMApiError:
         return
     except Exception as e:
-        logger.exception(f"Failed to post activity {activity['activity_id']} to Dealerpeak")
+        logger.exception(f"Failed to post activity {details['activity_id']} to Dealerpeak")
         logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            activity.get("dealer_integration_partner_id", ""), details["lead_id"], details["activity_id"], activity.get('activity_type', ""), e)
             )
         raise
 
