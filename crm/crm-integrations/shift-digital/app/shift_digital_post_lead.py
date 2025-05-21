@@ -108,10 +108,11 @@ def record_handler(record: SQSRecord) -> None:
             event_bus_client = boto3.client('events')
             event_body = {
                 "lead_id": lead_id,
-                "consumer_id": body.get("consumer_id"),
-                "source_application": body.get("source_application"),
-                "idp_dealer_id": body.get("idp_dealer_id"),
+                "consumer_id": body["consumer_id"],
+                "source_application": body["source_application"],
+                "idp_dealer_id": body["idp_dealer_id"],
                 "event_type": "Lead Created",
+                "partner_name": body["partner_name"]
             }
             logger.info(f"Sending message to ADF Assembler via EventRouting Bus: {event_body}")
             response = event_bus_client.put_events(
