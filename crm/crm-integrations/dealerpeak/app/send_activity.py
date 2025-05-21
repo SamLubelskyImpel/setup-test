@@ -29,6 +29,9 @@ def record_handler(record: SQSRecord):
 
         salesperson = crm_api.get_salesperson(details["lead_id"])
         activity = crm_api.get_activity(details["activity_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(activity["idp_dealer_id"])
+
+        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
 
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
@@ -44,9 +47,14 @@ def record_handler(record: SQSRecord):
         return
     except Exception as e:
         logger.exception(f"Failed to post activity {details['activity_id']} to Dealerpeak")
-        logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity.get("dealer_integration_partner_id", ""), details["lead_id"], details["activity_id"], activity.get('activity_type', ""), e)
-            )
+        logger.error(
+            f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
+            f"IdpDealerId: {activity.get('idp_dealer_id', '')}\n"
+            f"LeadId: {details['lead_id']}\n"
+            f"ActivityId: {details['activity_id']}\n"
+            f"ActivityType: {activity.get('activity_type', '')}\n"
+            f"Traceback: {e}"
+        )
         raise
 
 
