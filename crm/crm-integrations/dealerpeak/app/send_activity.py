@@ -29,7 +29,7 @@ def record_handler(record: SQSRecord):
 
         salesperson = crm_api.get_salesperson(details["lead_id"])
         activity = crm_api.get_activity(details["activity_id"])
-        dealer = crm_api.get_dealer_by_idp_dealer_id(activity["idp_dealer_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
 
         activity["crm_dealer_id"] = dealer["crm_dealer_id"]
 
