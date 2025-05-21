@@ -358,13 +358,14 @@ Resources:
     Properties:
       Name: !Sub "crm-shared-${Environment}-DealerpeakEventRule"
       EventPattern:
-        source:
-          - "EventEnricher"
         detail:
           event_type:
             - "Activity Created"
           partner_name:
             - "DEALERPEAK"
+          source_application:
+            - "SALES_AI"
+            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
