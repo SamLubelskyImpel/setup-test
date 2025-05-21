@@ -146,8 +146,21 @@ Resources:
                         Resource:
                         - !GetAtt AdfAssemblerQueue.Arn
                         - !GetAtt AdfAssemblerDeadLetterQueue.Arn
-                        - !GetAtt HondaAcuraAdfAssemblerQueue.Arn
-                        - !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
+                        - !GetAtt OemAdfAssemblerQueue.Arn
+                        - !GetAtt OemAdfAssemblerDeadLetterQueue.Arn
+                - PolicyName: EventRoutingBusAccess
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                        - Effect: "Allow"
+                          Action:
+                          - "events:PutEvents"
+                          Resource:
+                          - !If [
+                              IsProd,
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-prod-CrmEventBus",
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-test-CrmEventBus"
+                          ]
 
   # Standard ADF Assembler Resources
     AdfAssembler:
@@ -203,53 +216,50 @@ Resources:
             Threshold: 1
             TreatMissingData: notBreaching
 
-
-#   Honda/Acura ADF Assembler Resources
-
-    HondaAcuraAdfAssembler:
+    OemAdfAssembler:
         Type: AWS::Serverless::Function
         Properties:
-            FunctionName: !Sub "honda-acura-adf-assembler-${Environment}"
+            FunctionName: !Sub "oem-adf-assembler-${Environment}"
             CodeUri: app/
-            Handler: honda_acura_adf_assembler.lambda_handler
+            Handler: oem_adf_assembler.lambda_handler
             Timeout: 30
             Role: !GetAtt LambdaRole.Arn
 
-    HondaAcuraAdfAssemblerQueue:
+    OemAdfAssemblerQueue:
         Type: AWS::SQS::Queue
         Properties:
-            QueueName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerQueue"
+            QueueName: !Sub "oem-adf-assembler-${Environment}-OemAdfAssemblerQueue"
             VisibilityTimeout: 60
             RedrivePolicy:
-                deadLetterTargetArn: !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.Arn
+                deadLetterTargetArn: !GetAtt OemAdfAssemblerDeadLetterQueue.Arn
                 maxReceiveCount: 3
 
-    HondaAcuraAdfAssemblerDeadLetterQueue:
+    OemAdfAssemblerDeadLetterQueue:
         Type: AWS::SQS::Queue
         Properties:
-            QueueName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerDLQ"
+            QueueName: !Sub "oem-adf-assembler-${Environment}-OemAdfAssemblerDLQ"
             MessageRetentionPeriod: 604800
             VisibilityTimeout: 10
 
-    HondaAcuraAdfAssemblerEventMapping:
+    OemAdfAssemblerEventMapping:
         Type: AWS::Lambda::EventSourceMapping
         Properties:
             BatchSize: 1
-            EventSourceArn: !GetAtt HondaAcuraAdfAssemblerQueue.Arn
+            EventSourceArn: !GetAtt OemAdfAssemblerQueue.Arn
             MaximumBatchingWindowInSeconds: 0
-            FunctionName: !GetAtt HondaAcuraAdfAssembler.Arn
+            FunctionName: !GetAtt OemAdfAssembler.Arn
 
-    HondaAcuraAdfAssemblerDLQAlarm:
+    OemAdfAssemblerDLQAlarm:
         Type: AWS::CloudWatch::Alarm
         Properties:
-            AlarmName: !Sub "honda-acura-adf-assembler-${Environment}-HondaAcuraAdfAssemblerDLQ"
-            AlarmDescription: Triggered when Honda/Acura ADF DLQ has more than 1 unprocessed message
+            AlarmName: !Sub "oem-adf-assembler-${Environment}-OemAdfAssemblerDLQ"
+            AlarmDescription: Triggered when OEM ADF DLQ has more than 1 unprocessed message
             ActionsEnabled: true
             AlarmActions:
                 - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering"
             Dimensions:
                 - Name: QueueName
-                  Value: !GetAtt HondaAcuraAdfAssemblerDeadLetterQueue.QueueName
+                  Value: !GetAtt OemAdfAssemblerDeadLetterQueue.QueueName
             EvaluationPeriods: 1
             MetricName: ApproximateNumberOfMessagesVisible
             Namespace: AWS/SQS

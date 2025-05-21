@@ -143,7 +143,19 @@ Resources:
                         - !GetAtt ShiftDigitalPostLeadDeadLetterQueue.Arn
                         - !GetAtt ShiftDigitalCallbackQueue.Arn
                         - !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
-                        - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerQueue"
+                - PolicyName: EventRoutingBusAccess
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                        - Effect: "Allow"
+                          Action:
+                          - "events:PutEvents"
+                          Resource:
+                          - !If [
+                              IsProd,
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-prod-CrmEventBus",
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-test-CrmEventBus"
+                          ]
 
     ShiftDigitalPostLead:
         Type: AWS::Serverless::Function
