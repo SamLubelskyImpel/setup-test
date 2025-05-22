@@ -77,7 +77,7 @@ def lambda_handler(event, context):
             
             for day_str in days_between_str:
                 year,month,day = day_str[:4],day_str[4:6],day_str[6:8]
-                file_key = f"{raw_files_prefix}/{year}/{month}/{day}/consumerprofilesummary_impel_{cdp_dealer_id}_{day_str}"
+                file_key = f"{raw_files_prefix}/{year}/{month}/{day}/consumerprofilesummary_impel_{cdp_dealer_id}_000_{day_str}"
 
                 if file_key in files_str:
                     logger.info(f"File {file_key} exists for date: {f'{year}-{month}-{day}'}")
