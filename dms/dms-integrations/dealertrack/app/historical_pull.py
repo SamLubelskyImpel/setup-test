@@ -54,7 +54,7 @@ class HistoricalPullManager:
     def start(self):
         logger.info(f"Starting data pull {self.dms_id} {self.pull_date}")
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=1) as executor:
             futures = [
                 executor.submit(DataPullManager(self.dms_id, self.pull_date, "service_appointment").start),
                 executor.submit(DataPullManager(self.dms_id, self.pull_date, "fi_closed_deal").start),
