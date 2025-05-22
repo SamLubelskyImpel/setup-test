@@ -10,7 +10,8 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from utils import get_sftp_secrets, connect_sftp_server
+from utils import get_sftp_secrets, connect_sftp_server, send_alert_notification
+from uuid import uuid4
 
 INVENTORY_BUCKET = os.environ["INVENTORY_BUCKET"]
 ENVIRONMENT = os.environ["ENVIRONMENT"]
@@ -86,6 +87,8 @@ def upload_to_s3(local_filename, provider_dealer_id, export_file_name):
 def record_handler(record: SQSRecord) -> Any:
     """Download files from the SFTP server and upload to S3."""
     logger.info(f"Record: {record}")
+    request_id = str(uuid4())
+    logger.info(f"Request ID: {request_id}")
 
     try:
         body = json.loads(record["body"])
@@ -94,6 +97,11 @@ def record_handler(record: SQSRecord) -> Any:
 
         if not files:
             logger.info("No files to download from the SFTP server.")
+            send_alert_notification(
+                request_id=request_id,
+                endpoint="download_sftp",
+                message="No files to download from the SFTP server."
+            )
             return
 
         # Get SFTP secrets

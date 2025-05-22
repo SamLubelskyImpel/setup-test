@@ -56,6 +56,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             dealer_record = {
                 "product_dealer_id": dealer_db.product_dealer_id,
                 "idp_dealer_id": dealer_db.idp_dealer_id,
+                "crm_dealer_id": dip_db.crm_dealer_id,
                 "dealer_integration_partner_id": dip_db.id,
                 "dealer_name": dealer_db.dealer_name,
                 "timezone": timezone,

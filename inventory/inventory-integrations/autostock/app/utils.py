@@ -11,8 +11,10 @@ import requests
 secret_client = boto3.client("secretsmanager")
 
 ENVIRONMENT = environ["ENVIRONMENT"]
+SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
 sm_client = boto3.client("secretsmanager")
+
 
 def connect_sftp_server(hostname, port, username, password):
     """Connect to SFTP server and return the connection."""
@@ -20,6 +22,7 @@ def connect_sftp_server(hostname, port, username, password):
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
+
 
 def get_secrets(secret_name, secret_data_key, client_id=None):
     """Retrieve API secret from AWS Secrets Manager."""
@@ -33,10 +36,11 @@ def get_secrets(secret_name, secret_data_key, client_id=None):
 
     try:
         value = json.loads(secret_data[secret_data_key])
-    except:
+    except Exception:
         value = secret_data[secret_data_key]
 
     return value
+
 
 def call_inventory_internal_api(endpoint: str):
     """Call Inventory Internal API."""
@@ -59,3 +63,17 @@ def call_inventory_internal_api(endpoint: str):
     except Exception as e:
         logging.error(f"Error occurred calling Inventory Internal API: {e}")
         raise e
+
+
+def send_alert_notification(request_id: str, endpoint: str, message: str):
+    """Send alert notification to CE team."""
+    sns_client = boto3.client("sns")
+
+    sns_client.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Message=f"Alert in {endpoint} for request_id {request_id}: {message}",
+        Subject=f"Inventory Integration Autostock: {endpoint} Alert",
+        MessageStructure="string",
+    )
+
+    logging.info(f"Alert sent to CE team for {endpoint} with request_id {request_id}")

@@ -50,6 +50,7 @@ Globals:
         LOGLEVEL: INFO
         SFTP_SECRET_KEY: ICC_SFTP
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+        SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
