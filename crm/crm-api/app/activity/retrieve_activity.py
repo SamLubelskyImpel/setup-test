@@ -44,7 +44,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         with DBSession() as session:
             query = (
-                session.query(DealerIntegrationPartner.id, Dealer.product_dealer_id, Dealer.metadata_, ActivityType.type, Activity.activity_due_ts, Activity.activity_requested_ts, Activity.notes, Activity.contact_method, Activity.lead_id, Lead.crm_lead_id)
+                session.query(DealerIntegrationPartner.id, Dealer.product_dealer_id, Dealer.metadata_, ActivityType.type,
+                              Activity.activity_due_ts, Activity.activity_requested_ts, Activity.notes, Activity.contact_method,
+                              Activity.lead_id, Lead.crm_lead_id, Consumer.crm_consumer_id)
                         .join(Activity.lead)
                         .join(Activity.activity_type)
                         .join(Lead.consumer)
@@ -71,8 +73,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
          activity_requested_ts,
          notes,
          contact_method,
-         lead_id, 
-         crm_lead_id) = db_result
+         lead_id,
+         crm_lead_id,
+         crm_consumer_id) = db_result
 
         if dealer_metadata:
             dealer_timezone = dealer_metadata.get("timezone", "")
@@ -88,7 +91,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "notes": notes,
             "contact_method": contact_method,
             "lead_id": lead_id,
-            "crm_lead_id": crm_lead_id
+            "crm_lead_id": crm_lead_id,
+            "crm_consumer_id": crm_consumer_id
         }
 
         return {
