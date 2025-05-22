@@ -65,6 +65,7 @@ Globals:
         LOGLEVEL: INFO
         SHARED_BUCKET: !If [ IsProd, !Sub 'cdpi-shared-${AWS::Region}-prod', !Sub 'cdpi-shared-${AWS::Region}-test' ]
         CE_SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        MAX_THREADS: 3
     VpcConfig:
       SecurityGroupIds:
         - !Ref SecurityGroup
@@ -327,6 +328,19 @@ Resources:
                   - !GetAtt ConsumerIngestionBatcherQueue.Arn
                   - !GetAtt SalesfileFormatQueue.Arn
                   - !GetAtt ServicefileFormatQueue.Arn
+        - PolicyName: DLQAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:startmessagemovetask
+                  - sqs:receivemessage
+                  - sqs:deletemessage
+                  - sqs:getqueueattributes
+                Resource:
+                  - !GetAtt SalesfileFormatDeadLetterQueue.Arn
+                  - !GetAtt ServicefileFormatDeadLetterQueue.Arn
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -549,6 +563,7 @@ Resources:
           CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
           SECRET_KEY: !If [IsProd, "impel", "impel"]
       VpcConfig: !Ref AWS::NoValue
+      ReservedConcurrentExecutions: 35
 
   SalesfileFormatLogGroup:
     Type: AWS::Logs::LogGroup
@@ -563,7 +578,7 @@ Resources:
       VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt SalesfileFormatDeadLetterQueue.Arn
-        maxReceiveCount: 1
+        maxReceiveCount: 5
 
   SalesfileFormatDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -645,6 +660,7 @@ Resources:
           DMS_API_DOMAIN: !If [IsProd, "dms-service.impel.io", "dms-service.testenv.impel.io"]
           SECRET_KEY: !If [IsProd, "impel_service", "impel_service"]
       VpcConfig: !Ref AWS::NoValue
+      ReservedConcurrentExecutions: 35
 
   ServicefileFormatLogGroup:
     Type: AWS::Logs::LogGroup
@@ -659,7 +675,7 @@ Resources:
       VisibilityTimeout: 900
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ServicefileFormatDeadLetterQueue.Arn
-        maxReceiveCount: 1
+        maxReceiveCount: 5
 
   ServicefileFormatDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -1003,3 +1019,22 @@ Resources:
         - Name: DBInstanceIdentifier
           Value: !If [ IsProd, unified-data-cdpi-prod, unified-data-cdpi-test ]
 
+  ReprocessFileFormatEventsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "cdpi-${Environment}-ReprocessFileFormatEvents"
+      Handler: reprocess_format_events.lambda_handler
+      CodeUri: app/
+      Role: !GetAtt LambdaRole.Arn
+      MemorySize: 256
+      Timeout: 60
+      Environment:
+        Variables:
+          SERVICE_FILE_DLQ: !GetAtt ServicefileFormatDeadLetterQueue.Arn
+          SALES_FILE_DLQ: !GetAtt SalesfileFormatDeadLetterQueue.Arn
+      Events:
+        ScheduleTrigger:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0/15 0-12 ? * * *)
+            Description: "Trigger every 15 minutes from 00:00 to 12:45 UTC"
