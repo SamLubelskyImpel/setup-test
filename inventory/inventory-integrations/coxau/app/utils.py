@@ -5,6 +5,7 @@ from os import environ
 from typing import Any
 import paramiko
 import logging
+import requests
 
 ENVIRONMENT = environ["ENVIRONMENT"]
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
@@ -22,7 +23,6 @@ def get_sftp_secrets(secret_name: Any, secret_key: Any) -> Any:
 
     return secret_data["hostname"], secret_data["port"], secret_data["username"], secret_data["password"]
 
-
 def connect_sftp_server(hostname, port, username, password):
     """Connect to SFTP server and return the connection."""
     transport = paramiko.Transport((hostname, port))
@@ -30,7 +30,46 @@ def connect_sftp_server(hostname, port, username, password):
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
 
+def get_secrets(secret_name, secret_data_key, client_id=None):
+    """Retrieve API secret from AWS Secrets Manager."""
+    secret = sm_client.get_secret_value(
+        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
+    )
+    secret_data = json.loads(secret["SecretString"])
 
+    if client_id:
+        secret_data = json.loads(secret_data.get(client_id))
+
+    try:
+        value = json.loads(secret_data[secret_data_key])
+    except Exception:
+        value = secret_data[secret_data_key]
+
+    return value
+
+
+def call_inventory_internal_api(endpoint: str):
+    """Call Inventory Internal API."""
+
+    client_id = 'impel' if ENVIRONMENT == 'prod' else 'test'
+    api_key = get_secrets("InventoryInternalApi", "api_key", client_id)
+    url = f"{environ.get('INVENTORY_INTERNAL_API_URL')}/{endpoint}"
+
+    try:
+        logging.info(f"Calling inventory internal api call on URL: {url}")
+        response = requests.get(
+            url=url,
+            headers={
+                "x_api_key": api_key,
+                "client_id": client_id,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logging.error(f"Error occurred calling Inventory Internal API: {e}")
+        raise e
+    
 def send_alert_notification(request_id: str, endpoint: str, message: str):
     """Send alert notification to CE team."""
     sns_client = boto3.client("sns")

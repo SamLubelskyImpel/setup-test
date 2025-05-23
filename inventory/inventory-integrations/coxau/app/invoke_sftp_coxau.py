@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import boto3
 from typing import Any
-from utils import get_sftp_secrets, connect_sftp_server
-from rds_instance import RDSInstance
+from utils import call_inventory_internal_api, get_sftp_secrets, connect_sftp_server
 
 ENVIRONMENT = environ["ENVIRONMENT"]
 DOWNLOAD_QUEUE_URL = environ["DOWNLOAD_QUEUE_URL"]
@@ -111,9 +110,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         last_modified_time = current_time - timedelta(minutes=65)  # 1hr + 5min buffer
         logger.info(f"Checking for files modified since {last_modified_time.isoformat()}")
 
-        rds_instance = RDSInstance()
-        active_dealers = rds_instance.select_db_active_dealer_partners("coxau")
-        active_dealers = [dealer[0] for dealer in active_dealers]
+        active_dealers = call_inventory_internal_api('dealer/v1/?integration_partner_name=coxau')
         logger.info(f"Active dealers: {active_dealers}")
 
         hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)

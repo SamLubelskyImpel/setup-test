@@ -50,6 +50,11 @@ Globals:
         LOGLEVEL: INFO
         SFTP_SECRET_KEY: COXAU_SFTP
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+        INVENTORY_INTERNAL_API_URL: !If [
+          IsProd,
+          !Sub "https://2oeudyys52.execute-api.us-east-1.amazonaws.com/prod",
+          !Sub "https://e1r6z92cq7.execute-api.us-east-1.amazonaws.com/test"
+        ]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
     VpcConfig:
       SecurityGroupIds:
@@ -146,6 +151,11 @@ Resources:
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
+                    ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/InventoryInternalApi*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/InventoryInternalApi*",
                     ]
         - PolicyName: LambdaVPCAccess
           PolicyDocument:
