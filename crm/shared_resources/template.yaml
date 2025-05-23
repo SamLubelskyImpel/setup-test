@@ -299,7 +299,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource: !GetAtt CrmEventBusDLQ.Arn
-        - PolicyName: DealPeakQueuePolicy
+        - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -307,16 +307,31 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
-        - PolicyName: DealerPeakDLQPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+                  - !If [
+                    IsProd,
+                    Fn::ImportValue: "dealerpeak-prod-SendActivityQueueArn",
+                    Fn::ImportValue: "dealerpeak-test-SendActivityQueueArn"
+                  ]
+                  - !If [
+                    IsProd,
+                    Fn::ImportValue: "dealerpeak-prod-SendActivityDLQArn",
+                    Fn::ImportValue: "dealerpeak-test-SendActivityDLQArn"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -365,16 +380,100 @@ Resources:
             - "DEALERPEAK"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: DealerPeakQueue
           Arn:
-            Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
+            Fn::ImportValue: !If [
+              IsProd,
+              !Sub "dealerpeak-prod-SendActivityQueueArn",
+              !Sub "dealerpeak-test-SendActivityQueueArn"
+            ]
           DeadLetterConfig:
             Arn:
-              Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+              Fn::ImportValue: !If [
+                IsProd,
+                !Sub "dealerpeak-prod-SendActivityDLQArn",
+                !Sub "dealerpeak-test-SendActivityDLQArn"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  ADFAssemblerEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-ADFAssemblerEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+            - "Lead Created"
+          override_partner:
+            - exists: false
+            - anything-but:
+                - "ACURA"
+                - "HONDA"
+                - "HYUNDAI"
+                - "STELLANTIS"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: ADFAssemblerQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  JDPowerEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-JDPowerEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Lead Created"
+          override_partner:
+            - "ACURA"
+            - "HONDA"
+            - "HYUNDAI"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: JDPowerQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  StellantisEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-StellantisEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Lead Created"
+          override_partner:
+            - "STELLANTIS"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: StellantisQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
+            ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
     
   MonitoringRule:

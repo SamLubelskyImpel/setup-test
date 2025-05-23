@@ -118,7 +118,7 @@ def record_handler(record: SQSRecord) -> None:
             response = event_bus_client.put_events(
                 Entries=[
                         {
-                            "Source": "JDPAADFAssembler",
+                            "Source": "ShiftDigitalIntegration",
                             "DetailType": "JSON",
                             "Detail": json.dumps(event_body),
                             "EventBusName": f"crm-shared-{ENVIRONMENT}-CrmEventBus"
