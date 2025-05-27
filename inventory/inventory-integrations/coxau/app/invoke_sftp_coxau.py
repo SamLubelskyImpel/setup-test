@@ -111,6 +111,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Checking for files modified since {last_modified_time.isoformat()}")
 
         active_dealers = call_inventory_internal_api('dealer/v1/?integration_partner_name=coxau')
+        active_dealers = [dealer['provider_dealer_id'] for dealer in active_dealers]
         logger.info(f"Active dealers: {active_dealers}")
 
         hostname, port, username, password = get_sftp_secrets("inventory-integrations-sftp", SECRET_KEY)
