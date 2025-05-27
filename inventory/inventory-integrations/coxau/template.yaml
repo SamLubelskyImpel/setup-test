@@ -361,7 +361,7 @@ Resources:
       Endpoint: !GetAtt FormatINVInsertQueue.Arn
       FilterPolicyScope: MessageBody
       FilterPolicy:
-        '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau/"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
+        '{"Records":{"s3":{"object":{"key":[{"prefix":"raw/coxau"}]}},"eventName":[{"prefix":"ObjectCreated:"}]}}'
 
   FormatINVInsertQueuePolicy:
     Type: AWS::SQS::QueuePolicy
