@@ -57,8 +57,11 @@ Globals:
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
         EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
         ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
-        EVENT_ENRICHER_QUEUE_URL: !ImportValue
-                                  Fn::Sub: crm-shared-${Environment}-EventEnricherQueueUrl
+        EVENT_ENRICHER_QUEUE_URL: !If [
+                                    IsProd,
+                                    !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/crm-shared-prod-EventEnricherQueue",
+                                    !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/crm-shared-test-EventEnricherQueue"
+                                  ]
         # PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
