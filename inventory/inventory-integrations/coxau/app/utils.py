@@ -1,10 +1,13 @@
+"""Utility functions for managing SFTP connection and Internal Inventory API calls"""
+
 import boto3
 import json
 from datetime import datetime, timezone
 from os import environ
 from typing import Any
-import paramiko
 import logging
+
+import paramiko
 import requests
 
 ENVIRONMENT = environ["ENVIRONMENT"]
@@ -23,12 +26,14 @@ def get_sftp_secrets(secret_name: Any, secret_key: Any) -> Any:
 
     return secret_data["hostname"], secret_data["port"], secret_data["username"], secret_data["password"]
 
+
 def connect_sftp_server(hostname, port, username, password):
     """Connect to SFTP server and return the connection."""
     transport = paramiko.Transport((hostname, port))
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
     return sftp
+
 
 def get_secrets(secret_name, secret_data_key, client_id=None):
     """Retrieve API secret from AWS Secrets Manager."""
@@ -50,7 +55,6 @@ def get_secrets(secret_name, secret_data_key, client_id=None):
 
 def call_inventory_internal_api(endpoint: str):
     """Call Inventory Internal API."""
-
     client_id = 'impel' if ENVIRONMENT == 'prod' else 'test'
     api_key = get_secrets("InventoryInternalApi", "api_key", client_id)
     url = f"{environ.get('INVENTORY_INTERNAL_API_URL')}/{endpoint}"
@@ -64,11 +68,13 @@ def call_inventory_internal_api(endpoint: str):
                 "client_id": client_id,
             },
         )
+        logging.info(f"Internal Inventory API Response: {response.json()}")
         response.raise_for_status()
         return response.json()
     except Exception as e:
         logging.error(f"Error occurred calling Inventory Internal API: {e}")
         raise e
+
     
 def send_alert_notification(request_id: str, endpoint: str, message: str):
     """Send alert notification to CE team."""

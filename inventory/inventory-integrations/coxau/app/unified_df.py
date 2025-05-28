@@ -24,6 +24,7 @@ IGNORE_POSSIBLE_COLUMNS = [
     "db_update_role",
 ]
 
+
 def convert_unified_df(json_list):
     df = pd.json_normalize(json_list, max_level=1)
     df.columns = [str(col).replace(".", "|") for col in df.columns]
