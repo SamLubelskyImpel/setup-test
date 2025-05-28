@@ -317,6 +317,24 @@ Resources:
                   - sqs:SendMessage
                 Resource:
                   Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+        - PolicyName: BigMotoringWorldQueuePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityQueueArn"
+        - PolicyName: BigMotoringWorldDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityDLQArn"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -375,6 +393,30 @@ Resources:
           DeadLetterConfig:
             Arn:
               Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  BigMotoringWorldEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-BigMotoringWorldEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "BIG_MOTORING_WORLD"
+          source_application:
+            - "SALES_AI"
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: BigMotoringWorldQueue
+          Arn:
+            Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityQueueArn"
+          DeadLetterConfig:
+            Arn:
+              Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityDLQArn"
           RoleArn: !GetAtt CrmEventBusRole.Arn
     
   MonitoringRule:

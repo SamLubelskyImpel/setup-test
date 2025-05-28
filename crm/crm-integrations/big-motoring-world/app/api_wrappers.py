@@ -13,11 +13,72 @@ import logging
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+class CRMApiError(Exception):
+    pass
+
+
+class CrmApiWrapper:
+    """CRM API Wrapper."""
+    def __init__(self) -> None:
+        self.partner_id = CRM_API_SECRET_KEY
+        self.api_key = self.get_secrets()
+
+    def get_secrets(self):
+        secret = secret_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        )
+        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
+        secret_data = loads(secret)
+
+        return secret_data["api_key"]
+
+    def get_activity(self, activity_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_activity- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
+
+        dealer = response.json()
+        if not dealer:
+            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
+
+        return dealer
+    
 
 class BigMotoringWorldApiWrapper:
     """Big Motoring World API Wrapper."""
