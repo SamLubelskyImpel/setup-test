@@ -34,6 +34,7 @@ Globals:
             "tekion": "internal_tekion",
             "pbs": "internal_pbs"
           }
+        DA_EVENT_FORWARDER_LAMBDA_ARN: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:crm-shared-${Environment}-DAEventForwarder"
 
 Resources:
 
@@ -85,6 +86,8 @@ Resources:
                 Resource:
                 - !GetAtt ProcessLeadUpdatesQueue.Arn
                 - !GetAtt EventEnricherQueue.Arn
+                - !GetAtt DAEventCatcherQueue.Arn
+                - !GetAtt DAEventCatcherDeadLetterQueue.Arn
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -98,6 +101,11 @@ Resources:
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
                     ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
+                    ]
         - PolicyName: EventBridgePolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -106,6 +114,14 @@ Resources:
                 Action:
                   - "events:PutEvents"
                 Resource: !GetAtt CrmEventBus.Arn
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - lambda:InvokeFunction
+                Resource: "*"
 
   GetActiveDealers:
     Type: AWS::Serverless::Function
@@ -234,7 +250,7 @@ Resources:
       QueueName: !Sub "crm-shared-${Environment}-EventEnricherQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt EventEnricherDeadLetterQueue.Arn
         maxReceiveCount: 3
 
   EventEnricherDeadLetterQueue:
@@ -291,32 +307,28 @@ Resources:
                 Action:
                   - events:PutEvents
                 Resource: !GetAtt CrmEventBus.Arn
-        - PolicyName: CrmEventBusDLQPolicy
+        - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
-                Resource: !GetAtt CrmEventBusDLQ.Arn
-        - PolicyName: DealPeakQueuePolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
-        - PolicyName: DealerPeakDLQPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+                Resource: 
+                  - !GetAtt CrmEventBusDLQ.Arn
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+                  ]
+                  - !GetAtt DAEventCatcherQueue.Arn
+                  - !GetAtt DAEventCatcherDeadLetterQueue.Arn
+
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -370,13 +382,80 @@ Resources:
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: DealerPeakQueue
-          Arn:
-            Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityQueue"
+              ]
           DeadLetterConfig:
-            Arn:
-              Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
-    
+  
+  DAEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-DAEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Lead Created"
+          source_application:
+            - "INTEGRATION"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: DAEventCatcherQueue
+          Arn: !GetAtt DAEventCatcherQueue.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt DAEventCatcherDeadLetterQueue.Arn
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  DAEventCatcherQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-DAEventCatcherQueue"
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DAEventCatcherDeadLetterQueue.Arn
+        maxReceiveCount: 3
+  
+  DAEventCatcherDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "crm-shared-${Environment}-DAEventCatcherDLQ"
+      MessageRetentionPeriod: 604800
+      VisibilityTimeout: 10
+  
+  DAEventCatcherEventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      EventSourceArn: !GetAtt DAEventCatcherQueue.Arn
+      MaximumBatchingWindowInSeconds: 30
+      FunctionName: !GetAtt DAEventCatcher.Arn
+
+  DAEventCatcher:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-shared-${Environment}-DAEventCatcher"
+      CodeUri: app/
+      Handler: da_event_catcher.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+
+  DAEventForwarder:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-shared-${Environment}-DAEventForwarder"
+      CodeUri: app/
+      Handler: da_event_forwarder.lambda_handler
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+  
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
@@ -405,10 +484,3 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Role: !GetAtt LambdaRole.Arn
-
-Outputs:
-  EventEnricherQueueUrl:
-    Description: URL of the EventEnricherQueue
-    Value: !Ref EventEnricherQueue
-    Export:
-      Name: !Sub "crm-shared-${Environment}-EventEnricherQueueUrl"
