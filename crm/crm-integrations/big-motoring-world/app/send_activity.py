@@ -28,6 +28,9 @@ def record_handler(record: SQSRecord):
 
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
+        
+        if not lead:
+            raise ValueError(f"Lead not found for ID: {details['lead_id']}")
 
         activity["consumer_id"] = lead["consumer_id"]
         logger.info(f"Activity: {activity}")

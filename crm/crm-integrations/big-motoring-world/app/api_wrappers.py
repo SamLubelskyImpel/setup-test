@@ -57,7 +57,7 @@ class CrmApiWrapper:
             raise Exception(f"Activity not found for ID: {activity_id}")
 
         return activity
-    
+
     def get_lead(self, lead_id: int):
         response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
@@ -74,9 +74,9 @@ class CrmApiWrapper:
         lead = response.json()
         if not lead:
             raise Exception(f"Lead not found for ID: {lead_id}")
-        
-        return lead
     
+        return lead
+
 
 class BigMotoringWorldApiWrapper:
     """Big Motoring World API Wrapper."""
