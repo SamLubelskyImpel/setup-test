@@ -202,15 +202,3 @@ Resources:
       LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringBigMotoringWorld.Arn
       FilterPattern: "SUPPORT ALERT"
-
-Outputs:
-  BigMotoringWorldSendActivityQueueArn:
-    Description: "Send Activity Queue ARN"
-    Value: !GetAtt SendActivityQueue.Arn
-    Export:
-      Name: !Sub "big-motoring-world-${Environment}-SendActivityQueueArn"
-  BigMotoringWorldSendActivityDLQArn:
-    Description: "Send Activity DLQ ARN"
-    Value: !GetAtt SendActivityDeadLetterQueue.Arn
-    Export:
-      Name: !Sub "big-motoring-world-${Environment}-SendActivityDLQArn"

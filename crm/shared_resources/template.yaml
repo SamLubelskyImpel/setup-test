@@ -325,7 +325,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityQueueArn"
+                  !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
+                  ]
         - PolicyName: BigMotoringWorldDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -334,7 +338,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityDLQArn"
+                  !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQArn",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQArn"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -413,10 +421,18 @@ Resources:
       Targets:
         - Id: BigMotoringWorldQueue
           Arn:
-            Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityQueueArn"
+            !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
+            ]
           DeadLetterConfig:
             Arn:
-              Fn::ImportValue: !Sub "big-motoring-world-${Environment}-SendActivityDLQArn"
+            !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQArn",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQArn"
+            ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
     
   MonitoringRule:
