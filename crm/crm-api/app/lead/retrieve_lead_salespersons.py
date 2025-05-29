@@ -133,6 +133,14 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
             lead_db, crm_consumer_id, dip_db, partner_name = db_results
 
+            is_active_salesai, is_active_chatai = dip_db.is_active_salesai, dip_db.is_active_chatai
+            if not(is_active_salesai) and not(is_active_chatai):
+                logger.error(f"Dealer is not active.")
+                return {
+                    "statusCode": 403,
+                    "body": dumps({"error": "Dealer is not active."})
+                }
+
             logger.info(f"lead: {lead_db.as_dict()}")
 
             salespersons_db = get_salespersons_from_db(session, lead_id)

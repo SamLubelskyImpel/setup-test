@@ -297,7 +297,7 @@ Resources:
   DataPullEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      BatchSize: 3
+      BatchSize: 1
       EventSourceArn: !GetAtt DataPullQueue.Arn
       MaximumBatchingWindowInSeconds: 60
       FunctionName: !GetAtt DataPull.Arn
