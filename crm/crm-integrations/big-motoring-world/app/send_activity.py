@@ -24,11 +24,12 @@ def record_handler(record: SQSRecord):
         details = body.get("detail", {})
 
         activity = crm_api.get_activity(details["activity_id"])
-        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
+        lead = crm_api.get_lead(details["lead_id"])
 
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
 
+        activity["consumer_id"] = lead["consumer_id"]
         logger.info(f"Activity: {activity}")
         bmw_api = BigMotoringWorldApiWrapper(activity=activity)
 

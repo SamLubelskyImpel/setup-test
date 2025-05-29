@@ -47,7 +47,6 @@ class CrmApiWrapper:
                 "partner_id": self.partner_id,
             }
         )
-        response.raise_for_status()
         logger.info(f"CRM API -get_activity- responded with: {response.status_code}")
 
         if response.status_code != 200:
@@ -58,26 +57,25 @@ class CrmApiWrapper:
             raise Exception(f"Activity not found for ID: {activity_id}")
 
         return activity
-
-    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+    
+    def get_lead(self, lead_id: int):
         response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
             headers={
                 "x_api_key": self.api_key,
                 "partner_id": self.partner_id,
             }
         )
-        response.raise_for_status()
-        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+        logger.info(f"CRM API -get_lead- responded with: {response.status_code}")
 
         if response.status_code != 200:
-            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
-
-        dealer = response.json()
-        if not dealer:
-            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
-
-        return dealer
+            raise Exception(f"Error getting lead {lead_id}: {response.text}")
+        
+        lead = response.json()
+        if not lead:
+            raise Exception(f"Lead not found for ID: {lead_id}")
+        
+        return lead
     
 
 class BigMotoringWorldApiWrapper:
