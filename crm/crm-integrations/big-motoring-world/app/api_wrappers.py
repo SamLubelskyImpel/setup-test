@@ -70,11 +70,11 @@ class CrmApiWrapper:
 
         if response.status_code != 200:
             raise Exception(f"Error getting lead {lead_id}: {response.text}")
-        
+
         lead = response.json()
         if not lead:
             raise Exception(f"Lead not found for ID: {lead_id}")
-    
+
         return lead
 
 
