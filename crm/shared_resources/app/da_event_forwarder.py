@@ -37,8 +37,8 @@ def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
 
     try:
-        body = loads(record["body"])
-        details = body.get("Detail", {})
+        body = record.json_body
+        details = body.get("detail", {})
 
         if "lead_id" not in details or not isinstance(details.get("lead_id"), int):
             logger.error(f"[new_lead_events_handler] lead_id not found in event body: \n {details}")
