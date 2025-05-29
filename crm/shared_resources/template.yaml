@@ -86,8 +86,8 @@ Resources:
                 Resource:
                 - !GetAtt ProcessLeadUpdatesQueue.Arn
                 - !GetAtt EventEnricherQueue.Arn
-                - !GetAtt DAEventCatcherQueue.Arn
-                - !GetAtt DAEventCatcherDeadLetterQueue.Arn
+                - !GetAtt DAEventForwarderQueue.Arn
+                - !GetAtt DAEventForwarderDeadLetterQueue.Arn
         - PolicyName: AccessSecretsManager
           PolicyDocument:
             Version: "2012-10-17"
@@ -326,8 +326,16 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
                   ]
-                  - !GetAtt DAEventCatcherQueue.Arn
-                  - !GetAtt DAEventCatcherDeadLetterQueue.Arn
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderDLQ"
+                  ]
 
 
   CrmEventBus:
@@ -408,44 +416,35 @@ Resources:
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
-        - Id: DAEventCatcherQueue
-          Arn: !GetAtt DAEventCatcherQueue.Arn
+        - Id: DAEventForwarder
+          Arn: !GetAtt DAEventForwarderQueue.Arn
           DeadLetterConfig:
-            Arn: !GetAtt DAEventCatcherDeadLetterQueue.Arn
+            Arn: !GetAtt DAEventForwarderDeadLetterQueue.Arn
           RoleArn: !GetAtt CrmEventBusRole.Arn
   
-  DAEventCatcherQueue:
+  DAEventForwarderQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-shared-${Environment}-DAEventCatcherQueue"
+      QueueName: !Sub "crm-shared-${Environment}-DAEventForwarderQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt DAEventCatcherDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt DAEventForwarderDeadLetterQueue.Arn
         maxReceiveCount: 3
   
-  DAEventCatcherDeadLetterQueue:
+  DAEventForwarderDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "crm-shared-${Environment}-DAEventCatcherDLQ"
+      QueueName: !Sub "crm-shared-${Environment}-DAEventForwarderDLQ"
       MessageRetentionPeriod: 604800
       VisibilityTimeout: 10
   
-  DAEventCatcherEventMapping:
+  DAEventForwarderEventMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       BatchSize: 10
-      EventSourceArn: !GetAtt DAEventCatcherQueue.Arn
+      EventSourceArn: !GetAtt DAEventForwarderQueue.Arn
       MaximumBatchingWindowInSeconds: 30
-      FunctionName: !GetAtt DAEventCatcher.Arn
-
-  DAEventCatcher:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "crm-shared-${Environment}-DAEventCatcher"
-      CodeUri: app/
-      Handler: da_event_catcher.lambda_handler
-      Timeout: 30
-      Role: !GetAtt LambdaRole.Arn
+      FunctionName: !GetAtt DAEventForwarder.Arn
 
   DAEventForwarder:
     Type: AWS::Serverless::Function
