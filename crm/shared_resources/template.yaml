@@ -325,7 +325,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-${Environment}-SendActivityQueue"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue"
+                  ]
         - PolicyName: MomentumDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -334,7 +338,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-${Environment}-SendActivityDLQ"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -412,9 +420,17 @@ Resources:
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: MomentumQueue
-          Arn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-${Environment}-SendActivityQueue"
+          Arn: !If [
+            IsProd,
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue",
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue"
+          ]
           DeadLetterConfig:
-            Arn: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-${Environment}-SendActivityDLQ"
+            Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ"
+            ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   MonitoringRule:
