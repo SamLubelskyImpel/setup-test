@@ -520,15 +520,3 @@ Resources:
       LogGroupName: !Ref DeduplicateNewLeadsLogGroup
       DestinationArn: !GetAtt MonitoringMomentum.Arn
       FilterPattern: "SUPPORT ALERT"
-
-Outputs:
-  MomentumSendActivityQueueArn:
-    Description: "Send Activity Queue ARN"
-    Value: !GetAtt SendActivityQueue.Arn
-    Export:
-      Name: !Sub "momentum-${Environment}-SendActivityQueueArn"
-  MomentumSendActivityDLQArn:
-    Description: "Send Activity DLQ ARN"
-    Value: !GetAtt SendActivityDeadLetterQueue.Arn
-    Export:
-      Name: !Sub "momentum-${Environment}-SendActivityDLQArn"

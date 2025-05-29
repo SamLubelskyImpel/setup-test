@@ -94,7 +94,7 @@ def record_handler(record: SQSRecord):
         logger.exception(f"Failed to post activity {details['activity_id']} to Momentum")
         logger.error(
             f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
-            f"IdpDealerId: {activity.get('idp_dealer_id', '')}\n"
+            f"IdpDealerId: {details['idp_dealer_id']}\n"
             f"LeadId: {details['lead_id']}\n"
             f"ActivityId: {details['activity_id']}\n"
             f"ActivityType: {activity.get('activity_type', '')}\n"
