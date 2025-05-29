@@ -328,13 +328,13 @@ Resources:
                   ]
                   - !If [
                     IsProd,
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderQueue",
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue"
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderQueue"
                   ]
                   - !If [
                     IsProd,
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderDLQ",
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderDLQ"
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderDLQ"
                   ]
 
 
@@ -462,6 +462,10 @@ Resources:
       EventPattern:
         source:
           - "EventEnricher"
+        detail:
+          event_type:
+            - "Lead Created"
+            - "Activity Created"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
