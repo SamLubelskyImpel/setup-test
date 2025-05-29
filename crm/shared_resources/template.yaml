@@ -34,7 +34,6 @@ Globals:
             "tekion": "internal_tekion",
             "pbs": "internal_pbs"
           }
-        DA_EVENT_FORWARDER_LAMBDA_ARN: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:crm-shared-${Environment}-DAEventForwarder"
 
 Resources:
 
