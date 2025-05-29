@@ -118,9 +118,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
                     "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM."})
                 }
         else:
-            logger.info(f"No lambda ARN detected for partner {partner_name}. Cannot submit query.")
+            logger.warning(f"No lambda ARN detected for partner {partner_name}. Cannot submit query.")
             return {
-                "statusCode": 500,
+                "statusCode": 404,
                 "body": dumps({"error": "Integration Partner is not configured for this function."})
             }
 
