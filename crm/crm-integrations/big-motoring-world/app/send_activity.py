@@ -33,6 +33,7 @@ def record_handler(record: SQSRecord):
             raise ValueError(f"Lead not found for ID: {details['lead_id']}")
 
         activity["consumer_id"] = lead["consumer_id"]
+        
         logger.info(f"Activity: {activity}")
         bmw_api = BigMotoringWorldApiWrapper(activity=activity)
 
