@@ -15,7 +15,6 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = client("secretsmanager")
 
 crm_api = CrmApiWrapper()
 
