@@ -340,8 +340,8 @@ Resources:
                 Resource:
                   !If [
                       IsProd,
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQArn",
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQArn"
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
                   ]
 
   CrmEventBus:
@@ -430,8 +430,8 @@ Resources:
             Arn:
               !If [
                   IsProd,
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQArn",
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQArn"
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
     
