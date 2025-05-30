@@ -1,7 +1,5 @@
 from typing import Any
 from os import environ
-from json import loads
-from boto3 import client
 from logging import getLogger
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -10,10 +8,8 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-from api_wrappers import CarsalesApiWrapper
+from api_wrappers import CarsalesApiWrapper, CrmApiWrapper, CRMApiError
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
-SECRET_KEY = environ.get("SECRET_KEY")
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
@@ -21,32 +17,45 @@ logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+crm_api = CrmApiWrapper()
 
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
     logger.info(f"Record: {record}")
 
-    dealer_integration_partner_id = None
-    lead_id = None
-    activity_id = None
-    activity_type = None
     try:
-        activity = loads(record['body'])
-        dealer_integration_partner_id = activity["dealer_integration_partner_id"]
-        lead_id = activity["lead_id"]
-        activity_id = activity["activity_id"]
-        activity_type = activity["activity_type"]
+        body = record.json_body
+        details = body.get("detail", {})
+        
+        activity = crm_api.get_activity(details["activity_id"])
+        lead = crm_api.get_lead(details["lead_id"])
+
+        if not activity:
+            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
+
+        if not lead:
+            raise ValueError(f"Lead not found for ID: {details['lead_id']}")
+        
+        activity['crm_lead_id'] = lead['crm_lead_id']
 
         logger.info(f"Activity: {activity}")
+        logger.info(f"Lead: {lead}")
 
         carsales_crm_api = CarsalesApiWrapper(activity=activity)
         carsales_crm_api.create_activity()
-
+    except CRMApiError as e:
+        logger.error(f"CRM API Error: {e}")
+        raise
     except Exception as e:
         logger.exception(f"Failed to post activity {activity['activity_id']} to Carsales")
-        logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            dealer_integration_partner_id, lead_id, activity_id, activity_type, e)
-            )
+        logger.error(f"[SUPPORT ALERT] Failed to Send Activity [CONTENT]."
+                     f"LeadId: {details['lead_id']}"
+                     f"CRMLeadId: {lead['crm_lead_id']}"
+                     f"DealerIntegrationPartnerId: {activity['dealer_integration_partner_id']}"
+                     f"ActivityId: {activity['activity_id']}"
+                     f"ActivityType: {activity['activity_type']}"
+                     f"ActivityId: {activity['activity_id']}"
+        )
         raise
 
 

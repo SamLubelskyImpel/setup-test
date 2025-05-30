@@ -317,6 +317,24 @@ Resources:
                   - sqs:SendMessage
                 Resource:
                   Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+        - PolicyName: CarsalesAUQueuePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityQueue"
+        - PolicyName: CarsalesAUDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityDLQ"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -376,7 +394,30 @@ Resources:
             Arn:
               Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
           RoleArn: !GetAtt CrmEventBusRole.Arn
-    
+  
+  CarsalesAUEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-CarsalesAUEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "CARSALES"
+          source_application:
+            - "SALES_AI"
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: CarsalesAUQueue
+          Arn:
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityQueue"
+          DeadLetterConfig:
+            Arn:
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityDLQ"
+          RoleArn: !GetAtt CrmEventBusRole.Arn
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
