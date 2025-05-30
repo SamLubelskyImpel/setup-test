@@ -327,8 +327,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue",
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue"
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue"
                   ]
         - PolicyName: MomentumDLQPolicy
           PolicyDocument:
@@ -340,8 +340,8 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ",
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ"
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
                   ]
 
   CrmEventBus:
@@ -422,14 +422,14 @@ Resources:
         - Id: MomentumQueue
           Arn: !If [
             IsProd,
-            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue",
-            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue"
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue",
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue"
           ]
           DeadLetterConfig:
             Arn: !If [
               IsProd,
-              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ",
-              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ"
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
