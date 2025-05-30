@@ -55,6 +55,63 @@ class CrmApiWrapper:
         response.raise_for_status()
         return response.json()
 
+    def get_activity(self, activity_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        logger.info(f"CRM API -get_activity- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
+    def get_lead(self, lead_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        logger.info(f"CRM API -get_lead- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting lead {lead_id}: {response.text}")
+
+        lead = response.json()
+        if not lead:
+            raise Exception(f"Lead not found for ID: {lead_id}")
+
+        return lead
+    
+    def get_consumer(self, consumer_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/consumers/{consumer_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        logger.info(f"CRM API -get_consumer- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting consumer {consumer_id}: {response.text}")
+
+        consumer = response.json()
+        if not consumer:
+            raise Exception(f"Consumer not found for ID: {consumer_id}")
+
+        return consumer
+
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
         if not salespersons:

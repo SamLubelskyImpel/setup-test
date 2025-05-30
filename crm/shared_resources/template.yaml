@@ -335,6 +335,24 @@ Resources:
                   - sqs:SendMessage
                 Resource:
                   !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityDLQ"
+        - PolicyName: DealersocketAUQueuePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityQueue"
+        - PolicyName: DealersocketAUDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityDLQ"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -418,6 +436,31 @@ Resources:
             Arn:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-${Environment}-SendActivityDLQ"
           RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  DealersocketAUEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-DealersocketAUEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "DEALERSHELL"
+          source_application:
+            - "SALES_AI"
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: DealersocketAUQueue
+          Arn:
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityQueue"
+          DeadLetterConfig:
+            Arn:
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityDLQ"
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
