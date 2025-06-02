@@ -4,7 +4,6 @@ import logging
 from os import environ
 from json import dumps, loads
 from typing import Any
-import botocore.exceptions
 
 from crm_orm.models.dealer import Dealer
 from crm_orm.session_config import DBSession
@@ -23,23 +22,14 @@ lambda_client = boto3.client("lambda")
 def get_lambda_arn(partner_name: str) -> Any:
     """Get lambda ARN from S3."""
     s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_{partner_name.upper()}.json"
-    try:
-        s3_object = loads(
-                s3_client.get_object(
-                    Bucket=BUCKET,
-                    Key=s3_key
-                )['Body'].read().decode('utf-8')
-            )
-        lambda_arn = s3_object.get("get_leads_by_pii_arn")
-        return lambda_arn
-
-    except botocore.exceptions.ClientError as e:
-        logger.error(f"Error retrieving configuration file for {partner_name}")
-        raise Exception(e)
-
-    except Exception as e:
-        logger.error(f"Failed to retrieve lambda ARN from S3 config. Partner: {partner_name.upper()}, {e}")
-        raise Exception(e)
+    s3_object = loads(
+            s3_client.get_object(
+                Bucket=BUCKET,
+                Key=s3_key
+            )['Body'].read().decode('utf-8')
+        )
+    lambda_arn = s3_object.get("get_leads_by_pii_arn")
+    return lambda_arn
 
 
 def get_leads_from_crm(payload: dict, lambda_arn: str) -> Any:
@@ -53,7 +43,7 @@ def get_leads_from_crm(payload: dict, lambda_arn: str) -> Any:
     response_json = loads(response["Payload"].read().decode('utf-8'))
     if response_json["statusCode"] != 200:
         logger.error(f"Error retrieving leads {response_json['statusCode']}: {response_json}")
-        raise
+        raise Exception(f"CRM Lambda Failed during execution. Lambda Response: {response_json}")
 
     data = loads(response_json["body"])
     return data
@@ -108,11 +98,11 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         lambda_arn = get_lambda_arn(partner_name)
         if lambda_arn:
-            logger.info(f"Lambda ARN detected for partner {partner_name}. Retrieving leads from CRM.")
+            logger.info(f"Lambda ARN detected: {lambda_arn}. Retrieving leads from CRM.")
             try:
                 leads = get_leads_from_crm(payload, lambda_arn)
-            except Exception as e:
-                logger.error(f"Failed to retrieve leads from CRM. {e}")
+            except Exception:
+                logger.exception("Failed to retrieve leads from CRM.")
                 return {
                     "statusCode": 202,
                     "body": dumps({"message": "Accepted. The request was received but failed to be processed by the CRM."})
@@ -125,10 +115,10 @@ def lambda_handler(event: Any, context: Any) -> Any:
             }
 
         if not leads:
-            logger.error("No leads found for provided consumer PII")
+            logger.warning("No leads found for provided consumer PII")
             return {
-                "statusCode": 404,
-                "body": dumps({"error": "No leads found for provided consumer PII."})
+                "statusCode": 200,
+                "body": dumps([])
             }
 
         return {
@@ -136,8 +126,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps(leads)
         }
 
-    except Exception as e:
-        logger.exception(f"Error retrieving lead status: {e}.")
+    except Exception:
+        logger.exception("Error retrieving leads.")
         return {
             "statusCode": 500,
             "body": dumps({"error": "An error occurred while processing the request."})
