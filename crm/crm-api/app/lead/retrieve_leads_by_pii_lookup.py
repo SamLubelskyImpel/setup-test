@@ -114,13 +114,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "body": dumps({"error": "Integration Partner is not configured for this function."})
             }
 
-        if not leads:
-            logger.warning("No leads found for provided consumer PII")
-            return {
-                "statusCode": 200,
-                "body": dumps([])
-            }
-
         return {
             "statusCode": 200,
             "body": dumps(leads)
