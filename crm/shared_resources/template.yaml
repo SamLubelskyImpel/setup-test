@@ -343,7 +343,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityQueue"
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-${Environment}-SendActivityQueue"
         - PolicyName: DealersocketAUDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -352,7 +352,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityDLQ"
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-${Environment}-SendActivityDLQ"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -455,10 +455,10 @@ Resources:
       Targets:
         - Id: DealersocketAUQueue
           Arn:
-            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityQueue"
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-${Environment}-SendActivityQueue"
           DeadLetterConfig:
             Arn:
-              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-crm-${Environment}-SendActivityDLQ"
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-${Environment}-SendActivityDLQ"
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   MonitoringRule:

@@ -93,31 +93,32 @@ class CrmApiWrapper:
 
         return lead
     
-    def get_consumer(self, consumer_id: int):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/consumers/{consumer_id}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            }
-        )
-        logger.info(f"CRM API -get_consumer- responded with: {response.status_code}")
-
-        if response.status_code != 200:
-            raise Exception(f"Error getting consumer {consumer_id}: {response.text}")
-
-        consumer = response.json()
-        if not consumer:
-            raise Exception(f"Consumer not found for ID: {consumer_id}")
-
-        return consumer
-
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
         if not salespersons:
             return None
 
         return salespersons[0]
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
+
+        dealer = response.json()
+        if not dealer:
+            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
+
+        return dealer
 
     def update_activity(self, activity_id, crm_activity_id):
         try:

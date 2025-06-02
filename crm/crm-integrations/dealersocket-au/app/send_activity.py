@@ -24,7 +24,7 @@ def record_handler(record: SQSRecord) -> None:
         activity = crm_api.get_activity(details["activity_id"])
         lead = crm_api.get_lead(details["lead_id"])
         salesperson = crm_api.get_salesperson(details["lead_id"])
-        consumer = crm_api.get_consumer(lead["consumer_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
         
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
@@ -35,14 +35,14 @@ def record_handler(record: SQSRecord) -> None:
         if not salesperson:
             raise ValueError(f"Salesperson not found for ID: {details['lead_id']}")
         
-        if not consumer:
-            raise ValueError(f"Consumer not found for ID: {details['lead_id']}")
+        if not dealer:
+            raise ValueError(f"Dealer not found for ID: {details['dealer_id']}")
         
-        activity['crm_lead_id'] = lead['crm_lead_id']
-        activity['crm_consumer_id'] = consumer['crm_consumer_id']
-
         logger.info(f"Salesperson: {salesperson}")
-        logger.info(f"Processing activity: {activity}")
+        logger.info(f"Dealer: {dealer}")
+        logger.info(f"Processing activity: {activity}")    
+
+        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
 
         dealersocket_au_crm_api = DealersocketAUApiWrapper(
             activity=activity, salesperson=salesperson
@@ -50,7 +50,7 @@ def record_handler(record: SQSRecord) -> None:
         dealersocket_au_response = dealersocket_au_crm_api.create_activity()
         activity_id = dealersocket_au_response.get("ActivityID")
         error_code = dealersocket_au_response.get("ErrorCode")
-
+    
         if error_code:
             if error_code == "INTERNAL_ERROR":
                 raise RuntimeError("Internal error occurred in Dealersocket AU API")
