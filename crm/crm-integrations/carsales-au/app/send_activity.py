@@ -35,8 +35,6 @@ def record_handler(record: SQSRecord):
         if not lead:
             raise ValueError(f"Lead not found for ID: {details['lead_id']}")
         
-        activity['crm_lead_id'] = lead['crm_lead_id']
-
         logger.info(f"Activity: {activity}")
         logger.info(f"Lead: {lead}")
 

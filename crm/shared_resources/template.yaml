@@ -422,7 +422,7 @@ Resources:
           event_type:
             - "Activity Created"
           partner_name:
-            - "CARSALES"
+            - "CARSALES_AU"
           source_application:
             - "SALES_AI"
             - "CHAT_AI"
@@ -446,7 +446,7 @@ Resources:
           event_type:
             - "Activity Created"
           partner_name:
-            - "DEALERSHELL"
+            - "DEALERSOCKET_AU"
           source_application:
             - "SALES_AI"
             - "CHAT_AI"
