@@ -93,7 +93,7 @@ class DataPullManager:
         vehicles, customers = execute_ordered_threads(tasks=[
             (self.__get_from_set, unique_vins, "vehicles"),
             (self.__get_from_set, unique_customers, "customers")
-        ], max_workers=2)
+        ], max_workers=1)
 
         file_content = {
             "root_appointments": appointments,
@@ -132,7 +132,7 @@ class DataPullManager:
             (self.__get_from_set, unique_vins, "vehicles"),
             (self.__get_from_set, unique_customers, "customers"),
             (self.__get_from_set, unique_deals, "deals")
-        ], max_workers=3)
+        ], max_workers=1)
 
         file_content = {
             "root_deals": deals,
@@ -168,7 +168,7 @@ class DataPullManager:
             (self.__get_from_set, unique_vins, "vehicles"),
             (self.__get_from_set, unique_customers, "customers"),
             (self.__get_from_set, unique_ros, "repair_orders")
-        ], max_workers=3)
+        ], max_workers=1)
 
         file_content = {
             "root_repair_orders": ros,
