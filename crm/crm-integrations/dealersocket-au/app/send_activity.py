@@ -32,9 +32,6 @@ def record_handler(record: SQSRecord) -> None:
         if not lead:
             raise ValueError(f"Lead not found for ID: {details['lead_id']}")
         
-        if not salesperson:
-            raise ValueError(f"Salesperson not found for ID: {details['lead_id']}")
-        
         if not dealer:
             raise ValueError(f"Dealer not found for ID: {details['dealer_id']}")
         
