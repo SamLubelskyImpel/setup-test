@@ -1,6 +1,5 @@
 from json import loads
 from logging import getLogger
-
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor, process_partial_response, EventType
 )
@@ -23,7 +22,41 @@ def record_handler(record: SQSRecord):
         f"Processing record: {record.message_id}", extra={"record": record}
     )
     body = loads(record.body)
-    activity_event = SendActivityEvent(**body)
+    details = body.get("detail", {})
+
+    idp_dealer_id = details.get("idp_dealer_id")
+    lead_id = details.get("lead_id")
+    activity_id = details.get("activity_id")
+
+    activity = crm_api.get_activity(activity_id)
+    dealer = crm_api.get_dealer_by_idp_dealer_id(idp_dealer_id)
+    crm_consumer_id = activity.get("crm_consumer_id", None)
+    crm_dealer_id = dealer.get("crm_dealer_id", None)
+
+    if crm_consumer_id:
+        consumer = crm_api.get_consumer(crm_consumer_id, crm_dealer_id, integration_partner_name="TEKION")
+        consumer_id = consumer.get("consumer_id", None),
+    else:
+        consumer_id = None
+
+    payload = {
+        "lead_id": lead_id,
+        "crm_lead_id": activity.get("crm_lead_id", None),
+        "dealer_integration_partner_id": dealer.get("dealer_integration_partner_id", None),
+        "dealer_integration_partner_metadata": None,
+        "crm_dealer_id": crm_dealer_id,
+        "consumer_id": consumer_id,
+        "crm_consumer_id": crm_consumer_id,
+        "activity_id": activity_id,
+        "notes": activity.get("notes", None),
+        "activity_due_ts": activity.get("activity_due_ts", None),
+        "activity_requested_ts": activity.get("activity_requested_ts", None),
+        "dealer_timezone": dealer.get("timezone", None),
+        "activity_type": activity.get("activity_type", None),
+        "contact_method": activity.get("contact_method", None),
+    }
+
+    activity_event = SendActivityEvent(**payload)
     try:
         tekion_wrapper = TekionApiWrapper(activity_event)
         tekion_activity_id = tekion_wrapper.create_activity()

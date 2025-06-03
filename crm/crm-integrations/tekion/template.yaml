@@ -667,3 +667,15 @@ Resources:
       LogGroupName: !Ref TransformNewLeadsLogGroup
       DestinationArn: !GetAtt MonitoringTekionCRM.Arn
       FilterPattern: "SUPPORT ALERT"
+
+Outputs:
+  TekionSendActivityQueueArn:
+    Description: "Tekion Send Activity Queue ARN"
+    Value: !GetAtt SendActivityQueue.Arn
+    Export:
+      Name: !Sub "tekion-${Environment}-SendActivityQueueArn"
+  TekionSendActivityDLQArn:
+    Description: "Tekion Send Activity DLQ ARN"
+    Value: !GetAtt SendActivityDeadLetterQueue.Arn
+    Export:
+      Name: !Sub "tekion-${Environment}-SendActivityDLQArn"
