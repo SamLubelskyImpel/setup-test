@@ -307,11 +307,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "dealerpeak-prod-SendActivityQueueArn",
-                    !Sub "dealerpeak-test-SendActivityQueueArn"
-                  ]
+                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
         - PolicyName: DealerPeakDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -320,37 +316,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "dealerpeak-prod-SendActivityDLQArn",
-                    !Sub "dealerpeak-test-SendActivityDLQArn"
-                  ]
-        - PolicyName: TekionQueuePolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "tekion-prod-SendActivityQueueArn",
-                    !Sub "tekion-test-SendActivityQueueArn"
-                  ]
-        - PolicyName: TekionDLQPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "tekion-prod-SendActivityDLQArn",
-                    !Sub "tekion-test-SendActivityDLQArn"
-                  ]
+                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -405,18 +371,10 @@ Resources:
       Targets:
         - Id: DealerPeakQueue
           Arn:
-            Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "dealerpeak-prod-SendActivityQueueArn",
-                    !Sub "dealerpeak-test-SendActivityQueueArn"
-                  ]
+            Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
           DeadLetterConfig:
             Arn:
-              Fn::ImportValue:  !If [
-                    IsProd,
-                    !Sub "dealerpeak-prod-SendActivityDLQArn",
-                    !Sub "dealerpeak-test-SendActivityDLQArn"
-                  ]
+              Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   TekionEventRule:
@@ -436,19 +394,17 @@ Resources:
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: TekionQueue
-          Arn:
-            Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "tekion-prod-SendActivityQueueArn",
-                    !Sub "tekion-test-SendActivityQueueArn"
-                  ]
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityQueue"
+              ]
           DeadLetterConfig:
-            Arn:
-              Fn::ImportValue: !If [
-                    IsProd,
-                    !Sub "tekion-prod-SendActivityDLQArn",
-                    !Sub "tekion-test-SendActivityDLQArn"
-                  ]
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   MonitoringRule:

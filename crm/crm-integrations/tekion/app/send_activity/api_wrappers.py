@@ -43,7 +43,7 @@ class CrmApiWrapper:
 
         return secret_data["api_key"]
 
-    def __call_api(self, url, params=None, payload=None, method="POST"):
+    def __call_api(self, url, payload=None, method="POST"):
         headers = {
             "x_api_key": self.api_key,
             "partner_id": self.partner_id,
@@ -52,8 +52,7 @@ class CrmApiWrapper:
             method=method,
             url=url,
             json=payload,
-            headers=headers,
-            params=params
+            headers=headers
         )
         response.raise_for_status()
         return response.json(), response.status_code
@@ -69,17 +68,6 @@ class CrmApiWrapper:
         response_json, _ = self.__call_api(
             url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
             method="GET"
-        )
-        return response_json
-
-    def get_consumer(self, crm_consumer_id, crm_dealer_id, integration_partner_name):
-        response_json, _ = self.__call_api(
-            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
-            method="GET",
-            params={
-                "crm_dealer_id": crm_dealer_id,
-                "integration_partner_name": integration_partner_name
-            }
         )
         return response_json
 

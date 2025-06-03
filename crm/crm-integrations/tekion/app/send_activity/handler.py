@@ -30,23 +30,15 @@ def record_handler(record: SQSRecord):
 
     activity = crm_api.get_activity(activity_id)
     dealer = crm_api.get_dealer_by_idp_dealer_id(idp_dealer_id)
-    crm_consumer_id = activity.get("crm_consumer_id", None)
-    crm_dealer_id = dealer.get("crm_dealer_id", None)
-
-    if crm_consumer_id:
-        consumer = crm_api.get_consumer(crm_consumer_id, crm_dealer_id, integration_partner_name="TEKION")
-        consumer_id = consumer.get("consumer_id", None),
-    else:
-        consumer_id = None
 
     payload = {
         "lead_id": lead_id,
         "crm_lead_id": activity.get("crm_lead_id", None),
         "dealer_integration_partner_id": dealer.get("dealer_integration_partner_id", None),
         "dealer_integration_partner_metadata": None,
-        "crm_dealer_id": crm_dealer_id,
-        "consumer_id": consumer_id,
-        "crm_consumer_id": crm_consumer_id,
+        "crm_dealer_id": dealer.get("crm_dealer_id", None),
+        "consumer_id": None,
+        "crm_consumer_id": None,
         "activity_id": activity_id,
         "notes": activity.get("notes", None),
         "activity_due_ts": activity.get("activity_due_ts", None),
