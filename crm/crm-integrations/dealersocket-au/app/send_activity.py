@@ -46,7 +46,7 @@ def record_handler(record: SQSRecord) -> None:
         dealersocket_au_response = dealersocket_au_crm_api.create_activity()
         activity_id = dealersocket_au_response.get("ActivityID")
         error_code = dealersocket_au_response.get("ErrorCode")
-    
+
         if error_code:
             if error_code == "INTERNAL_ERROR":
                 raise RuntimeError("Internal error occurred in Dealersocket AU API")
