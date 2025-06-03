@@ -234,7 +234,7 @@ Resources:
       QueueName: !Sub "crm-shared-${Environment}-EventEnricherQueue"
       VisibilityTimeout: 60
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt ProcessLeadUpdatesDeadLetterQueue.Arn
+        deadLetterTargetArn: !GetAtt EventEnricherDeadLetterQueue.Arn
         maxReceiveCount: 3
 
   EventEnricherDeadLetterQueue:
@@ -291,32 +291,25 @@ Resources:
                 Action:
                   - events:PutEvents
                 Resource: !GetAtt CrmEventBus.Arn
-        - PolicyName: CrmEventBusDLQPolicy
+        - PolicyName: SQSPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
-                Resource: !GetAtt CrmEventBusDLQ.Arn
-        - PolicyName: DealPeakQueuePolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
-        - PolicyName: DealerPeakDLQPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
-                  Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+                Resource: 
+                  - !GetAtt CrmEventBusDLQ.Arn
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -370,13 +363,19 @@ Resources:
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: DealerPeakQueue
-          Arn:
-            Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityQueue"
+              ]
           DeadLetterConfig:
-            Arn:
-              Fn::ImportValue: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
-    
+  
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
@@ -384,6 +383,10 @@ Resources:
       EventPattern:
         source:
           - "EventEnricher"
+        detail:
+          event_type:
+            - "Lead Created"
+            - "Activity Created"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
@@ -405,10 +408,3 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Role: !GetAtt LambdaRole.Arn
-
-Outputs:
-  EventEnricherQueueUrl:
-    Description: URL of the EventEnricherQueue
-    Value: !Ref EventEnricherQueue
-    Export:
-      Name: !Sub "crm-shared-${Environment}-EventEnricherQueueUrl"
