@@ -22,7 +22,6 @@ def record_handler(record: SQSRecord) -> None:
         details = activity.get("detail", {})
 
         activity = crm_api.get_activity(details["activity_id"])
-        lead = crm_api.get_lead(details["lead_id"])
         salesperson = crm_api.get_salesperson(details["lead_id"])
         dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
         
@@ -34,7 +33,7 @@ def record_handler(record: SQSRecord) -> None:
         
         if not salesperson:
             logger.warning(f"No salesperson found for lead ID: {activity['lead_id']}")
-            
+
         logger.info(f"Salesperson: {salesperson}")
         logger.info(f"Dealer: {dealer}")
         logger.info(f"Processing activity: {activity}")    
