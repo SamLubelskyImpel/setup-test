@@ -93,11 +93,11 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !If [
+                  !If [
                       IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
-                    ]
+                  ]
         - PolicyName: EventBridgePolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -325,10 +325,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !If [IsProd,
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
-                    ]
+                  !If [
+                        IsProd,
+                        !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
+                        !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
+                  ]
         - PolicyName: CarsalesAUDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -337,10 +338,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !If [IsProd,
+                  !If [
+                    IsProd,
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityDLQ",
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityDLQ"
-                    ] 
+                  ] 
         - PolicyName: DealersocketAUQueuePolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -349,10 +351,11 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !If [IsProd,
+                  !If [
+                      IsProd,
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityQueue",
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityQueue"
-                    ]
+                  ]
         - PolicyName: DealersocketAUDLQPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -361,9 +364,10 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - !If [IsProd,
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
-                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
+                    !If [
+                        IsProd,
+                        !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
+                        !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
                     ]
 
   CrmEventBus:
@@ -443,16 +447,18 @@ Resources:
       Targets:
         - Id: CarsalesAUQueue
           Arn:
-            - !If [IsProd,
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
+              !If [
+                  IsProd,
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
               ]
           DeadLetterConfig:
             Arn:
-              - !If [IsProd,
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityDLQ",
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityDLQ"
-                ]
+              !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   DealersocketAUEventRule:
@@ -473,16 +479,18 @@ Resources:
       Targets:
         - Id: DealersocketAUQueue
           Arn:
-            - !If [IsProd,
+            !If [
+                IsProd,
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityQueue",
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityQueue"
-              ]
+            ]
           DeadLetterConfig:
             Arn:
-              - !If [IsProd,
+              !If [
+                  IsProd,
                   !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
                   !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
-                ]
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   MonitoringRule:
