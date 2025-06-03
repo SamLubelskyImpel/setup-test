@@ -27,16 +27,11 @@ def record_handler(record: SQSRecord):
         details = body.get("detail", {})
         
         activity = crm_api.get_activity(details["activity_id"])
-        lead = crm_api.get_lead(details["lead_id"])
 
         if not activity:
-            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
-
-        if not lead:
-            raise ValueError(f"Lead not found for ID: {details['lead_id']}")
+            logger.warning(f"Activity not found for ID: {details['activity_id']}")
         
         logger.info(f"Activity: {activity}")
-        logger.info(f"Lead: {lead}")
 
         carsales_crm_api = CarsalesApiWrapper(activity=activity)
         carsales_crm_api.create_activity()
@@ -47,7 +42,7 @@ def record_handler(record: SQSRecord):
         logger.exception(f"Failed to post activity {activity['activity_id']} to Carsales")
         logger.error(f"[SUPPORT ALERT] Failed to Send Activity [CONTENT]."
                      f"LeadId: {details['lead_id']}"
-                     f"CRMLeadId: {lead['crm_lead_id']}"
+                     f"CRMLeadId: {activity['crm_lead_id']}"
                      f"DealerIntegrationPartnerId: {activity['dealer_integration_partner_id']}"
                      f"ActivityId: {activity['activity_id']}"
                      f"ActivityType: {activity['activity_type']}"

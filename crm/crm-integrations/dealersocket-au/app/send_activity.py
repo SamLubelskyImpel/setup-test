@@ -27,14 +27,14 @@ def record_handler(record: SQSRecord) -> None:
         dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
         
         if not activity:
-            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
-
-        if not lead:
-            raise ValueError(f"Lead not found for ID: {details['lead_id']}")
+            logger.warning(f"Activity not found for ID: {details['activity_id']}")
         
         if not dealer:
-            raise ValueError(f"Dealer not found for ID: {details['dealer_id']}")
+            logger.warning(f"Dealer not found for ID: {details['dealer_id']}")
         
+        if not salesperson:
+            logger.warning(f"No salesperson found for lead ID: {activity['lead_id']}")
+            
         logger.info(f"Salesperson: {salesperson}")
         logger.info(f"Dealer: {dealer}")
         logger.info(f"Processing activity: {activity}")    
