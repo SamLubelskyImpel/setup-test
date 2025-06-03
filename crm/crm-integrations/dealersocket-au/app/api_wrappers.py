@@ -58,10 +58,6 @@ class CrmApiWrapper:
     def get_activity(self, activity_id: int):
         activity = self.__run_get(f"activities/{activity_id}")
         return activity
-
-    def get_lead(self, lead_id: int):
-        lead = self.__run_get(f"leads/{lead_id}")
-        return lead
     
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")

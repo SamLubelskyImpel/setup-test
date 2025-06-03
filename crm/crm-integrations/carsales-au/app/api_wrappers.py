@@ -58,25 +58,6 @@ class CrmApiWrapper:
 
         return activity
 
-    def get_lead(self, lead_id: int):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            }
-        )
-        logger.info(f"CRM API -get_lead- responded with: {response.status_code}")
-
-        if response.status_code != 200:
-            raise Exception(f"Error getting lead {lead_id}: {response.text}")
-
-        lead = response.json()
-        if not lead:
-            raise Exception(f"Lead not found for ID: {lead_id}")
-
-        return lead
-
 class CarsalesApiWrapper:
     """Carsales API Wrapper."""
 
