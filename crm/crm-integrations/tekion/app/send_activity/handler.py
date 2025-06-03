@@ -39,7 +39,7 @@ def record_handler(record: SQSRecord):
         "dealer_integration_partner_metadata": None,
         "crm_dealer_id": dealer.get("crm_dealer_id", None),
         "consumer_id": None,
-        "crm_consumer_id": None,
+        "crm_consumer_id": activity.get("crm_consumer_id", None),
         "activity_id": activity_id,
         "notes": activity.get("notes", None),
         "activity_due_ts": activity.get("activity_due_ts", None),
