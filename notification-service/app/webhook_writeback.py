@@ -1,11 +1,10 @@
 """Send webhook notifications to clients."""
 
-import boto3
 import logging
-import requests
-from json import loads
 from os import environ
 from typing import Any
+import requests
+from utils import get_secret, is_writeback_disabled
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -17,18 +16,6 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-sm_client = boto3.client('secretsmanager')
-
-
-def get_secret(secret_name: str, secret_value: str) -> dict:
-    """Get the secret value from Secrets Manager."""
-    try:
-        secret = sm_client.get_secret_value(SecretId=secret_name)
-        secret = loads(secret["SecretString"])[secret_value]
-        return loads(secret)
-    except Exception as e:
-        logger.error(f"Error getting secret: {e}")
-        raise
 
 
 def send_webhook_notification(client_secrets: dict, event_content: dict) -> None:
@@ -55,25 +42,20 @@ def record_handler(record: SQSRecord) -> None:
     """Process each record."""
     logger.info(f"Record: {record}")
     try:
-        message = loads(record["body"])
-        events = message["detail"]['events']
+        body = record.json_body
+        details = body.get("detail", {})
 
-        for event in events:
-            logger.info(f"Event: {event}")
+        partner_name = details['partner_name']
 
-            event_id = event['event_id']
-            event_content = event['event_content']
-            event_content["event_id"] = event_id
+        if is_writeback_disabled(partner_name):
+            logger.info(f"Writeback is disabled for partner: {partner_name}")
+            return
 
-            product_name = event['product_name']
-            client_id = event['client_id']
-            sort_key = f"{product_name}__{client_id}"
+        sort_key = f"SHARED_LAYER_CRM__{partner_name}"
+        secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
 
-            secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
-
-            client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
-
-            send_webhook_notification(client_secrets, event_content)
+        client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
+        send_webhook_notification(client_secrets, details)
 
     except Exception as e:
         logger.error(f"Error sending webhook notification: {e}")

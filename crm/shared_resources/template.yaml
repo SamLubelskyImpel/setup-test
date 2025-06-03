@@ -310,6 +310,16 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
                   ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-prod-WebhookWritebackQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-test-WebhookWritebackQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-prod-WebhookWritebackDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-test-WebhookWritebackDLQ"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -408,3 +418,30 @@ Resources:
       CodeUri: app/
       Handler: monitoring.lambda_handler
       Role: !GetAtt LambdaRole.Arn
+  
+  InsEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-InsEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: InsQueue
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-prod-WebhookWritebackQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-test-WebhookWritebackQueue"
+              ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-prod-WebhookWritebackDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:notification-service-test-WebhookWritebackDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn

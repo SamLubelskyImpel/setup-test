@@ -25,6 +25,7 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        INTEGRATIONS_BUCKET: !Sub 'crm-integrations-${Environment}'
 
 Resources:
   LambdaRole:
@@ -83,6 +84,15 @@ Resources:
                   - "sns:Publish"
                 Resource:
                 - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                Resource:
+                - !Sub "arn:aws:s3:::crm-integrations-${Environment}/configurations*"
 
   EventBus:
     Type: AWS::Events::EventBus
@@ -151,7 +161,7 @@ Resources:
       Action: events:PutEvents
       EventBusName: !Ref EventBus
       Principal: !Ref AWS::AccountId
-      StatementId: 'EventBusStatement'
+      StatementId: !Sub "notification-service-${Environment}-EventBusPolicy"
 
   WebhookWritebackQueue:
     Type: AWS::SQS::Queue
