@@ -52,7 +52,7 @@ class CrmApiWrapper:
             method=method,
             url=url,
             json=payload,
-            headers=headers
+            headers=headers,
         )
         response.raise_for_status()
         return response.json(), response.status_code

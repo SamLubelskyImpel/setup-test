@@ -1,5 +1,6 @@
 from json import loads
 from logging import getLogger
+
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor, process_partial_response, EventType
 )
@@ -21,7 +22,7 @@ def record_handler(record: SQSRecord):
     logger.info(
         f"Processing record: {record.message_id}", extra={"record": record}
     )
-    body = loads(record.body)
+    body = record.json_body
     details = body.get("detail", {})
 
     idp_dealer_id = details.get("idp_dealer_id")
