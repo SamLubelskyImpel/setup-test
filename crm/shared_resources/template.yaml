@@ -335,6 +335,21 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderDLQ",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderDLQ"
                   ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
+                  ]
 
 
   CrmEventBus:
@@ -384,7 +399,6 @@ Resources:
             - "DEALERPEAK"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
@@ -400,6 +414,83 @@ Resources:
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
               ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  ADFAssemblerEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-ADFAssemblerEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+            - "Lead Created"
+          override_partner:
+            - exists: false
+            - anything-but:
+                - "ACURA"
+                - "HONDA"
+                - "HYUNDAI"
+                - "STELLANTIS"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: ADFAssemblerQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  JDPowerEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-JDPowerEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Lead Created"
+          override_partner:
+            - "ACURA"
+            - "HONDA"
+            - "HYUNDAI"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: JDPowerQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  StellantisEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-StellantisEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Lead Created"
+          override_partner:
+            - "STELLANTIS"
+          source_application:
+            - "CHAT_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: StellantisQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
+            ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
   
   DAEventRule:
