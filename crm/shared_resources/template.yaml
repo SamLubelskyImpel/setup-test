@@ -424,7 +424,6 @@ Resources:
             - "TEKION"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
