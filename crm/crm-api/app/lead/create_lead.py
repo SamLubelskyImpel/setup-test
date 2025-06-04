@@ -27,7 +27,6 @@ from crm_orm.models.integration_partner import IntegrationPartner
 
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
-EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
 ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
@@ -53,28 +52,6 @@ salesperson_attrs = [
 class ADFAssemblerSyndicationError(Exception):
     """Custom exception for ADF Assembler syndication errors."""
     pass
-
-
-class DASyndicationError(Exception):
-    """Custom exception for DA syndication errors."""
-    pass
-
-
-def send_notification_to_event_listener(integration_partner_name: str) -> bool:
-    """Check if notification should be sent to the event listener."""
-    try:
-        response = s3_client.get_object(
-            Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json",
-        )
-        config = loads(response["Body"].read())
-        logger.info(f"Config: {config}")
-        notification_partners = config["notification_partners"]
-        if integration_partner_name in notification_partners:
-            return True
-    except Exception as e:
-        raise DASyndicationError(e)
-    return False
 
 
 def update_attrs(
@@ -330,8 +307,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 'dealer_id': product_dealer_id,
             })
 
-        notify_listener = send_notification_to_event_listener(integration_partner_name)
-
         # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
         if request_product == "chat_ai":
             try:
@@ -357,17 +332,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             except Exception as e:
                 raise ADFAssemblerSyndicationError(e)
 
-        elif notify_listener:
-            try:
-                sqs_client = boto3.client('sqs')
-
-                sqs_client.send_message(
-                    QueueUrl=EVENT_LISTENER_QUEUE,
-                    MessageBody=dumps({"lead_id": lead_id})
-                )
-            except Exception as e:
-                raise DASyndicationError(e)
-
     except ValidationErrorResponse as e:
         logger.warning(f"Validation failed: {e.full_errors}")
         return {
@@ -381,13 +345,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
         send_alert_notification(
             message=f"Error occurred while sending lead {lead_id} to ADF Assembler: {e}",
-            subject="Lead Syndication Failure Alert - CreateLead"
-        )
-
-    except DASyndicationError as e:
-        logger.error(f"Error syndicating lead: {e}.")
-        send_alert_notification(
-            message=f"Error occurred while sending lead {lead_id} to EventListener: {e}",
             subject="Lead Syndication Failure Alert - CreateLead"
         )
 
