@@ -441,7 +441,6 @@ Resources:
             - "CARSALES_AU"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
@@ -473,7 +472,6 @@ Resources:
             - "DEALERSOCKET_AU"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:

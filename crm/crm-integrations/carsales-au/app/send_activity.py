@@ -43,8 +43,7 @@ def record_handler(record: SQSRecord):
         logger.error(f"[SUPPORT ALERT] Failed to Send Activity [CONTENT]."
                      f"LeadId: {details['lead_id']}"
                      f"CRMLeadId: {activity['crm_lead_id']}"
-                     f"DealerIntegrationPartnerId: {activity['dealer_integration_partner_id']}"
-                     f"ActivityId: {activity['activity_id']}"
+                     f"DealerIntegrationPartnerId: {details['idp_dealer_id']}"
                      f"ActivityType: {activity['activity_type']}"
                      f"ActivityId: {activity['activity_id']}"
         )
