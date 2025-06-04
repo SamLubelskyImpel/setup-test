@@ -50,6 +50,6 @@ class BaseClass:
         """Get dealer details from CRM API."""
         return self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}")
 
-    def get_activity(self, activity_id: str):
+    def get_activity(self, activity_id: int):
         """Get activity details from CRM API."""
         return self.call_crm_api(f"https://{CRM_API_DOMAIN}/activities/{activity_id}")
