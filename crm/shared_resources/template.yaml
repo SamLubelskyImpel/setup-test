@@ -415,7 +415,6 @@ Resources:
             - "BIG_MOTORING_WORLD"
           source_application:
             - "SALES_AI"
-            - "CHAT_AI"
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
