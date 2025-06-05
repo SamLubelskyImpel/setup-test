@@ -2,8 +2,7 @@ openapi: 3.0.0
 info:
   title: CRM API
   version: 1.0.0
-  description: "All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS.
-  This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer infor  mation, and adding new activities.\n\n**Glossary:**\n1.
+  description: "All API requests must be made over HTTPS. Calls made over plain HTTP will be redirected to HTTPS.This API allows Impel DA (Sales AI/Chat AI) to interact with the shared CRM layer, enabling actions such as posting or updating new leads, retrieving lead details, updating consumer infor  mation, and adding new activities.\n\n**Glossary:**\n1.
     Impel CRM Layer: A unified persistence data layer designed for integration with all CRM partners. This layer aggregates all leads and activities from every CRM partner into one central repository.\n2.
     Lead: A sales opportunity that a dealership can pursue. Every lead contains information about the consumer, a vehicle of interest, sales team information and other details.\n3.
     Consumer: A person who may be interested in buying a specific vehicle(s). The Consumer stores the personal information and preferences of its subject. A Consumer may be referenced in one or more Leads.\n4.
@@ -407,6 +406,238 @@ paths:
                         format: date-time
                         description: The created datetime of the lead in the unified CRM layer.
                         example: "2023-10-16T20:44:12.027184+00:00"
+        '400':
+          "$ref": "#/components/responses/400"
+        '401':
+          "$ref": "#/components/responses/401"
+        '404':
+          "$ref": "#/components/responses/404"
+        '500':
+          "$ref": "#/components/responses/500"
+
+  /internal/leads/pii-lookup:
+    get:
+      operationId: get-leads-pii-lookup
+      summary: Retrieves specific leads by PII
+      #{{RETRIEVE_LEADS_BY_PII_LAMBDA_INFO}}
+      tags:
+        - Leads
+      parameters:
+        - "$ref": "#/components/parameters/dealerId"
+        - "$ref": "#/components/parameters/firstName"
+        - "$ref": "#/components/parameters/lastName"
+        - "$ref": "#/components/parameters/email"
+        - "$ref": "#/components/parameters/phone"
+        - "$ref": "#/components/parameters/address"
+        - "$ref": "#/components/parameters/city"
+        - "$ref": "#/components/parameters/country"
+        - "$ref": "#/components/parameters/postalCode"
+      responses:
+        '200':
+          description: Success. The request was received and successfully processed by the CRM persistence data layer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: Lead data matching the provided PII
+                  properties:
+                    crm_lead_id:
+                      type: string
+                      description: A unique identifier used to locate the lead in the CRM
+                      maxLength: 50
+                      example: "1234-abcd-567"
+                    lead_status:
+                      type: string
+                      description: A status that can be used to group leads that are in similar state
+                      maxLength: 50
+                      example: "ACTIVE"
+                    lead_substatus:
+                      type: string
+                      description: Current state of the lead
+                      maxLength: 50
+                      example: "Appointment Set"
+                    lead_comment:
+                      type: string
+                      description: Comment about the lead or generated text from the source on behalf of the lead
+                      maxLength: 10000
+                      example: "Does this car have a sunroof?"
+                    lead_origin:
+                      type: string
+                      description: The first point of contact or channel through which the lead is generated
+                      enum: [INTERNET, CALL, WALK-IN, THIRD PARTY, OTHER]
+                      example: "INTERNET"
+                      maxLength: 100
+                    lead_source:
+                      type: string
+                      description: The specific channel through which the lead was generated.
+                      maxLength: 200
+                      example: cars.com
+                    lead_source_detail:
+                      type: string
+                      description: The specific detail about the lead source.
+                      maxLength: 200
+                      example: "Inventory Leads Website"
+                    vehicles_of_interest:
+                      description: An array of vehicles the lead was interested in
+                      type: array
+                      items:
+                        description: Object containing description of the vehicle
+                        type: object
+                        properties:
+                          crm_vehicle_id:
+                            type: string
+                            description: A unique identifier used to locate the vehicle in the CRM
+                            maxLength: 50
+                            example: "1234-abcd-567"
+                          vin:
+                            type: string
+                            description: Vehicle Identification Number
+                            maxLength: 20
+                            example: "1HGBH41JXMN109186"
+                          stock_number:
+                            type: string
+                            description: Vehicle stock number
+                            maxLength: 50
+                            example: SN12345
+                          type:
+                            type: string
+                            description: Type of the vehicle (e.g., Sedan, SUV, Truck)
+                            maxLength: 80
+                            example: SUV
+                          class:
+                            type: string
+                            description: Classification of the vehicle (e.g., Compact, Midsize, Luxury)
+                            maxLength: 80
+                            example: Compact
+                          mileage:
+                            type: number
+                            description: Mileage of the vehicle
+                            example: 50000
+                          year:
+                            type: number
+                            description: The sales model year of the vehicle
+                            minimum: 1800
+                            maximum: 3000
+                            example: 2023
+                          make:
+                            type: string
+                            description: The brand or make of the vehicle
+                            maxLength: 80
+                            example: Ford
+                          model:
+                            type: string
+                            description: The model name of the vehicle
+                            maxLength: 80
+                            example: F-150
+                          oem_name:
+                            type: string
+                            description: OEM name of the vehicle
+                            maxLength: 80
+                            example: Ford
+                          trim:
+                            type: string
+                            description: Trim of the vehicle
+                            minLength: 1
+                            maxLength: 50
+                            example: GT
+                          body_style:
+                            type: string
+                            description: Body style of the vehicle
+                            maxLength: 80
+                            example: SUV
+                          transmission:
+                            type: string
+                            description: Transmission of the vehicle
+                            maxLength: 80
+                            example: Manual
+                          interior_color:
+                            type: string
+                            description: Interior color of the vehicle
+                            maxLength: 80
+                            example: Black
+                          exterior_color:
+                            type: string
+                            description: Exterior color of the vehicle
+                            maxLength: 80
+                            example: White
+                          price:
+                            type: number
+                            format: float
+                            description: Price of the vehicle
+                            example: 25000.00
+                          status:
+                            type: string
+                            description: Current status of the vehicle (e.g., Available, Sold)
+                            maxLength: 50
+                            example: Available
+                          condition:
+                            type: string
+                            description: Condition of the vehicle
+                            enum: [New, Used, CPO]
+                            example: Used
+                            maxLength: 20
+                          odometer_units:
+                            type: string
+                            description: Units for the odometer reading (e.g., miles, kilometers)
+                            enum: [miles, kilometers]
+                            example: miles
+                            maxLength: 20
+                          vehicle_comments:
+                            type: string
+                            description: Comments about the vehicle
+                            maxLength: 5000
+                            example: Has a scratch
+                    consumer:
+                      type: object
+                      description: Consumer PII related to this lead
+                      properties:
+                        crm_consumer_id:
+                            type: string
+                            description: A unique identifier used to locate the consumer in the CRM
+                            maxLength: 50
+                            example: "1234-abcd-567"
+                        first_name:
+                          description: Consumer first name
+                          type: string
+                          maxLength: 50
+                          example: "John"
+                        last_name:
+                          description: Consumer last name
+                          type: string
+                          maxLength: 50
+                          example: "Doe"
+                        email:
+                          description: Consumer primary email address
+                          type: string
+                          maxLength: 100
+                          example: "john.doe@example.com"
+                        phone:
+                          description: Consumer primary phone number
+                          type: string
+                          maxLength: 20
+                          example: "+11231231134"
+                        city:
+                          description: City where the consumer resides
+                          type: string
+                          maxLength: 100
+                          example: "New York"
+                        country:
+                          description: Country where the consumer resides
+                          type: string
+                          maxLength: 100
+                          example: "USA"
+                        address:
+                          description: Complete address of the consumer
+                          type: string
+                          maxLength: 100
+                          example: "123 Main St, Apt 4B"
+                        postal_code:
+                          description: Postal or ZIP code for the consumer's address
+                          type: string
+                          maxLength: 20
+                          example: "10001" 
         '400':
           "$ref": "#/components/responses/400"
         '401':
@@ -1999,3 +2230,75 @@ components:
         type: integer
         minimum: 1
         maximum: 1000
+    firstName:
+      name: first_name
+      in: query
+      required: true
+      description: Consumer first name
+      schema:
+        type: string
+        maxLength: 50
+        example: "John"
+    lastName:
+      name: last_name
+      in: query
+      required: true
+      description: Consumer last name
+      schema:
+        type: string
+        maxLength: 50
+        example: "Doe"
+    email:
+      name: email
+      in: query
+      required: false
+      description: Consumer primary email address
+      schema:
+        type: string
+        maxLength: 100
+        example: "john.doe@example.com"
+    phone:
+      name: phone
+      in: query
+      required: false
+      description: Consumer primary phone number
+      schema:
+        type: string
+        maxLength: 20
+        example: "+11231231134"
+    city:
+      name: city
+      in: query
+      required: false
+      description: City where the consumer resides
+      schema:
+        type: string
+        maxLength: 100
+        example: "New York"
+    country:
+      name: country
+      in: query
+      required: false
+      description: Country where the consumer resides
+      schema:
+        type: string
+        maxLength: 100
+        example: "USA"
+    address:
+      name: address
+      in: query
+      required: false
+      description: Complete address of the consumer
+      schema:
+        type: string
+        maxLength: 100
+        example: "123 Main St, Apt 4B"
+    postalCode:
+      name: postal_code
+      in: query
+      required: false
+      description: Postal or ZIP code for the consumer's address
+      schema:
+        type: string
+        maxLength: 20
+        example: "10001"

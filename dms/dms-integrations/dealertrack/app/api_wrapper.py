@@ -64,7 +64,7 @@ class DealerTrackApi:
         xml_body = ''.join(xml_body.splitlines()).strip()   # Formatting XML for better visualization on Cloudwatch
 
         response = requests.post(f'{self.base_url}/{api}.asmx', data=xml_body, headers=headers)
-        sleep(0.03)     # To roughly enforce a rate limit of 30 req/s
+        # sleep(0.03)     # To roughly enforce a rate limit of 30 req/s
 
         if response.status_code != 200:
             logger.error(f"DMS returned {response.status_code} {response.text} to request {request_body}")

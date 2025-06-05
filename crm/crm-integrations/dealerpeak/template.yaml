@@ -456,15 +456,3 @@ Resources:
       LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
       FilterPattern: "SUPPORT ALERT"
-
-Outputs:
-  DealerpeakSendActivityQueueArn:
-    Description: "Send Activity Queue ARN"
-    Value: !GetAtt SendActivityQueue.Arn
-    Export:
-      Name: !Sub "dealerpeak-${Environment}-SendActivityQueueArn"
-  DealerpeakSendActivityDLQArn:
-    Description: "Send Activity DLQ ARN"
-    Value: !GetAtt SendActivityDeadLetterQueue.Arn
-    Export:
-      Name: !Sub "dealerpeak-${Environment}-SendActivityDLQArn"

@@ -74,6 +74,10 @@ class CRMAPIWrapper:
             logger.error(f"Error updating lead in CRM API: {e}, Response: {response.text}")
             raise APIError(f"Error updating lead in CRM API: {e}")
 
+    def get_idp_dealer(self, idp_dealer_id: str):
+        """Fetch dealer details from CRM API."""
+        return self.base_helper.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}")
+
 
 class ShiftDigitalAPIWrapper:
     """Handles API interactions with Shift Digital."""
