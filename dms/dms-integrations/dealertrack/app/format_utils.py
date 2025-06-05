@@ -74,7 +74,7 @@ def parse_consumers(customers):
         parsed_consumers = {}
         for customer_id, customer_xml in customers.items():
             if not is_valid_xml(customer_xml):
-                if str(customer_id) != '0':
+                if customer_xml and str(customer_id) != '0':
                     logger.error(f"[SUPPORT ALERT] Unable to parse consumer [CONTENT] Invalid XML for customer ID: {customer_id}")
                 parsed_consumers[customer_id] = {}
                 continue
@@ -112,7 +112,8 @@ def parse_vehicles(vehicles):
         parsed_vehicles = {}
         for vehicle_id, vehicle_xml in vehicles.items():
             if not is_valid_xml(vehicle_xml):
-                logger.error(f"[SUPPORT ALERT] Unable to parse vehicle [CONTENT] Invalid XML for vehicle ID: {vehicle_id}")
+                if vehicle_xml:
+                    logger.error(f"[SUPPORT ALERT] Unable to parse vehicle [CONTENT] Invalid XML for vehicle ID: {vehicle_id}")
                 parsed_vehicles[vehicle_id] = {}
                 continue
 
@@ -156,7 +157,8 @@ def parse_op_codes(op_codes):
 
         for op_code_xml in op_codes:
             if not is_valid_xml(op_code_xml):
-                logger.error(f"[SUPPORT ALERT] Unable to parse op code [CONTENT] Invalid XML for op code: {op_code_xml}")
+                if op_code_xml:
+                    logger.error(f"[SUPPORT ALERT] Unable to parse op code [CONTENT] Invalid XML for op code: {op_code_xml}")
                 continue
 
             root = ET.fromstring(op_code_xml)

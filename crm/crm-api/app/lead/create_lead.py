@@ -5,7 +5,7 @@ import boto3
 import logging
 from os import environ
 from dateutil import parser
-from json import dumps, loads
+from json import dumps
 from typing import Any, List
 from sqlalchemy.exc import SQLAlchemyError
 from lead.utils import send_alert_notification
@@ -27,8 +27,6 @@ from crm_orm.models.integration_partner import IntegrationPartner
 
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
-EVENT_LISTENER_QUEUE = environ.get("EVENT_LISTENER_QUEUE")
-ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
@@ -48,33 +46,6 @@ salesperson_attrs = [
     "position_name",
     "is_primary",
 ]
-
-
-class ADFAssemblerSyndicationError(Exception):
-    """Custom exception for ADF Assembler syndication errors."""
-    pass
-
-
-class DASyndicationError(Exception):
-    """Custom exception for DA syndication errors."""
-    pass
-
-
-def send_notification_to_event_listener(integration_partner_name: str) -> bool:
-    """Check if notification should be sent to the event listener."""
-    try:
-        response = s3_client.get_object(
-            Bucket=INTEGRATIONS_BUCKET,
-            Key=f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_GENERAL.json",
-        )
-        config = loads(response["Body"].read())
-        logger.info(f"Config: {config}")
-        notification_partners = config["notification_partners"]
-        if integration_partner_name in notification_partners:
-            return True
-    except Exception as e:
-        raise DASyndicationError(e)
-    return False
 
 
 def update_attrs(
@@ -168,7 +139,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
                 consumer_db, dip_db, dealer_db, integration_partner_db = db_results
                 product_dealer_id = dealer_db.product_dealer_id
-                dip_metadata = dip_db.metadata_
                 integration_partner_name = integration_partner_db.impel_integration_partner_name
 
                 if authorizer_integration_partner:
@@ -185,7 +155,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 if not any([dip_db.is_active, dip_db.is_active_salesai, dip_db.is_active_chatai]):
                     error_msg = f"Dealer integration partner {dip_db.id} is not active. Lead failed to be created."
                     logger.error(error_msg)
-                    send_alert_notification(subject=f'CRM API: Lead creation failure', message=error_msg)
+                    send_alert_notification(subject='CRM API: Lead creation failure', message=error_msg)
                     return {
                         "statusCode": 404,
                         "body": dumps({"error": error_msg})
@@ -330,43 +300,8 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 'dealer_id': product_dealer_id,
             })
 
-        notify_listener = send_notification_to_event_listener(integration_partner_name)
-
-        # If a lead is going to be sent to the CRM as an ADF, don't send it to the DA (since the lead was not received from the CRM)
         if request_product == "chat_ai":
-            try:
-                if dip_metadata:
-                    oem_partner = dip_metadata.get("oem_partner", {})
-                else:
-                    logger.warning(f"No metadata found for dealer: {product_dealer_id}")
-                    oem_partner = {}
-
-                payload = {
-                    "event_type": "Lead",
-                    "lead_id": lead_id,
-                    "partner_name": integration_partner_name,
-                    "oem_partner": oem_partner,
-                    "product_dealer_id": product_dealer_id,
-                }
-                sqs_client = boto3.client('sqs')
-
-                sqs_client.send_message(
-                    QueueUrl=ADF_ASSEMBLER_QUEUE,
-                    MessageBody=dumps(payload)
-                )
-            except Exception as e:
-                raise ADFAssemblerSyndicationError(e)
-
-        elif notify_listener:
-            try:
-                sqs_client = boto3.client('sqs')
-
-                sqs_client.send_message(
-                    QueueUrl=EVENT_LISTENER_QUEUE,
-                    MessageBody=dumps({"lead_id": lead_id})
-                )
-            except Exception as e:
-                raise DASyndicationError(e)
+            logger.info("Skipping notification to Event Listener for chat_ai. Handled by Event Enricher.")
 
     except ValidationErrorResponse as e:
         logger.warning(f"Validation failed: {e.full_errors}")
@@ -377,19 +312,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "errors": e.errors,
             }),
         }
-    except ADFAssemblerSyndicationError as e:
-        logger.error(f"Error syndicating lead to ADF Assembler: {e}.")
-        send_alert_notification(
-            message=f"Error occurred while sending lead {lead_id} to ADF Assembler: {e}",
-            subject="Lead Syndication Failure Alert - CreateLead"
-        )
-
-    except DASyndicationError as e:
-        logger.error(f"Error syndicating lead: {e}.")
-        send_alert_notification(
-            message=f"Error occurred while sending lead {lead_id} to EventListener: {e}",
-            subject="Lead Syndication Failure Alert - CreateLead"
-        )
 
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
