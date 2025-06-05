@@ -494,7 +494,6 @@ Resources:
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
-  
   ADFAssemblerEventRule:
     Type: AWS::Events::Rule
     Properties:
