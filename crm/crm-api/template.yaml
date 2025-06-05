@@ -55,10 +55,11 @@ Globals:
         LOGLEVEL: INFO
         INTEGRATIONS_BUCKET: !Sub "crm-integrations-${Environment}"
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        EVENT_LISTENER_QUEUE: !Ref NotifyEventListenerQueue
-        ADF_ASSEMBLER_QUEUE: !Ref NotifyADFAssemblerQueue
-        EVENT_ENRICHER_QUEUE_URL: !ImportValue
-                                  Fn::Sub: crm-shared-${Environment}-EventEnricherQueueUrl
+        EVENT_ENRICHER_QUEUE_URL: !If [
+                                    IsProd,
+                                    !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/crm-shared-prod-EventEnricherQueue",
+                                    !Sub "https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/crm-shared-test-EventEnricherQueue"
+                                  ]
         # PYTHONPATH: "/opt/python"
     VpcConfig:
       SecurityGroupIds:
@@ -110,11 +111,6 @@ Resources:
                     ]
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/adf-assembler*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/adf-assembler*",
-                  ]
-                  - !If [
-                      IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-integrations-partner*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-integrations-partner*",
                     ]
@@ -164,14 +160,6 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Effect: "Allow"
-                Action:
-                  - "sqs:ReceiveMessage"
-                  - "sqs:DeleteMessage"
-                  - "sqs:GetQueueAttributes"
-                Resource:
-                  - !GetAtt NotifyEventListenerQueue.Arn
-                  - !GetAtt NotifyADFAssemblerQueue.Arn
               - Effect: "Allow"
                 Action:
                   - "sqs:SendMessage"
@@ -393,6 +381,25 @@ Resources:
           Properties:
             RestApiId: !Ref CrmApiGateway
             Path: /leads/crm/{crm_lead_id}
+            Method: GET
+      Layers:
+        - !Ref CrmOrmLayer
+
+  RetrieveLeadsByPIILookup:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "crm-api-${Environment}-RetrieveLeadsByPIILookup"
+      CodeUri: app/lead/
+      Handler: retrieve_leads_by_pii_lookup.lambda_handler
+      Timeout: 30
+      MemorySize: 1536
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CrmApiGateway
+            Path: /internal/leads/pii-lookup
             Method: GET
       Layers:
         - !Ref CrmOrmLayer
@@ -732,114 +739,6 @@ Resources:
             Method: POST
       Layers:
         - !Ref CrmOrmLayer
-
-  NotifyEventListener:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "crm-api-${Environment}-NotifyEventListener"
-      CodeUri: app/notifications/
-      Handler: notify_event_listener.lambda_handler
-      Timeout: 30
-      MemorySize: 512
-      Role: !GetAtt LambdaRole.Arn
-
-  NotifyEventListenerEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 5
-      EventSourceArn: !GetAtt NotifyEventListenerQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt NotifyEventListener.Arn
-
-  NotifyEventListenerQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerQueue"
-      VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt NotifyEventListenerDeadLetterQueue.Arn
-        maxReceiveCount: 3
-
-  NotifyEventListenerDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
-      MessageRetentionPeriod: 604800
-      VisibilityTimeout: 10
-
-  NotifyEventListenerDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "crm-api-${Environment}-NotifyEventListenerDLQ"
-      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Notification To Event Listener DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt NotifyEventListenerDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
-
-  NotifyADFAssembler:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub "crm-api-${Environment}-NotifyADFAssembler"
-      CodeUri: app/notifications/
-      Handler: notify_adf_assembler.lambda_handler
-      Timeout: 30
-      MemorySize: 512
-      Role: !GetAtt LambdaRole.Arn
-
-  NotifyADFAssemblerEventMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      BatchSize: 1
-      EventSourceArn: !GetAtt NotifyADFAssemblerQueue.Arn
-      MaximumBatchingWindowInSeconds: 0
-      FunctionName: !GetAtt NotifyADFAssembler.Arn
-
-  NotifyADFAssemblerQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "crm-api-${Environment}-NotifyADFAssemblerQueue"
-      VisibilityTimeout: 60
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt NotifyADFAssemblerDeadLetterQueue.Arn
-        maxReceiveCount: 3
-
-  NotifyADFAssemblerDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub "crm-api-${Environment}-NotifyADFAssemblerDLQ"
-      MessageRetentionPeriod: 604800
-      VisibilityTimeout: 10
-
-  NotifyADFAssemblerDLQAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub "crm-api-${Environment}-NotifyADFAssemblerDLQ"
-      AlarmDescription: There are over 1 unprocessed messages in the CRM API Send Event To ADF Assmebler DLQ
-      ActionsEnabled: true
-      AlarmActions:
-        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
-      Dimensions:
-        - Name: QueueName
-          Value: !GetAtt NotifyADFAssemblerDeadLetterQueue.QueueName
-      EvaluationPeriods: 1
-      MetricName: ApproximateNumberOfMessagesVisible
-      Namespace: AWS/SQS
-      Period: 300
-      Statistic: Sum
-      ComparisonOperator: GreaterThanThreshold
-      Threshold: 1
-      TreatMissingData: notBreaching
 
   CrmOrmLayer:
     Type: AWS::Serverless::LayerVersion
