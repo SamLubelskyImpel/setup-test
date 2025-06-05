@@ -336,6 +336,16 @@ Resources:
                   ]
                   - !If [
                     IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityDLQ"
+                  ]
+                  - !If [
+                    IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderQueue"
                   ]
@@ -531,7 +541,36 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
-  
+
+  TekionEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-TekionEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "TEKION"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: TekionQueue
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityQueue"
+              ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
   DAEventRule:
     Type: AWS::Events::Rule
     Properties:
