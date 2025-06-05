@@ -524,8 +524,8 @@ Resources:
           Environment:
             - Name: ENVIRONMENT
               Value: !Sub "${Environment}"
-            - Name: STOP_TIMEOUT
-              Value: 11  # hours
+            - Name: STOP_AT
+              Value: 13  # stop at 1:00 PM UTC
             - Name: MAX_DAYS_PULL
               Value: 2555 # 7 years
             - Name: INTEGRATIONS_BUCKET
