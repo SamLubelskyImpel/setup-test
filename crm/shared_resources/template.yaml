@@ -327,8 +327,8 @@ Resources:
                   ]
                   - !If [
                     IsProd,
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
-                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-test-SendActivityQueue"
                   ]
                   - !If [
                     IsProd,
@@ -452,16 +452,17 @@ Resources:
       EventBusName: !Ref CrmEventBus
       Targets:
         - Id: CarsalesAUQueue
-          Arn: !If [
+          Arn: 
+            !If [
               IsProd,
-              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
-              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-prod-SendActivityQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-test-SendActivityQueue"
             ]
           DeadLetterConfig:
             Arn: !If [
                 IsProd,
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityDLQ",
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityDLQ"
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
