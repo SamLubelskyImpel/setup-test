@@ -344,7 +344,7 @@ Resources:
                     IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
-                  ] 
+                  ]
                   - !If [
                     IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue",
@@ -436,7 +436,7 @@ Resources:
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
-  CarsalesAUEventRule:  
+  CarsalesAUEventRule:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "crm-shared-${Environment}-CarsalesAUEventRule"
