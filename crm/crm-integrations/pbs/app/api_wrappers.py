@@ -13,6 +13,7 @@ from os import environ
 import logging
 import pytz
 from datetime import datetime
+from dateutil import parser as dateutil_parser
 logger = logging.getLogger(__name__)
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
@@ -60,6 +61,29 @@ class CRMAPIWrapper:
             return None
         return consumer
 
+    def get_consumer_by_crm_id(self, crm_consumer_id: str, crm_dealer_id: str):
+        """Get consumer by CRM consumer ID and CRM dealer ID."""
+        api_key = self.__get_api_secrets()
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
+            headers={
+                "x_api_key": api_key,
+                "partner_id": self.partner_id,
+            },
+            params={
+                "crm_dealer_id": crm_dealer_id,
+                "integration_partner_name": "PBS"
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_consumer_by_crm_id- responded with: {response.status_code}")
+        
+        consumer = response.json()
+        logger.info(f"Consumer by CRM ID: {consumer}")
+        if not consumer:
+            return None
+        return consumer
+
     def __get_api_secrets(self):
         """Retrieve the CRM API key from a different secret."""
         secret = secret_client.get_secret_value(
@@ -88,6 +112,47 @@ class CRMAPIWrapper:
             logger.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occured calling CRM API: {e}")
 
+    def get_activity(self, activity_id: int):
+        api_key = self.__get_api_secrets()
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_activity-responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        api_key = self.__get_api_secrets()
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            headers={
+                "x_api_key": api_key, 
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
+
+        dealer = response.json()
+        if not dealer:
+            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
+
+        return dealer
 
 class PbsApiWrapper:
     """PBS API Wrapper."""
@@ -106,8 +171,15 @@ class PbsApiWrapper:
 
     def convert_utc_to_timezone(self, input_ts: str) -> str:
         """Convert UTC timestamp to dealer's local time."""
-        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-        utc_datetime = pytz.utc.localize(utc_datetime)
+        try:
+            utc_datetime = dateutil_parser.parse(input_ts)
+            if utc_datetime.tzinfo is None:
+                utc_datetime = pytz.utc.localize(utc_datetime)
+            else:
+                utc_datetime = utc_datetime.astimezone(pytz.utc)
+        except Exception as e:
+            logger.error(f"Unable to parse timestamp '{input_ts}': {e}")
+            utc_datetime = datetime.now(pytz.utc)
 
         if not self.__dealer_timezone:
             logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(
