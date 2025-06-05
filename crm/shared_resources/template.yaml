@@ -36,7 +36,6 @@ Globals:
           }
 
 Resources:
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -425,7 +424,6 @@ Resources:
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
-<<<<<<< HEAD
   BigMotoringWorldEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -586,7 +584,6 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
   
->>>>>>> master
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
