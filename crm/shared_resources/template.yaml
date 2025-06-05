@@ -377,6 +377,7 @@ Resources:
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
                   ]
 
+
   CrmEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -497,6 +498,7 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
+
   
   JDPowerEventRule:
     Type: AWS::Events::Rule

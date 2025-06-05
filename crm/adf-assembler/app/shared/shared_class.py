@@ -6,13 +6,15 @@ from boto3 import client
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 
 logging.basicConfig(level=logging.INFO)
 secret_client = client("secretsmanager")
 
+
 class CRMApiError(Exception):
     pass
+
 
 class BaseClass:
     def __init__(self) -> None:
@@ -43,3 +45,11 @@ class BaseClass:
         except requests.RequestException as e:
             logging.error(f"Error occurred calling CRM API: {e}")
             raise CRMApiError(f"Error occurred calling CRM API: {e}")
+
+    def get_idp_dealer(self, idp_dealer_id: str):
+        """Get dealer details from CRM API."""
+        return self.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}")
+
+    def get_activity(self, activity_id: int):
+        """Get activity details from CRM API."""
+        return self.call_crm_api(f"https://{CRM_API_DOMAIN}/activities/{activity_id}")

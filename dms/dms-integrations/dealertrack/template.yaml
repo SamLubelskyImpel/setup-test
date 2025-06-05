@@ -525,7 +525,7 @@ Resources:
             - Name: ENVIRONMENT
               Value: !Sub "${Environment}"
             - Name: STOP_TIMEOUT
-              Value: 8  # hours
+              Value: 11  # hours
             - Name: MAX_DAYS_PULL
               Value: 2555 # 7 years
             - Name: INTEGRATIONS_BUCKET
@@ -544,7 +544,7 @@ Resources:
   HistoricalPullScheduledRule:
     Type: AWS::Events::Rule
     Properties:
-      ScheduleExpression: cron(0 5 ? * 2-6 *)  # 5:00 AM UTC, Monday to Friday
+      ScheduleExpression: cron(0 2 ? * * *)  # 2:00 AM UTC, Monday to Friday
       State: ENABLED
       Targets:
         - Arn: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/dealertrack-${Environment}-ECSHistoricalPullCluster"
