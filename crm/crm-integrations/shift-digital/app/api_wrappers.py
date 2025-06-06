@@ -262,16 +262,19 @@ class ShiftDigitalAPIWrapper:
             logger.error(f"Error fetching lead status from Shift Digital: {e}, Response: {response.text}")
             raise APIError(f"Error fetching lead status from Shift Digital API: {e}")
 
-    def extract_crm_lead_id(self, status_response: dict) -> str:
+    def extract_crm_lead_id(self, status_response: dict):
         """Extract the first available CRM lead ID from the Shift Digital API response."""
-        leads = status_response.get("leads", [])
+        leads = status_response.get("Leads", [])
 
         for lead in leads:
-            crms = lead.get("crms", [])
+            crms = lead.get("Crms", [])
             if crms:
-                return crms[0].get("id")
+                crm_id = crms[0].get("Id", "")
+                if not crm_id:
+                    logger.warning("CRM lead ID is missing from the first Crms entry.")
+                return crm_id
 
-        return None
+        return ""
 
     def validate_phone_number(self, phone_str: str):
         """Cleans and validates a phone number. Ensures it is exactly 10 digits."""
