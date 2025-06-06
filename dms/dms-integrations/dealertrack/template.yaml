@@ -193,6 +193,24 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: "*"
+        - PolicyName: ECS
+          PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ecs:ListTasks
+                  Resource: !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:container-instance/dealertrack-${Environment}-ECSHistoricalPullCluster/*'
+                - Effect: Allow
+                  Action:
+                    - ecs:RunTask
+                  Resource: !Sub 'arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/dealertrack-${Environment}-HistoricalPullTask:*'
+                - Effect: Allow
+                  Action:
+                    - iam:PassRole
+                  Resource:
+                    - !GetAtt HistoricalPullTaskExecutionRole.Arn
+                    - !GetAtt HistoricalPullTaskRole.Arn
 
   InvokeDataPull:
     Type: AWS::Serverless::Function
@@ -596,6 +614,25 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub "dealertrack-${Environment}-ecr"
+
+  CheckHistoricalTask:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dealertrack-${Environment}-CheckHistoricalTask
+      Description: Check if historical pull tasks are running
+      CodeUri: app/
+      Handler: check_historical_task.lambda_handler
+      Timeout: 60
+      MemorySize: 512
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          SECURITY_GROUP: !GetAtt SecurityGroup.GroupId
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(10/10 2-13 ? * * *)
 
   DealertrackFormatRODLQ:
     Type: AWS::SQS::Queue

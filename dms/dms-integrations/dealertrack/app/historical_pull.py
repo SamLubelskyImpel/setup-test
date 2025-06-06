@@ -16,7 +16,6 @@ STOP_AT = int(os.environ.get("STOP_AT", 13))
 MAX_DAYS_PULL = int(os.environ.get("MAX_DAYS_PULL", 1))
 QUEUE_URL = os.environ.get("QUEUE_URL")
 
-ENABLED_DEALERS = ["MM_MMU", "KNUA_KN2"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,7 +136,7 @@ def run_pull_concurrently(events_by_dealer):
     if not events_by_dealer:
         return
 
-    with ThreadPoolExecutor(max_workers=len(events_by_dealer)) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         futures = [
             executor.submit(historical_pull_for_dealer, dms_id, events)
             for dms_id, events in events_by_dealer.items()
@@ -154,10 +153,6 @@ def group_events_by_dealer(raw_events):
         body = loads(event["Body"])
         dms_id = body["dms_id"]
         body["ReceiptHandle"] = event["ReceiptHandle"]
-
-        # temporarily bypass unwanted dealers
-        if dms_id not in ENABLED_DEALERS:
-            continue
 
         if dms_id not in events_by_dealer:
             events_by_dealer[dms_id] = []
