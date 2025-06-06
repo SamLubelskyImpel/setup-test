@@ -469,9 +469,8 @@ Resources:
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
-       - Id: CarsalesAUQueue
-          Arn:
-            !If [
+        - Id: CarsalesAUQueue
+          Arn: !If [
               IsProd,
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
