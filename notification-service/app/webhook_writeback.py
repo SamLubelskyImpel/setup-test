@@ -4,7 +4,7 @@ import logging
 from os import environ
 from typing import Any
 import requests
-from utils import get_secret, is_writeback_disabled
+from utils import get_secret
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -45,13 +45,7 @@ def record_handler(record: SQSRecord) -> None:
         body = record.json_body
         details = body.get("detail", {})
 
-        partner_name = details['partner_name']
-
-        if is_writeback_disabled(partner_name):
-            logger.info(f"Writeback is disabled for partner: {partner_name}")
-            return
-
-        sort_key = f"SHARED_LAYER_CRM__{partner_name}"
+        sort_key = f"SHARED_LAYER_CRM__{details['partner_name']}"
         secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
 
         client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
