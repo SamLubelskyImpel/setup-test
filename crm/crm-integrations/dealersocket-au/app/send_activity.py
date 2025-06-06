@@ -19,13 +19,26 @@ def record_handler(record: SQSRecord) -> None:
     """Process a single record to create activity on Dealersocket AU."""
     try:
         activity = record.json_body
-        logger.info(f"Processing activity: {activity}")
+        details = activity.get("detail", {})
 
-        salesperson = crm_api.get_salesperson(activity["lead_id"])
+        activity = crm_api.get_activity(details["activity_id"])
+        salesperson = crm_api.get_salesperson(details["lead_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
+        
+        if not activity:
+            logger.warning(f"Activity not found for ID: {details['activity_id']}")
+        
+        if not dealer:
+            logger.warning(f"Dealer not found for ID: {details['dealer_id']}")
+        
         if not salesperson:
             logger.warning(f"No salesperson found for lead ID: {activity['lead_id']}")
 
         logger.info(f"Salesperson: {salesperson}")
+        logger.info(f"Dealer: {dealer}")
+        logger.info(f"Processing activity: {activity}")    
+
+        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
 
         dealersocket_au_crm_api = DealersocketAUApiWrapper(
             activity=activity, salesperson=salesperson
@@ -44,7 +57,7 @@ def record_handler(record: SQSRecord) -> None:
 
         if activity_id:
             logger.info(f"Activity created with ID: {activity_id}")
-            crm_api.update_activity(activity["activity_id"], dealersocket_au_response)
+            crm_api.update_activity(details["activity_id"], dealersocket_au_response)
         elif activity["activity_type"] == "note":
             logger.info("No activity ID expected when creating worknotes.")
         else:
@@ -53,13 +66,13 @@ def record_handler(record: SQSRecord) -> None:
             )
     except Exception as e:
         error_message = (
-            f"Failed to post activity | Activity ID: {activity.get('activity_id')}, "
-            f"Lead ID: {activity.get('lead_id')} | Error: {str(e)}"
+            f"Failed to post activity | Activity ID: {details['activity_id']}, "
+            f"Lead ID: {details['lead_id']} | Error: {str(e)}"
         )
         logger.error(error_message)
         support_alert_message = (
-            f"[SUPPORT ALERT] Failed to post activity | Activity ID: {activity.get('activity_id')}, "
-            f"Lead ID: {activity.get('lead_id')} | Error: {str(e)}"
+            f"[SUPPORT ALERT] Failed to post activity | Activity ID: {details['activity_id']}, "
+            f"Lead ID: {details['lead_id']} | Error: {str(e)}"
         )
         logger.error(support_alert_message)
         raise
