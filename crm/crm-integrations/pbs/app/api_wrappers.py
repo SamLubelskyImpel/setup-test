@@ -61,28 +61,28 @@ class CRMAPIWrapper:
             return None
         return consumer
 
-    def get_consumer_by_crm_id(self, crm_consumer_id: str, crm_dealer_id: str):
-        """Get consumer by CRM consumer ID and CRM dealer ID."""
+
+    def get_lead(self, lead_id: int):
+        """Get lead data including consumer_id."""
         api_key = self.__get_api_secrets()
         response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/consumers/crm/{crm_consumer_id}",
+            url=f"https://{CRM_API_DOMAIN}/leads/{lead_id}",
             headers={
                 "x_api_key": api_key,
                 "partner_id": self.partner_id,
-            },
-            params={
-                "crm_dealer_id": crm_dealer_id,
-                "integration_partner_name": "PBS"
             }
         )
         response.raise_for_status()
-        logger.info(f"CRM API -get_consumer_by_crm_id- responded with: {response.status_code}")
+        logger.info(f"CRM API -get_lead- responded with: {response.status_code}")
         
-        consumer = response.json()
-        logger.info(f"Consumer by CRM ID: {consumer}")
-        if not consumer:
-            return None
-        return consumer
+        if response.status_code != 200:
+            raise Exception(f"Error getting lead {lead_id}: {response.text}")
+
+        lead = response.json()
+        if not lead:
+            raise Exception(f"Lead not found for ID: {lead_id}")
+
+        return lead
 
     def __get_api_secrets(self):
         """Retrieve the CRM API key from a different secret."""

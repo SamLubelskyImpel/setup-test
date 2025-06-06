@@ -38,6 +38,7 @@ def record_handler(record: SQSRecord):
         salesperson = crm_api.get_salesperson(details["lead_id"])
         activity = crm_api.get_activity(details["activity_id"])
         dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
+        lead = crm_api.get_lead(details["lead_id"])
 
         activity["crm_dealer_id"] = dealer["crm_dealer_id"]
         activity["dealer_timezone"] = dealer["timezone"]
@@ -46,13 +47,10 @@ def record_handler(record: SQSRecord):
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
 
-        consumer = crm_api.get_consumer_by_crm_id(
-            activity["crm_consumer_id"], 
-            dealer["crm_dealer_id"]
-        )
+        consumer = crm_api.get_consumer(lead["consumer_id"])
 
         if not salesperson or not consumer:
-            logger.warning(f"Missing required data: Salesperson or Consumer not found for lead_id: {details['lead_id']} or crm_consumer_id: {activity['crm_consumer_id']}")
+            logger.warning(f"Missing required data: Salesperson or Consumer not found for lead_id: {details['lead_id']} or consumer_id: {lead['consumer_id']}")
             return
 
         logger.info(f"Activity: {activity}, Salesperson: {salesperson}, Consumer: {consumer}")
