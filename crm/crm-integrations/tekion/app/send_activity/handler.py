@@ -22,8 +22,34 @@ def record_handler(record: SQSRecord):
     logger.info(
         f"Processing record: {record.message_id}", extra={"record": record}
     )
-    body = loads(record.body)
-    activity_event = SendActivityEvent(**body)
+    body = record.json_body
+    details = body.get("detail", {})
+
+    idp_dealer_id = details.get("idp_dealer_id")
+    lead_id = details.get("lead_id")
+    activity_id = details.get("activity_id")
+
+    activity = crm_api.get_activity(activity_id)
+    dealer = crm_api.get_dealer_by_idp_dealer_id(idp_dealer_id)
+
+    payload = {
+        "lead_id": lead_id,
+        "crm_lead_id": activity.get("crm_lead_id", None),
+        "dealer_integration_partner_id": dealer.get("dealer_integration_partner_id", None),
+        "dealer_integration_partner_metadata": None,
+        "crm_dealer_id": dealer.get("crm_dealer_id", None),
+        "consumer_id": None,
+        "crm_consumer_id": activity.get("crm_consumer_id", None),
+        "activity_id": activity_id,
+        "notes": activity.get("notes", None),
+        "activity_due_ts": activity.get("activity_due_ts", None),
+        "activity_requested_ts": activity.get("activity_requested_ts", None),
+        "dealer_timezone": dealer.get("timezone", None),
+        "activity_type": activity.get("activity_type", None),
+        "contact_method": activity.get("contact_method", None),
+    }
+
+    activity_event = SendActivityEvent(**payload)
     try:
         tekion_wrapper = TekionApiWrapper(activity_event)
         tekion_activity_id = tekion_wrapper.create_activity()

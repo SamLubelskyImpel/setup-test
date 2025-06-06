@@ -36,7 +36,6 @@ Globals:
           }
 
 Resources:
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -326,6 +325,26 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
                   ]
                   - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
+                  ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityDLQ"
+                  ]
+                  - !If [
                     IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
@@ -370,7 +389,6 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
                   ]
-
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -435,7 +453,7 @@ Resources:
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
-
+          
   CarsalesAUEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -451,7 +469,7 @@ Resources:
       State: ENABLED
       EventBusName: !Ref CrmEventBus
       Targets:
-        - Id: CarsalesAUQueue
+       - Id: CarsalesAUQueue
           Arn: 
             !If [
               IsProd,
@@ -492,6 +510,37 @@ Resources:
                 IsProd,
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  BigMotoringWorldEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-BigMotoringWorldEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "BIG_MOTORING_WORLD"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: BigMotoringWorldQueue
+          Arn:
+            !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
+            ]
+          DeadLetterConfig:
+            Arn:
+              !If [
+                  IsProd,
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
@@ -571,7 +620,36 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
-  
+
+  TekionEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-TekionEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "TEKION"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: TekionQueue
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityQueue"
+              ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:tekion-crm-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
   DAEventRule:
     Type: AWS::Events::Rule
     Properties:
