@@ -118,6 +118,26 @@ class CrmApiWrapper:
 
         return secret_data["api_key"]
 
+    def get_activity(self, activity_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_activity- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
     def update_activity(self, activity_id, crm_activity_id):
         try:
             res = requests.put(
@@ -151,6 +171,26 @@ class CrmApiWrapper:
             return lead_status
         except Exception as e:
             raise Exception(f"Error occurred calling CRM API: {e}")
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
+
+        dealer = response.json()
+        if not dealer:
+            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
+
+        return dealer
 
 
 class ReyreyApiWrapper:
@@ -215,8 +255,15 @@ class ReyreyApiWrapper:
 
     def convert_utc_to_timezone(self, input_ts: str) -> str:
         """Convert UTC timestamp to dealer's local time."""
-        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-        utc_datetime = pytz.utc.localize(utc_datetime)
+        try:
+            utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+            utc_datetime = pytz.utc.localize(utc_datetime)
+        except ValueError:
+            utc_datetime = datetime.fromisoformat(input_ts)
+            if utc_datetime.tzinfo is None:
+                utc_datetime = pytz.utc.localize(utc_datetime)
+            else:
+                utc_datetime = utc_datetime.astimezone(pytz.utc)
 
         if not self.__dealer_timezone:
             logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
