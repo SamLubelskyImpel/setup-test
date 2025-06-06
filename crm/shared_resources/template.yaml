@@ -381,39 +381,48 @@ Resources:
                   ]
                   - !If [
                     IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerDLQ"
+                  ]
+                  - !If [
+                    IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerDLQ"
                   ]
                   - !If [
                     IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
                   ]
-        - PolicyName: MomentumQueuePolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadDLQ"
+                  ]
                   - !If [
                       IsProd,
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityQueue",
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityQueue"
                   ]
-        - PolicyName: MomentumDLQPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sqs:SendMessage
-                Resource:
                   - !If [
                       IsProd,
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ",
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-test-SendActivityDLQ"
                   ]
 
   CrmEventBus:
@@ -477,6 +486,35 @@ Resources:
                 IsProd,
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  
+  ReyReyEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-ReyReyEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "REYREY"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: ReyReyQueue
+          Arn: !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-test-SendActivityQueue"
+                  ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:reyrey-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
@@ -596,6 +634,12 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerQueue",
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
             ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-prod-AdfAssemblerDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
   MomentumEventRule:
     Type: AWS::Events::Rule
@@ -650,6 +694,12 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerQueue",
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerQueue"
             ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-prod-OemAdfAssemblerDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:oem-adf-assembler-test-OemAdfAssemblerDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
   
   StellantisEventRule:
@@ -673,6 +723,12 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
             ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadDLQ"
+              ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
   TekionEventRule:
@@ -756,6 +812,26 @@ Resources:
       Timeout: 30
       Role: !GetAtt LambdaRole.Arn
   
+  DAEventForwarderDLQAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "crm-api-${Environment}-DAEventForwarderDLQAlarm"
+      AlarmDescription: There are over 1 unprocessed messages in the DAEventForwarderDLQ
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt DAEventForwarderDeadLetterQueue.QueueName
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 300
+      Statistic: Sum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 1
+      TreatMissingData: notBreaching
+
   MonitoringRule:
     Type: AWS::Events::Rule
     Properties:
