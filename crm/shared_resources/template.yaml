@@ -415,6 +415,32 @@ Resources:
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-prod-SendActivityDLQ",
                       !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:momentum-test-SendActivityDLQ"
                   ]
+        - PolicyName: PbsQueuePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-prod-SendActivityQueue",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-test-SendActivityQueue"
+                  ]
+        - PolicyName: PbsDLQPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-prod-SendActivityDLQ",
+                      !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-test-SendActivityDLQ"
+                  ]
 
   CrmEventBus:
     Type: AWS::Events::EventBus
@@ -477,6 +503,123 @@ Resources:
                 IsProd,
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-prod-SendActivityDLQ",
                 !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealerpeak-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+  PbsEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-PbsEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "PBS"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: PbsQueue
+          Arn: !If [
+            IsProd,
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-prod-SendActivityQueue",
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-test-SendActivityQueue"
+          ]
+          DeadLetterConfig:
+            Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-prod-SendActivityDLQ",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:pbs-test-SendActivityDLQ"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  CarsalesAUEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-CarsalesAUEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "CARSALES_AU"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: CarsalesAUQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityQueue"
+            ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:carsales-au-crm-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  DealersocketAUEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-DealersocketAUEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "DEALERSOCKET_AU"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: DealersocketAUQueue
+          Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityQueue",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityQueue"
+            ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:dealersocket-au-test-SendActivityDLQ"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  BigMotoringWorldEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-BigMotoringWorldEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "BIG_MOTORING_WORLD"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: BigMotoringWorldQueue
+          Arn:
+            !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
+            ]
+          DeadLetterConfig:
+            Arn:
+              !If [
+                  IsProd,
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
+                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
