@@ -119,7 +119,7 @@ class EskimoApiWrapper:
         if self.__activity["activity_type"] == "appointment":
             return self.__insert_appointment()
         else:
-            logger.error(
+            logger.warning(
                 f"Eskimo CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None
