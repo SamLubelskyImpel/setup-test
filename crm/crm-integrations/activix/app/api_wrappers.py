@@ -56,6 +56,14 @@ class CrmApiWrapper:
 
         return salespersons[0]
 
+    def get_activity(self, activity_id):
+        activity = self.__run_get(f"activities/{activity_id}")
+        return activity
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id):
+        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
+        return dealer
+
     def update_activity(self, activity_id, crm_activity_id):
         try:
             response = requests.put(
