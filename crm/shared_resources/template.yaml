@@ -427,14 +427,10 @@ Resources:
         detail:
           partner_name:
             - "POLARIS_MARINE"
-            - "DMS_NAVIGATOR"
-            - "COX_MOTORS_UK"
-            - "NEXUS_POINT"
-            - "BIG_MOTORING_WORLD_TRADE"
-            - "WALCU"
-            - "ACV_CLEARCAR"
-            - "D2C"
             - "TMS"
+            - "NEXUS_POINT"
+            - "DMS_NAVIGATOR"
+            - "WALCU"
           event_type:
             - "Activity Created"
           source_application:
