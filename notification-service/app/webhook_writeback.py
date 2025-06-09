@@ -5,6 +5,7 @@ from os import environ
 from typing import Any
 import requests
 from utils import get_secret
+from botocore.exceptions import ClientError
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -16,6 +17,11 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+
+
+class SecretNotFoundError(Exception):
+    """Exception raised when the secret is not found."""
+    pass
 
 
 def send_webhook_notification(client_secrets: dict, event_content: dict) -> None:
@@ -48,8 +54,19 @@ def record_handler(record: SQSRecord) -> None:
         sort_key = f"SHARED_LAYER_CRM__{details['partner_name']}"
         secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
 
-        client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
+        try:
+            client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.error(f"Secret not found: {secret_name}")
+                raise SecretNotFoundError(f"Secret {secret_name} not found.") from e
+            else:
+                raise
+
         send_webhook_notification(client_secrets, details)
+
+    except SecretNotFoundError as e:
+        logger.warning(f"Missing secret: {e}")
 
     except Exception as e:
         logger.error(f"Error sending webhook notification: {e}")
