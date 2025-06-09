@@ -312,7 +312,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
-                Resource: "*"
+                Resource: "arn:aws:sqs:*:*:*"
 
   CrmEventBus:
     Type: AWS::Events::EventBus
