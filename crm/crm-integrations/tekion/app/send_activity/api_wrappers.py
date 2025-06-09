@@ -10,6 +10,7 @@ from typing import Tuple
 from boto3 import client
 from json import dumps, loads
 from datetime import datetime
+from dateutil import parser
 from .schemas import SendActivityEvent
 from .utils import get_token_from_s3, get_credentials_from_secrets
 from .envs import ENV, CRM_API_SECRET_KEY, CRM_API_DOMAIN, LOG_LEVEL
@@ -55,6 +56,20 @@ class CrmApiWrapper:
         )
         response.raise_for_status()
         return response.json(), response.status_code
+
+    def get_activity(self, activity_id):
+        response_json, _ = self.__call_api(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            method="GET"
+        )
+        return response_json
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id):
+        response_json, _ = self.__call_api(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            method="GET"
+        )
+        return response_json
 
     def update_activity(self, activity_id, crm_activity_id):
         try:
@@ -106,8 +121,11 @@ class TekionApiWrapper:
 
     def convert_utc_to_timezone(self, input_ts: str) -> Tuple[str, str]:
         """Convert UTC timestamp to dealer's local time."""
-        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-        utc_datetime = pytz.utc.localize(utc_datetime)
+        parsed_dt = parser.isoparse(input_ts)
+        if parsed_dt.tzinfo is None:
+            utc_datetime = pytz.utc.localize(parsed_dt)
+        else:
+            utc_datetime = parsed_dt.astimezone(pytz.utc)
 
         if not self.__activity.dealer_timezone:
             logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity.crm_dealer_id))

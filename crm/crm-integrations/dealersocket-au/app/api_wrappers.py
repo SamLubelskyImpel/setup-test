@@ -55,12 +55,20 @@ class CrmApiWrapper:
         response.raise_for_status()
         return response.json()
 
+    def get_activity(self, activity_id: int):
+        activity = self.__run_get(f"activities/{activity_id}")
+        return activity
+    
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
         if not salespersons:
             return None
 
         return salespersons[0]
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
+        return dealer
 
     def update_activity(self, activity_id, crm_activity_id):
         try:

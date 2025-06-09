@@ -7,12 +7,13 @@ from boto3 import client
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
-
 logging.basicConfig(level=logging.INFO)
 secret_client = client("secretsmanager")
 
+
 class CRMApiError(Exception):
     pass
+
 
 class BaseClass:
     def __init__(self) -> None:

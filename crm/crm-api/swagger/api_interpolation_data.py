@@ -58,6 +58,15 @@ x-amazon-apigateway-integration:
   type: aws_proxy
 """
 
+RETRIEVE_LEADS_BY_PII_LAMBDA_INFO = """
+x-amazon-apigateway-integration:
+  uri:
+    Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RetrieveLeadsByPIILookup.Arn}/invocations
+  passthroughBehavior: never
+  httpMethod: POST
+  type: aws_proxy
+"""
+
 UPDATE_LEAD_LAMBDA_INFO = """
 x-amazon-apigateway-integration:
   uri:
@@ -244,4 +253,5 @@ CRM_API_INTERPOLATION_DATA = {
     "DEALER_LEAD_STATUSES_LAMBDA_INFO": DEALER_LEAD_STATUSES_LAMBDA_INFO,
     "RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO": RETRIEVE_INTERNAL_LEAD_LAMBDA_INFO,
     "RETRIEVE_DEALER_BY_IDP_DEALER_ID_LAMBDA_INFO": RETRIEVE_DEALER_BY_IDP_DEALER_ID_LAMBDA_INFO,
+    "RETRIEVE_LEADS_BY_PII_LAMBDA_INFO": RETRIEVE_LEADS_BY_PII_LAMBDA_INFO,
 }

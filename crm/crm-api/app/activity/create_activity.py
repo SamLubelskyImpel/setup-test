@@ -1,12 +1,11 @@
 """Create activity."""
 import logging
 from os import environ
-from requests import post
 from json import dumps, loads
 from typing import Any
 import boto3
 import botocore.exceptions
-from .utils import apply_dealer_timezone, send_general_alert_notification
+from .utils import send_general_alert_notification
 from common.utils import send_message_to_event_enricher
 
 from crm_orm.models.lead import Lead
@@ -27,40 +26,13 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 ENVIRONMENT = environ.get("ENVIRONMENT")
 INTEGRATIONS_BUCKET = environ.get("INTEGRATIONS_BUCKET")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
-ADF_ASSEMBLER_QUEUE = environ.get("ADF_ASSEMBLER_QUEUE")
 
 s3_client = boto3.client("s3")
 sqs_client = boto3.client("sqs")
-secret_client = boto3.client("secretsmanager")
-
-
-class ADFAssemblerSyndicationError(Exception):
-    """Custom exception for ADF Assembler syndication errors."""
-    pass
 
 
 class ValidationError(Exception):
     pass
-
-
-def make_adf_assembler_request(data: Any):
-    secret = secret_client.get_secret_value(
-        SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/adf-assembler"
-    )
-    secret = loads(secret["SecretString"])["create_adf"]
-    api_url, api_key = loads(secret).values()
-
-    response = post(
-        url=api_url,
-        data=dumps(data),
-        headers={
-            "x_api_key": api_key,
-            "action_id": "create_adf",
-            'Content-Type': 'application/json'
-        }
-    )
-
-    logger.info(f"StatusCode: {response.status_code}; Text: {response.json()}")
 
 
 def validate_activity_body(activity_type, due_ts, requested_ts, notes) -> None:
@@ -268,35 +240,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         # If activity is going to be sent to the CRM as an ADF, don't send it to the CRM as a normal activity
         if request_product == "chat_ai" and activity_type == "appointment":
-            try:
-                if dip_metadata:
-                    oem_partner = dip_metadata.get("oem_partner", {})
-                else:
-                    logger.warning(f"No metadata found for dealer: {dip_id}")
-                    oem_partner = {}
-
-                # As the salesrep will be reading the ADF file, we need to convert the activity_due_ts to the dealer's timezone.
-                activity_due_dealer_ts = apply_dealer_timezone(
-                    activity_due_ts, dealer_timezone, dip_id
-                )
-                payload = {
-                    "event_type": "Appointment",
-                    "lead_id": lead_id,
-                    "partner_name": partner_name,
-                    "oem_partner": oem_partner,
-                    "activity_time": activity_due_dealer_ts,
-                    "product_dealer_id": product_dealer_id,
-                }
-
-                sqs_client = boto3.client('sqs')
-
-                sqs_client.send_message(
-                    QueueUrl=ADF_ASSEMBLER_QUEUE,
-                    MessageBody=dumps(payload)
-                )
-            except Exception as e:
-                raise ADFAssemblerSyndicationError(e)
-
+            logger.info("Skipping CRM writeback for chat_ai appointment activity. Handled by Event Enricher.")
         elif writeback_disabled:
             logger.info(f"Partner {partner_name} disabled custom writeback. Activity {activity_id} will not be sent to integration resource.")
         else:
@@ -317,9 +261,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
             "body": dumps({"activity_id": activity_id})
         }
 
-    except ADFAssemblerSyndicationError as e:
-        logger.error(f"Error syndicating activity {activity_id} to ADF Assembler: {e}.")
-        send_alert_notification(activity_id, e)
     except ValidationError as e:
         logger.error(f"Error creating activity: {str(e)}")
         return {

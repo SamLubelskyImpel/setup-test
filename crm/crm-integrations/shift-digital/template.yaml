@@ -14,25 +14,6 @@ Conditions:
         Fn::Equals:
             - Ref: AWS::AccountId
             - "196800776222"
-    IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
-
-Mappings:
-    SslCertificates:
-        us-east-1:
-            "143813444726": "arn:aws:acm:us-east-1:143813444726:certificate/9f026b43-c690-4434-93e1-9be4ef91f67d"
-            "196800776222": "arn:aws:acm:us-east-1:196800776222:certificate/4bad36e0-d971-41e6-a2d8-a897013012be"
-    Subnets:
-        us-east-1:
-            "196800776222":
-                - subnet-0d29a385efe83bf1c
-                - subnet-0e88ecdd743701e96
-                - subnet-00291e028e21cb78f
-                - subnet-0b1555d5fa3c8ba8e
-            "143813444726":
-                - subnet-030d57e39ec0df603
-                - subnet-01044d580678ea63c
-                - subnet-0b29db0aeb6cdabec
-                - subnet-0e28d592f2ca28fb7
 
 Globals:
     Function:
@@ -143,7 +124,19 @@ Resources:
                         - !GetAtt ShiftDigitalPostLeadDeadLetterQueue.Arn
                         - !GetAtt ShiftDigitalCallbackQueue.Arn
                         - !GetAtt ShiftDigitalCallbackDeadLetterQueue.Arn
-                        - !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-${Environment}-AdfAssemblerQueue"
+                - PolicyName: EventRoutingBusAccess
+                  PolicyDocument:
+                      Version: "2012-10-17"
+                      Statement:
+                        - Effect: "Allow"
+                          Action:
+                          - "events:PutEvents"
+                          Resource:
+                          - !If [
+                              IsProd,
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-prod-CrmEventBus",
+                              !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/crm-shared-test-CrmEventBus"
+                          ]
 
     ShiftDigitalPostLead:
         Type: AWS::Serverless::Function
