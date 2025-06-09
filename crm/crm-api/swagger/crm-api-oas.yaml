@@ -478,9 +478,9 @@ paths:
                     lead_ts:
                       type: string
                       format: date-time
-                      description: Timestamp for when the lead was created in the CRM
+                      description: Timestamp for when the lead was created in the CRM in UTC format
                       maxLength: 50
-                      example: "2023-10-16T20:44:12.027184+00:00"
+                      example: "2023-10-16T20:44:12Z"
                     vehicles_of_interest:
                       description: An array of vehicles the lead was interested in
                       type: array
