@@ -39,8 +39,8 @@ def record_handler(record: SQSRecord):
         logger.info(f"Eskimo responded with status: {eskimo_response}")
     except Exception as e:
         logger.exception(f"Failed to post activity {details['activity_id']} to Eskimo")
-        logger.error("[SUPPORT ALERT] Failed to Send Activity to Eskimo [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity["dealer_integration_partner_id"], details["lead_id"], details["activity_id"], activity["activity_type"], e)
+        logger.error("[SUPPORT ALERT] Failed to Send Activity to Eskimo [CONTENT] DealerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+            activity["dealer_id"], details["lead_id"], details["activity_id"], activity["activity_type"], e)
             )
         raise
 
