@@ -25,7 +25,6 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
-        INTEGRATIONS_BUCKET: !Sub 'crm-integrations-${Environment}'
 
 Resources:
   LambdaRole:
