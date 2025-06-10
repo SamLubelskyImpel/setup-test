@@ -154,7 +154,10 @@ def record_handler(record: SQSRecord):
 
         logger.info(f"Batch updating {len(vdp_list)} vdp data")
         results = rds_instance.batch_update_inventory_vdp(vdp_list, vdp_column_list, join_conditions, provider_dealer_id)
-        logger.info(f"Updated [{len(results)}] database records")
+        if results is not None:
+            logger.info(f"Updated [{len(results)}] database records")
+        else:
+            logger.info(f"No inventory records found and updated for {file_name}")
     except Exception as e:
         message = f"Update VDP Service Failed: {e}"
         logger.exception(message)
