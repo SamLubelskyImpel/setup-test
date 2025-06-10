@@ -31,7 +31,9 @@ def lambda_handler(event: Any, context: Any) -> Any:
 
         logger.info(f"Query parameters: {query_params}")
 
-        partner_name = query_params.get("impel_integration_partner_name", None)
+        partner_name = query_params.get(
+            "impel_integration_partner_name", query_params.get("integration_partner_name", None)
+        )
         provider_dealer_id = query_params.get("provider_dealer_id", None)
 
         with DBSession() as session:
