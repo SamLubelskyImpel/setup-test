@@ -18,6 +18,44 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
 
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+
+class CrmApiWrapper:
+    """CRM API Wrapper."""
+
+    def __init__(self) -> None:
+        self.partner_id = CRM_API_SECRET_KEY
+        self.api_key = self.get_secrets()
+
+    def get_secrets(self):
+        secret = secret_client.get_secret_value(
+            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
+        )
+        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
+        secret_data = loads(secret)
+
+        return secret_data["api_key"]
+
+    def __run_get(self, endpoint: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_activity(self, activity_id: int):
+        activity = self.__run_get(f"activities/{activity_id}")
+        return activity
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
+        return dealer
+
 class EskimoApiWrapper:
     """Eskimo API Wrapper."""
 
@@ -81,7 +119,7 @@ class EskimoApiWrapper:
         if self.__activity["activity_type"] == "appointment":
             return self.__insert_appointment()
         else:
-            logger.error(
+            logger.warning(
                 f"Eskimo CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None

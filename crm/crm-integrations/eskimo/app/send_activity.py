@@ -9,10 +9,8 @@ from aws_lambda_powertools.utilities.batch import (
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from api_wrappers import EskimoApiWrapper
+from api_wrappers import EskimoApiWrapper, CrmApiWrapper
 
-ENVIRONMENT = environ.get("ENVIRONMENT")
-SECRET_KEY = environ.get("SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -22,17 +20,27 @@ def record_handler(record: SQSRecord):
     """Send activity to Eskimo."""
     logger.info(f"Record: {record}")
     try:
-        activity = loads(record['body'])
+        crm_api = CrmApiWrapper()
+
+        body = record.json_body
+        details = body.get("detail", {})
+
+        activity = crm_api.get_activity(details["activity_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
+
         logger.info(f"Activity: {activity}")
+
+        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
+
         eskimo_api = EskimoApiWrapper(activity=activity)
 
         eskimo_response = eskimo_api.create_activity()
         
         logger.info(f"Eskimo responded with status: {eskimo_response}")
     except Exception as e:
-        logger.exception(f"Failed to post activity {activity['activity_id']} to Eskimo")
+        logger.exception(f"Failed to post activity {details['activity_id']} to Eskimo")
         logger.error("[SUPPORT ALERT] Failed to Send Activity to Eskimo [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            dealer["dealer_integration_partner_id"], details["lead_id"], details["activity_id"], activity["activity_type"], e)
             )
         raise
 

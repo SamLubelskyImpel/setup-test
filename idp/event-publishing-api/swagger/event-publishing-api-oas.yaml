@@ -6,7 +6,9 @@ info:
   
 servers:
   - description: Impel test environment
-    url: https://8mdfapric6.execute-api.us-east-1.amazonaws.com/test
+    url: https://event-publishing-api-test.testenv.impel.io
+  - description: Impel production environment
+    url: https://event-publishing-api.impel.io
 
 #{{API_AWS_VALIDATION}}
 paths:
