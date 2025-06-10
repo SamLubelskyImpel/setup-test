@@ -86,11 +86,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "first_name": query_params.get("first_name"),
                 "last_name": query_params.get("last_name"),
                 "email": query_params.get("email"),
-                "phone": query_params.get("phone"),
-                "city": query_params.get("city"),
-                "country": query_params.get("country"),
-                "address": query_params.get("address"),
-                "postal_code": query_params.get("postal_code")
+                "phone": query_params.get("phone")
             })
         }
 
