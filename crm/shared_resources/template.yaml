@@ -399,6 +399,16 @@ Resources:
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-prod-PostLeadQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:shift-digital-test-PostLeadQueue"
                   ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-test-SendActivityDLQ"
+                  ]
         - PolicyName: MomentumQueuePolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -691,37 +701,6 @@ Resources:
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
-  BigMotoringWorldEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "crm-shared-${Environment}-BigMotoringWorldEventRule"
-      EventPattern:
-        detail:
-          event_type:
-            - "Activity Created"
-          partner_name:
-            - "BIG_MOTORING_WORLD"
-          source_application:
-            - "SALES_AI"
-      State: ENABLED
-      EventBusName: !Ref CrmEventBus
-      Targets:
-        - Id: BigMotoringWorldQueue
-          Arn:
-            !If [
-                IsProd,
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
-            ]
-          DeadLetterConfig:
-            Arn:
-              !If [
-                  IsProd,
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
-              ]
-          RoleArn: !GetAtt CrmEventBusRole.Arn
-
   ADFAssemblerEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -750,6 +729,7 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:adf-assembler-test-AdfAssemblerQueue"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
+
   MomentumEventRule:
     Type: AWS::Events::Rule
     Properties:
@@ -885,6 +865,36 @@ Resources:
               !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-test-SendActivityDLQ"
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
+
+  ActivixEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-ActivixEventRule"
+      EventPattern:
+        detail:
+          event_type:
+            - "Activity Created"
+          partner_name:
+            - "ACTIVIX"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: ActivixQueue
+          Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-prod-SendActivityQueue",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-test-SendActivityQueue"
+              ]
+          DeadLetterConfig:
+            Arn: !If [
+                IsProd,
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-prod-SendActivityDLQ",
+                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:activix-test-SendActivityDLQ"
+              ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
+
   DAEventRule:
     Type: AWS::Events::Rule
     Properties:
