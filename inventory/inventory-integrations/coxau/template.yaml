@@ -50,29 +50,14 @@ Globals:
         LOGLEVEL: INFO
         SFTP_SECRET_KEY: COXAU_SFTP
         INVENTORY_BUCKET: !Sub "inventory-integrations-${AWS::Region}-${Environment}"
+        INVENTORY_INTERNAL_API_URL: !If [
+          IsProd,
+          !Sub "https://2oeudyys52.execute-api.us-east-1.amazonaws.com/prod",
+          !Sub "https://e1r6z92cq7.execute-api.us-east-1.amazonaws.com/test"
+        ]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-    VpcConfig:
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      SubnetIds: !FindInMap [ Subnets, !Ref 'AWS::Region', !Ref 'AWS::AccountId' ]
 
 Resources:
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    DeletionPolicy: Delete
-    Properties:
-      GroupDescription: Permit traffic from the coxau inv integration
-      VpcId: !FindInMap [ VpcId, !Ref 'AWS::Region', !Ref 'AWS::AccountId']
-      SecurityGroupEgress:
-        - Description: AllowAll
-          CidrIp: 0.0.0.0/0
-          IpProtocol: '-1'
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Product
-          Value: coxau-inv-integration
-
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -139,24 +124,14 @@ Resources:
                 Resource:
                   - !If [
                       IsProd,
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/RDS/SHARED*",
-                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/RDS/SHARED*"
-                    ]
-                  - !If [
-                      IsProd,
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/inventory-integrations-sftp*",
                       !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/inventory-integrations-sftp*",
                     ]
-        - PolicyName: LambdaVPCAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: "*"
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/InventoryInternalApi*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/InventoryInternalApi*",
+                    ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
