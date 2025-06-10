@@ -366,6 +366,16 @@ Resources:
                   ]
                   - !If [
                     IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-prod-SendActivityQueue",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-test-SendActivityQueue"
+                  ]
+                  - !If [
+                    IsProd,
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-prod-SendActivityDLQ",
+                    !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-test-SendActivityDLQ"
+                  ]
+                  - !If [
+                    IsProd,
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-prod-DAEventForwarderQueue",
                     !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:crm-shared-test-DAEventForwarderQueue"
                   ]
@@ -847,6 +857,34 @@ Resources:
               ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
+  EskimoEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "crm-shared-${Environment}-EskimoEventRule"
+      EventPattern:
+        detail:
+          event_type: 
+            - "Activity Created"
+          partner_name:
+            - "ESKIMO"
+          source_application:
+            - "SALES_AI"
+      State: ENABLED
+      EventBusName: !Ref CrmEventBus
+      Targets:
+        - Id: EskimoQueue
+          Arn: !If [
+            IsProd,
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-prod-SendActivityQueue",
+            !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-test-SendActivityQueue"
+          ]
+          DeadLetterConfig:
+            Arn: !If [
+              IsProd,
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-prod-SendActivityDLQ",
+              !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:eskimo-test-SendActivityDLQ"
+            ]
+          RoleArn: !GetAtt CrmEventBusRole.Arn
   DAEventRule:
     Type: AWS::Events::Rule
     Properties:
