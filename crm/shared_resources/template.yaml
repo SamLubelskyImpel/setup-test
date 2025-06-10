@@ -701,37 +701,6 @@ Resources:
             ]
           RoleArn: !GetAtt CrmEventBusRole.Arn
 
-  BigMotoringWorldEventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "crm-shared-${Environment}-BigMotoringWorldEventRule"
-      EventPattern:
-        detail:
-          event_type:
-            - "Activity Created"
-          partner_name:
-            - "BIG_MOTORING_WORLD"
-          source_application:
-            - "SALES_AI"
-      State: ENABLED
-      EventBusName: !Ref CrmEventBus
-      Targets:
-        - Id: BigMotoringWorldQueue
-          Arn:
-            !If [
-                IsProd,
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityQueue",
-                !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityQueue"
-            ]
-          DeadLetterConfig:
-            Arn:
-              !If [
-                  IsProd,
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-prod-SendActivityDLQ",
-                  !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:big-motoring-world-test-SendActivityDLQ"
-              ]
-          RoleArn: !GetAtt CrmEventBusRole.Arn
-
   ADFAssemblerEventRule:
     Type: AWS::Events::Rule
     Properties:
