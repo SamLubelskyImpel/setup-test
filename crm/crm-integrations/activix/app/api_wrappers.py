@@ -169,8 +169,7 @@ class ActivixApiWrapper:
 
         url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
 
-        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        date = self.__activity["activity_due_ts"]
         communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
 
         payload_communications = {
