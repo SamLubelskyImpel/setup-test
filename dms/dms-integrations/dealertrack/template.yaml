@@ -143,6 +143,7 @@ Resources:
                   - !GetAtt DealertrackFormatFIQueue.Arn
                   - !GetAtt DealertrackFormatSAQueue.Arn
                   - !GetAtt DealertrackFormatROQueue.Arn
+                  - !GetAtt HistoricalPullQueue.Arn
         - PolicyName: SecretsManagerPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -498,8 +499,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub "dealertrack-${Environment}-HistoricalPullTask"
-      Cpu: "1024"
-      Memory: "2048"
+      Cpu: "2048"
+      Memory: "4096"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -531,8 +532,8 @@ Resources:
         - Name: !Sub "dealertrack-${Environment}-HistoricalPullContainer"
           Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dealertrack-${Environment}-ecr:latest"
           Essential: true
-          Cpu: "512"
-          Memory: "512"
+          Cpu: "1024"
+          Memory: "2048"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -628,6 +629,7 @@ Resources:
       Environment:
         Variables:
           SECURITY_GROUP: !GetAtt SecurityGroup.GroupId
+          QUEUE_URL: !Ref HistoricalPullQueue
       Events:
         Schedule:
           Type: Schedule
