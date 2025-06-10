@@ -8,7 +8,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 sm_client = boto3.client('secretsmanager')
 
 
-def get_secret(secret_name: str, secret_value: str) -> dict:
+def get_secret(secret_name, secret_value) -> dict:
     """Get the secret value from Secrets Manager."""
     try:
         secret = sm_client.get_secret_value(SecretId=secret_name)
