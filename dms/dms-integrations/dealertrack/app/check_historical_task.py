@@ -3,6 +3,7 @@ from os import environ
 import logging
 
 ENV = environ.get("ENVIRONMENT")
+QUEUE_URL = environ.get("QUEUE_URL")
 CLUSTER = f"dealertrack-{ENV}-ECSHistoricalPullCluster"
 TASK_DEFINITION = f"dealertrack-{ENV}-HistoricalPullTask"
 SUBNETS = (
@@ -24,6 +25,7 @@ SECURITY_GROUP = environ.get("SECURITY_GROUP")
 
 
 ecs = boto3.client("ecs")
+sqs = boto3.client("sqs")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
@@ -38,6 +40,11 @@ def lambda_handler(event, context):
     logger.info(f"ECS is running tasks: {tasks}")
 
     if tasks:
+        return
+
+    events_pending = sqs.get_queue_attributes(QueueUrl=QUEUE_URL, AttributeNames=["ApproximateNumberOfMessages"])
+    logger.info(f"Historical pull queue: {events_pending}")
+    if not int(events_pending.get("Attributes", {}).get("ApproximateNumberOfMessages", 0)):
         return
 
     task = ecs.run_task(
