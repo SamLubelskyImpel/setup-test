@@ -16,7 +16,6 @@ STOP_AT = int(os.environ.get("STOP_AT", 13))
 MAX_DAYS_PULL = int(os.environ.get("MAX_DAYS_PULL", 1))
 QUEUE_URL = os.environ.get("QUEUE_URL")
 
-ENABLED_DEALERS = ["MM_MMU", "KNUA_KN2"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,7 +112,7 @@ def onboard_dealers():
             for dms_id in active_dealers:
                 dispatch_events_for_dealer(dms_id)
             rds.save_historical_progress(active_dealers, {"status": "IN_PROGRESS"})
-            sleep(30)  # wait for the visibility timeout period
+            wait_visibility_timeout()
     except Exception as e:
         msg = f"Failed to dispatch events for onboarded dealers: {e}"
         logger.exception(msg)
@@ -137,7 +136,7 @@ def run_pull_concurrently(events_by_dealer):
     if not events_by_dealer:
         return
 
-    with ThreadPoolExecutor(max_workers=len(events_by_dealer)) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
             executor.submit(historical_pull_for_dealer, dms_id, events)
             for dms_id, events in events_by_dealer.items()
@@ -154,10 +153,6 @@ def group_events_by_dealer(raw_events):
         body = loads(event["Body"])
         dms_id = body["dms_id"]
         body["ReceiptHandle"] = event["ReceiptHandle"]
-
-        # temporarily bypass unwanted dealers
-        if dms_id not in ENABLED_DEALERS:
-            continue
 
         if dms_id not in events_by_dealer:
             events_by_dealer[dms_id] = []
@@ -176,6 +171,10 @@ def get_batch_of_events():
     return events
 
 
+def wait_visibility_timeout():
+    sleep(60)
+
+
 if __name__ == "__main__":
     try:
         logger.info(f"Task started at {get_current_time()}")
@@ -183,12 +182,21 @@ if __name__ == "__main__":
         # dispatch events for recently onboarded dealers
         onboard_dealers()
 
+        empty_attempts = 0
+
         while get_current_time().hour < STOP_AT:
             events = get_batch_of_events()
 
-            if events:
-                logger.info(f"Received events: {events}")
+            if not events and empty_attempts > 5:
+                logger.info("No historical events to process")
+                break   # stop the task to save costs
 
+            if not events:
+                empty_attempts += 1
+                wait_visibility_timeout()
+                continue
+
+            logger.info(f"Received events: {events}")
             events_by_dealer = group_events_by_dealer(events)
             run_pull_concurrently(events_by_dealer)
     except Exception as e:

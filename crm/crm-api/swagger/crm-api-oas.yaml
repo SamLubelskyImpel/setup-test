@@ -428,10 +428,6 @@ paths:
         - "$ref": "#/components/parameters/lastName"
         - "$ref": "#/components/parameters/email"
         - "$ref": "#/components/parameters/phone"
-        - "$ref": "#/components/parameters/address"
-        - "$ref": "#/components/parameters/city"
-        - "$ref": "#/components/parameters/country"
-        - "$ref": "#/components/parameters/postalCode"
       responses:
         '200':
           description: Success. The request was received and successfully processed by the CRM persistence data layer.
@@ -479,6 +475,12 @@ paths:
                       description: The specific detail about the lead source.
                       maxLength: 200
                       example: "Inventory Leads Website"
+                    lead_ts:
+                      type: string
+                      format: date-time
+                      description: Timestamp for when the lead was created in the CRM in UTC format
+                      maxLength: 50
+                      example: "2023-10-16T20:44:12Z"
                     vehicles_of_interest:
                       description: An array of vehicles the lead was interested in
                       type: array
@@ -2266,39 +2268,3 @@ components:
         type: string
         maxLength: 20
         example: "+11231231134"
-    city:
-      name: city
-      in: query
-      required: false
-      description: City where the consumer resides
-      schema:
-        type: string
-        maxLength: 100
-        example: "New York"
-    country:
-      name: country
-      in: query
-      required: false
-      description: Country where the consumer resides
-      schema:
-        type: string
-        maxLength: 100
-        example: "USA"
-    address:
-      name: address
-      in: query
-      required: false
-      description: Complete address of the consumer
-      schema:
-        type: string
-        maxLength: 100
-        example: "123 Main St, Apt 4B"
-    postalCode:
-      name: postal_code
-      in: query
-      required: false
-      description: Postal or ZIP code for the consumer's address
-      schema:
-        type: string
-        maxLength: 20
-        example: "10001"

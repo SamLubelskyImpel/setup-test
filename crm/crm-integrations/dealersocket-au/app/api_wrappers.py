@@ -55,12 +55,20 @@ class CrmApiWrapper:
         response.raise_for_status()
         return response.json()
 
+    def get_activity(self, activity_id: int):
+        activity = self.__run_get(f"activities/{activity_id}")
+        return activity
+    
     def get_salesperson(self, lead_id: int):
         salespersons = self.__run_get(f"leads/{lead_id}/salespersons")
         if not salespersons:
             return None
 
         return salespersons[0]
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
+        return dealer
 
     def update_activity(self, activity_id, crm_activity_id):
         try:
@@ -147,7 +155,6 @@ class DealersocketAUApiWrapper:
                 sub_element.text = value
         return tostring(root, encoding="unicode")
 
-
     def _parse_response(self, response_text: str) -> dict:
         """Parse XML response into a dictionary."""
         root = fromstring(response_text)
@@ -161,15 +168,6 @@ class DealersocketAUApiWrapper:
         """Remove XML namespace from tag."""
         return tag.split("}")[-1]
 
-    def _convert_to_dealer_timezone(self, utc_ts: str) -> str:
-        """Convert UTC timestamp to dealer's local timezone."""
-        utc_datetime = pytz.utc.localize(datetime.strptime(utc_ts, '%Y-%m-%dT%H:%M:%SZ'))
-        if not self.dealer_timezone:
-            logger.warning(f"Dealer timezone not found for crm_dealer_id: {self.activity['crm_dealer_id']}")
-            return utc_datetime.isoformat()
-        dealer_tz = pytz.timezone(self.dealer_timezone)
-        return utc_datetime.astimezone(dealer_tz).isoformat()
-
     def _get_common_elements(self) -> dict:
         elements = {
             "Vendor": "Pulsar",
@@ -181,7 +179,6 @@ class DealersocketAUApiWrapper:
         if self.activity.get("notes"):
             elements["Note"] = f"<span style='color:Black'>{self.activity['notes']}</span>"
         return elements
-
 
     def _create_activity_payload(self, activity_type: str, activity_id: str = "") -> str:
         """Generate payload for a specific activity type."""
@@ -197,7 +194,7 @@ class DealersocketAUApiWrapper:
             common_elements.update({
                 "ActivityType": "Appointment",
                 "Status": "Open",
-                "DueDateTime": self._convert_to_dealer_timezone(self.activity["activity_due_ts"]),
+                "DueDateTime": self.activity["activity_due_ts"],
                 "AssignedToUser": self.salesperson["crm_salesperson_id"],
             })
             if activity_id:
@@ -208,7 +205,7 @@ class DealersocketAUApiWrapper:
             common_elements.update({
                 "ActivityType": "Outbound_Call",
                 "Status": "Completed",
-                "DueDateTime": self._convert_to_dealer_timezone(datetime.now().isoformat()),
+                "DueDateTime": self.activity["activity_requested_ts"],
                 "AssignedToUser": self.salesperson["crm_salesperson_id"],
             })
             return self._build_xml("ActivityInsert", common_elements)
