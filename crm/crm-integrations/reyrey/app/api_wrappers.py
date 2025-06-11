@@ -118,6 +118,26 @@ class CrmApiWrapper:
 
         return secret_data["api_key"]
 
+    def get_activity(self, activity_id: int):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_activity- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting activity {activity_id}: {response.text}")
+
+        activity = response.json()
+        if not activity:
+            raise Exception(f"Activity not found for ID: {activity_id}")
+
+        return activity
+
     def update_activity(self, activity_id, crm_activity_id):
         try:
             res = requests.put(
@@ -151,6 +171,26 @@ class CrmApiWrapper:
             return lead_status
         except Exception as e:
             raise Exception(f"Error occurred calling CRM API: {e}")
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
+        response = requests.get(
+            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
+            headers={
+                "x_api_key": self.api_key,
+                "partner_id": self.partner_id,
+            }
+        )
+        response.raise_for_status()
+        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
+
+        if response.status_code != 200:
+            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
+
+        dealer = response.json()
+        if not dealer:
+            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
+
+        return dealer
 
 
 class ReyreyApiWrapper:
@@ -213,23 +253,12 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
-    def convert_utc_to_timezone(self, input_ts: str) -> str:
-        """Convert UTC timestamp to dealer's local time."""
-        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-        utc_datetime = pytz.utc.localize(utc_datetime)
-
-        if not self.__dealer_timezone:
-            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
-            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-
-        # Get the dealer timezone object, convert UTC datetime to dealer timezone
-        dealer_tz = pytz.timezone(self.__dealer_timezone)
-        dealer_datetime = utc_datetime.astimezone(dealer_tz)
-
-        return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+    def convert_datetime_to_string(self, input_ts: str) -> str:
+        """Convert datetime timestamp to string timestamp."""
+        return datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%dT%H:%M:%S')
 
     def __insert_note(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -253,8 +282,8 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_appointment(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
-        due_date = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
+        due_date = self.convert_datetime_to_string(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -278,7 +307,7 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_activity(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()
