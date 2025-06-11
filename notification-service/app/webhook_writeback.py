@@ -7,9 +7,8 @@ import requests
 from utils import get_secret
 from botocore.exceptions import ClientError
 from api_wrappers import CrmApiWrapper, CRMApiError
-from enum import Enum
-from uuid import uuid4
 from datetime import datetime, timezone
+from uuid import uuid4
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -27,16 +26,6 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 class SecretNotFoundError(Exception):
     """Exception raised when the secret is not found."""
     pass
-
-
-class Event(Enum):
-    Created = 'created'
-    Updated = 'updated'
-
-
-class Resource(Enum):
-    Lead = 'lead'
-    Activity = 'activity'
 
 
 def send_webhook_notification(client_secrets: dict, event_content: dict) -> None:
@@ -78,11 +67,7 @@ def record_handler(record: SQSRecord) -> None:
             else:
                 raise
 
-        resource = Resource.Activity if 'activity' in details['event_type'].lower() else Resource.Lead
-        event = Event.Created if 'created' in details['event_type'].lower() else Event.Updated
-        event_type = f"shared-layer.crm.{'chatai' if details['source_application'] == 'CHAT_AI' else 'salesai'}.{resource.value}.{event.value}"
-
-        event_content = {}
+        event_content = {"event_id": str(uuid4())}
         event_content["created_ts"] = datetime.now(timezone.utc).isoformat()
         event_content["message"] = details["event_type"]
         event_content["lead_id"] = details["lead_id"]
@@ -112,15 +97,7 @@ def record_handler(record: SQSRecord) -> None:
             logger.warning("No activity_id or consumer_id found in details.")
             raise ValueError("No activity_id or consumer_id found in details.")
 
-        event_body = {
-            "event_id": str(uuid4()),
-            "event_type": event_type,
-            "client_id": details["partner_name"],
-            "product_name": "SHARED_LAYER_CRM",
-            "event_content": event_content
-        }
-
-        send_webhook_notification(client_secrets, event_body)
+        send_webhook_notification(client_secrets, event_content)
 
     except SecretNotFoundError as e:
         logger.warning(f"Missing secret: {e}")
