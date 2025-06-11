@@ -253,30 +253,12 @@ class ReyreyApiWrapper:
         crm_activity_id = trans_status["ActivityId"]
         return crm_activity_id
 
-    def convert_utc_to_timezone(self, input_ts: str) -> str:
-        """Convert UTC timestamp to dealer's local time."""
-        try:
-            utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
-            utc_datetime = pytz.utc.localize(utc_datetime)
-        except ValueError:
-            utc_datetime = datetime.fromisoformat(input_ts)
-            if utc_datetime.tzinfo is None:
-                utc_datetime = pytz.utc.localize(utc_datetime)
-            else:
-                utc_datetime = utc_datetime.astimezone(pytz.utc)
-
-        if not self.__dealer_timezone:
-            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
-            return utc_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-
-        # Get the dealer timezone object, convert UTC datetime to dealer timezone
-        dealer_tz = pytz.timezone(self.__dealer_timezone)
-        dealer_datetime = utc_datetime.astimezone(dealer_tz)
-
-        return dealer_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+    def convert_datetime_to_string(self, input_ts: str) -> str:
+        """Convert datetime timestamp to string timestamp."""
+        return datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%S%z').strftime('%Y-%m-%dT%H:%M:%S')
 
     def __insert_note(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -300,8 +282,8 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_appointment(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
-        due_date = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
+        due_date = self.convert_datetime_to_string(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = REYREY_XML_TEMPLATE.format(
@@ -325,7 +307,7 @@ class ReyreyApiWrapper:
         return self.__call_api(payload)
 
     def __create_activity(self):
-        created_date = self.convert_utc_to_timezone(self.__activity["activity_requested_ts"])
+        created_date = self.convert_datetime_to_string(self.__activity["activity_requested_ts"])
         request_id = str(uuid4())
 
         contact_method = self.__activity["contact_method"].capitalize()
