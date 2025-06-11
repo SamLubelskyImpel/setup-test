@@ -9,7 +9,7 @@ from os import environ
 from json import loads
 from boto3 import client
 import logging
-
+from datetime import datetime
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -20,6 +20,7 @@ secret_client = client("secretsmanager")
 
 CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+
 
 class CrmApiWrapper:
     """CRM API Wrapper."""
@@ -56,6 +57,7 @@ class CrmApiWrapper:
         dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
         return dealer
 
+
 class EskimoApiWrapper:
     """Eskimo API Wrapper."""
 
@@ -73,13 +75,13 @@ class EskimoApiWrapper:
 
     def __call_api(self, payload=None, method="POST", path=""):
         headers = {
-            "Content-Type": "application/json" 
+            "Content-Type": "application/json"
         }
         url = f"{self.__api_url}{path}"
 
         response = requests.request(
             method=method,
-            url=url, 
+            url=url,
             json=payload,
             headers=headers,
         )
@@ -94,20 +96,22 @@ class EskimoApiWrapper:
             "note": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM (Note): {payload}")
-        response = self.__call_api(payload, path="/updatenote") 
+        response = self.__call_api(payload, path="/updatenote")
         response.raise_for_status()
 
         return response.text
 
     def __insert_appointment(self):
         """Insert appointment on CRM."""
+
+        appt_date = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%dT%H:%M:%SZ")
         payload = {
             "accountId": self.__activity["crm_dealer_id"],
             "customerId": self.__activity["crm_consumer_id"],
-            "appointmentDate": self.__activity["activity_due_ts"]
+            "appointmentDate": appt_date
         }
         logger.info(f"Payload to CRM (Appointment): {payload}")
-        response = self.__call_api(payload, path="/createappointment") 
+        response = self.__call_api(payload, path="/createappointment")
         response.raise_for_status()
 
         return response.text

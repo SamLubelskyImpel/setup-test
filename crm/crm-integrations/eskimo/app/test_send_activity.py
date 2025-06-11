@@ -82,7 +82,7 @@ class TestEskimoApiWrapper(unittest.TestCase):
         activity = {
             "crm_dealer_id": "1234",
             "crm_consumer_id": "5678",
-            "activity_due_ts": "2024-09-30T12:00:00Z",
+            "activity_due_ts": "2024-09-30T12:00:00-04:00",
             "activity_type": "appointment"
         }
 
@@ -97,7 +97,7 @@ class TestEskimoApiWrapper(unittest.TestCase):
             json={
                 "accountId": "1234",
                 "customerId": "5678",
-                "appointmentDate": "2024-09-30T12:00:00Z"
+                "appointmentDate": "2024-09-30T12:00:00-04:00"
             },
             headers={
                 "Content-Type": "application/json"
