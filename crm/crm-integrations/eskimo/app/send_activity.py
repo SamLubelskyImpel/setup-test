@@ -2,7 +2,6 @@
 import logging
 from typing import Any
 from os import environ
-from json import loads
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
@@ -35,7 +34,7 @@ def record_handler(record: SQSRecord):
         eskimo_api = EskimoApiWrapper(activity=activity)
 
         eskimo_response = eskimo_api.create_activity()
-        
+
         logger.info(f"Eskimo responded with status: {eskimo_response}")
     except Exception as e:
         logger.exception(f"Failed to post activity {details['activity_id']} to Eskimo")
