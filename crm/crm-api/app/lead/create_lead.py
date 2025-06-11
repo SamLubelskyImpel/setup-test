@@ -13,7 +13,6 @@ from lead.utils import send_alert_notification
 from common.validation import validate_request_body, ValidationErrorResponse
 from common.models.create_lead import CreateLeadRequest, VehicleOfInterest
 from common.utils import send_message_to_event_enricher
-from event_service.events import dispatch_event, Event, Resource
 
 from crm_orm.models.lead import Lead
 from crm_orm.models.vehicle import Vehicle
@@ -288,18 +287,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
         logger.info(f"Created lead {lead_id}")
         logger.info(f"Integration partner: {integration_partner_name}")
 
-        dispatch_event(
-            request_product=request_product,
-            partner=integration_partner_name,
-            event=Event.Created,
-            resource=Resource.Lead,
-            content={
-                'message': 'Lead Created',
-                'lead_id': lead_id,
-                'consumer_id': consumer_id,
-                'dealer_id': product_dealer_id,
-            })
-
         if request_product == "chat_ai":
             logger.info("Skipping notification to Event Listener for chat_ai. Handled by Event Enricher.")
 
@@ -312,7 +299,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
                 "errors": e.errors,
             }),
         }
-
     except Exception as e:
         logger.exception(f"Error creating lead: {e}.")
         send_alert_notification(
