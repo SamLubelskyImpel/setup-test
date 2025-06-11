@@ -56,6 +56,14 @@ class CrmApiWrapper:
 
         return salespersons[0]
 
+    def get_activity(self, activity_id):
+        activity = self.__run_get(f"activities/{activity_id}")
+        return activity
+
+    def get_dealer_by_idp_dealer_id(self, idp_dealer_id):
+        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
+        return dealer
+
     def update_activity(self, activity_id, crm_activity_id):
         try:
             response = requests.put(
@@ -110,9 +118,8 @@ class ActivixApiWrapper:
         """Create appointment on CRM."""
         url = "{}/events".format(ACTIVIX_API_DOMAIN)
 
-        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        start_at = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        end_at = (dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        start_at = self.__activity["activity_due_ts"]
+        end_at = (datetime.strptime(start_at, "%Y-%m-%dT%H:%M:%S%z") + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S%z")
         owner_id = int(self.__salesperson["crm_salesperson_id"]) if self.__salesperson else self.__user_id
 
         payload = {
@@ -161,8 +168,7 @@ class ActivixApiWrapper:
 
         url_communications = "{}/communications".format(ACTIVIX_API_DOMAIN)
 
-        dt = datetime.strptime(self.__activity["activity_requested_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        date = self.__activity["activity_due_ts"]
         communication_type = "incoming" if "Client Says" in self.__activity["notes"] else "outgoing"
 
         payload_communications = {
@@ -186,8 +192,7 @@ class ActivixApiWrapper:
         """Create phone call task on CRM."""
         url = "{}/tasks".format(ACTIVIX_API_DOMAIN)
 
-        dt = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%SZ")
-        date = dt.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        date = self.__activity["activity_due_ts"]
         owner_id = int(self.__salesperson["crm_salesperson_id"]) if self.__salesperson else self.__user_id
 
         payload = {

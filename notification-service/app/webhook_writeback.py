@@ -1,11 +1,14 @@
 """Send webhook notifications to clients."""
 
-import boto3
 import logging
-import requests
-from json import loads
 from os import environ
 from typing import Any
+import requests
+from utils import get_secret
+from botocore.exceptions import ClientError
+from api_wrappers import CrmApiWrapper, CRMApiError
+from datetime import datetime, timezone
+from uuid import uuid4
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
@@ -15,20 +18,14 @@ from aws_lambda_powertools.utilities.batch import (
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 
+crm_api = CrmApiWrapper()
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-sm_client = boto3.client('secretsmanager')
 
 
-def get_secret(secret_name: str, secret_value: str) -> dict:
-    """Get the secret value from Secrets Manager."""
-    try:
-        secret = sm_client.get_secret_value(SecretId=secret_name)
-        secret = loads(secret["SecretString"])[secret_value]
-        return loads(secret)
-    except Exception as e:
-        logger.error(f"Error getting secret: {e}")
-        raise
+class SecretNotFoundError(Exception):
+    """Exception raised when the secret is not found."""
+    pass
 
 
 def send_webhook_notification(client_secrets: dict, event_content: dict) -> None:
@@ -55,25 +52,59 @@ def record_handler(record: SQSRecord) -> None:
     """Process each record."""
     logger.info(f"Record: {record}")
     try:
-        message = loads(record["body"])
-        events = message["detail"]['events']
+        body = record.json_body
+        details = body.get("detail", {})
 
-        for event in events:
-            logger.info(f"Event: {event}")
+        sort_key = f"SHARED_LAYER_CRM__{details['partner_name']}"
+        secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
 
-            event_id = event['event_id']
-            event_content = event['event_content']
-            event_content["event_id"] = event_id
-
-            product_name = event['product_name']
-            client_id = event['client_id']
-            sort_key = f"{product_name}__{client_id}"
-
-            secret_name = "{}/INS/client-credentials".format("prod" if ENVIRONMENT == "prod" else "test")
-
+        try:
             client_secrets = get_secret(secret_name=secret_name, secret_value=sort_key)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.error(f"Secret not found: {secret_name}")
+                raise SecretNotFoundError(f"Secret {secret_name} not found.") from e
+            else:
+                raise
 
-            send_webhook_notification(client_secrets, event_content)
+        event_content = {"event_id": str(uuid4())}
+        event_content["created_ts"] = datetime.now(timezone.utc).isoformat()
+        event_content["message"] = details["event_type"]
+        event_content["lead_id"] = details["lead_id"]
+
+        if details.get('activity_id'):
+            activity = crm_api.get_activity(details["activity_id"])
+
+            if not activity:
+                logger.warning(f"Activity not found for ID: {details['activity_id']}")
+                raise ValueError(f"Activity not found for ID: {details['activity_id']}")
+
+            event_content["activity_id"] = details["activity_id"]
+            event_content["dealer_id"] = activity.get("dealer_id")
+            event_content["activity_type"] = activity.get("activity_type")
+
+        elif details.get('consumer_id'):
+            consumer = crm_api.get_consumer(details["consumer_id"])
+
+            if not consumer:
+                logger.warning(f"Consumer not found for ID: {details['consumer_id']}")
+                raise ValueError(f"Consumer not found for ID: {details['consumer_id']}")
+
+            event_content["consumer_id"] = details["consumer_id"]
+            event_content["dealer_id"] = consumer.get("dealer_id")
+
+        else:
+            logger.warning("No activity_id or consumer_id found in details.")
+            raise ValueError("No activity_id or consumer_id found in details.")
+
+        send_webhook_notification(client_secrets, event_content)
+
+    except SecretNotFoundError as e:
+        logger.warning(f"Missing secret: {e}")
+
+    except CRMApiError as e:
+        logger.error(f"CRM API error: {e}")
+        raise
 
     except Exception as e:
         logger.error(f"Error sending webhook notification: {e}")

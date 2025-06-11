@@ -29,14 +29,28 @@ crm_api = CRMAPIWrapper()
 def record_handler(record: SQSRecord):
     """Create activity on PBS CRM."""
     logger.info(f"Record: {record}")
-    try:
-        activity = loads(record['body'])
-        salesperson = crm_api.get_salesperson(activity["lead_id"])
-        consumer = crm_api.get_consumer(activity["consumer_id"])
+    activity = {}
 
-        # Check if both salesperson and consumer are available
+    try:
+        body = record.json_body
+        details = body.get("detail", {})
+
+        salesperson = crm_api.get_salesperson(details["lead_id"])
+        activity = crm_api.get_activity(details["activity_id"])
+        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
+        lead = crm_api.get_lead(details["lead_id"])
+
+        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
+        activity["dealer_timezone"] = dealer["timezone"]
+        activity["dealer_integration_partner_metadata"] = dealer["metadata"]
+
+        if not activity:
+            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
+
+        consumer = crm_api.get_consumer(lead["consumer_id"])
+
         if not salesperson or not consumer:
-            logger.warning(f"Missing required data: Salesperson or Consumer not found for lead_id: {activity['lead_id']} or consumer_id: {activity['consumer_id']}.")
+            logger.warning(f"Missing required data: Salesperson or Consumer not found for lead_id: {details['lead_id']} or consumer_id: {lead['consumer_id']}")
             return
 
         logger.info(f"Activity: {activity}, Salesperson: {salesperson}, Consumer: {consumer}")
@@ -45,14 +59,19 @@ def record_handler(record: SQSRecord):
         pbs_activity_id = pbs_crm_api.create_activity()
 
         logger.info(f"PBS responded with activity ID: {pbs_activity_id}")
-        crm_api.update_activity(activity["activity_id"], pbs_activity_id)
+        crm_api.update_activity(details["activity_id"], pbs_activity_id)
 
     except CRMApiError:
         return
     except Exception as e:
-        logger.exception(f"Failed to post activity {activity['activity_id']} to PBS")
-        logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
-            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+        logger.exception(f"Failed to post activity {details['activity_id']} to PBS")
+        logger.error(
+            f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
+            f"IdpDealerId: {activity.get('idp_dealer_id', '')}\n"
+            f"LeadId: {details['lead_id']}\n"
+            f"ActivityId: {details['activity_id']}\n"
+            f"ActivityType: {activity.get('activity_type', '')}\n"
+            f"Traceback: {e}"
         )
         raise
 

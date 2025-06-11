@@ -42,10 +42,10 @@ def get_salespersons_handler(event: Any, context: Any) -> Any:
                     "position_name": position_name,
                 }
             )
-        
+
         return {"statusCode": 200, "body": dumps(formatted_salespersons)}
 
-    except Exception as e:
+    except Exception:
         logger.exception(
             f"Failed to retrieve salespersons {event} to Momentum"
         )
@@ -63,12 +63,11 @@ def record_handler(record: SQSRecord):
     try:
         body = record.json_body
         details = body.get("detail", {})
-        
-        
+
         salesperson = crm_api.get_salesperson(details["lead_id"])
         activity = crm_api.get_activity(details["activity_id"])
         dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
-        
+
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
 
@@ -90,7 +89,7 @@ def record_handler(record: SQSRecord):
     except Exception as e:
         if "No existing scheduled appointments found" in str(e):
             logger.error(f"Error: {e}")
-            return 
+            return
         logger.exception(f"Failed to post activity {details['activity_id']} to Momentum")
         logger.error(
             f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
