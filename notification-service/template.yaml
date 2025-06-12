@@ -25,6 +25,8 @@ Globals:
         ENVIRONMENT: !Ref Environment
         IS_PROD: !If [ IsProd, 1, 0 ]
         LOGLEVEL: INFO
+        CRM_API_SECRET_KEY: !If [IsProd, "impel", "test"]
+        CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
 
 Resources:
   LambdaRole:
@@ -70,10 +72,16 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !If [ IsProd,
+                Resource:
+                  - !If [ IsProd,
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/INS/client-credentials*",
                         !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/INS/client-credentials*"
                       ]
+                  - !If [
+                      IsProd,
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:prod/crm-api*",
+                      !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:test/crm-api*",
+                    ]
         - PolicyName: SNSPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -151,7 +159,7 @@ Resources:
       Action: events:PutEvents
       EventBusName: !Ref EventBus
       Principal: !Ref AWS::AccountId
-      StatementId: 'EventBusStatement'
+      StatementId: !Sub "notification-service-${Environment}-EventBusPolicy"
 
   WebhookWritebackQueue:
     Type: AWS::SQS::Queue
