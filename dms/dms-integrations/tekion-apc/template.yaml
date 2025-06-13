@@ -1480,7 +1480,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub tekion-apc-dms-${Environment}-PullCustomersQueue
-      VisibilityTimeout: 90
+      VisibilityTimeout: 300
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt PullCustomersDLQ.Arn
         maxReceiveCount: 3
@@ -1517,7 +1517,7 @@ Resources:
       Handler: customer_enrichment.pull_customers_handler
       Runtime: python3.9
       CodeUri: app/
-      Timeout: 90
+      Timeout: 300
       Policies:
         - Id: FunctionPermissions
           Version: "2012-10-17"
