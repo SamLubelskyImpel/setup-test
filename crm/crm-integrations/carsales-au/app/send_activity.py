@@ -24,6 +24,7 @@ def record_handler(record: SQSRecord):
     here are some changes that dont make sense
     and here are some more
     lets try again
+    more
     try:
         body = record.json_body
         details = body.get("detail", {})
