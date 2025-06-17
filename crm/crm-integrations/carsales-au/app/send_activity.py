@@ -21,7 +21,7 @@ crm_api = CrmApiWrapper()
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
     logger.info(f"Record: {record}")
-
+    here are some changes that dont make sense
     try:
         body = record.json_body
         details = body.get("detail", {})
