@@ -23,6 +23,7 @@ def record_handler(record: SQSRecord):
     logger.info(f"Record: {record}")
     here are some changes that dont make sense
     and here are some more
+    lets try again
     try:
         body = record.json_body
         details = body.get("detail", {})
