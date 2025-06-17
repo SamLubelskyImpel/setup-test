@@ -17,4 +17,4 @@ jobs:
         pip install darker
     - name: Analysing the code with ruff
       run: |
-        darker -L "ruff check" . --check --diff
+        ruff check $(git diff --name-only --cached -- '*.py')
