@@ -3,9 +3,7 @@ name: SAM YAML Linter
 on:
   push:
     branches:
-      - main # Or your default branch like 'master'
-      - develop # Add other branches you want to lint on push
-
+      - master
 jobs:
   lint:
     runs-on: ubuntu-latest
