@@ -11,9 +11,3 @@ repos:
   rev: v8.24.2
   hooks:
     - id: gitleaks
-
-- repo: https://github.com/aws-cloudformation/cfn-lint
-  rev: v1.36.0 # The version of cfn-lint to use
-  hooks:
-    - id: cfn-lint
-      files: path/to/cfn/dir/.*\.(json|yml|yaml)$

@@ -18,7 +18,7 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 crm_api = CrmApiWrapper()
 
-API_KEY = "8mb4ax%^tuaa"
+API_KEY = "8mb4ax%^tuaab"
 
 
 def record_handler(record: SQSRecord):
