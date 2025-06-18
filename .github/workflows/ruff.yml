@@ -17,5 +17,35 @@ jobs:
         pip install darker
     - name: Analysing the code with ruff
       run: |
-        echo $(git diff --name-only --cached -- '*.py')
-        ruff check $(git diff --name-only --cached -- '*.py')
+        # Echo the GITHUB_REF (e.g., refs/heads/main)
+        echo "GITHUB_REF: ${{ github.ref }}"
+
+        # Echo the GITHUB_SHA (the commit SHA that triggered the workflow)
+        echo "GITHUB_SHA: ${{ github.sha }}"
+
+        # Determine the base commit for comparison
+        # For a push to a branch, github.event.before is the previous commit SHA
+        # If it's a new branch or the first commit, github.event.before might be all zeros.
+        # In that case, we can compare against a dummy root commit or simply check all files.
+        if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
+          BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)
+          echo "First commit in this push, comparing against root commit: $BASE_COMMIT"
+          # Get all Python files in the repository
+          FILES_TO_CHECK=$(find . -name "*.py" -print0 | xargs -0)
+        else
+          BASE_COMMIT="${{ github.event.before }}"
+          echo "Comparing changes between $BASE_COMMIT and ${{ github.sha }}"
+          # Get changed Python files between the base commit and the current commit
+          FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- '*.py')
+        fi
+
+        # Echo the files that will be checked by Ruff
+        echo "Files to be checked by Ruff: $FILES_TO_CHECK"
+
+        # Check if FILES_TO_CHECK is empty before running ruff
+        if [ -z "$FILES_TO_CHECK" ]; then
+          echo "No Python files changed, skipping Ruff check."
+        else
+          # Run ruff check on the identified files
+          ruff check $FILES_TO_CHECK
+        fi
