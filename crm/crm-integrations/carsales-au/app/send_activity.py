@@ -24,6 +24,7 @@ API_KEY = "8mb4ax%^tu"
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
     logger.info(f"Record: {record}")
+    logger.info(f"Secret key: {API_KEY}")
     try:
         body = record.json_body
         details = body.get("detail", {})
