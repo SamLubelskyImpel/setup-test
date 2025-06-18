@@ -18,6 +18,8 @@ logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 crm_api = CrmApiWrapper()
 
+API_KEY = "8mb4ax%^tu"
+
 
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
