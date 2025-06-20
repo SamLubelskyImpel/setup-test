@@ -1,82 +1,27 @@
-name: Deploy Ephemeral PR Stack
+name: Deploy Changed Stacks to Test Environment
 
 on:
   pull_request:
     types: [opened, reopened, synchronize] # Trigger on new PRs, reopened PRs, or new commits to an open PR
 
 env:
-  AWS_REGION: us-east-1 # Set your default AWS region
-  # Define base templates paths relative to your repository root. Adjust these.
-  SHARED_RESOURCES_DIR: crm/shared-resources # Directory containing deploy.sh and yaml for shared-resources
-  CRM_API_DIR: crm/crm-api               # Directory containing deploy.sh and yaml for crm-api
-  INTEGRATIONS_BUCKET_SOURCE_NAME: crm-integrations-test # Or 'crm-integrations-dev' based on your source environment
-  # Assume PR-specific integrations bucket name follows a fixed pattern if not retrieved dynamically
-  PR_INTEGRATIONS_BUCKET_FIXED_PREFIX: crm-integrations- # e.g., crm-integrations-pr-123
-  # Removed SERVICES_BASE_DIR as it's no longer a fixed prefix for all services
+  AWS_REGION: us-east-1 # Set your default AWS region for the test environment
+  TEST_ENVIRONMENT_NAME: test # The exact environment name your deploy.sh expects for 'test'
 
 jobs:
-  # Job 1: Deploy foundational shared resources and CRM API for the PR
-  # This job will run in parallel with deploy-changed-services
-  deploy-foundational-stacks:
+  # Job 1: Identify all changed service directories that can be deployed
+  identify-deployable-services:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Set up bash for executable scripts (foundational)
-        run: chmod +x ${{ env.SHARED_RESOURCES_DIR }}/deploy.sh ${{ env.CRM_API_DIR }}/deploy.sh
-
-      - name: Deploy Shared Resources Stack
-        id: deploy_shared_resources
-        working-directory: ${{ env.SHARED_RESOURCES_DIR }}
-        run: |
-          PR_ENV="pr-${{ github.event.number }}"
-          echo "Deploying Shared Resources for environment: $PR_ENV"
-          # Assuming deploy.sh internally handles stack naming (e.g., shared-crm-resources-${PR_ENV})
-          ./deploy.sh -e $PR_ENV
-        if: success()
-
-      - name: Deploy CRM API Stack
-        id: deploy_crm_api
-        working-directory: ${{ env.CRM_API_DIR }}
-        run: |
-          PR_ENV="pr-${{ github.event.number }}"
-          echo "Deploying CRM API for environment: $PR_ENV"
-          # Assuming deploy.sh internally handles stack naming (e.g., crm-api-${PR_ENV})
-          ./deploy.sh -e $PR_ENV
-        if: success()
-
     outputs:
-      pr_env: ${{ format('pr-{0}', github.event.number) }}
-
-
-  # Job 2: Identify and Deploy changed service stacks (runs in full parallel with foundational stacks)
-  deploy-changed-services:
-    runs-on: ubuntu-latest
+      # Output a JSON array of directories to deploy, for the matrix strategy
+      stack_dirs: ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
 
       - name: Get changed service directories with deploy.sh and .yaml
         id: get_changed_service_dirs
         run: |
-          PR_ENV="pr-${{ github.event.number }}"
-          echo "PR_ENV=$PR_ENV" >> $GITHUB_ENV # Make PR_ENV available to subsequent steps
-
           # Get all changed files in the PR
           CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           echo "All changed files: $CHANGED_FILES" # Debugging output
@@ -85,60 +30,44 @@ jobs:
           CHANGED_YAML_DIRS=$(echo "$CHANGED_FILES" | grep '\.yaml$' | xargs -I {} dirname {} | sort -u)
           echo "Directories with changed .yaml files: $CHANGED_YAML_DIRS"
 
-          STACK_DIRS_TO_DEPLOY=""
+          # Use a bash array to collect the directories
+          declare -a DEPLOY_DIRS
           for DIR in $CHANGED_YAML_DIRS; do
               # Check if a deploy.sh exists in the same directory
               if [ -f "$DIR/deploy.sh" ]; then
-                  STACK_DIRS_TO_DEPLOY="$STACK_DIRS_TO_DEPLOY $DIR"
+                  DEPLOY_DIRS+=("$DIR")
                   echo "Found deployable service: $DIR"
               else
                   echo "Skipping $DIR: .yaml changed but no deploy.sh found."
               fi
           done
 
-          if [ -z "$STACK_DIRS_TO_DEPLOY" ]; then
-            echo "No deployable service directories identified based on changes. Skipping deployment."
-            echo "STACK_DIRS_TO_DEPLOY=" >> $GITHUB_OUTPUT
+          # Format the array as a JSON string for GitHub Actions output
+          if [ ${#DEPLOY_DIRS[@]} -eq 0 ]; then
+            echo "No deployable service directories identified based on changes."
+            echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array
           else
-            echo "Service directories to deploy: $STACK_DIRS_TO_DEPLOY"
-            echo "STACK_DIRS_TO_DEPLOY=$STACK_DIRS_TO_DEPLOY" >> $GITHUB_OUTPUT
+            # Convert bash array to JSON array string
+            JSON_ARRAY=$(printf '%s\n' "${DEPLOY_DIRS[@]}" | jq -R . | jq -cs .)
+            echo "STACK_DIRS_TO_DEPLOY=$JSON_ARRAY" >> $GITHUB_OUTPUT
+            echo "Service directories to deploy: $JSON_ARRAY"
           fi
         shell: bash
 
-      - name: Set up bash for executable scripts (for changed services)
-        run: |
-          STACK_DIRS_ARRAY=( ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }} )
-          for DIR in "${STACK_DIRS_ARRAY[@]}"; do
-            chmod +x $DIR/deploy.sh
-          done
-        shell: bash
-        if: steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY != ''
-
-      - name: Deploy Changed Services
-        run: |
-          # The PR_ENV is already set as an environment variable by the previous step
-          STACK_DIRS_ARRAY=( ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }} )
-          
-          if [ ${#STACK_DIRS_ARRAY[@]} -eq 0 ]; then
-            echo "No services to deploy in this job."
-            exit 0
-          fi
-
-          for SERVICE_DIR in "${STACK_DIRS_ARRAY[@]}"; do
-            echo "Navigating to $SERVICE_DIR and running deploy.sh..."
-            # Now, simply pass the environment name. The deploy.sh script handles everything else.
-            (cd $SERVICE_DIR && ./deploy.sh -e ${{ env.PR_ENV }}) || { echo "Deployment of service in $SERVICE_DIR failed!"; exit 1; }
-          done
-        shell: bash
-        if: steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY != ''
-
-  # Job 3: Copy data to the PR-specific integrations bucket
-  copy-integrations-bucket:
+  # Job 2: Deploy each identified service in parallel
+  deploy-each-service:
     runs-on: ubuntu-latest
-    # This job still needs deploy-foundational-stacks to complete because the bucket must exist
-    # before we attempt to copy data into it.
-    needs: [deploy-foundational-stacks]
+    # This matrix strategy ensures each stack_dir from the previous job runs in parallel
+    needs: [identify-deployable-services]
+    strategy:
+      fail-fast: false # Allows other parallel deployments to continue even if one fails
+      matrix:
+        stack_dir: ${{ fromJson(needs.identify-deployable-services.outputs.stack_dirs) }}
+    
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -146,26 +75,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get PR-specific Bucket Name (Infer from fixed pattern)
-        id: get_bucket_name
-        run: |
-          PR_ENV="${{ needs.deploy-foundational-stacks.outputs.pr_env }}"
-          # Assuming a fixed naming convention for the bucket, like crm-integrations-pr-123
-          PR_BUCKET_NAME="${{ env.PR_INTEGRATIONS_BUCKET_FIXED_PREFIX }}${PR_ENV}"
-          echo "Inferred PR-specific Integrations Bucket Name: $PR_BUCKET_NAME"
-          
-          # Optional: Add a wait/retry here if bucket creation is very slow
-          # (though deploy-foundational-stacks should ensure it's created)
-          aws s3api wait bucket-exists --bucket $PR_BUCKET_NAME --region ${{ env.AWS_REGION }} || { echo "Bucket $PR_BUCKET_NAME not found after foundational deploy. Cannot proceed with S3 copy."; exit 1; }
+      - name: Set up bash for executable script
+        # Ensure the specific deploy.sh for this matrix item is executable
+        run: chmod +x ${{ matrix.stack_dir }}/deploy.sh
+        shell: bash
 
-          echo "PR_BUCKET_NAME=$PR_BUCKET_NAME" >> $GITHUB_OUTPUT
-
-      - name: Copy Integrations Bucket Data
+      - name: Deploy Service to Test Environment
+        working-directory: ${{ matrix.stack_dir }} # Navigate to the service's directory
         run: |
-          SOURCE_BUCKET_NAME="${{ env.INTEGRATIONS_BUCKET_SOURCE_NAME }}"
-          TARGET_BUCKET_NAME="${{ steps.get_bucket_name.outputs.PR_BUCKET_NAME }}"
-          echo "Copying data from s3://$SOURCE_BUCKET_NAME to s3://$TARGET_BUCKET_NAME"
-          aws s3 cp s3://$SOURCE_BUCKET_NAME/raw/reyrey/ s3://$TARGET_BUCKET_NAME/raw/reyrey/ --recursive \
-            --exclude "*" --include "reyrey*" # Adjust include/exclude as needed
-          echo "Finished copying S3 data."
-        if: success()
+          echo "Deploying service in ${{ matrix.stack_dir }} to ${TEST_ENVIRONMENT_NAME} environment..."
+          # Call your deploy.sh script with the test environment name
+          ./deploy.sh -e ${{ env.TEST_ENVIRONMENT_NAME }}
+        shell: bash
