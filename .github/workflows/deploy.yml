@@ -107,21 +107,17 @@ jobs:
         with:
           python-version: '3.9'
       - name: Create unified-test AWS CLI Profile Files
-        # This step uses the credentials already set as environment variables
-        # by configure-aws-credentials, and writes them to ~/.aws/config and ~/.aws/credentials.
         run: |
-          mkdir -p ~/.aws # Ensure the .aws directory exists
+          mkdir -p ~/.aws
           
           # Create ~/.aws/config
           cat <<EOF > ~/.aws/config
           [profile unified-test]
           region = ${{ env.AWS_REGION }}
           output = json
-          EOF
+EOF # This 'EOF' MUST be at the very first column of its line
 
           # Create ~/.aws/credentials
-          # Important: If your `aws-actions/configure-aws-credentials` is assuming a role,
-          # it will provide AWS_SESSION_TOKEN. You MUST include it in the credentials file.
           if [ -n "${{ env.AWS_SESSION_TOKEN }}" ]; then
             echo "Detected AWS_SESSION_TOKEN, including in credentials."
             cat <<EOF > ~/.aws/credentials
@@ -129,16 +125,16 @@ jobs:
             aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
             aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             aws_session_token = ${{ env.AWS_SESSION_TOKEN }}
-            EOF
+EOF # This 'EOF' MUST be at the very first column of its line
           else
             echo "No AWS_SESSION_TOKEN detected, creating credentials without it."
             cat <<EOF > ~/.aws/credentials
             [unified-test]
             aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
             aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            EOF
+EOF # This 'EOF' MUST be at the very first column of its line
           fi
-        shell: bash # Explicitly use bash for the heredoc syntax
+        shell: bash
           
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
