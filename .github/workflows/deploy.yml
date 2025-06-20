@@ -120,6 +120,9 @@ jobs:
                    "${{ secrets.AWS_ACCESS_KEY_ID }}" \
                    "${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
                    "${{ env.AWS_SESSION_TOKEN }}" > ~/.aws/credentials
+            printf "[unified-test]\nregion = %s\noutput = json\nrole_arn=%s\n" \
+                   "${{ secrets.AWS_REGION }}" \
+                   "${{ secrets.ROLE_ARN }}" > ~/.aws/config
           else
             echo "No AWS_SESSION_TOKEN detected, creating credentials without it."
             printf "[unified-test]\naws_access_key_id = %s\naws_secret_access_key = %s\n" \
