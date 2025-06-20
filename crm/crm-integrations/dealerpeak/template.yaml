@@ -29,7 +29,7 @@ Globals:
         UPLOAD_SECRET_KEY: "internal_dealerpeak"
         CRM_API_DOMAIN: !If [IsProd, "crm-api.impel.io", "crm-api-test.testenv.impel.io"]
         SNS_TOPIC_ARN: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:alert_client_engineering'
-        TEST: 'TEST2'
+        TEST: 'TEST'
         REPORTING_TOPIC_ARN: !If [
             IsProd,
             !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod',
