@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
 
       - name: Get changed service directories with deploy.sh and .yaml
         id: get_changed_service_dirs
