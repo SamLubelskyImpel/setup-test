@@ -24,9 +24,7 @@ jobs:
         run: |
           set -euxo pipefail # Keep this for detailed debugging output
 
-          PR_ENV="pr-${{ github.event.number }}"
-          echo "PR_ENV=$PR_ENV" >> $GITHUB_ENV # Make PR_ENV available to subsequent steps
-
+          
           # Ensure full history is fetched for reliable diffing
           # This should be handled by `fetch-depth: 0` in actions/checkout, but is here as a safeguard.
           git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
@@ -37,9 +35,10 @@ jobs:
           # or if the refs don't exist (though fetch-depth:0 should prevent the latter).
           # Redirect stderr to /dev/null to clean up error messages from git for non-existing refs.
           RAW_CHANGED_FILES=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || true)
-          
+
           echo "--- Raw git diff output ---"
           echo "${RAW_CHANGED_FILES}"
+          echo $(git diff --name-only HEAD^ HEAD)
           echo "--- End raw git diff output ---"
 
           # Check if there are any files reported by git diff
