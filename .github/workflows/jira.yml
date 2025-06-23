@@ -30,7 +30,7 @@ jobs:
                 }
                 // Regex: 'scrum-' followed by 3 to 5 digits (e.g., 123, 12345)
                 // You can adjust the {3,5} part to match your exact digit count requirements.
-                const regex = /(scrum-\d{3,5})/i; // /i for case-insensitive matching
+                const regex = /(scrum-\d{1,5})/i; // /i for case-insensitive matching
                 const match = text.match(regex);
                 return match ? match[1].toUpperCase() : null; // Return in uppercase to standardize
             }
