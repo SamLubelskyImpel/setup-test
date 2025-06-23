@@ -18,36 +18,39 @@ jobs:
         run: |
           pip install cfn-lint
 
-      - name: Get changed CloudFormation files
-        id: changed-files
+      - name: Analysing the code with cfn-lint
         run: |
-          # Get the base branch (e.g., main) and the head branch (the PR branch)
-          BASE_REF="${{ github.base_ref }}"
-          HEAD_REF="${{ github.head_ref }}"
-
-          # Use git diff to find changed files between the base and head branches
-          # Filter for added (A), copied (C), modified (M), renamed (R) files
-          # Only include .yaml, .yml, and .json extensions
-          CHANGED_CFN_FILES=$(git diff --name-only --diff-filter=ACMDR "$BASE_REF" "$HEAD_REF" | grep -E '\.(yaml|yml|json)$' | grep -E '(template|cloudformation|cfn|aws|sam)\.(yaml|yml|json)$' || true)
-
-          # Output the list of changed files for the next step
-          echo "Changed CloudFormation Files: $CHANGED_CFN_FILES"
-          echo "cfn_files=$CHANGED_CFN_FILES" >> "$GITHUB_OUTPUT"
-
-      - name: Run cfn-lint on changed files
-        if: steps.changed-files.outputs.cfn_files != ''
-        run: |
-          # Read the list of changed files from the previous step's output
-          IFS=$'\n' read -d '' -r -a CFN_FILES <<< "${{ steps.changed-files.outputs.cfn_files }}"
-
-          # Iterate over each changed file and run cfn-lint
-          for file in "${CFN_FILES[@]}"; do
-            echo "Linting $file..."
-            cfn-lint "$file" || { echo "::error file=$file::cfn-lint found issues in $file"; EXIT_CODE=1; }
-          done
-
-          # Exit with an error code if any linting failed
-          if [ -n "$EXIT_CODE" ]; then
-            exit "$EXIT_CODE"
+          echo "GITHUB_REF: ${{ github.ref }}"
+          echo "GITHUB_SHA: ${{ github.sha }}"
+  
+          # Fetch the master branch explicitly to ensure it's available
+          git fetch origin master:master || true
+  
+          # Get the merge-base with master
+          BASE_COMMIT=$(git merge-base master HEAD)
+          echo "Calculated merge-base as BASE_COMMIT: $BASE_COMMIT"
+  
+          if [ -z "$BASE_COMMIT" ]; then
+            # Fallback if merge-base fails (e.g., first commit on branch)
+            echo "Could not determine merge-base, comparing against root commit or all files."
+            BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)
+            if [ -z "$BASE_COMMIT" ]; then
+              # If no root commit found (very unlikely), check all files
+              echo "No root commit found, checking all Python files."
+              FILES_TO_CHECK=$(find . -name "*.py" -print0 | xargs -0)
+            else
+              echo "Comparing against root commit: $BASE_COMMIT"
+              FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
+            fi
+          else
+            echo "Comparing changes between $BASE_COMMIT and ${{ github.sha }}"
+            FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
           fi
-        shell: bash
+  
+          echo "Files to be checked by Ruff: $FILES_TO_CHECK"
+  
+          if [ -z "$FILES_TO_CHECK" ]; then
+            echo "No Python files changed or no files found for comparison, skipping Ruff check."
+          else
+            cfn-lint $FILES_TO_CHECK
+          fi
