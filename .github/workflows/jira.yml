@@ -91,7 +91,7 @@ jobs:
               const response = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${jiraTicketId}`, {
                 headers: {
                   'Authorization': `Basic ${auth}`,
-                  'Accept': 'application/json`
+                  'Accept': 'application/json'
                 }
               });
 
