@@ -127,9 +127,9 @@ jobs:
 
               // Prefix PR title with Jira ID if not already present
               // Use a regex to check if it's already prefixed, allowing for variations
-              const titlePrefixRegex = new RegExp(`^${jiraTicketId}\\s*\\|\\s*`, 'i');
-              if (!titlePrefixRegex.test(newPrTitle)) {
-                newPrTitle = `${jiraTicketId} | ${newPrTitle}`;
+              const jiraIdCheckRegex = new RegExp(jiraTicketId, 'i'); // Create regex to check for ID anywhere, case-insensitive
+              if (!jiraIdCheckRegex.test(newPrTitle)) { // If Jira ID is NOT found in the title
+                newPrTitle = `${jiraTicketId} | ${newPrTitle}`; // Then prefix it
               }
 
               await github.rest.pulls.update({
