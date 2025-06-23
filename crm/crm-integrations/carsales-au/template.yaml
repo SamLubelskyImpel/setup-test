@@ -40,6 +40,7 @@ Globals:
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod",
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test"
           ]
+        TEST: "TEST"
 
 Resources:
   LambdaRole:
