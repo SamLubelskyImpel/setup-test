@@ -1,0 +1,90 @@
+name: Enrich PR with Jira Info
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  add_jira_details:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Jira Ticket ID
+        id: extract_jira_id
+        uses: geokats7/extract-jira-id-action@v1 # Or any other reliable extract ID action
+        # You might need to configure regex if your Jira ID format is non-standard
+        # with:
+        #   ticket-id-regex: '([A-Z]+-[0-9]+)'
+
+      - name: Get Jira Issue Details and Update PR
+        if: steps.extract_jira_id.outputs.jira_ticket_id != ''
+        uses: actions/github-script@v6 # Or a more specialized Jira action
+        with:
+          script: |
+            const jiraTicketId = process.env.JIRA_TICKET_ID;
+            const jiraBaseUrl = process.env.JIRA_BASE_URL;
+            const jiraUsername = process.env.JIRA_USERNAME;
+            const jiraApiToken = process.env.JIRA_API_TOKEN;
+
+            const auth = Buffer.from(`<span class="math-inline">\{jiraUsername\}\:</span>{jiraApiToken}`).toString('base64');
+
+            try {
+              const response = await fetch(`<span class="math-inline">\{jiraBaseUrl\}/rest/api/3/issue/</span>{jiraTicketId}`, {
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (!response.ok) {
+                console.error(`Failed to fetch Jira issue: ${response.status} ${response.statusText}`);
+                return;
+              }
+
+              const issue = await response.json();
+              const issueSummary = issue.fields.summary;
+              const issueLink = `<span class="math-inline">\{jiraBaseUrl\}/browse/</span>{jiraTicketId}`;
+
+              const prBody = context.payload.pull_request.body || '';
+              const prTitle = context.payload.pull_request.title;
+
+              let newPrBody = prBody;
+              let newPrTitle = prTitle;
+
+              // Add Jira link to PR body if not already present
+              if (!prBody.includes(jiraTicketId)) {
+                newPrBody += `\n\n---
+                Jira Issue: [${jiraTicketId} | <span class="math-inline">\{issueSummary\}\]\(</span>{issueLink})`;
+              }
+
+              // Prefix PR title with Jira ID if not already present
+              if (!prTitle.startsWith(jiraTicketId)) {
+                newPrTitle = `${jiraTicketId} | ${prTitle}`;
+              }
+
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                title: newPrTitle,
+                body: newPrBody
+              });
+
+              console.log(`Updated PR with Jira info for ${jiraTicketId}`);
+
+              // Example: Add a label based on Jira Issue Type (requires additional logic)
+              // const issueType = issue.fields.issuetype.name;
+              // await github.rest.issues.addLabels({
+              //   owner: context.repo.owner,
+              //   repo: context.repo.repo,
+              //   issue_number: context.payload.pull_request.number,
+              //   labels: [`Jira Type: ${issueType}`]
+              // });
+
+            } catch (error) {
+              console.error(`Error processing Jira information: ${error.message}`);
+            }
+        env:
+          JIRA_TICKET_ID: ${{ steps.extract_jira_id.outputs.jira_ticket_id }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
