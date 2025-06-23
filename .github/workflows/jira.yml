@@ -150,3 +150,100 @@ jobs:
           JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
           JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      - name: Transition Jira to In Progress
+        if: steps.extract_jira_id.outputs.jira_ticket_id != '' # Only run if Jira ID found
+        uses: actions/github-script@v7
+        continue-on-error: true # <--- This makes the step not fail the job if the transition fails
+        with:
+          script: |
+            const jiraTicketId = "${{ steps.extract_jira_id.outputs.jira_ticket_id }}";
+            const jiraBaseUrl = process.env.JIRA_BASE_URL;
+            const jiraUsername = process.env.JIRA_USERNAME;
+            const jiraApiToken = process.env.JIRA_API_TOKEN;
+
+            const auth = Buffer.from(`${jiraUsername}:${jiraApiToken}`).toString('base64');
+
+            try {
+              // 1. Get current Jira issue status
+              console.log(`Checking current status for Jira ticket: ${jiraTicketId}`);
+              const issueResponse = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${jiraTicketId}?fields=status`, {
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (!issueResponse.ok) {
+                console.warn(`WARN: Could not fetch Jira issue ${jiraTicketId} to check status: ${issueResponse.status} ${issueResponse.statusText}`);
+                return; // Exit script, don't attempt transition
+              }
+              const issue = await issueResponse.json();
+              const currentStatus = issue.fields.status.name;
+              console.log(`Current status of ${jiraTicketId}: ${currentStatus}`);
+
+              // Check if the current status is exactly "TO DO" (case-insensitive for robustness)
+              if (currentStatus.toUpperCase() !== 'TO DO') {
+                console.log(`Jira ticket ${jiraTicketId} is not in 'TO DO' status. Skipping transition to 'IN PROGRESS'.`);
+                return; // Exit script
+              }
+
+              // 2. Get available transitions for the Jira issue
+              console.log(`Fetching available transitions for Jira ticket: ${jiraTicketId}`);
+              const transitionsResponse = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${jiraTicketId}/transitions`, {
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Accept': 'application/json'
+                }
+              });
+
+              if (!transitionsResponse.ok) {
+                console.warn(`WARN: Could not fetch transitions for Jira issue ${jiraTicketId}: ${transitionsResponse.status} ${transitionsResponse.statusText}`);
+                return; // Exit script
+              }
+              const transitionsData = await transitionsResponse.json();
+
+              // Find the 'In Progress' transition ID
+              // Use .toUpperCase() for comparison as transition names might vary in case (e.g., "In Progress", "In progress")
+              const inProgressTransition = transitionsData.transitions.find(
+                t => t.name.toUpperCase() === 'IN PROGRESS'
+              );
+
+              if (!inProgressTransition) {
+                console.warn(`WARN: 'IN PROGRESS' transition not found for Jira ticket ${jiraTicketId}. Available transitions:`);
+                transitionsData.transitions.forEach(t => console.log(`- ${t.name} (ID: ${t.id})`));
+                return; // Exit script
+              }
+
+              // 3. Execute the transition
+              console.log(`Attempting to transition Jira ticket ${jiraTicketId} to 'IN PROGRESS' (Transition ID: ${inProgressTransition.id})`);
+              const transitionPostResponse = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${jiraTicketId}/transitions`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  transition: {
+                    id: inProgressTransition.id
+                  }
+                })
+              });
+
+              if (!transitionPostResponse.ok) {
+                const errorText = await transitionPostResponse.text(); // Get more detailed error message
+                console.warn(`WARN: Failed to transition Jira ticket ${jiraTicketId}: ${transitionPostResponse.status} ${transitionPostResponse.statusText}. Response: ${errorText}`);
+                // Do NOT throw here, as continue-on-error: true handles the job status
+                return;
+              }
+
+              console.log(`Successfully transitioned Jira ticket ${jiraTicketId} to 'IN PROGRESS'.`);
+
+            } catch (error) {
+              // Catch any unexpected errors but don't rethrow to keep the step green/yellow
+              console.warn(`WARN: An unexpected error occurred during Jira status transition for ${jiraTicketId}: ${error.message}`);
+            }
+        env:
+            JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+            JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+            JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
