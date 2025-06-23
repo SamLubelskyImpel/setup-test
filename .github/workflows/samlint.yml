@@ -40,11 +40,11 @@ jobs:
               FILES_TO_CHECK=$(find . -name "*.py" -print0 | xargs -0)
             else
               echo "Comparing against root commit: $BASE_COMMIT"
-              FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- '*.py')
+              FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
             fi
           else
             echo "Comparing changes between $BASE_COMMIT and ${{ github.sha }}"
-            FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- '*.py')
+            FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
           fi
   
           echo "Files to be checked by Ruff: $FILES_TO_CHECK"
