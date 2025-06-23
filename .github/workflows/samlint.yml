@@ -68,15 +68,13 @@ jobs:
           if [ -z "$FILES_TO_CHECK" ]; then
             echo "No 'template.yaml' files changed or no files found for comparison. Skipping linting."
           else
-            # Pass the list of files directly to cfn-lint.
-            # `cfn-lint` can accept multiple file paths as arguments.
-            # Using `xargs` with `echo` and `printf` is a robust way to handle
-            # passing multiple arguments, especially if filenames contain spaces.
-            # Alternatively, if FILES_TO_CHECK is just newline-separated,
-            # `cfn-lint $FILES_TO_CHECK` would work if IFS is set correctly,
-            # but xargs is safer for potentially complex filenames.
-            echo "$FILES_TO_CHECK" | xargs -0 printf "%s\0" | xargs -0 cfn-lint || {
+            # Pass the newline-separated list of files directly to cfn-lint using xargs.
+            # `xargs` by default splits input by whitespace (including newlines) and
+            # passes each split item as a separate argument to the command.
+            echo "$FILES_TO_CHECK" | xargs cfn-lint || {
+              # If cfn-lint returns a non-zero exit code (indicating issues),
+              # print a GitHub Actions error annotation and fail the step.
               echo "::error::cfn-lint found issues in one or more changed files."
-              exit 1 # Fail the step if cfn-lint returns a non-zero exit code
+              exit 1
             }
           fi
