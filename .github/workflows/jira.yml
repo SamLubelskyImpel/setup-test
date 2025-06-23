@@ -19,8 +19,8 @@ jobs:
           script: |
             // Inline JavaScript for extracting Jira ID
             /**
-             * Extracts a Jira ticket ID (e.g., "idp-1234") from a string.
-             * Looks for the pattern "idp- followed by 3 to 5 digits" (adjust regex as needed).
+             * Extracts a Jira ticket ID (e.g., "scrum-123") from a string.
+             * Looks for the pattern "scrum- followed by 3 to 5 digits" (adjust regex as needed).
              * @param {string} text The string to search within.
              * @returns {string | null} The found Jira ID or null if not found.
              */
@@ -28,9 +28,9 @@ jobs:
                 if (!text) {
                     return null;
                 }
-                // Regex: 'idp-' followed by 3 to 5 digits (e.g., 123, 12345)
+                // Regex: 'scrum-' followed by 3 to 5 digits (e.g., 123, 12345)
                 // You can adjust the {3,5} part to match your exact digit count requirements.
-                const regex = /(idp-\d{3,5})/i; // /i for case-insensitive matching
+                const regex = /(scrum-\d{3,5})/i; // /i for case-insensitive matching
                 const match = text.match(regex);
                 return match ? match[1].toUpperCase() : null; // Return in uppercase to standardize
             }
@@ -85,17 +85,13 @@ jobs:
             const jiraUsername = process.env.JIRA_USERNAME;
             const jiraApiToken = process.env.JIRA_API_TOKEN;
 
-            // Ensure `fetch` is available (Node.js 18+ has it globally)
-            // If using older Node.js or a different runner, you might need require('node-fetch');
-            // For actions/github-script, `fetch` is generally available.
-
             const auth = Buffer.from(`${jiraUsername}:${jiraApiToken}`).toString('base64');
 
             try {
               const response = await fetch(`${jiraBaseUrl}/rest/api/3/issue/${jiraTicketId}`, {
                 headers: {
                   'Authorization': `Basic ${auth}`,
-                  'Accept': 'application/json'
+                  'Accept': 'application/json`
                 }
               });
 
