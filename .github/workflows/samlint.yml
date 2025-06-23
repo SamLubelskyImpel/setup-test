@@ -17,38 +17,66 @@ jobs:
           pip install cfn-lint
 
       - name: Analysing the code with cfn-lint
+        # Explicitly use bash shell for consistency and advanced features
+        shell: bash
         run: |
           echo "GITHUB_REF: ${{ github.ref }}"
           echo "GITHUB_SHA: ${{ github.sha }}"
-  
-          # Fetch the master branch explicitly to ensure it's available
+
+          # Fetch the master branch explicitly to ensure it's available for comparison
+          # The '|| true' prevents the step from failing if 'master' doesn't exist yet
           git fetch origin master:master || true
-  
-          # Get the merge-base with master
+
+          # Get the merge-base with master to find the common ancestor commit.
+          # This helps identify only the files changed in the current push relative to master.
           BASE_COMMIT=$(git merge-base master HEAD)
           echo "Calculated merge-base as BASE_COMMIT: $BASE_COMMIT"
-  
+
+          FILES_TO_CHECK="" # Initialize variable to hold the list of files
+
           if [ -z "$BASE_COMMIT" ]; then
-            # Fallback if merge-base fails (e.g., first commit on branch)
+            # Fallback if merge-base fails (e.g., it's the very first commit on the branch
+            # or in the repository, or a detached HEAD state).
             echo "Could not determine merge-base, comparing against root commit or all files."
-            BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)
-            if [ -z "$BASE_COMMIT" ]; then
-              # If no root commit found (very unlikely), check all files
-              echo "No root commit found, checking all Python files."
+            # Attempt to find the root commit of the current branch
+            ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD)
+
+            if [ -z "$ROOT_COMMIT" ]; then
+              # If no root commit found (very unlikely for a valid Git repo),
+              # check all 'template.yaml' files in the entire repository.
+              echo "No root commit found, checking all 'template.yaml' files in the repository."
+              # Use find with -print0 and xargs -0 to safely handle filenames with spaces or special characters
               FILES_TO_CHECK=$(find . -name "template.yaml" -print0 | xargs -0)
             else
-              echo "Comparing against root commit: $BASE_COMMIT"
-              FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
+              echo "Comparing against root commit: $ROOT_COMMIT"
+              # Get all changed file paths between the root commit and current HEAD
+              CHANGED_FILE_PATHS=$(git diff --name-only "$ROOT_COMMIT" "${{ github.sha }}")
+              # Filter these paths to include only files ending with 'template.yaml'
+              FILES_TO_CHECK=$(echo "$CHANGED_FILE_PATHS" | grep 'template\.yaml$')
             fi
           else
             echo "Comparing changes between $BASE_COMMIT and ${{ github.sha }}"
-            FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
+            # Get all changed file paths between the calculated merge-base and current HEAD
+            CHANGED_FILE_PATHS=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}")
+            # Filter these paths to include only files ending with 'template.yaml'
+            # The '\.' escapes the dot, and '$' ensures it's the end of the filename.
+            FILES_TO_CHECK=$(echo "$CHANGED_FILE_PATHS" | grep 'template\.yaml$')
           fi
-  
-          echo "Files to be checked by Ruff: $FILES_TO_CHECK"
-  
+
+          echo "Files to be checked by cfn-lint: $FILES_TO_CHECK"
+
           if [ -z "$FILES_TO_CHECK" ]; then
-            echo "No SAM Template files. Skipping linting check."
+            echo "No 'template.yaml' files changed or no files found for comparison. Skipping linting."
           else
-            cfn-lint $FILES_TO_CHECK
+            # Pass the list of files directly to cfn-lint.
+            # `cfn-lint` can accept multiple file paths as arguments.
+            # Using `xargs` with `echo` and `printf` is a robust way to handle
+            # passing multiple arguments, especially if filenames contain spaces.
+            # Alternatively, if FILES_TO_CHECK is just newline-separated,
+            # `cfn-lint $FILES_TO_CHECK` would work if IFS is set correctly,
+            # but xargs is safer for potentially complex filenames.
+            echo "$FILES_TO_CHECK" | xargs -0 printf "%s\0" | xargs -0 cfn-lint || {
+              echo "::error::cfn-lint found issues in one or more changed files."
+              exit 1 # Fail the step if cfn-lint returns a non-zero exit code
+            }
           fi
