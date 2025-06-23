@@ -2,8 +2,7 @@ name: CloudFormation Lint New
 
 on:
   pull_request:
-    branches:
-      - main # Or your default branch like 'master'
+    types: [opened, reopened, synchronize]
 
 jobs:
   lint:
