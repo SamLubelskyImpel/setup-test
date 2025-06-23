@@ -1,0 +1,54 @@
+name: CloudFormation Lint
+
+on:
+  pull_request:
+    branches:
+      - main # Or your default branch like 'master'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for changed file detection
+          fetch-depth: 0
+
+      - name: Install cfn-lint
+        run: |
+          pip install cfn-lint
+
+      - name: Get changed CloudFormation files
+        id: changed-files
+        run: |
+          # Get the base branch (e.g., main) and the head branch (the PR branch)
+          BASE_REF="${{ github.base_ref }}"
+          HEAD_REF="${{ github.head_ref }}"
+
+          # Use git diff to find changed files between the base and head branches
+          # Filter for added (A), copied (C), modified (M), renamed (R) files
+          # Only include .yaml, .yml, and .json extensions
+          CHANGED_CFN_FILES=$(git diff --name-only --diff-filter=ACMDR "$BASE_REF" "$HEAD_REF" | grep -E '\.(yaml|yml|json)$' | grep -E '(template|cloudformation|cfn|aws|sam)\.(yaml|yml|json)$' || true)
+
+          # Output the list of changed files for the next step
+          echo "Changed CloudFormation Files: $CHANGED_CFN_FILES"
+          echo "cfn_files=$CHANGED_CFN_FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Run cfn-lint on changed files
+        if: steps.changed-files.outputs.cfn_files != ''
+        run: |
+          # Read the list of changed files from the previous step's output
+          IFS=$'\n' read -d '' -r -a CFN_FILES <<< "${{ steps.changed-files.outputs.cfn_files }}"
+
+          # Iterate over each changed file and run cfn-lint
+          for file in "${CFN_FILES[@]}"; do
+            echo "Linting $file..."
+            cfn-lint "$file" || { echo "::error file=$file::cfn-lint found issues in $file"; EXIT_CODE=1; }
+          done
+
+          # Exit with an error code if any linting failed
+          if [ -n "$EXIT_CODE" ]; then
+            exit "$EXIT_CODE"
+          fi
+        shell: bash
