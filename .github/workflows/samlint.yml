@@ -3,7 +3,7 @@ name: CloudFormation Lint New
 on: [push]
 
 jobs:
-  lint:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
