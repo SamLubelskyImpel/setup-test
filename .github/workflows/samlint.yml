@@ -37,7 +37,7 @@ jobs:
             if [ -z "$BASE_COMMIT" ]; then
               # If no root commit found (very unlikely), check all files
               echo "No root commit found, checking all Python files."
-              FILES_TO_CHECK=$(find . -name "*.py" -print0 | xargs -0)
+              FILES_TO_CHECK=$(find . -name "template.yaml" -print0 | xargs -0)
             else
               echo "Comparing against root commit: $BASE_COMMIT"
               FILES_TO_CHECK=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}" -- 'template.yaml')
@@ -50,7 +50,7 @@ jobs:
           echo "Files to be checked by Ruff: $FILES_TO_CHECK"
   
           if [ -z "$FILES_TO_CHECK" ]; then
-            echo "No Python files changed or no files found for comparison, skipping Ruff check."
+            echo "No SAM Template files. Skipping linting check."
           else
             cfn-lint $FILES_TO_CHECK
           fi
