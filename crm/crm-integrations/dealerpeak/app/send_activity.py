@@ -1,16 +1,17 @@
 """Send activity to DealerPeak."""
 
-import boto3
 import logging
-from typing import Any
 from os import environ
+from typing import Any
+
+import boto3
+from api_wrappers import CRMApiError, CrmApiWrapper, DealerpeakApiWrapper
 from aws_lambda_powertools.utilities.batch import (
     BatchProcessor,
     EventType,
     process_partial_response,
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from api_wrappers import CrmApiWrapper, CRMApiError, DealerpeakApiWrapper
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
@@ -22,7 +23,7 @@ def record_handler(record: SQSRecord):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")
     activity = {}
-
+    logger.info("HELLO WORLD")
     try:
         body = record.json_body
         details = body.get("detail", {})
@@ -36,7 +37,9 @@ def record_handler(record: SQSRecord):
         if not activity:
             raise ValueError(f"Activity not found for ID: {details['activity_id']}")
 
-        dealer_peak_api = DealerpeakApiWrapper(activity=activity, salesperson=salesperson)
+        dealer_peak_api = DealerpeakApiWrapper(
+            activity=activity, salesperson=salesperson
+        )
 
         dealerpeak_task_id = dealer_peak_api.create_activity()
         logger.info(f"Dealerpeak responded with task ID: {dealerpeak_task_id}")
@@ -46,7 +49,9 @@ def record_handler(record: SQSRecord):
     except CRMApiError:
         return
     except Exception as e:
-        logger.exception(f"Failed to post activity {details['activity_id']} to Dealerpeak")
+        logger.exception(
+            f"Failed to post activity {details['activity_id']} to Dealerpeak"
+        )
         logger.error(
             f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
             f"IdpDealerId: {activity.get('idp_dealer_id', '')}\n"
@@ -68,7 +73,7 @@ def lambda_handler(event: Any, context: Any) -> Any:
             event=event,
             record_handler=record_handler,
             processor=processor,
-            context=context
+            context=context,
         )
         return result
 
