@@ -119,9 +119,13 @@ jobs:
         with:
           python-version: '3.x' # Use a recent Python version
 
-      - name: Install pytest
-        run: pip install pytest
-
+      - name: Install packages
+        run: |
+          pip install pytest
+          pip install moto
+          pip install aws-lambda-powertools
+          pip install coverage
+          
       - name: Run Pytest in ${{ matrix.stack_dir }}
         run: |
           set -euo pipefail # Ensure script exits on error
