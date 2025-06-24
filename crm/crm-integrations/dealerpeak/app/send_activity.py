@@ -15,7 +15,6 @@ from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = boto3.client("secretsmanager")
 
 
 def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
