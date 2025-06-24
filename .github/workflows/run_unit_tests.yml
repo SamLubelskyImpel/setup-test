@@ -25,33 +25,28 @@ jobs:
         id: get_changed_service_dirs
         run: |
           set -euxo pipefail # Keep this for detailed debugging output
-
           # Ensure full history is fetched for reliable diffing
           # This should be handled by `fetch-depth: 0` in actions/checkout, but is here as a safeguard.
           # The '|| true' handles cases where the ref might not be directly available for fetch, though with fetch-depth:0
           # and pull_request context, it should be fine.
           git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
           echo "Git fetch for base ref complete."
-
           # Get all changed files between the base branch and the PR head.
           # The '|| true' ensures the command itself doesn't fail the script if there's no diff,
           # or if the refs don't exist (though fetch-depth:0 should prevent the latter).
           # Redirect stderr to /dev/null to clean up error messages from git for non-existing refs.
           RAW_CHANGED_FILES=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || true)
-
           echo "--- Raw git diff output ---"
           echo "${RAW_CHANGED_FILES}"
           # The following line seems like a debug line, I'm commenting it out as it's redundant for the core logic.
           # echo $(git diff --name-only HEAD^ HEAD)
           echo "--- End raw git diff output ---"
-
           # Check if there are any files reported by git diff
           if [ -z "$RAW_CHANGED_FILES" ]; then
             echo "No file changes detected by git diff between ${{ github.base_ref }} and ${{ github.sha }}."
             echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array for matrix
             exit 0 # Exit successfully as there's nothing to deploy/test
           fi
-
           # Filter for .yaml files and get their unique parent directories
           # Use 'grep -E' for extended regex and '|| true' to prevent script failure if no .yaml files are matched.
           # Use 'while read' loop for robust line processing, especially with filenames containing spaces.
@@ -74,10 +69,8 @@ jobs:
           else
               UNIQUE_CHANGED_YAML_DIRS_ARRAY=()
           fi
-
           echo "Unique directories with changed .yaml files:"
           printf ' - %s\n' "${UNIQUE_CHANGED_YAML_DIRS_ARRAY[@]}"
-
           # Iterate through the identified directories and check for deploy.sh
           declare -a DEPLOY_DIRS # Declare a bash array
           for DIR in "${UNIQUE_CHANGED_YAML_DIRS_ARRAY[@]}"; do
@@ -88,7 +81,6 @@ jobs:
               echo "Skipping $DIR: .yaml changed but no deploy.sh found in the same directory. Not a microservice root for deployment."
             fi
           done
-
           # Format the array as a JSON string for GitHub Actions output
           if [ ${#DEPLOY_DIRS[@]} -eq 0 ]; then
             echo "No deployable service directories identified based on changes and deploy.sh presence."
