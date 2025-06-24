@@ -1,0 +1,160 @@
+name: Run Unit Tests
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize] # Trigger on new PRs, reopened PRs, or new commits to an open PR
+
+env:
+  AWS_REGION: us-east-1 # Set your default AWS region for the test environment
+  TEST_ENVIRONMENT_NAME: test # The exact environment name your deploy.sh expects for 'test'
+
+jobs:
+  # Job 1: Identify all changed service directories that can be deployed
+  identify-deployable-services:
+    runs-on: ubuntu-latest
+    outputs:
+      # Output a JSON array of directories to deploy, for the matrix strategy
+      stack_dirs: ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed service directories with deploy.sh and .yaml
+        id: get_changed_service_dirs
+        run: |
+          set -euxo pipefail # Keep this for detailed debugging output
+
+          # Ensure full history is fetched for reliable diffing
+          # This should be handled by `fetch-depth: 0` in actions/checkout, but is here as a safeguard.
+          # The '|| true' handles cases where the ref might not be directly available for fetch, though with fetch-depth:0
+          # and pull_request context, it should be fine.
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
+          echo "Git fetch for base ref complete."
+
+          # Get all changed files between the base branch and the PR head.
+          # The '|| true' ensures the command itself doesn't fail the script if there's no diff,
+          # or if the refs don't exist (though fetch-depth:0 should prevent the latter).
+          # Redirect stderr to /dev/null to clean up error messages from git for non-existing refs.
+          RAW_CHANGED_FILES=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || true)
+
+          echo "--- Raw git diff output ---"
+          echo "${RAW_CHANGED_FILES}"
+          # The following line seems like a debug line, I'm commenting it out as it's redundant for the core logic.
+          # echo $(git diff --name-only HEAD^ HEAD)
+          echo "--- End raw git diff output ---"
+
+          # Check if there are any files reported by git diff
+          if [ -z "$RAW_CHANGED_FILES" ]; then
+            echo "No file changes detected by git diff between ${{ github.base_ref }} and ${{ github.sha }}."
+            echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array for matrix
+            exit 0 # Exit successfully as there's nothing to deploy/test
+          fi
+
+          # Filter for .yaml files and get their unique parent directories
+          # Use 'grep -E' for extended regex and '|| true' to prevent script failure if no .yaml files are matched.
+          # Use 'while read' loop for robust line processing, especially with filenames containing spaces.
+          CHANGED_YAML_DIRS_RAW=""
+          while IFS= read -r line; do
+            # Check if the line ends with .yaml using bash globbing (simple and efficient)
+            if [[ "$line" == *.yaml ]]; then
+              # Add the directory name followed by a newline for later processing
+              CHANGED_YAML_DIRS_RAW+="$(dirname "$line")\n"
+            fi
+          done <<< "$RAW_CHANGED_FILES"
+          
+          # Remove duplicate directory names, remove empty lines, and convert newlines to spaces for iteration
+          # Using tr '\n' ' ' can be problematic if paths have spaces, better to use array
+          # Read into an array for safety with spaces
+          declare -a UNIQUE_CHANGED_YAML_DIRS
+          if [ -n "$CHANGED_YAML_DIRS_RAW" ]; then
+              # Using printf to correctly handle newlines into an array
+              IFS=$'\n' read -r -d '' -a UNIQUE_CHANGED_YAML_DIRS_ARRAY <<< "$(echo -e "$CHANGED_YAML_DIRS_RAW" | sort -u | sed '/^$/d')"
+          else
+              UNIQUE_CHANGED_YAML_DIRS_ARRAY=()
+          fi
+
+          echo "Unique directories with changed .yaml files:"
+          printf ' - %s\n' "${UNIQUE_CHANGED_YAML_DIRS_ARRAY[@]}"
+
+          # Iterate through the identified directories and check for deploy.sh
+          declare -a DEPLOY_DIRS # Declare a bash array
+          for DIR in "${UNIQUE_CHANGED_YAML_DIRS_ARRAY[@]}"; do
+            if [ -f "$DIR/deploy.sh" ]; then
+              DEPLOY_DIRS+=("$DIR")
+              echo "Found deployable service: $DIR (contains .yaml and deploy.sh)"
+            else
+              echo "Skipping $DIR: .yaml changed but no deploy.sh found in the same directory. Not a microservice root for deployment."
+            fi
+          done
+
+          # Format the array as a JSON string for GitHub Actions output
+          if [ ${#DEPLOY_DIRS[@]} -eq 0 ]; then
+            echo "No deployable service directories identified based on changes and deploy.sh presence."
+            echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array
+          else
+            # Convert bash array to JSON array string using jq
+            # printf '%s\n' "${DEPLOY_DIRS[@]}" outputs each element on a new line
+            # jq -R . reads each line as a raw string
+            # jq -cs . slurps all inputs into an array and then converts to JSON array
+            JSON_ARRAY=$(printf '%s\n' "${DEPLOY_DIRS[@]}" | jq -R . | jq -cs .)
+            echo "STACK_DIRS_TO_DEPLOY=$JSON_ARRAY" >> $GITHUB_OUTPUT
+            echo "Service directories to deploy: $JSON_ARRAY"
+          fi
+        shell: bash
+
+  # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
+  run-unit-tests:
+    needs: identify-deployable-services # This job depends on the output of the first job
+    if: ${{ toJson(needs.identify-deployable-services.outputs.stack_dirs) != '[]' }} # Only run if there are directories to test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false # Do not cancel other tests if one fails
+      matrix:
+        # The matrix will iterate over each directory path provided by the first job
+        stack_dir: ${{ fromJson(needs.identify-deployable-services.outputs.stack_dirs) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Ensure full history for testing context
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # Use a recent Python version
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run Pytest in ${{ matrix.stack_dir }}
+        run: |
+          set -euo pipefail # Ensure script exits on error
+
+          # Change to the microservice directory identified by the matrix
+          echo "Changing directory to: ${{ matrix.stack_dir }}"
+          cd "${{ matrix.stack_dir }}"
+
+          echo "Running pytest in $(pwd)..."
+          # Run pytest. You might want to add specific options here, e.g., discovery options.
+          # -k "not integration" example to skip integration tests if they are slow/require external services.
+          # --cache-clear to ensure clean runs.
+          # Using `set +e` to allow pytest to fail without immediately failing the step,
+          # so we can report its specific exit code.
+          set +e
+          pytest_output=$(pytest --cache-clear 2>&1) # Capture output and stderr
+          pytest_exit_code=$?
+          set -e # Re-enable exit on error
+
+          echo "$pytest_output" # Print pytest output
+
+          if [ $pytest_exit_code -ne 0 ]; then
+            echo "Pytest FAILED for ${{ matrix.stack_dir }}. Exit code: $pytest_exit_code"
+            exit 1 # Fail the GitHub Actions step
+          else
+            echo "Pytest PASSED for ${{ matrix.stack_dir }}."
+          fi
+        shell: bash # Explicitly use bash for this step
