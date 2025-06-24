@@ -118,6 +118,15 @@ jobs:
           pip install aws-lambda-powertools
           pip install coverage
           pip install boto3 
+      - name: Setup AWS Config
+        run: |
+          mkdir -p ~/.aws
+          printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" \
+                 "${{ secrets.AWS_ACCESS_KEY_ID }}" \
+                 "${{ secrets.AWS_SECRET_ACCESS_KEY }}" > ~/.aws/credentials
+          printf "[default]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
+               "${{ secrets.AWS_REGION }}" \
+               "${{ secrets.ROLE_ARN }}" > ~/.aws/config
       - name: Run Pytest in ${{ matrix.stack_dir }}
         run: |
           set -euo pipefail # Ensure script exits on error
