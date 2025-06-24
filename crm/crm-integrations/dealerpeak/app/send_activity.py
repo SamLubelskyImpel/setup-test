@@ -16,10 +16,9 @@ from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
-crm_api = CrmApiWrapper()
 
 
-def record_handler(record: SQSRecord):
+def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")
     activity = {}
@@ -66,12 +65,12 @@ def record_handler(record: SQSRecord):
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create activity on DealerPeak."""
     logger.info(f"Event: {event}")
-
+    crm_api = CrmApiWrapper()
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
             event=event,
-            record_handler=record_handler,
+            record_handler=lambda record: record_handler(record, crm_api),
             processor=processor,
             context=context,
         )

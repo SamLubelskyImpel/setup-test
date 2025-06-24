@@ -1,0 +1,56 @@
+Team Lambda Test Configuration Template for CRM Integrations (v1.0)===========================================Purpose: Use this template as a comprehensive guide for writing the configuration file for the testing environment we will use across several different test files. The primary goal of this file is to mock environment variables and common fixtures that will be reused by all of our test files. Key Reminder: Replace all instances of [Partner] with the specific partner name or system identifier relevant to the integration being tested.Core Testing Guidelines: Framework: Utilize pytest as the primary testing framework. AWS Service Mocking: Use moto for mocking AWS services (e.g., S3, SecretsManager, SQS) For this file, focus on mocking AWS services that are commonly used across multiple files in the main source code directory. If a service is used only once, it is acceptable to leave it and assume it will be mocked in its respective test file. Fixtures: Prefer pytest fixtures for reusable test data, mock setups, and managing resources. Clearly define fixture scopes (function, module, session) as appropriate. Type Hinting: Use Python type hints for better code clarity and maintainability. Environment Variables: Initialize environment variables required by the Lambda function. Add the app directory to the search path. Recommended File Structure: tests/
+└── conftest.py
+The file should generally follow this internal structure: Module Docstring: Overview of the configuration file's purpose. Imports: Standard library imports (e.g., sys, os, pathlib).  Third-party imports (e.g., pytest, unittest.mock, moto). Path Adjustment: Any expressions needed to add relevant code to the search path. Constants & Global Test Data (if any):Define any environment variables, widely used constants, or simple shared test data. Fixtures (@pytest.fixture): Mocked APIs and AWS service clients.
+
+""" (Illustrative) Environment variables and AWS Clients will generally look like this:
+# Environment variables - these are typically near the beginning of the file, after the import statements
+ENVIRONMENT = environ.get("ENVIRONMENT")    
+SECRET_KEY = environ.get("SECRET_KEY")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+
+# AWS clients Note:While mostly these are declared at the top of the file, on some occassions they are declared within functions as well
+sm_client = boto3.client('secretsmanager')  # Depending on how this was imported, it may be just "client('secretsmanager')"
+s3_client = boto3.client("s3")
+"""
+
+"""Configure pytest for the [Partner] integration tests."""
+
+import sys
+from pathlib import Path
+from os import environ
+import pytest
+from moto import mock_aws
+import boto3
+
+# Get the absolute path to the app directory
+app_path = str(Path(__file__).parent.parent / 'app')
+
+# Add the app directory to Python path
+sys.path.insert(0, app_path)
+
+# Environment variables Note:Not all of these may be present for a given integration, and some not listed here may be included as well. 
+environ["ENVIRONMENT"] = "test" # Should always be "test"
+environ["CRM_API_DOMAIN"] = "api.test.crm.com"  # Internal API URL
+environ["UPLOAD_SECRET_KEY"] = "impel"  # Used by AWS secrets manager to extract
+environ["LOGLEVEL"] = "INFO"    # Used to configure the logger
+environ["INTEGRATIONS_BUCKET"] = "test-bucket-name" # Used to fetch objects from AWS s3
+environ["SECRET_KEY"] = "[PARTNER]" # Used by AWS secrets manager to extract external API key
+environ["[PARTNER]_API_DOMAIN"] = "api.test.[Partner].com"  # External API Url for the Partner
+environ["SNS_TOPIC_ARN"] = "arn:aws:sns:us-east-1:123456789012:test_alert_topic"    # Used to send alert emails to relevant stakeholders
+environ["REPORTING_TOPIC_ARN"] = "arn:aws:sns:us-east-1:123456789012:test-crm-reporting-topic"  # Used for certain monitoring purposes. Rarely needed 
+
+
+# AWS Services
+@pytest.fixture
+def s3_client():
+    """Create a mocked S3 client."""
+    with mock_aws():
+        yield boto3.client("s3", region_name="us-east-1")
+
+
+@pytest.fixture
+def secretsmanager_client():
+    """Create a mocked Secrets Manager client."""
+    with mock_aws():
+        yield boto3.client("secretsmanager", region_name="us-east-1")

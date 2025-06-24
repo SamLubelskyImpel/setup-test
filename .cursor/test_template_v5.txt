@@ -1,0 +1,709 @@
+Team Lambda Test Template for New Lead Lambdas (v3.2)===========================================Purpose: Use this template as a comprehensive guide for writing robust tests for AWS Lambda functions, particularly those processing new leads from various partner systems.Key Reminder: Replace all instances of [Partner] with the specific partner name or system identifier relevant to the Lambda function being tested.Core Testing GuidelinesFramework: Utilize pytest as the primary testing framework.Mocking Dependencies: Employ unittest.mock (or pytest-mock) for mocking external dependencies, API wrappers, or services not covered by moto.AWS Service Mocking: Use moto for mocking AWS services (e.g., S3, SecretsManager, SQS).Logging Verification: Leverage caplog (a pytest fixture) to assert log messages, levels, and contextual information.Fixtures: Prefer pytest fixtures for reusable test data, mock setups, and managing resources. Clearly define fixture scopes (function, module, session) as appropriate.Test Case Granularity: Ensure clear separation of test cases for:Success scenarios (happy paths)Edge cases (boundary conditions, optional data)Failure/Error scenarios (invalid inputs, service failures)Type Hinting: Use Python type hints for better code clarity and maintainability.Environment Variables: Use pytest's monkeypatch fixture to mock or set environment variables required by the Lambda function.Parameterization: Use pytest.mark.parametrize to efficiently test functions with multiple input-output combinations.Recommended File Structuretests/
+└── test_lambda_[partner_name].py
+Each test file should generally follow this internal structure:Module Docstring:Overview of the test suite's purpose.List of key aspects or components being tested.Brief note on the organization of test cases within the file.Imports:Standard library imports (e.g., json, logging, datetime).Third-party imports (e.g., pytest, unittest.mock, moto).Local application module imports (e.g., the Lambda handler and its helper functions).Constants & Global Test Data (if any):Define any widely used constants or simple, shared test data.Fixtures (@pytest.fixture):Mocked event data (e.g., S3 event, SQS message).Mocked responses from external services or AWS services.Reusable test data representing various lead scenarios.Configuration data mocks.Test Classes/Functions:Organize tests into classes (e.g., TestSuccessCases, TestEdgeCases, TestErrorHandling) or directly as test functions prefixed with test_.Success Cases: Verify correct behavior with valid inputs.Edge Cases: Test boundary conditions, optional fields, and unusual (but valid) inputs.Error Cases: Validate error handling, exception raising, and failure logging for invalid inputs or simulated service failures.Integration-style Tests: Test the main Lambda handler's workflow, integrating several components (often with extensive mocking).Example Test Structure (Illustrative)"""Test suite for the [Partner] data transformation lambda.
+
+This test suite covers the following aspects of the [Partner] lead transformation:
+1.  Parsing and transformation of [Partner]-specific data to a unified format.
+2.  Extraction and formatting of contact information.
+3.  Validation of incoming lead data against a defined schema/rules.
+4.  Integration with downstream services (e.g., CRM API, internal databases).
+5.  Error handling for invalid data and service failures.
+6.  End-to-end lambda execution flow.
+
+Tests are organized into fixtures, and then grouped by test type (Success, Edge, Error, Integration).
+"""
+
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Generator
+from unittest.mock import patch, MagicMock, call
+
+import pytest
+from moto import mock_aws # Updated import for moto 4.x+
+
+# Assuming your lambda code is in a module, e.g., 'src.lambda_function'
+# from src.lambda_function import (
+#     lambda_handler,
+#     record_handler,
+#     parse_json_to_entries,
+#     extract_contact_information,
+#     format_ts,
+#     upload_consumer_to_db,
+#     upload_lead_to_db,
+#     get_secret_value,
+#     validate_lead_data # Ensure this is properly defined and imported
+# )
+
+# --- Placeholder for actual lambda functions (for template illustration) ---
+# Replace these with your actual imports and functions.
+# Note: The placeholder functions below are simplified for brevity.
+# Your actual functions will have more complex logic.
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    logging.info("Lambda handler invoked")
+    # In a real Lambda, secret_name would often come from an environment variable
+    secret_name = "prod/crm/apikey" 
+    # api_key = os.environ.get("API_KEY_SECRET_NAME")
+
+    if not event.get("Records"):
+        logging.error("No records found in SQS event")
+        raise ValueError("Missing 'Records' in SQS event")
+    
+    # Initialize boto3 clients (moto will patch these in tests)
+    # s3_boto_client = boto3.client('s3')
+    # sm_boto_client = boto3.client('secretsmanager')
+    # For placeholder, we'll use MagicMocks that would be replaced by actual boto3 clients
+    s3_boto_client = MagicMock() 
+    sm_boto_client = MagicMock()
+
+    try:
+        api_config = get_secret_value(secret_name, client=sm_boto_client)
+        api_key = api_config.get("api_key")
+        if not api_key:
+            logging.error(f"API key not found in secret: {secret_name}")
+            # Depending on requirements, might raise error or use a default/limited mode
+            raise ValueError(f"API key missing in secret {secret_name}")
+        logging.info(f"Secret Manager: Successfully retrieved and parsed secret {secret_name}")
+    except Exception as e:
+        logging.error(f"Failed to retrieve or parse secret {secret_name}: {e}")
+        raise # Re-raise critical error
+
+    processed_results = []
+    for sqs_record in event["Records"]:
+        try:
+            s3_event_notification_str = sqs_record.get("body")
+            if not s3_event_notification_str:
+                logging.warning(f"SQS message {sqs_record.get('messageId')} has empty body.")
+                continue
+            
+            s3_event_notification = json.loads(s3_event_notification_str)
+            
+            if not s3_event_notification.get("Records"):
+                logging.warning(f"SQS message {sqs_record.get('messageId')} body does not contain S3 event Records.")
+                continue
+
+            for s3_record in s3_event_notification["Records"]:
+                s3_details = s3_record.get("s3", {})
+                bucket_name = s3_details.get("bucket", {}).get("name")
+                object_key = s3_details.get("object", {}).get("key")
+
+                if not bucket_name or not object_key:
+                    logging.error(f"Missing bucket name or object key in S3 event: {s3_record}")
+                    continue
+                
+                logging.info(f"Processing S3 object: s3://{bucket_name}/{object_key}")
+                
+                try:
+                    # In real code: response = s3_boto_client.get_object(Bucket=bucket_name, Key=object_key)
+                    response = s3_boto_client.get_object(Bucket=bucket_name, Key=object_key) # Using placeholder
+                    s3_data_content_bytes = response['Body'].read()
+                    s3_data_content_str = s3_data_content_bytes.decode('utf-8')
+                    partner_leads_data = json.loads(s3_data_content_str)
+                except Exception as e:
+                    logging.error(f"Failed to get or parse S3 object s3://{bucket_name}/{object_key}: {e}")
+                    continue 
+                
+                for lead_data in partner_leads_data:
+                    lead_id = lead_data.get('id', 'UnknownID')
+                    try:
+                        validate_lead_data(lead_data) # Validate before further processing
+                        record_handler(lead_data, api_key) 
+                        logging.info(f"Successfully processed lead ID: {lead_id}")
+                        processed_results.append({"id": lead_id, "status": "success"})
+                    except ValueError as ve: # Catch validation errors
+                        logging.error(f"Validation error for lead {lead_id}: {ve}")
+                        processed_results.append({"id": lead_id, "status": "validation_failed", "error": str(ve)})
+                    except Exception as ex: # Catch other processing errors
+                        logging.error(f"Error processing lead {lead_id}: {ex}")
+                        processed_results.append({"id": lead_id, "status": "processing_error", "error": str(ex)})
+        except json.JSONDecodeError as je:
+            logging.error(f"Failed to parse SQS message body as JSON: {sqs_record.get('messageId')}, error: {je}")
+        except Exception as e_sqs:
+            logging.error(f"Generic error processing SQS message {sqs_record.get('messageId')}: {e_sqs}")
+
+
+    logging.info(f"Lambda handler completed. Processed results: {len(processed_results)}")
+    return {"statusCode": 200, "body": json.dumps({"message": "Processing complete", "results": processed_results})}
+
+def record_handler(lead_data: Dict[str, Any], api_key: str) -> None:
+    lead_id = lead_data.get('id', 'UnknownID')
+    logging.info(f"Handling record for lead ID: {lead_id}")
+    transformed_contact = extract_contact_information(lead_data)
+    # In a real app, these would make actual HTTP requests
+    upload_consumer_to_db(transformed_contact, api_key=api_key) 
+    upload_lead_to_db(lead_data, api_key=api_key)
+
+def parse_json_to_entries(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # This function might be more complex, e.g., handling different root structures
+    return data 
+
+def extract_contact_information(lead_data: Dict[str, Any]) -> Dict[str, Any]:
+    contact_info = {}
+    customer_details = lead_data.get("customer_details", {}) # Safely get nested dict
+    contact_info["email"] = customer_details.get("email_address", "unknown@example.com")
+    contact_info["original_id"] = lead_data.get("id")
+    contact_info["full_name"] = f"{customer_details.get('firstName', '')} {customer_details.get('lastName', '')}".strip()
+    return contact_info
+
+def format_ts(timestamp_str: str, input_format: str = "%Y-%m-%d %H:%M:%S") -> str:
+    if not timestamp_str:
+        return ""
+    try:
+        dt_obj = datetime.strptime(timestamp_str, input_format)
+        # Ensure timezone-aware UTC timestamp
+        return dt_obj.replace(tzinfo=timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+    except ValueError as e:
+        logging.warning(f"Could not parse timestamp: '{timestamp_str}' with format '{input_format}'. Error: {e}")
+        return "" # Or re-raise, or return original string, based on requirements
+
+def upload_consumer_to_db(consumer_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+    logging.info(f"Uploading consumer data for email: {consumer_data.get('email')} using API key prefix: {api_key[:5]}...")
+    # import requests # Real import at top of file
+    # response = requests.post("[https://crm.example.com/consumers](https://crm.example.com/consumers)", json=consumer_data, headers={"X-API-Key": api_key})
+    # response.raise_for_status() # This will raise an HTTPError for 4xx/5xx responses
+    # return response.json()
+    return {"status": "success_mocked", "consumer_id": "cons_mock_123"} # Mocked response
+
+def upload_lead_to_db(lead_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+    logging.info(f"Uploading lead data for ID: {lead_data.get('id')} using API key prefix: {api_key[:5]}...")
+    # import requests # Real import at top of file
+    # response = requests.post("[https://crm.example.com/leads](https://crm.example.com/leads)", json=lead_data, headers={"X-API-Key": api_key})
+    # response.raise_for_status()
+    # return response.json()
+    return {"status": "success_mocked", "lead_id": "lead_mock_abc"} # Mocked response
+
+def get_secret_value(secret_name: str, client: Any = None) -> Dict[str, Any]:
+    # In real code, client would be boto3.client('secretsmanager')
+    # The 'client' param allows easy injection of a mock during tests.
+    # actual_client = client if client else boto3.client("secretsmanager") # Moto would patch boto3.client
+    actual_client = client # For placeholder, assume client is provided or is a MagicMock
+    if not actual_client: 
+        raise NotImplementedError("SecretsManager client not provided for get_secret_value")
+
+    # Simulate what boto3 client would do
+    # response = actual_client.get_secret_value(SecretId=secret_name)
+    response = actual_client.get_secret_value(SecretId=secret_name) # Using placeholder
+    secret_string = response['SecretString']
+    
+    try:
+        parsed_outer_secret = json.loads(secret_string)
+        # Handle common pattern of a doubly-JSON-encoded secret string under a specific key
+        if isinstance(parsed_outer_secret, dict) and "impel" in parsed_outer_secret \
+           and isinstance(parsed_outer_secret["impel"], str):
+            inner_secret_str = parsed_outer_secret["impel"]
+            try:
+                return json.loads(inner_secret_str) # This is the actual config dict
+            except json.JSONDecodeError as e_inner:
+                logging.error(f"Inner secret string for key 'impel' in '{secret_name}' is not valid JSON: {e_inner}")
+                raise ValueError(f"Invalid inner secret format for 'impel' in {secret_name}")
+        return parsed_outer_secret # If not the "impel" pattern, return the parsed outer JSON
+    except json.JSONDecodeError as e_outer:
+        # If the entire secret_string is not JSON, it might be a plain API key or other simple string.
+        # Adapt this based on how your secrets are actually stored.
+        logging.warning(f"Secret '{secret_name}' content is not JSON. Error: {e_outer}. Returning as plain string under 'api_key'.")
+        return {"api_key": secret_string} 
+
+def validate_lead_data(lead_data: Dict[str, Any]) -> None:
+    """Validates the structure and required fields of a lead data dictionary.
+    Raises ValueError if validation fails.
+    """
+    required_top_level_fields = ["id", "customer_details"]
+    for field in required_top_level_fields:
+        if field not in lead_data:
+            raise ValueError(f"Missing required top-level field: '{field}'")
+        if not lead_data[field] and field != "optional_field_that_can_be_empty": # Allow some fields to be empty if needed
+             raise ValueError(f"Required top-level field '{field}' must not be empty.")
+
+
+    customer_details = lead_data.get("customer_details")
+    if not isinstance(customer_details, dict):
+        raise ValueError("'customer_details' must be a dictionary.")
+
+    required_customer_fields = ["email_address"] # "firstName", "lastName" could also be required
+    for field in required_customer_fields:
+        if field not in customer_details:
+            raise ValueError(f"Missing required field in customer_details: '{field}'")
+        if not customer_details[field]: # Check for empty string, None, etc.
+            raise ValueError(f"Required field in customer_details '{field}' must not be empty.")
+
+    # Example: Validate email format (very basic)
+    email = customer_details.get("email_address", "")
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise ValueError(f"Invalid email format for email_address: '{email}'")
+    
+    logging.debug(f"Lead data for ID '{lead_data.get('id')}' passed validation.")
+
+# --- End of Placeholder lambda functions ---
+
+
+# Fixtures
+@pytest.fixture
+def mock_sqs_s3_event() -> Dict[str, Any]:
+    """Mock SQS event containing an S3 event notification in its body."""
+    s3_event_notification = { 
+        "Records": [ 
+            {
+                "eventVersion": "2.1", "eventSource": "aws:s3", "awsRegion": "us-east-1",
+                "eventTime": "2023-01-01T00:00:00.000Z", "eventName": "ObjectCreated:Put",
+                "s3": {
+                    "s3SchemaVersion": "1.0", "configurationId": "testConfigRule",
+                    "bucket": {"name": "test-bucket-leads", "arn": "arn:aws:s3:::test-bucket-leads"},
+                    "object": {"key": "[Partner]/test_lead_file_123.json", "size": 1024}
+                }
+            }
+        ]
+    }
+    return { 
+        "Records": [
+            {
+                "messageId": "059f36b4-87a3-44ab-83d2-661975830a7d",
+                "receiptHandle": "AQEBwJnKyrHigUMZj6rYigCgxlaS3SLy0a...",
+                "body": json.dumps(s3_event_notification), 
+                "attributes": {"ApproximateReceiveCount": "1", "SentTimestamp": "1545082649183"},
+                "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+            }
+        ]
+    }
+
+@pytest.fixture
+def mock_partner_lead_data_raw() -> List[Dict[str, Any]]:
+    """Mock raw lead data content as it would be in an S3 JSON file from [Partner]."""
+    return [
+        {
+            "id": "LEAD_001", "creation_date_partner": "2023-05-15 10:30:00",
+            "source_system": "[Partner]", "status_code": "NEW",
+            "customer_details": {
+                "firstName": "John", "lastName": "Doe",
+                "email_address": "john.doe@example.com", "phone_mobile": "555-123-4567"
+            },
+            "vehicle_of_interest": {"vin": "123ABC456DEF789G", "make_name": "TestMake"},
+            "optional_field": "some_value"
+        },
+        {
+            "id": "LEAD_002", "creation_date_partner": "2023-05-16 11:00:00",
+            "source_system": "[Partner]", "status_code": "CONTACTED",
+            "customer_details": {"firstName": "Alice", "lastName": "Wonder", "email_address": "alice.wonder@example.com"},
+        }
+    ]
+
+@pytest.fixture
+def mock_valid_partner_lead_data_single() -> Dict[str, Any]:
+    """A single valid lead data item for simpler tests."""
+    return {
+        "id": "LEAD_VALID_001", "creation_date_partner": "2023-05-15 10:30:00",
+        "source_system": "[Partner]", "status_code": "NEW",
+        "customer_details": {
+            "firstName": "Valid", "lastName": "Lead",
+            "email_address": "valid.lead@example.com", "phone_mobile": "555-000-0000"
+        }
+    }
+
+@pytest.fixture
+def mock_malformed_lead_data_missing_id() -> Dict[str, Any]:
+    """A lead data item that is missing a required 'id' field."""
+    return {
+        # "id": "MALFORMED_LEAD_001", # ID is missing
+        "creation_date_partner": "2023-05-17 12:00:00",
+        "source_system": "[Partner]",
+        "customer_details": {
+            "firstName": "Malformed", "lastName": "Data",
+            "email_address": "malformed@example.com"
+        }
+    }
+
+@pytest.fixture
+def mock_malformed_lead_data_invalid_email() -> Dict[str, Any]:
+    """A lead data item with an invalid email format."""
+    return {
+        "id": "MALFORMED_LEAD_002",
+        "creation_date_partner": "2023-05-18 13:00:00",
+        "source_system": "[Partner]",
+        "customer_details": {
+            "firstName": "Bad", "lastName": "Email",
+            "email_address": "bademailformat" # Invalid email
+        }
+    }
+
+
+@pytest.fixture
+def mock_secrets_manager_response() -> Dict[str, str]:
+    """Mock Secrets Manager `get_secret_value` response."""
+    inner_secret_payload = json.dumps({
+        "api_key": "test-api-key-12345",
+        "api_endpoint": "[https://api.crm.example.com/v1](https://api.crm.example.com/v1)"
+    })
+    outer_secret_payload = json.dumps({
+        "impel": inner_secret_payload, 
+        "other_config": "some_value"
+    })
+    return {"SecretString": outer_secret_payload}
+
+@pytest.fixture
+def mock_api_responses() -> Dict[str, MagicMock]:
+    """Mock responses for external API calls (e.g., CRM)."""
+    consumer_response = MagicMock(spec=["status_code", "json", "raise_for_status"]) 
+    consumer_response.status_code = 201
+    consumer_response.json.return_value = {"consumer_id": "cons_xyz789", "status": "created"}
+
+    lead_response = MagicMock(spec=["status_code", "json", "raise_for_status"])
+    lead_response.status_code = 201
+    lead_response.json.return_value = {"lead_id": "lead_uvw456", "status": "created"}
+    
+    return {"upload_consumer": consumer_response, "upload_lead": lead_response}
+
+@pytest.fixture
+def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mocks essential environment variables."""
+    monkeypatch.setenv("CRM_API_SECRET_NAME", "prod/crm/apikey")
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("TARGET_SQS_QUEUE_URL", "[https://sqs.us-east-1.amazonaws.com/123456789012/MyTargetQueue](https://sqs.us-east-1.amazonaws.com/123456789012/MyTargetQueue)")
+
+# Test Cases
+class TestSuccessCases:
+    def test_format_ts_valid(self) -> None:
+        partner_ts = "2023-04-01 14:30:15"
+        expected_iso_ts = "2023-04-01T14:30:15.000Z"
+        assert format_ts(partner_ts, input_format="%Y-%m-%d %H:%M:%S") == expected_iso_ts
+
+    def test_extract_contact_information_full(self, mock_partner_lead_data_raw: List[Dict[str, Any]]) -> None:
+        lead_input = mock_partner_lead_data_raw[0]
+        expected_contact = {
+            "email": "john.doe@example.com", "original_id": "LEAD_001", "full_name": "John Doe"
+        }
+        result = extract_contact_information(lead_input)
+        assert result == expected_contact # Compare whole dict for simplicity here
+
+    @pytest.mark.parametrize("input_ts, input_fmt, expected_output", [
+        ("2024-01-15 08:00:00", "%Y-%m-%d %H:%M:%S", "2024-01-15T08:00:00.000Z"),
+        ("03/20/2024 10:20:30 PM", "%m/%d/%Y %I:%M:%S %p", "2024-03-20T22:20:30.000Z"),
+        (None, "%Y-%m-%d", ""), ("01/01/2023", "%d/%m/%Y", "2023-01-01T00:00:00.000Z"),
+    ])
+    def test_format_ts_parametrized(self, input_ts: str, input_fmt:str, expected_output: str) -> None:
+        assert format_ts(input_ts, input_format=input_fmt) == expected_output
+
+    def test_validate_lead_data_success(self, mock_valid_partner_lead_data_single: Dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+        """Test successful validation of lead data."""
+        with caplog.at_level(logging.DEBUG):
+            try:
+                validate_lead_data(mock_valid_partner_lead_data_single)
+            except ValueError as e:
+                pytest.fail(f"validate_lead_data raised ValueError unexpectedly for valid data: {e}")
+        assert f"Lead data for ID '{mock_valid_partner_lead_data_single['id']}' passed validation." in caplog.text
+
+
+class TestEdgeCases:
+    def test_extract_contact_information_missing_details(self, mock_partner_lead_data_raw: List[Dict[str, Any]]) -> None:
+        lead_input = mock_partner_lead_data_raw[1] 
+        expected_contact = {
+            "email": "alice.wonder@example.com", "original_id": "LEAD_002", "full_name": "Alice Wonder"
+        }
+        result = extract_contact_information(lead_input)
+        assert result == expected_contact
+        
+    def test_extract_contact_information_empty_customer_details(self) -> None:
+        lead_input = {"id": "LEAD_003", "customer_details": {}} # customer_details is empty dict
+        expected_contact = {"email": "unknown@example.com", "original_id": "LEAD_003", "full_name": ""}
+        result = extract_contact_information(lead_input)
+        assert result == expected_contact
+
+    def test_format_ts_invalid_format_string(self, caplog: pytest.LogCaptureFixture) -> None:
+        partner_ts = "2023-30-01 14:30:15" # Invalid date (day 30 in month 30 does not exist)
+        with caplog.at_level(logging.WARNING):
+            result = format_ts(partner_ts, input_format="%Y-%m-%d %H:%M:%S")
+        assert result == "" 
+        assert "Could not parse timestamp" in caplog.text
+        
+    def test_parse_json_to_entries_empty_input(self) -> None:
+        assert parse_json_to_entries([]) == []
+
+class TestErrorHandlingAndValidation: # Renamed for clarity
+    # Path to where 'requests' module is imported and used in your actual lambda code
+    # e.g. @patch("src.lambda_function.requests.post") 
+    @patch("src.lambda_function.upload_consumer_to_db") # Patching the function directly for this unit test
+    @patch("src.lambda_function.upload_lead_to_db")
+    def test_record_handler_api_error(
+        self, 
+        mock_upload_lead: MagicMock, 
+        mock_upload_consumer: MagicMock,
+        mock_valid_partner_lead_data_single: Dict[str, Any],
+        caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test record_handler when a downstream API call fails."""
+        mock_upload_consumer.side_effect = Exception("CRM API Unreachable") # Simulate requests.exceptions.RequestException or similar
+        
+        with caplog.at_level(logging.ERROR):
+            # record_handler itself might not raise, but lambda_handler would log the error from it
+            # For this unit test, we assume record_handler might raise or log then continue
+            # Depending on its design, you might wrap with pytest.raises or check logs
+            # Let's assume record_handler logs and does not re-raise for this example
+            # If it re-raises: with pytest.raises(Exception, match="CRM API Unreachable"):
+            record_handler(mock_valid_partner_lead_data_single, api_key="fake_key")
+        
+        assert mock_upload_consumer.call_count == 1
+        # The lambda_handler's loop would log this if record_handler re-raises
+        # For a unit test of record_handler, if it catches and logs:
+        # assert f"Error processing lead {mock_valid_partner_lead_data_single['id']}" in caplog.text
+        # assert "CRM API Unreachable" in caplog.text
+        # If record_handler does not catch, then this test would need to be on lambda_handler
+        # or use pytest.raises as shown above.
+        # For this template, we'll assume the main lambda_handler catches and logs errors from record_handler.
+        # So, this test primarily ensures the mock was called. More detailed error logging
+        # would be checked in the lambda_handler integration test.
+
+
+    def test_lambda_handler_sqs_event_no_records(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test lambda_handler when the SQS event itself has no 'Records' key."""
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(ValueError, match="Missing 'Records' in SQS event"):
+                lambda_handler({}, MagicMock()) 
+        assert "No records found in SQS event" in caplog.text
+
+    def test_validate_lead_data_missing_required_top_level_field(self, mock_malformed_lead_data_missing_id: Dict[str, Any]) -> None:
+        """Test validation failure for missing a required top-level field like 'id'."""
+        with pytest.raises(ValueError, match="Missing required top-level field: 'id'"):
+            validate_lead_data(mock_malformed_lead_data_missing_id)
+
+    def test_validate_lead_data_missing_required_customer_field(self) -> None:
+        """Test validation failure for missing a required field within 'customer_details'."""
+        lead_data = {
+            "id": "LEAD_004",
+            "customer_details": {"firstName": "Test"} # Missing email_address
+        }
+        with pytest.raises(ValueError, match="Missing required field in customer_details: 'email_address'"):
+            validate_lead_data(lead_data)
+            
+    def test_validate_lead_data_invalid_email_format(self, mock_malformed_lead_data_invalid_email: Dict[str, Any]) -> None:
+        """Test validation failure for an invalid email format."""
+        with pytest.raises(ValueError, match="Invalid email format for email_address: 'bademailformat'"):
+            validate_lead_data(mock_malformed_lead_data_invalid_email)
+
+    def test_get_secret_value_invalid_inner_json(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test get_secret_value when the inner secret (under 'impel') is not valid JSON."""
+        mock_sm_client = MagicMock()
+        bad_inner_secret = "this-is-not-json"
+        outer_secret_payload = json.dumps({"impel": bad_inner_secret})
+        mock_sm_client.get_secret_value.return_value = {"SecretString": outer_secret_payload}
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(ValueError, match="Invalid inner secret format for 'impel'"):
+                get_secret_value("test_secret", client=mock_sm_client)
+        
+        assert "Inner secret string for key 'impel' in 'test_secret' is not valid JSON" in caplog.text
+
+
+@mock_aws 
+class TestIntegration:
+    # Patch where 'requests.post' is used in your actual lambda code (e.g. src.lambda_function.requests.post)
+    # For the placeholder functions, they don't directly use 'requests.post' but call helpers.
+    # So, we mock the helper functions that would make the HTTP calls.
+    @patch("src.lambda_function.upload_consumer_to_db") 
+    @patch("src.lambda_function.upload_lead_to_db")
+    def test_lambda_handler_successful_flow(
+        self, mock_upload_lead_db: MagicMock, mock_upload_consumer_db: MagicMock,
+        mock_sqs_s3_event: Dict[str, Any], mock_partner_lead_data_raw: List[Dict[str, Any]],
+        mock_secrets_manager_response: Dict[str, str], 
+        mock_env_vars: None, caplog: pytest.LogCaptureFixture,
+        s3_client, secretsmanager_client # Moto-provided clients
+    ) -> None:
+        caplog.set_level(logging.INFO)
+
+        # 1. Setup S3
+        s3_event_body = json.loads(mock_sqs_s3_event["Records"][0]["body"])
+        # Assuming the S3 event notification structure is correct and has Records[0].s3
+        s3_details = s3_event_body["Records"][0]["s3"]
+        bucket_name = s3_details["bucket"]["name"]
+        object_key = s3_details["object"]["key"]
+        s3_client.create_bucket(Bucket=bucket_name) # Ensure bucket exists
+        s3_client.put_object(
+            Bucket=bucket_name, Key=object_key,
+            Body=json.dumps(mock_partner_lead_data_raw).encode('utf-8')
+        )
+
+        # 2. Setup Secrets Manager
+        secret_name = "prod/crm/apikey" # As set in mock_env_vars and used in lambda_handler
+        secretsmanager_client.create_secret(
+            Name=secret_name, SecretString=mock_secrets_manager_response["SecretString"]
+        )
+        
+        # 3. Setup mocks for DB upload functions (which would internally make HTTP calls)
+        # These mocks will be called by record_handler
+        mock_upload_consumer_db.return_value = {"consumer_id": "cons_int_test", "status": "created"}
+        mock_upload_lead_db.return_value = {"lead_id": "lead_int_test", "status": "created"}
+
+        # --- Execute Lambda Handler ---
+        # This test assumes that your lambda_handler and get_secret_value are structured
+        # to use boto3.client() internally, which moto will then patch.
+        # The placeholder lambda_handler has been updated to reflect this pattern more closely.
+        # For the s3_client.get_object call inside lambda_handler, if it uses a boto3 client,
+        # moto will handle it.
+        # We need to ensure the placeholder lambda_handler's internal s3_client and sm_client
+        # are patched to use the moto clients for this integration test.
+        with patch("src.lambda_function.boto3.client") as mock_boto_client:
+            # Configure the mock_boto_client to return the moto clients
+            def boto_client_side_effect(service_name, *args, **kwargs):
+                if service_name == 's3':
+                    return s3_client
+                elif service_name == 'secretsmanager':
+                    return secretsmanager_client
+                return MagicMock() # Default for other services if any
+            mock_boto_client.side_effect = boto_client_side_effect
+            
+            response = lambda_handler(mock_sqs_s3_event, MagicMock())
+
+
+        # --- Assertions ---
+        assert response["statusCode"] == 200
+        response_body = json.loads(response["body"])
+        assert response_body["message"] == "Processing complete"
+        assert len(response_body["results"]) == len(mock_partner_lead_data_raw) # All processed
+
+        assert f"Processing S3 object: s3://{bucket_name}/{object_key}" in caplog.text
+        assert f"Secret Manager: Successfully retrieved and parsed secret {secret_name}" in caplog.text
+        
+        # Check calls to our mocked DB upload functions
+        # Expected calls: one consumer and one lead upload per item in mock_partner_lead_data_raw
+        assert mock_upload_consumer_db.call_count == len(mock_partner_lead_data_raw)
+        assert mock_upload_lead_db.call_count == len(mock_partner_lead_data_raw)
+        
+        # Example: Check arguments of the first call to upload_consumer_db
+        first_consumer_call_args = mock_upload_consumer_db.call_args_list[0]
+        # args_consumer, kwargs_consumer = first_consumer_call_args
+        # assert kwargs_consumer['api_key'] == json.loads(json.loads(mock_secrets_manager_response["SecretString"])["impel"])["api_key"]
+        # assert args_consumer[0]['email'] == mock_partner_lead_data_raw[0]["customer_details"]["email_address"]
+
+        for lead_data_item in mock_partner_lead_data_raw:
+            assert f"Successfully processed lead ID: {lead_data_item['id']}" in caplog.text
+        assert f"Lambda handler completed. Processed results: {len(mock_partner_lead_data_raw)}" in caplog.text
+Key Sections Explained1. Mock Data and FixturesInput Events (mock_sqs_s3_event): Simulate the exact structure of the event that triggers your Lambda.S3 Data Content (mock_partner_lead_data_raw): Represents the actual content of the file.Secrets Manager (mock_secrets_manager_response):CRITICAL: Match the exact structure of your secret.Encoding Layers: Be aware of JSON encoding layers.Key Names: Verify top-level keys (e.g., "impel").API Responses (mock_api_responses): MagicMock objects for external API responses.Environment Variables (mock_env_vars): Use monkeypatch.setenv().2. Test Case OrganizationSuccess Cases: Test the "happy path".Edge Cases: Test boundary conditions.Error Cases / Validation (TestErrorHandlingAndValidation): Test how your Lambda handles failures. Consider these types:API Failures: External service outages, non-2xx responses, timeouts. (Mock requests.post or the function making the call to raise an exception or return an error response).Invalid Lead Data Formats/Values: Malformed JSON in S3, incorrect data types, values outside allowed ranges. (Test validate_lead_data directly and the Lambda handler's response to validation failures).Missing Required Lead Fields: Key data points absent from the input. (Test validate_lead_data).Secrets Retrieval Issues: Secret not found, malformed secret content.S3 Object Issues: Object not found, permission errors (harder with moto, focus on parsing).Partial Success Scenarios: In batch processing, some records fail validation or processing, others succeed. Ensure the Lambda handles this gracefully.Integration Tests (TestIntegration class with @mock_aws): End-to-end flow with moto and patch.3. API Call VerificationUse mock_object.call_count.Inspect mock_object.call_args or mock_object.call_args_list.Example Snippets:# # Get all calls made to a mock
+# calls = mock_service.call_args_list
+# print(f"Total calls: {len(calls)}")
+# for i, call_item in enumerate(calls):
+#     # call_item is a unittest.mock.call object
+#     # Access positional args: call_item.args or call_item[0]
+#     # Access keyword args: call_item.kwargs or call_item[1]
+#     print(f"Call {i+1}: args={call_item.args}, kwargs={call_item.kwargs}")
+
+# # Verify call count
+# assert mock_service.call_count == expected_calls
+
+# # Verify specific call arguments (e.g., for the first call)
+# if mock_service.call_count > 0:
+#    # Using property access (preferred)
+#    assert mock_service.call_args.kwargs['param'] == expected_value 
+#    assert mock_service.call_args.args[0] == expected_pos_arg
+#    # Or list access for specific call in call_args_list
+#    # assert mock_service.call_args_list[0].kwargs['param'] == expected_value
+
+# # Verify call order (if multiple distinct mocks or a mock with side_effect tracking calls)
+# # Using a manager mock to track order of calls to other mocks
+# manager = MagicMock()
+# mock_api_call_user = MagicMock(name="user_api")
+# mock_api_call_product = MagicMock(name="product_api")
+# manager.attach_mock(mock_api_call_user, 'user_service')
+# manager.attach_mock(mock_api_call_product, 'product_service')
+# # ... (code that calls mock_api_call_user then mock_api_call_product)
+# # mock_api_call_user({"id": 1})
+# # mock_api_call_product({"sku": "abc"})
+# expected_call_order = [
+#     call.user_service({"id": 1}), 
+#     call.product_service({"sku": "abc"})
+# ]
+# # assert manager.method_calls == expected_call_order
+4. Lead Data Transformation and Validation TestingFor functions that transform or validate data structures.Verify Input/Output Mapping (Transformation):# def test_lead_data_transformation(input_partner_data_fixture, expected_unified_data_fixture):
+#    result = transform_partner_lead_to_unified(input_partner_data_fixture)
+#    assert result == expected_unified_data_fixture # For full dict comparison
+#    # Or assert field by field for more complex objects / partial transformations
+#    assert result['unified_field_A'] == expected_unified_data_fixture['unified_field_A']
+#    assert result['nested']['unified_subfield_X'] == expected_unified_data_fixture['nested']['unified_subfield_X']
+Test Lead Data Validation (Schema Logic, using validate_lead_data example):# # (See TestErrorHandlingAndValidation class for examples like:)
+# def test_validate_lead_data_missing_required_top_level_field(
+#        self, mock_malformed_lead_data_missing_id: Dict[str, Any]
+# ) -> None:
+#    with pytest.raises(ValueError, match="Missing required top-level field: 'id'"):
+#        validate_lead_data(mock_malformed_lead_data_missing_id)
+
+# def test_validate_lead_data_invalid_email_format(
+#        self, mock_malformed_lead_data_invalid_email: Dict[str, Any]
+# ) -> None:
+#    with pytest.raises(ValueError, match="Invalid email format"):
+#        validate_lead_data(mock_malformed_lead_data_invalid_email)
+Use pytest.mark.parametrize for multiple input-output pairs against validation or transformation logic.5. Mocking Best Practices & Anti-PatternsUse Context Managers (with patch(...)): Generally preferred for patching as it automatically handles cleanup (unpatching) and clearly defines the scope of the mock.# from unittest.mock import patch
+# with patch("your_module.some_dependency.function_to_mock") as mock_func:
+#     mock_func.return_value = "mocked result"
+#     # ... your test code that calls the function in your_module ...
+# # Here, the original function is restored.
+Use Decorators (@patch(...)): Useful for patching a dependency for the entire duration of a test function or all methods in a test class.# @patch("your_module.AnotherClass.CLASS_CONSTANT", new="mocked_value")
+# @patch("your_module.another_function")
+# def test_something_with_decorators(mock_another_func, mock_class_constant_unused_for_now):
+#     mock_another_func.return_value = 123
+#     # ... test code ...
+Patch Where Objects Are Looked Up, Not Where They're Defined: If module_A.py has import module_B and calls module_B.some_function(), you should patch module_A.module_B.some_function, not module_B.some_function.# # In module_A.py:
+# # import module_B
+# # def my_func_in_a(): return module_B.some_function()
+
+# # In test_module_a.py:
+# with patch("module_A.module_B.some_function") as mock_b_func: # Correct
+# # with patch("module_B.some_function") as mock_b_func: # Incorrect if testing my_func_in_a
+#    mock_b_func.return_value = "patched!"
+#    assert module_A.my_func_in_a() == "patched!"
+autospec=True or spec=True: When creating mocks with patch or MagicMock(), using spec=True (or autospec=True with patch) makes the mock mimic the interface (signature, attributes) of the object being replaced. This is highly recommended as it helps catch errors if your code tries to access attributes or methods that don't exist on the real object, or calls them with the wrong number/type of arguments.# with patch("your_module.ClassName", autospec=True) as MockClassConstructor:
+#    mock_instance = MockClassConstructor.return_value # The mock instance
+#    mock_instance.existing_method.return_value = "mocked_result"
+#    # mock_instance.non_existent_method() # This would raise an AttributeError
+#    # mock_instance.existing_method("unexpected_arg") # Might raise TypeError if signature mismatches
+Avoid Recursive Mock Definitions (Anti-Pattern): Modifying a mock by reading from itself within a lambda or side_effect function can lead to infinite recursion or use stale data if not handled carefully.# # Bad: Modifying a mock by reading from itself in a lambda can lead to recursion.
+# mock_s3_response = {'Body': MagicMock(spec=['read'])}
+# original_data_dict = {"key": "value"}
+# # This specific lambda for read() is problematic if it tries to read itself.
+# # mock_s3_response['Body'].read = lambda: json.dumps({
+# #     **json.loads(mock_s3_response['Body'].read()), # Recursive read!
+# #     "modified_field": "new_value"
+# # }).encode('utf-8')
+
+# # Good: Prepare the complete modified data separately.
+# base_lead_data = {"key": "value"}
+# modified_data = {**base_lead_data, "modified_field": "new_value"}
+# mock_s3_get_object_result = {
+#     'Body': MagicMock(read=lambda: json.dumps(modified_data).encode('utf-8'), spec=['read'])
+# }
+# # Then: mock_s3_client.get_object.return_value = mock_s3_get_object_result
+Using side_effect for Complex Mocking:To raise exceptions: mock_object.side_effect = ValueError("Something went wrong")To return different values on subsequent calls: mock_object.side_effect = [response1, response2, default_response]To execute a function when the mock is called:# def custom_side_effect_func(*args, **kwargs):
+#     print(f"Mock called with args: {args}, kwargs: {kwargs}")
+#     if kwargs.get("id") == 1:
+#         return "First item"
+#     else:
+#         raise KeyError("Item not found")
+# mock_api.call_something.side_effect = custom_side_effect_func
+Mock Multiple Services in One Context Manager:# with patch("module.service1", autospec=True) as mock1, \
+#      patch("module.service2", autospec=True) as mock2:
+#    mock1.return_value = "data_from_service1"
+#    mock2.some_method.return_value = "data_from_service2"
+#    # ... test code that uses functions/classes from module that call service1 and service2 ...
+Handle Different Response Attributes for HTTP Mocks (e.g., requests):When mocking an HTTP response object (like one from the requests library), ensure your mock provides all the attributes your code uses (e.g., status_code, json(), text, content, raise_for_status()). Using spec=requests.Response or autospec=True on a requests.Response object can help.# import requests # For spec
+# mock_response = MagicMock(spec=requests.Response)
+# mock_response.status_code = 200
+# mock_response.json.return_value = {"data": "value"}
+# mock_response.text = '{"data": "value"}' # Raw text
+# mock_response.content = b'{"data": "value"}' # Bytes content
+# mock_response.raise_for_status.return_value = None # Or make it raise an error
+#
+# # mock_requests_get_function.return_value = mock_response
+moto Usage:Use @mock_aws decorator for moto 4.x+.moto provides client fixtures (e.g., s3_client) for direct interaction with mocked services (like setting up data). Your Lambda code should use standard boto3.client(...) calls, which moto will intercept and redirect to its in-memory backends.6. Logging Verification (caplog)caplog.set_level(logging.LEVEL): Ensure logs at the desired level are captured.assert "message" in caplog.text: Simple check for a string in the entire log output.caplog.records: Access a list of LogRecord objects for more detailed assertions (level, message, etc.).# # Check for a specific error log message
+# error_logs = [rec for rec in caplog.records if rec.levelname == "ERROR"]
+# assert len(error_logs) >= 1
+# assert "Specific error message text" in error_logs[0].message
+#
+# # Check number of info logs
+# info_log_messages
+If the module has module-level imports, it might be necessary to set environmental variables before the module is loaded.  If so, create a pytest_configure object in the following format in conftest.py
+#def pytest_configure(config): # config is a pytest Config object
+#    """Allows plugins and conftest files to perform initial configuration.
+#    This hook is called for every plugin and initial conftest file
+#    after command line options have been parsed.
+#    """
+#    os.environ["UPLOAD_SECRET_KEY"] = "impel"
+#    os.environ["LOGLEVEL"] = os.environ.get("LOGLEVEL", "DEBUG") # Keep if already set, else DEBUG
+#    os.environ["ENVIRONMENT"] = os.environ.get("ENVIRONMENT", "test")
+#    os.environ["SECRET_KEY"] = os.environ.get("SECRET_KEY", "test_secret_key_val_global")
+#    os.environ["CRM_API_DOMAIN"] = os.environ.get("CRM_API_DOMAIN", "https://test-crm.example.com/global")
