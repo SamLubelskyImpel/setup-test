@@ -117,7 +117,7 @@ jobs:
           pip install moto
           pip install aws-lambda-powertools
           pip install coverage
-          
+          pip install boto3 
       - name: Run Pytest in ${{ matrix.stack_dir }}
         run: |
           set -euo pipefail # Ensure script exits on error
