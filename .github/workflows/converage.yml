@@ -1,0 +1,29 @@
+name: Run Hourly Python Script
+
+on:
+  schedule:
+    # Runs every hour
+    - cron: '0 * * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9' # Or specify a precise version like '3.9', '3.10', etc.
+
+    - name: Install dependencies (if any)
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest
+        pip install coverage
+        # If your script has dependencies listed in a requirements.txt file:
+        # pip install -r requirements.txt
+
+    - name: Run Python script
+      run: python your_script_name.py
