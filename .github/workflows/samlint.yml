@@ -1,6 +1,11 @@
 name: CloudFormation Lint New
 
-on: [push]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - '**'
 
 jobs:
   build:
@@ -11,70 +16,37 @@ jobs:
         with:
           # Fetch all history for changed file detection
           fetch-depth: 0
-
+      
       - name: Install cfn-lint
         run: |
           pip install cfn-lint
-
-      - name: Analysing the code with cfn-lint
-        # Explicitly use bash shell for consistency and advanced features
-        shell: bash
+      
+      - name: Determine changed files based on event
+        id: determine_diff
         run: |
-          echo "GITHUB_REF: ${{ github.ref }}"
-          echo "GITHUB_SHA: ${{ github.sha }}"
+          CHANGED_FILE_PATHS=""
+          echo "Branch Name: ${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Workflow triggered by a Pull Request."
+            # For a PR, compare the base branch's SHA with the head branch's SHA.
+            # Using '...' (three dots) compares the tip of the head branch with the common ancestor
+            # of both branches, showing only changes introduced by the PR.
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            echo "Comparing PR: Base SHA ($BASE_SHA) ... Head SHA ($HEAD_SHA)"
+            CHANGED_FILE_PATHS=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA")
 
-          # Fetch the master branch explicitly to ensure it's available for comparison
-          # The '|| true' prevents the step from failing if 'master' doesn't exist yet
-          git fetch origin master:master || true
-
-          # Get the merge-base with master to find the common ancestor commit.
-          # This helps identify only the files changed in the current push relative to master.
-          BASE_COMMIT=$(git merge-base master HEAD)
-          echo "Calculated merge-base as BASE_COMMIT: $BASE_COMMIT"
-
-          FILES_TO_CHECK="" # Initialize variable to hold the list of files
-
-          if [ -z "$BASE_COMMIT" ]; then
-            # Fallback if merge-base fails (e.g., it's the very first commit on the branch
-            # or in the repository, or a detached HEAD state).
-            echo "Could not determine merge-base, comparing against root commit or all files."
-            # Attempt to find the root commit of the current branch
-            ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD)
-
-            if [ -z "$ROOT_COMMIT" ]; then
-              # If no root commit found (very unlikely for a valid Git repo),
-              # check all 'template.yaml' files in the entire repository.
-              echo "No root commit found, checking all 'template.yaml' files in the repository."
-              # Use find with -print0 and xargs -0 to safely handle filenames with spaces or special characters
-              FILES_TO_CHECK=$(find . -name "template.yaml" -print0 | xargs -0)
-            else
-              echo "Comparing against root commit: $ROOT_COMMIT"
-              # Get all changed file paths between the root commit and current HEAD
-              CHANGED_FILE_PATHS=$(git diff --name-only "$ROOT_COMMIT" "${{ github.sha }}")
-              # Filter these paths to include only files ending with 'template.yaml'
-              FILES_TO_CHECK=$(echo "$CHANGED_FILE_PATHS" | grep 'template\.yaml$')
-            fi
           else
-            echo "Comparing changes between $BASE_COMMIT and ${{ github.sha }}"
-            # Get all changed file paths between the calculated merge-base and current HEAD
-            CHANGED_FILE_PATHS=$(git diff --name-only "$BASE_COMMIT" "${{ github.sha }}")
-            # Filter these paths to include only files ending with 'template.yaml'
-            # The '\.' escapes the dot, and '$' ensures it's the end of the filename.
-            FILES_TO_CHECK=$(echo "$CHANGED_FILE_PATHS" | grep 'template\.yaml$')
+            echo "Workflow triggered by a push event."
+            echo "Defaulting to comparing current HEAD with its parent."
+            # Fallback for other events, or if the above conditions aren't met
+            CHANGED_FILE_PATHS=$(git diff --name-only HEAD~1 HEAD)
           fi
 
-          echo "Files to be checked by cfn-lint: $FILES_TO_CHECK"
+          echo "Changed files:"
+          echo "$CHANGED_FILE_PATHS"
+          # Set the output for subsequent steps/jobs
+          echo "::set-output name=files::$CHANGED_FILE_PATHS"
+    
 
-          if [ -z "$FILES_TO_CHECK" ]; then
-            echo "No 'template.yaml' files changed or no files found for comparison. Skipping linting."
-          else
-            # Pass the newline-separated list of files directly to cfn-lint using xargs.
-            # `xargs` by default splits input by whitespace (including newlines) and
-            # passes each split item as a separate argument to the command.
-            echo "$FILES_TO_CHECK" | xargs cfn-lint || {
-              # If cfn-lint returns a non-zero exit code (indicating issues),
-              # print a GitHub Actions error annotation and fail the step.
-              echo "::error::cfn-lint found issues in one or more changed files."
-              exit 1
-            }
-          fi
+    
