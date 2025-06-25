@@ -26,21 +26,30 @@ jobs:
       uses: ./.github/actions/find_changed_files/
       id: find-changed-files
 
-    - name: Run Ruff on changed python files
+    - name: Filter Python Files
+      id: filter-python-files
       run: |
+        PYTHON_FILES=""
         for file in ${{ steps.find-changed-files.outputs.changed_files }}; do 
           if [[ "$file" == *.py ]]; then
-            echo "Running ruff on $file"
-            ruff check $file
+            PYTHON_FILES="$PYTHON_FILES \"$file\""
           fi
-        done
+        done  
+        echo "PYTHON_FILES: $PYTHON_FILES"
+        echo "python_files=$(echo $PYTHON_FILES | xargs)" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Run Ruff on changed python files
+      run: |
+        echo "PYTHON_FILES: ${{ steps.filter-python-files.outputs.python_files }}"
+        ruff check ${{ steps.filter-python-files.outputs.python_files }}
   
   cloudformation-lint:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Or a sufficient number like 2, 5, etc.
+        fetch-depth: 0
     - name: Set up Python 3.8
       uses: actions/setup-python@v3
       with:
@@ -54,11 +63,20 @@ jobs:
       uses: ./.github/actions/find_changed_files/
       id: find-changed-files
 
-    - name: Run cfn-lint on changed cloudformation files
+    - name: Filter CloudFormation Files
+      id: filter-cfn-files
       run: |
+        CFN_FILES=""
         for file in ${{ steps.find-changed-files.outputs.changed_files }}; do 
           if [[ "$file" == */template.yaml ]]; then
-            echo "Running cfn-lint on $file"
-            cfn-lint $file
+            # Add file to the string, quoting it to handle spaces in filenames
+            CFN_FILES="$CFN_FILES \"$file\""
           fi
         done
+        # Trim leading/trailing whitespace
+        echo "cloudformation_files=${CFN_FILES## *( )}" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Run cfn-lint on changed cloudformation files
+      run: |
+        cfn-lint ${{ steps.filter-cfn-files.outputs.cloudformation_files }}
