@@ -14,7 +14,6 @@ Conditions:
     Fn::Equals:
       - Ref: AWS::AccountId
       - 196800776222
-  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
 Globals:
   Function:
@@ -429,8 +428,6 @@ Resources:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
       - LogGroupInvokeLambdaPermission
-      - MonitoringDealerpeak
-      - InvokeDataPullLogGroup
     Properties:
       LogGroupName: !Ref InvokeDataPullLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
@@ -440,8 +437,6 @@ Resources:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
       - LogGroupInvokeLambdaPermission
-      - MonitoringDealerpeak
-      - GetLeadUpdatesLogGroup
     Properties:
       LogGroupName: !Ref GetLeadUpdatesLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn
@@ -451,8 +446,6 @@ Resources:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
       - LogGroupInvokeLambdaPermission
-      - MonitoringDealerpeak
-      - SendActivityLogGroup
     Properties:
       LogGroupName: !Ref SendActivityLogGroup
       DestinationArn: !GetAtt MonitoringDealerpeak.Arn

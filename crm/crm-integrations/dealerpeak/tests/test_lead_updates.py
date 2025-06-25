@@ -18,6 +18,7 @@ from requests.exceptions import RequestException
 import boto3
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
+
 from lead_updates import (
     get_secrets,
     get_lead,
