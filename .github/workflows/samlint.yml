@@ -21,32 +21,20 @@ jobs:
         run: |
           pip install cfn-lint
       
-      - name: Determine changed files based on event
-        id: determine_diff
+      - name: Modified files
+        id: changed-files
         run: |
-          CHANGED_FILE_PATHS=""
-          echo "Branch Name: ${{ github.ref_name }}"
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Workflow triggered by a Pull Request."
-            # For a PR, compare the base branch's SHA with the head branch's SHA.
-            # Using '...' (three dots) compares the tip of the head branch with the common ancestor
-            # of both branches, showing only changes introduced by the PR.
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-            echo "Comparing PR: Base SHA ($BASE_SHA) ... Head SHA ($HEAD_SHA)"
-            CHANGED_FILE_PATHS=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA")
-
+          if ${{ github.event_name == 'pull_request' }}; then
+            echo "changed_files=$(git diff --name-only -r HEAD^1 HEAD | xargs)" >> $GITHUB_OUTPUT
           else
-            echo "Workflow triggered by a push event."
-            echo "Defaulting to comparing current HEAD with its parent."
-            # Fallback for other events, or if the above conditions aren't met
-            CHANGED_FILE_PATHS=$(git diff --name-only HEAD~1 HEAD)
+            echo "changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | xargs)" >> $GITHUB_OUTPUT
           fi
 
-          echo "Changed files:"
-          echo "$CHANGED_FILE_PATHS"
-          # Set the output for subsequent steps/jobs
-          echo "files=$CHANGED_FILE_PATHS" >> $GITHUB_OUTPUT
+      - name: List changed files
+        run: |
+          for file in ${{ steps.changed-files.outputs.changed_files }}; do  
+            echo "$file was changed"
+          done
     
 
     
