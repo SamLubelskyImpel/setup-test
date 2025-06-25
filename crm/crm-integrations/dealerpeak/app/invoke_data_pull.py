@@ -111,7 +111,8 @@ def save_raw_leads(leads: list, product_dealer_id: str):
 
     format_string = '%Y/%m/%d/%H/%M'
     date_key = datetime.utcnow().strftime(format_string)
-
+    print("Hello world3")
+    
     s3_key = f"raw/dealerpeak/{product_dealer_id}/{date_key}_{uuid4()}.json"
     logger.info(f"Saving leads to {s3_key}")
     s3_client.put_object(

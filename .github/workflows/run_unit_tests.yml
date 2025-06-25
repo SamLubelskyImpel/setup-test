@@ -13,6 +13,10 @@ jobs:
   identify-deployable-services:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Find Changed Services
         uses: ./.github/actions/find_changed_services/
         id: find-changed-services
