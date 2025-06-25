@@ -16,6 +16,7 @@ Conditions:
       - 196800776222
 
 Globals:
+  het
   Function:
     Runtime: python3.9
     Environment:
