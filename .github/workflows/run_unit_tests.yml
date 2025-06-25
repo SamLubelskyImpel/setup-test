@@ -12,93 +12,30 @@ jobs:
   # Job 1: Identify all changed service directories that can be deployed
   identify-deployable-services:
     runs-on: ubuntu-latest
-    outputs:
-      # Output a JSON array of directories to deploy, for the matrix strategy
-      stack_dirs: ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 
-      
-      - name: Get changed service directories with deploy.sh and .yaml
-        id: get_changed_service_dirs
+      - name: Find Changed Services
+        uses: ./.github/actions/find_changed_services/
+        id: find-changed-services
+
+      - name: Format Changed Services
+        id: format-changed-services
         run: |
-          set -euxo pipefail # Keep this for detailed debugging output
-
-          
-          # Ensure full history is fetched for reliable diffing
-          # This should be handled by `fetch-depth: 0` in actions/checkout, but is here as a safeguard.
-          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
-          echo "Git fetch for base ref complete."
-
-          # Get all changed files between the base branch and the PR head.
-          # The '|| true' ensures the command itself doesn't fail the script if there's no diff,
-          # or if the refs don't exist (though fetch-depth:0 should prevent the latter).
-          # Redirect stderr to /dev/null to clean up error messages from git for non-existing refs.
-          RAW_CHANGED_FILES=$(git diff --name-only ${{ github.base_ref }}...${{ github.sha }} 2>/dev/null || true)
-
-          echo "--- Raw git diff output ---"
-          echo "${RAW_CHANGED_FILES}"
-          echo $(git diff --name-only HEAD^ HEAD)
-          echo "--- End raw git diff output ---"
-
-          # Check if there are any files reported by git diff
-          if [ -z "$RAW_CHANGED_FILES" ]; then
-            echo "No file changes detected by git diff between ${{ github.base_ref }} and ${{ github.sha }}."
-            echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array for matrix
-            exit 0 # Exit successfully as there's nothing to deploy
-          fi
-
-          # Filter for .yaml files and get their unique parent directories
-          # Use 'grep -E' for extended regex and '|| true' to prevent script failure if no .yaml files are matched.
-          # Use 'while read' loop for robust line processing, especially with filenames containing spaces.
-          CHANGED_YAML_DIRS=""
-          while IFS= read -r line; do
-            if [[ "$line" =~ \.yaml$ ]]; then
-              CHANGED_YAML_DIRS+="$(dirname "$line")\n"
-            fi
-          done <<< "$RAW_CHANGED_FILES"
-          
-          # Remove duplicate directory names and remove trailing newline
-          CHANGED_YAML_DIRS=$(echo -e "$CHANGED_YAML_DIRS" | sort -u | sed '/^$/d' | tr '\n' ' ')
-
-          echo "Unique directories with changed .yaml files: ${CHANGED_YAML_DIRS}"
-
-          # Iterate through the identified directories and check for deploy.sh
-          declare -a DEPLOY_DIRS # Declare a bash array
-          for DIR in $CHANGED_YAML_DIRS; do
-              if [ -f "$DIR/deploy.sh" ]; then
-                  DEPLOY_DIRS+=("$DIR")
-                  echo "Found deployable service: $DIR (contains .yaml and deploy.sh)"
-              else
-                  echo "Skipping $DIR: .yaml changed but no deploy.sh found in the same directory."
-              fi
-          done
-
-          # Format the array as a JSON string for GitHub Actions output
-          if [ ${#DEPLOY_DIRS[@]} -eq 0 ]; then
-            echo "No deployable service directories identified based on changes and deploy.sh presence."
-            echo "STACK_DIRS_TO_DEPLOY=[]" >> $GITHUB_OUTPUT # Output empty array
-          else
-            # Convert bash array to JSON array string using jq
-            JSON_ARRAY=$(printf '%s\n' "${DEPLOY_DIRS[@]}" | jq -R . | jq -cs .)
-            echo "STACK_DIRS_TO_DEPLOY=$JSON_ARRAY" >> $GITHUB_OUTPUT
-            echo "Service directories to deploy: $JSON_ARRAY"
-          fi
+          echo "changed_services=$(echo ${{ steps.find-changed-services.outputs.changed_services }} | tr ' ' '\n')" >> $GITHUB_OUTPUT
         shell: bash
+    outputs:
+      changed_services: ${{ steps.format-changed-services.outputs.changed_services }}
 
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
     needs: identify-deployable-services # This job depends on the output of the first job
-    if: ${{ toJson(needs.identify-deployable-services.outputs.stack_dirs) != '[]' }} # Only run if there are directories to test
+    if: ${{ needs.identify-deployable-services.outputs.changed_services != '' }} # Only run if there are directories to test
     runs-on: ubuntu-latest
     
     strategy:
       fail-fast: false # Do not cancel other tests if one fails
       matrix:
         # The matrix will iterate over each directory path provided by the first job
-        stack_dir: ${{ fromJson(needs.identify-deployable-services.outputs.stack_dirs) }}
+        stack_dir: ${{ needs.identify-deployable-services.outputs.changed_services }}
 
     steps:
       - name: Checkout code

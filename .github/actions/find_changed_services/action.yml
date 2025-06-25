@@ -1,0 +1,22 @@
+name: Find Changed Services Action
+description: Find changed services in a pull request or push event
+
+outputs:
+  changed_services:
+    description: "List of changed services" 
+    value: ${{ steps.changed-services.outputs.changed_services }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get changed files
+      uses: ./.github/actions/find_changed_files/
+      id: find-changed-files
+
+    - name: Get changed services
+      run: |
+        for file in ${{ steps.find-changed-files.outputs.changed_files }}; do
+          if [[ "$file" == */template.yaml ]]; then
+            echo "Running cfn-lint on $file"
+            cfn-lint $file
+          fi
