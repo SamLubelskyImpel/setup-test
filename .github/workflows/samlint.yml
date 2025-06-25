@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches:
-      - '**'
+      - 'master'
 
 jobs:
   build:
@@ -46,7 +46,7 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILE_PATHS"
           # Set the output for subsequent steps/jobs
-          echo "::set-output name=files::$CHANGED_FILE_PATHS"
+          echo "files=$CHANGED_FILE_PATHS" >> $GITHUB_OUTPUT
     
 
     
