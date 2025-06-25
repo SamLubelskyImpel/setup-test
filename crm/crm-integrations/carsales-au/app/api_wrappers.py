@@ -29,6 +29,7 @@ class CrmApiWrapper:
     def __init__(self) -> None:
         self.partner_id = CRM_API_SECRET_KEY
         self.api_key = self.get_secrets()
+        
 
     def get_secrets(self):
         secret = secret_client.get_secret_value(
@@ -54,6 +55,7 @@ class CrmApiWrapper:
 
         activity = response.json()
         if not activity:
+            print("Hello world")
             raise Exception(f"Activity not found for ID: {activity_id}")
 
         return activity
