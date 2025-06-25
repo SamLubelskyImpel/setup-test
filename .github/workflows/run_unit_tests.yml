@@ -118,6 +118,7 @@ jobs:
           pip install aws-lambda-powertools
           pip install coverage
           pip install boto3 
+          pip install pytest-mock
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
