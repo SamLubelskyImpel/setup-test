@@ -41,7 +41,6 @@ jobs:
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
     needs: identify-deployable-services # This job depends on the output of the first job
-    if: ${{ needs.identify-deployable-services.outputs.changed_services != '' }} # Only run if there are directories to test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -73,8 +72,9 @@ jobs:
                "${{ secrets.ROLE_ARN }}" > ~/.aws/config
       - name: Run Pytest on all changed services
         run: |
+          echo "Changed services: ${{ needs.identify-deployable-services.outputs.changed_services }}"
           for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
             echo "Running pytest on $service"
-            pytest $service
+            pytest $service/tests
           done
         shell: bash # Explicitly use bash for this step
