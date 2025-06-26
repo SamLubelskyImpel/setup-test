@@ -124,16 +124,27 @@ if __name__ == "__main__":
         }
         print(f"--> {service_name} Coverage: {coverage:.2f}%")
 
-    print("\n--- Summary of Microservice Coverages ---")
-    for service, data in all_service_coverage.items():
-        print(f"{service}: {data['coverage_percent']:.2f}% (Report: {data['json_report_path'] if data['json_report_path'] else 'N/A'})")
-    
-    # Print the average coverage
+    # Calculate statistics
     total_coverage = sum(data['coverage_percent'] for data in all_service_coverage.values())
     average_coverage = total_coverage / len(all_service_coverage)
-    print(f"\nAverage Coverage: {average_coverage:.2f}%")
-
-    # Print number of services with coverage greater than 80%
     services_with_coverage_greater_than_80 = [service for service, data in all_service_coverage.items() if data['coverage_percent'] > 80]
-    print(f"\nNumber of services with coverage greater than 80%: {len(services_with_coverage_greater_than_80)} / {len(all_service_coverage)}")
+
+    # Write report to file
+    with open('coverage_report.txt', 'w') as f:
+        f.write("Coverage Report\n")
+        f.write("==============\n\n")
+        
+        f.write("Service Coverage Details\n")
+        f.write("----------------------\n")
+        for service, data in all_service_coverage.items():
+            f.write(f"{service}: {data['coverage_percent']:.2f}% (Report: {data['json_report_path'] if data['json_report_path'] else 'N/A'})\n")
+        
+        f.write("\nSummary Statistics\n")
+        f.write("-----------------\n")
+        f.write(f"Average Coverage: {average_coverage:.2f}%\n")
+        f.write(f"Services with >80% Coverage: {len(services_with_coverage_greater_than_80)} / {len(all_service_coverage)}\n")
+        f.write(f"High Coverage Services: {', '.join(services_with_coverage_greater_than_80)}\n")
+
+    print(f"Number of services with coverage greater than 80%: {len(services_with_coverage_greater_than_80)} / {len(all_service_coverage)}")
     print(f"Services: {services_with_coverage_greater_than_80}")
+    print("Coverage report has been written to coverage_report.txt")

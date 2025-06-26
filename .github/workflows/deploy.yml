@@ -11,10 +11,9 @@ env:
 jobs:
   # Job 1: Identify all changed service directories that can be deployed
   identify-deployable-services:
-    runs-on: ubuntu-latest
     outputs:
-      # Output a JSON array of directories to deploy, for the matrix strategy
-      stack_dirs: ${{ steps.get_changed_service_dirs.outputs.STACK_DIRS_TO_DEPLOY }}
+      changed_services: ${{ steps.find-changed-services.outputs.changed_services }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false # Allows other parallel deployments to continue even if one fails
       matrix:
-        stack_dir: ${{ fromJson(needs.identify-deployable-services.outputs.stack_dirs) }}
+        stack_dir: ${{ fromJson(needs.identify-deployable-services.outputs.changed_services) }}
     
     steps:
       - name: Checkout code
@@ -65,24 +64,12 @@ jobs:
           printf "[profile unified-test]\nregion = %s\noutput = json\n" "${{ env.AWS_REGION }}" > ~/.aws/config
 
           # Create ~/.aws/credentials
-          if [ -n "${{ env.AWS_SESSION_TOKEN }}" ]; then
-            echo "Detected AWS_SESSION_TOKEN, including in credentials."
-            printf "[unified-test]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-                   "${{ secrets.AWS_ACCESS_KEY_ID }}" \
-                   "${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
-                   "${{ env.AWS_SESSION_TOKEN }}" > ~/.aws/credentials
-            printf "[unified-test]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
-                   "${{ secrets.AWS_REGION }}" \
-                   "${{ secrets.ROLE_ARN }}" > ~/.aws/config
-          else
-            echo "No AWS_SESSION_TOKEN detected, creating credentials without it."
-            printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" \
-                   "${{ secrets.AWS_ACCESS_KEY_ID }}" \
-                   "${{ secrets.AWS_SECRET_ACCESS_KEY }}" > ~/.aws/credentials
-            printf "[profile unified-test]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
-                   "${{ secrets.AWS_REGION }}" \
-                   "${{ secrets.ROLE_ARN }}" > ~/.aws/config
-          fi
+          printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" \
+                  "${{ secrets.AWS_ACCESS_KEY_ID }}" \
+                  "${{ secrets.AWS_SECRET_ACCESS_KEY }}" > ~/.aws/credentials
+          printf "[profile unified-test]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
+                  "${{ secrets.AWS_REGION }}" \
+                  "${{ secrets.ROLE_ARN }}" > ~/.aws/config
         shell: bash
           
       - name: Configure AWS Credentials
