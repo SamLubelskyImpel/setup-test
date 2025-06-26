@@ -36,7 +36,7 @@ jobs:
       #     fi
       #   shell: bash
     outputs:
-      changed_services: ${{ steps.find-changed-services.outputs.changed_services }}
+      changed_services: "${{ steps.find-changed-services.outputs.changed_services }}"
 
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
