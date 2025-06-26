@@ -4,7 +4,7 @@ description: Find changed services in a pull request or push event
 outputs:
   changed_services:
     description: "List of changed services" 
-    value: ${{ steps.changed-services.outputs.changed_services }}
+    value: ${{ steps.find-changed-services.outputs.changed_services }}
 
 runs:
   using: 'composite'
@@ -23,7 +23,7 @@ runs:
             if [ -f "$DIR_NAME/template.yaml" ]; then
               if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
                 echo "Adding $DIR_NAME to changed services"
-                CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES "
+                CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES"
               fi
               break
             fi

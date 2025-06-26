@@ -21,22 +21,22 @@ jobs:
         uses: ./.github/actions/find_changed_services/
         id: find-changed-services
 
-      - name: Format Changed Services
-        id: format-changed-services
-        run: |
-          RAW_CHANGED_SERVICES=${{ steps.find-changed-services.outputs.changed_services }}
-          echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
-          if [ -z "$RAW_CHANGED_SERVICES" ]; then
-            echo "No changed services found"
-            echo "changed_services=[]" >> $GITHUB_OUTPUT
-          else  
-            JSON_ARRAY=$(echo "$RAW_CHANGED_SERVICES" | jq -R -s -c 'split(" ") | map(select(length > 0))')
-            echo "JSON_ARRAY: $JSON_ARRAY"
-            echo "changed_services=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
+      # - name: Format Changed Services
+      #   id: format-changed-services
+      #   run: |
+      #     RAW_CHANGED_SERVICES=${{ steps.find-changed-services.outputs.changed_services }}
+      #     echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
+      #     if [ -z "$RAW_CHANGED_SERVICES" ]; then
+      #       echo "No changed services found"
+      #       echo "changed_services=[]" >> $GITHUB_OUTPUT
+      #     else  
+      #       JSON_ARRAY=$(echo "$RAW_CHANGED_SERVICES" | jq -R -s -c 'split(" ") | map(select(length > 0))')
+      #       echo "JSON_ARRAY: $JSON_ARRAY"
+      #       echo "changed_services=$JSON_ARRAY" >> $GITHUB_OUTPUT
+      #     fi
+      #   shell: bash
     outputs:
-      changed_services: ${{ steps.format-changed-services.outputs.changed_services }}
+      changed_services: ${{ steps.find-changed-services.outputs.changed_services }}
 
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
@@ -72,7 +72,7 @@ jobs:
                "${{ secrets.ROLE_ARN }}" > ~/.aws/config
       - name: Run Pytest on all changed services
         run: |
-          echo "Changed services: ${{ toJson(needs.identify-deployable-services.outputs.changed_services) }}"
+          echo "Changed services: ${{needs.identify-deployable-services.outputs.changed_services}}"
           for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
             echo "Running pytest on $service"
             pytest $service/tests
