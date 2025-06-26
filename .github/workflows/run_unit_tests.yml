@@ -21,26 +21,28 @@ jobs:
         uses: ./.github/actions/find_changed_services/
         id: find-changed-services
 
-      - name: Format Changed Services
-        id: format-changed-services
-        run: |
-          echo "changed_services=$(echo ${{ steps.find-changed-services.outputs.changed_services }} | tr ' ' '\n')" >> $GITHUB_OUTPUT
-        shell: bash
+      # - name: Format Changed Services
+      #   id: format-changed-services
+      #   run: |
+      #     RAW_CHANGED_SERVICES=${{ steps.find-changed-services.outputs.changed_services }}
+      #     echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
+      #     if [ -z "$RAW_CHANGED_SERVICES" ]; then
+      #       echo "No changed services found"
+      #       echo "changed_services=[]" >> $GITHUB_OUTPUT
+      #     else  
+      #       JSON_ARRAY=$(echo "$RAW_CHANGED_SERVICES" | jq -R -s -c 'split(" ") | map(select(length > 0))')
+      #       echo "JSON_ARRAY: $JSON_ARRAY"
+      #       echo "changed_services=$JSON_ARRAY" >> $GITHUB_OUTPUT
+      #     fi
+      #   shell: bash
     outputs:
-      changed_services: ${{ steps.format-changed-services.outputs.changed_services }}
+      changed_services: ${{ steps.find-changed-services.outputs.changed_services }}
 
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
     needs: identify-deployable-services # This job depends on the output of the first job
     if: ${{ needs.identify-deployable-services.outputs.changed_services != '' }} # Only run if there are directories to test
     runs-on: ubuntu-latest
-    
-    strategy:
-      fail-fast: false # Do not cancel other tests if one fails
-      matrix:
-        # The matrix will iterate over each directory path provided by the first job
-        stack_dir: ${{ needs.identify-deployable-services.outputs.changed_services }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,31 +71,10 @@ jobs:
           printf "[default]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
                "${{ secrets.AWS_REGION }}" \
                "${{ secrets.ROLE_ARN }}" > ~/.aws/config
-      - name: Run Pytest in ${{ matrix.stack_dir }}
+      - name: Run Pytest on all changed services
         run: |
-          set -euo pipefail # Ensure script exits on error
-
-          # Change to the microservice directory identified by the matrix
-          echo "Changing directory to: ${{ matrix.stack_dir }}"
-          cd "${{ matrix.stack_dir }}"
-
-          echo "Running pytest in $(pwd)..."
-          # Run pytest. You might want to add specific options here, e.g., discovery options.
-          # -k "not integration" example to skip integration tests if they are slow/require external services.
-          # --cache-clear to ensure clean runs.
-          # Using `set +e` to allow pytest to fail without immediately failing the step,
-          # so we can report its specific exit code.
-          set +e
-          pytest_output=$(pytest --cache-clear 2>&1) # Capture output and stderr
-          pytest_exit_code=$?
-          set -e # Re-enable exit on error
-
-          echo "$pytest_output" # Print pytest output
-
-          if [ $pytest_exit_code -ne 0 ]; then
-            echo "Pytest FAILED for ${{ matrix.stack_dir }}. Exit code: $pytest_exit_code"
-            exit 1 # Fail the GitHub Actions step
-          else
-            echo "Pytest PASSED for ${{ matrix.stack_dir }}."
-          fi
+          for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
+            echo "Running pytest on $service"
+            pytest $service
+          done
         shell: bash # Explicitly use bash for this step

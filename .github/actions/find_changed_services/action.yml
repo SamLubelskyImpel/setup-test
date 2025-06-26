@@ -16,12 +16,13 @@ runs:
     - name: Get changed services
       id: find-changed-services
       run: |
+        CHANGED_SERVICES=""
         for file in ${{ steps.find-changed-files.outputs.changed_files }}; do
           DIR_NAME=$(dirname $file)
           while [ "$DIR_NAME" != "." ]; do
             if [ -f "$DIR_NAME/template.yaml" ]; then
-              echo "Found template.yaml in $DIR_NAME"
               if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
+                echo "Adding $DIR_NAME to changed services"
                 CHANGED_SERVICES="$CHANGED_SERVICES $DIR_NAME"
               fi
               break
@@ -29,4 +30,6 @@ runs:
             DIR_NAME=$(dirname $DIR_NAME)
           done
         done
+        echo "CHANGED_SERVICES: $CHANGED_SERVICES"
+        echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
       shell: bash
