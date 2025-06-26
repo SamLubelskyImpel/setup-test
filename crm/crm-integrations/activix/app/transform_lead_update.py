@@ -24,12 +24,9 @@ UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 SECRET_KEY = environ.get("SECRET_KEY")
 
-sm_client = boto3.client('secretsmanager')
-s3_client = boto3.client("s3")
-
-
 def get_secret(secret_name: Any, secret_key: Any) -> Any:
     """Get secret from Secrets Manager."""
+    sm_client = boto3.client('secretsmanager')
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
@@ -137,6 +134,9 @@ def update_lead_salespersons(salesperson, lead_id: str, crm_api_key: str, positi
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
+
+    s3_client = boto3.client("s3")
+
     try:
         body = loads(record['body'])
         bucket = body["detail"]["bucket"]["name"]
