@@ -16,13 +16,15 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
-crm_api = CrmApiWrapper()
+
 
 API_KEY = "8mb4ax%^tuaab"
 
 
 def record_handler(record: SQSRecord):
     """Create activity on Carsales."""
+
+    crm_api = CrmApiWrapper()
     logger.info(f"Record: {record}")
     logger.info(f"Secret key: {API_KEY}")
     try:

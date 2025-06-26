@@ -22,8 +22,8 @@ UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 DA_SECRET_KEY = environ.get("DA_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
-sm_client = boto3.client('secretsmanager')
-s3_client = boto3.client("s3")
+
+
 
 
 class EventListenerError(Exception):
@@ -32,6 +32,7 @@ class EventListenerError(Exception):
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
+    sm_client = boto3.client('secretsmanager')
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
@@ -226,7 +227,8 @@ def parse_json_to_entries(product_dealer_id: str, json_data: Any) -> Any:
 def record_handler(record: SQSRecord) -> None:
     """Transform and process each record."""
     logger.info(f"Record: {record}")
-
+    s3_client = boto3.client("s3")
+    
     product_dealer_id = None
     crm_dealer_id = None
     try:
