@@ -41,6 +41,7 @@ jobs:
   # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
     needs: identify-deployable-services # This job depends on the output of the first job
+    if: ${{ needs.identify-deployable-services.outputs.changed_services != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

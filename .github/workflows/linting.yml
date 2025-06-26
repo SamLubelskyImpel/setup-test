@@ -56,19 +56,7 @@ jobs:
 
     - name: Run cfn-lint on changed cloudformation files
       run: |
-        CHANGED_SERVICES=""
         for file in ${{ steps.find-changed-files.outputs.changed_files }}; do 
-          DIR_NAME=$(dirname $file)
-          while [ "$DIR_NAME" != "." ]; do
-            if [ -f "$DIR_NAME/template.yaml" ]; then
-              echo "Found template.yaml in $DIR_NAME"
-              # check if the service is in the list of changed services, if not then add it
-              if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
-                CHANGED_SERVICES="$CHANGED_SERVICES $DIR_NAME"
-              fi
-              break
-            fi
-            DIR_NAME=$(dirname $DIR_NAME)
-          done 
-        done
-        echo "CHANGED_SERVICES: $CHANGED_SERVICES"
+          echo "Running cfn-lint on $file"
+          cfn-lint $file  
+        done  
