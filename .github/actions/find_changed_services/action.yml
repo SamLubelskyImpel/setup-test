@@ -23,7 +23,7 @@ runs:
             if [ -f "$DIR_NAME/template.yaml" ]; then
               if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
                 echo "Adding $DIR_NAME to changed services"
-                CHANGED_SERVICES="$CHANGED_SERVICES $DIR_NAME"
+                CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES "
               fi
               break
             fi
