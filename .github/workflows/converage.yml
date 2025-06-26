@@ -22,7 +22,10 @@ jobs:
       run: |
         pip install pytest
         pip install coverage
-
+        pip install moto
+        pip install aws-lambda-powertools
+        pip install boto3 
+        pip install pytest-mock
     - name: Run Python script
       run: python generate_coverage_report.py
 
