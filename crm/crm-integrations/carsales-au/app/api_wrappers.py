@@ -41,7 +41,7 @@ class CrmApiWrapper:
         return secret_data["api_key"]
 
     def get_activity(self, activity_id: int):
-        print("Hello world2")
+        print("Hello world22")
         response = requests.get(
             url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
             headers={
