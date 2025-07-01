@@ -81,13 +81,13 @@ jobs:
           for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
             echo "Running pytest on $service"
             coverage run -m pytest $service/tests
-            coverage xml -o .coverage-reports/coverage-${service}.xml
+            service_name="${service//\//-}"
+            coverage xml -o .coverage-reports/coverage-${service_name}.xml
           done
         shell: bash # Explicitly use bash for this step
       - name: Display coverage report files
         run: |
-          ls -la .coverage-reports
-          cat .coverage-reports/coverage-*.xml
+          ls -al .coverage-reports
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
