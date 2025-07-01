@@ -28,7 +28,8 @@ class CrmApiWrapper:
     def __init__(self) -> None:
         self.partner_id = CRM_API_SECRET_KEY
         self.api_key = self.get_secrets()
-
+        print("HELLO")
+        
     def get_secrets(self):
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"

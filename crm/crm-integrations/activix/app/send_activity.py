@@ -19,14 +19,15 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = client("secretsmanager")
 
-crm_api = CrmApiWrapper()
 
 
 def record_handler(record: SQSRecord):
     """Create activity on Activix."""
     logger.info(f"Record: {record}")
+
+    secret_client = client("secretsmanager")
+    crm_api = CrmApiWrapper()
     try:
         body = record.json_body
         details = body.get("detail", {})
