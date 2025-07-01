@@ -62,6 +62,7 @@ jobs:
           pip install coverage
           pip install boto3 
           pip install pytest-mock
+          pip install coverage
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
@@ -76,6 +77,11 @@ jobs:
           echo "Changed services: ${{needs.identify-deployable-services.outputs.changed_services}}"
           for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
             echo "Running pytest on $service"
-            pytest $service/tests
+            coverage run -m pytest $service/tests
+            coverage xml -o .coverage-reports/coverage-${service}.xml
           done
         shell: bash # Explicitly use bash for this step
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
