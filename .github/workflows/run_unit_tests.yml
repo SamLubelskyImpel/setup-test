@@ -81,6 +81,10 @@ jobs:
             coverage xml -o .coverage-reports/coverage-${service}.xml
           done
         shell: bash # Explicitly use bash for this step
+      - name: Display coverage report files
+        run: |
+          ls -la .coverage-reports
+          cat .coverage-reports/coverage-*.xml
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
