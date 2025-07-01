@@ -72,6 +72,9 @@ jobs:
           printf "[default]\nregion = %s\nsource_profile = default\noutput = json\nrole_arn=%s\n" \
                "${{ secrets.AWS_REGION }}" \
                "${{ secrets.ROLE_ARN }}" > ~/.aws/config
+      - name: Create coverage report directory
+        run: |
+          mkdir -p .coverage-reports
       - name: Run Pytest on all changed services
         run: |
           echo "Changed services: ${{needs.identify-deployable-services.outputs.changed_services}}"
