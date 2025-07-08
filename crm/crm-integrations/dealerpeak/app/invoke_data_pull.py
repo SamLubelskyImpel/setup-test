@@ -34,8 +34,8 @@ def get_secrets():
     )
     secret = loads(secret["SecretString"])[str(SECRET_KEY)]
     secret_data = loads(secret)
-    print(secret_data)
-    
+    print("CHANGES")
+
     return secret_data["API_URL"], secret_data["API_USERNAME"], secret_data["API_PASSWORD"]
 
 
