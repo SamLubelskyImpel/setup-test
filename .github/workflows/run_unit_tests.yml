@@ -5,7 +5,7 @@ on:
     types: [opened, reopened, synchronize] # Trigger on new PRs, reopened PRs, or new commits to an open PR
   push:
     branches:
-      - main
+      - master
 
 env:
   AWS_REGION: us-east-1 # Set your default AWS region for the test environment
