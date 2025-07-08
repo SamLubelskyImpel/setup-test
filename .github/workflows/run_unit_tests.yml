@@ -26,6 +26,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x' # Use a recent Python version
+          
       - name: Install packages
         run: |
           pip install pytest
@@ -36,6 +37,7 @@ jobs:
           pip install pytest-mock
           pip install coverage
           pip install ruff
+          pip install cfn-lint
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
@@ -63,16 +65,31 @@ jobs:
         run: |
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
-          #increased reporting level to find error
           PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$')
           PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
           echo "Changed .py files: $PY_FILES"
           echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true"
           ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
+      - name: Run cfn-lint on all changed files
+        run: |
+          changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
+          echo "Changed files: $changed_files"
+          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$')
+          TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
+          echo "Changed template files: $TEMPLATE_FILES"
+          echo "cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true"
+          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true
       - name: Display report files
         run: |
           ls -al .reports
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      - name: SonarQube Quality Gate Check
+        id: sonar-quality-gate-check
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        with: 
+          pollingTimeoutSec: 600
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
