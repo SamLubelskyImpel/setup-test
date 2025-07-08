@@ -113,6 +113,7 @@ def mock_event():
         ]
     }
 
+
 @pytest.fixture(scope="module")
 def mock_partial_failure_event():
     """Mock event record with partial failure."""
