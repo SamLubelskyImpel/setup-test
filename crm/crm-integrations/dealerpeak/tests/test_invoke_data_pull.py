@@ -155,8 +155,6 @@ def test_get_secrets_not_found():
     with pytest.raises(Exception):
         get_secrets()
 
-def test_fail():
-    assert False
 def test_fetch_new_leads(mocker, setup_secret, mock_initial_leads, mock_lead_record, mock_lead_record_2):
     """Test successful fetching of new leads from DealerPeak API."""
     mock_get = mocker.patch(f"{MODULE_PATH}.requests.get")
