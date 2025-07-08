@@ -18,7 +18,7 @@ hee
 Globals:
   Function:
     Runtime: python3.9
-    Environment:
+    Environment:ada  
       Variables:
         AWS_ACCOUNT_ID: !Sub "${AWS::AccountId}"
         ENVIRONMENT: !Ref Environment
