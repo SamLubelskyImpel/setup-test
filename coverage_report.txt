@@ -1,0 +1,55 @@
+Coverage Report
+==============
+
+Service Coverage Details
+----------------------
+appointment-api: 0.00% (Report: N/A)
+xtime: 0.00% (Report: N/A)
+forddirect: 0.00% (Report: N/A)
+cdpi-internal-api: 0.00% (Report: N/A)
+shared-resources: 0.00% (Report: N/A)
+adf-assembler: 0.00% (Report: N/A)
+crm-api: 0.00% (Report: N/A)
+activix: 89.97% (Report: ./crm/crm-integrations/activix/coverage.json)
+big-motoring-world: 0.00% (Report: N/A)
+carsales-au: 70.87% (Report: ./crm/crm-integrations/carsales-au/coverage.json)
+dealerpeak: 96.00% (Report: ./crm/crm-integrations/dealerpeak/coverage.json)
+dealersocket-au: 0.00% (Report: N/A)
+eskimo: 0.00% (Report: N/A)
+momentum: 0.00% (Report: N/A)
+pbs: 0.00% (Report: N/A)
+reyrey: 0.00% (Report: N/A)
+shift-digital: 0.00% (Report: N/A)
+tekion: 0.00% (Report: N/A)
+crm-partner-api: 0.00% (Report: N/A)
+crm-reporting: 0.00% (Report: N/A)
+shared_resources: 0.00% (Report: N/A)
+dms-api: 0.00% (Report: N/A)
+carlabs: 0.00% (Report: N/A)
+dealertrack: 0.00% (Report: N/A)
+quiter: 0.00% (Report: N/A)
+sidekick: 0.00% (Report: N/A)
+tekion-apc: 0.00% (Report: N/A)
+dms-reporting: 0.00% (Report: N/A)
+dms-unified: 0.00% (Report: N/A)
+email-service: 0.00% (Report: N/A)
+event-publishing-api: 0.00% (Report: N/A)
+shared-services: 0.00% (Report: N/A)
+RedBook: 0.00% (Report: N/A)
+autostock: 0.00% (Report: N/A)
+carsales: 0.00% (Report: N/A)
+coxau: 0.00% (Report: N/A)
+dealerstudio: 0.00% (Report: N/A)
+icc: 0.00% (Report: N/A)
+icc-api: 0.00% (Report: N/A)
+kawasaki: 0.00% (Report: N/A)
+inventory-partner-api: 0.00% (Report: N/A)
+vdp-service: 0.00% (Report: N/A)
+notification-service: 0.00% (Report: N/A)
+univ-suite: 0.00% (Report: N/A)
+
+Summary Statistics
+-----------------
+Average Coverage: 5.84%
+Services with >80% Coverage: 2 / 44
+High Coverage Services: activix, dealerpeak

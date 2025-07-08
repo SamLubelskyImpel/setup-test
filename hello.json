@@ -1,0 +1,35 @@
+crm/crm-integrations/dealerpeak/tests/test_invoke_data_pull.py:13:22: F401 [*] `datetime.datetime` imported but unused
+   |
+11 | import json
+12 | import logging
+13 | from datetime import datetime, timezone
+   |                      ^^^^^^^^ F401
+14 | from unittest.mock import MagicMock, patch
+15 | import pytest
+   |
+   = help: Remove unused import
+
+crm/crm-integrations/dealerpeak/tests/test_invoke_data_pull.py:13:32: F401 [*] `datetime.timezone` imported but unused
+   |
+11 | import json
+12 | import logging
+13 | from datetime import datetime, timezone
+   |                                ^^^^^^^^ F401
+14 | from unittest.mock import MagicMock, patch
+15 | import pytest
+   |
+   = help: Remove unused import
+
+crm/crm-integrations/dealerpeak/tests/test_invoke_data_pull.py:14:38: F401 [*] `unittest.mock.patch` imported but unused
+   |
+12 | import logging
+13 | from datetime import datetime, timezone
+14 | from unittest.mock import MagicMock, patch
+   |                                      ^^^^^ F401
+15 | import pytest
+16 | from moto import mock_aws
+   |
+   = help: Remove unused import: `unittest.mock.patch`
+
+Found 3 errors.
+[*] 3 fixable with the `--fix` option.

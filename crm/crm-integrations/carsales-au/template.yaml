@@ -388,7 +388,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
-
+  Dddd
   SendActivityLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

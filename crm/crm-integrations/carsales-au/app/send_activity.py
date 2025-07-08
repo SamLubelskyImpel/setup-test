@@ -27,6 +27,7 @@ def record_handler(record: SQSRecord):
     crm_api = CrmApiWrapper()
     logger.info(f"Record: {record}")
     logger.info(f"Secret key: {API_KEY}")
+    logger.info("Code that should not be covered by tests")
     try:
         body = record.json_body
         details = body.get("detail", {})
