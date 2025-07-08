@@ -15,6 +15,7 @@ BUCKET = environ.get("INTEGRATIONS_BUCKET")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
+
 def get_secrets():
     """Get DealerPeak API secrets."""
     secret_client = boto3.client("secretsmanager")
