@@ -9,51 +9,23 @@ env:
   TEST_ENVIRONMENT_NAME: test # The exact environment name your deploy.sh expects for 'test'
 
 jobs:
-  # Job 1: Identify all changed service directories that can be deployed
-  identify-deployable-services:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Find Changed Services
-        uses: ./.github/actions/find_changed_services/
-        id: find-changed-services
-
-      # - name: Format Changed Services
-      #   id: format-changed-services
-      #   run: |
-      #     RAW_CHANGED_SERVICES=${{ steps.find-changed-services.outputs.changed_services }}
-      #     echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
-      #     if [ -z "$RAW_CHANGED_SERVICES" ]; then
-      #       echo "No changed services found"
-      #       echo "changed_services=[]" >> $GITHUB_OUTPUT
-      #     else  
-      #       JSON_ARRAY=$(echo "$RAW_CHANGED_SERVICES" | jq -R -s -c 'split(" ") | map(select(length > 0))')
-      #       echo "JSON_ARRAY: $JSON_ARRAY"
-      #       echo "changed_services=$JSON_ARRAY" >> $GITHUB_OUTPUT
-      #     fi
-      #   shell: bash
-    outputs:
-      changed_services: ${{ steps.find-changed-services.outputs.changed_services }}
-
-  # Job 2: Run Pytest on all files in STACK_DIRS_TO_DEPLOY
   run-unit-tests:
-    needs: identify-deployable-services # This job depends on the output of the first job
-    if: ${{ needs.identify-deployable-services.outputs.changed_services != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Ensure full history for testing context
-
+      - name: Identify Changed Services
+        uses: ./.github/actions/find_changed_services/
+        id: find-changed-services
+      - name: Identify changed files
+        uses: ./.github/actions/find_changed_files/
+        id: find-changed-files
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x' # Use a recent Python version
-
       - name: Install packages
         run: |
           pip install pytest
@@ -63,6 +35,7 @@ jobs:
           pip install boto3 
           pip install pytest-mock
           pip install coverage
+          pip install ruff
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
@@ -74,20 +47,31 @@ jobs:
                "${{ secrets.ROLE_ARN }}" > ~/.aws/config
       - name: Create coverage report directory
         run: |
-          mkdir -p .coverage-reports
+          mkdir -p .reports
       - name: Run Pytest on all changed services
         run: |
-          echo "Changed services: ${{needs.identify-deployable-services.outputs.changed_services}}"
-          for service in ${{ needs.identify-deployable-services.outputs.changed_services }}; do
+          changed_services="${{ steps.find-changed-services.outputs.changed_services }}"
+          echo "Changed services: $changed_services"
+          for service in $changed_services; do
             echo "Running pytest on $service"
             coverage run -m pytest $service/tests
             service_name="${service//\//-}"
-            coverage xml -o .coverage-reports/coverage-${service_name}.xml
+            coverage xml -o .reports/coverage-${service_name}.xml
           done
         shell: bash # Explicitly use bash for this step
-      - name: Display coverage report files
+      - name: Run Ruff on all changed files
         run: |
-          ls -al .coverage-reports
+          changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
+          echo "Changed files: $changed_files"
+          #increased reporting level to find error
+          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$')
+          PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
+          echo "Changed .py files: $PY_FILES"
+          echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true"
+          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
+      - name: Display report files
+        run: |
+          ls -al .reports
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
