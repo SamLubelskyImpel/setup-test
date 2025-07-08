@@ -20,6 +20,7 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
