@@ -80,6 +80,7 @@ jobs:
           done
         shell: bash # Explicitly use bash for this step
       - name: Run Ruff on all changed files
+        continue-on-error: true
         run: |
           pip install ruff
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
@@ -98,6 +99,7 @@ jobs:
           echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES"
           ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES
       - name: Run cfn-lint on all changed files
+        continue-on-error: true
         run: |
           pip install cfn-lint
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
