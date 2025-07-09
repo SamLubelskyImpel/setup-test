@@ -29,18 +29,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9' # Use a recent Python version
-          
-      - name: Install packages
-        run: |
-          pip install pytest
-          pip install moto
-          pip install aws-lambda-powertools
-          pip install coverage
-          pip install boto3 
-          pip install pytest-mock
-          pip install coverage
-          pip install ruff
-          pip install cfn-lint
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
