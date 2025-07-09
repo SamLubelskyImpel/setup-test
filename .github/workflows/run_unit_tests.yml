@@ -105,6 +105,7 @@ jobs:
 
           TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
           TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
+          TEMPLATE_FILES="${TEMPLATE_FILES## }"
 
           if [ -z "$TEMPLATE_FILES" ]; then
             echo "No changed template files. Skipping cfn-lint."
