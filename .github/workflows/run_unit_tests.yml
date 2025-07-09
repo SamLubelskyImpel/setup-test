@@ -63,6 +63,7 @@ jobs:
             python3 -m venv "$VENV_DIR"
             source "$VENV_DIR/bin/activate"
 
+            pip install $COMMON_DEPS
             SERVICE_REQUIREMENTS_FILE="${service_path}/app/requirements.txt"
             if [ -f "$SERVICE_REQUIREMENTS_FILE" ]; then
               echo "Installing service-specific dependencies from $SERVICE_REQUIREMENTS_FILE..."
