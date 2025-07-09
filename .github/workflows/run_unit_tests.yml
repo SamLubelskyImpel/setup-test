@@ -81,22 +81,36 @@ jobs:
         shell: bash # Explicitly use bash for this step
       - name: Run Ruff on all changed files
         run: |
+          pip install ruff
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
-          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
+
+          if [ -z "$changed_files" ]; then
+            echo "No changed files. Skipping ruff."
+            exit 0
+          fi
+
+          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$')
           PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
           echo "Changed .py files: $PY_FILES"
-          echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true"
-          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
+          echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES"
+          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES
       - name: Run cfn-lint on all changed files
         run: |
+          pip install cfn-lint
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
-          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
+
+          if [ -z "$changed_files" ]; then
+            echo "No changed files. Skipping cfn-lint."
+            exit 0
+          fi
+
+          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$')
           TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
           echo "Changed template files: $TEMPLATE_FILES"
-          echo "cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true"
-          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true
+          echo "cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json"
+          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
       - name: Display report files
         run: |
           ls -al .reports
