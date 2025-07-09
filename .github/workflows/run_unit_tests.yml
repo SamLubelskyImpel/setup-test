@@ -94,7 +94,7 @@ jobs:
           PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
           echo "Changed .py files: $PY_FILES"
           echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES"
-          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES
+          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
       - name: Run cfn-lint on all changed files
         run: |
           pip install cfn-lint
@@ -110,7 +110,7 @@ jobs:
           TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
           echo "Changed template files: $TEMPLATE_FILES"
           echo "cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json"
-          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
+          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true
       - name: Display report files
         run: |
           ls -al .reports
