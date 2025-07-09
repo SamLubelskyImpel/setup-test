@@ -61,7 +61,7 @@ jobs:
             echo "Running pytest on $service"
             coverage run -m pytest $service/tests
             service_name="${service//\//-}"
-            coverage xml -o .reports/coverage-${service_name}.xml
+            coverage xml -o .reports/coverage-${service_name}.xml || true
           done
         shell: bash # Explicitly use bash for this step
       - name: Run Ruff on all changed files
