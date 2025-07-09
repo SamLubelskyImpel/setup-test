@@ -85,13 +85,15 @@ jobs:
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
-          if [ -z "$changed_files" ]; then
-            echo "No changed files. Skipping ruff."
+          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
+          PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
+
+          if [ -z "$PY_FILES" ]; then
+            echo "No changed .py files. Skipping ruff."
             exit 0
           fi
 
-          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$')
-          PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
+
           echo "Changed .py files: $PY_FILES"
           echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES"
           ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
@@ -101,16 +103,17 @@ jobs:
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
-          if [ -z "$changed_files" ]; then
-            echo "No changed files. Skipping cfn-lint."
+          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
+          TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
+
+          if [ -z "$TEMPLATE_FILES" ]; then
+            echo "No changed template files. Skipping cfn-lint."
             exit 0
           fi
 
-          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$')
-          TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
           echo "Changed template files: $TEMPLATE_FILES"
           echo "cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json"
-          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json || true
+          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
       - name: Display report files
         run: |
           ls -al .reports
