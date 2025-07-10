@@ -43,6 +43,10 @@ jobs:
         with:
           python-version: '3.9' # Use a recent Python version
 
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
