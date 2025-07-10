@@ -4,10 +4,6 @@ on:
   pull_request:
     types: [opened, reopened, synchronize] # Trigger on new PRs, reopened PRs, or new commits to an open PR
 
-env:
-  AWS_REGION: us-east-1 # Set your default AWS region for the test environment
-  TEST_ENVIRONMENT_NAME: test # The exact environment name your deploy.sh expects for 'test'
-
 jobs:
   run-unit-tests:
     runs-on: ubuntu-latest
