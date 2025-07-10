@@ -16,8 +16,10 @@ jobs:
       - name: Identify Changed Files
         id: identify-changed-files
         run: |
-          echo "changed_files=$(git diff --name-only -r HEAD^1 HEAD | xargs)" >> $GITHUB_OUTPUT
-          
+          changed_files=$(git diff --name-only -r HEAD^1 HEAD)
+          echo "changed_files: $changed_files"
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+
       - name: Identify changed services
         id: identify-changed-services
         run: |
