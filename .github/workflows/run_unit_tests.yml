@@ -104,7 +104,7 @@ jobs:
           
           echo "flake8 --format=json $PY_FILES"
           echo "flake8 $PY_FILES"
-          flake8 $PY_FILES || true
+          echo "flake8 --format=json $PY_FILES"
           flake8 --format=json $PY_FILES > .reports/flake8-report.json
           
           
@@ -126,15 +126,17 @@ jobs:
             exit 0
           fi
 
+          
+          echo "cfn-lint $TEMPLATE_FILES"
+          cfn-lint $TEMPLATE_FILES || true
           echo "cfn-lint --format json $TEMPLATE_FILES"
-          echo cfn-lint $TEMPLATE_FILES || true
           cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
          
 
       - name: Display report files
         run: |
           ls -al .reports
-
+          cat .reports/flake8-report.json
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
