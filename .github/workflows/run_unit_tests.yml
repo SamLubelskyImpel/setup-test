@@ -85,9 +85,7 @@ jobs:
       - name: Run Ruff on all changed files
         continue-on-error: true
         run: |
-          pip install ruff
           pip install flake8
-          pip install flake8-json
 
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
@@ -101,16 +99,12 @@ jobs:
             echo "No changed .py files. Skipping ruff."
             exit 0
           fi
-          echo "ruff check $PY_FILES"
-          ruff check $PY_FILES || true
-          echo "ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES"
-          ruff check -o .reports/ruff-report.json --output-format=json $PY_FILES || true
-          echo "flake8 --format=json $PY_FILES"
+
           echo "flake8 $PY_FILES"
-          echo "flake8 --format=json $PY_FILES"
-          flake8 --format=pylint --output-file=.reports/flake8-report.txt $PY_FILES || true
-          
-          
+          flake8 $PY_FILES || true
+          echo "flake8 --format=pylint --output-file=.reports/flake8-report.txt $PY_FILES"
+          flake8 --format=pylint --output-file=.reports/flake8-report.txt $PY_FILES
+                
       - name: Run cfn-lint on all changed files
         continue-on-error: true
         run: |
@@ -135,7 +129,6 @@ jobs:
           echo "cfn-lint --format json $TEMPLATE_FILES"
           cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
          
-
       - name: Display report files
         run: |
           ls -al .reports
