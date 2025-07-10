@@ -103,8 +103,9 @@ jobs:
 
           
           echo "flake8 --format=json $PY_FILES"
+          echo flake8 $PY_FILES || true
           flake8 --format=json $PY_FILES > .reports/flake8-report.json
-          echo flake8 $PY_FILES
+          
           
       - name: Run cfn-lint on all changed files
         continue-on-error: true
@@ -125,8 +126,9 @@ jobs:
           fi
 
           echo "cfn-lint --format json $TEMPLATE_FILES"
+          echo cfn-lint $TEMPLATE_FILES || true
           cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
-          echo cfn-lint $TEMPLATE_FILES
+         
 
       - name: Display report files
         run: |
