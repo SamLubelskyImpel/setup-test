@@ -139,7 +139,7 @@ jobs:
       - name: Display report files
         run: |
           ls -al .reports
-          cat .reports/flake8-report.json
+          cat .reports/flake8-report.txt
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
