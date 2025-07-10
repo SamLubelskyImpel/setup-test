@@ -13,10 +13,6 @@ jobs:
         with:
           fetch-depth: 0 # Ensure full history for testing context
 
-      - name: Hello world
-        run: |
-          echo "Hello world"
-
       - name: Identify Changed Files
         id: identify-changed-files
         run: |
