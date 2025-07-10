@@ -68,7 +68,7 @@ jobs:
           fi
 
           COMMON_DEPS="pytest moto coverage boto3 pytest-mock"
-          
+
           for service_path in $changed_services; do
             echo "--- Running tests for service: $service_path ---"
             service_name="${service_path//\//-}"
@@ -95,7 +95,7 @@ jobs:
           done
         shell: bash # Explicitly use bash for this step
 
-      - name: Run Ruff on all changed files
+      - name: Run flake8 on all changed files
         continue-on-error: true
         run: |
           pip install flake8
@@ -136,7 +136,6 @@ jobs:
             exit 0
           fi
 
-          
           echo "cfn-lint $TEMPLATE_FILES"
           cfn-lint $TEMPLATE_FILES || true
           echo "cfn-lint --format json $TEMPLATE_FILES"
@@ -145,7 +144,7 @@ jobs:
       - name: Display report files
         run: |
           ls -al .reports
-          cat .reports/flake8-report.txt
+
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v4
         env:
