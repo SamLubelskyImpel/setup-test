@@ -23,7 +23,6 @@ secret_client = client("secretsmanager")
 class CRMApiError(Exception):
     pass
 
-
 class CrmApiWrapper:
     """CRM API Wrapper."""
     def __init__(self) -> None:
