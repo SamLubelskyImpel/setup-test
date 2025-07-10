@@ -28,6 +28,7 @@ from lead_updates import (
     lambda_handler
 )
 
+
 MODULE_PATH = "lead_updates"  # For patching module-level items
 
 

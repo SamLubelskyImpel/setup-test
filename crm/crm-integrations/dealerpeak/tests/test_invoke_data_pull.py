@@ -326,6 +326,7 @@ def test_lambda_handler_success(mocker, mock_initial_leads, setup_secret, setup_
     
     response = lambda_handler(mock_event, MagicMock())
     
+    
     assert response["batchItemFailures"] == []
 
 
