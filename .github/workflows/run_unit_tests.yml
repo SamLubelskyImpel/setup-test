@@ -103,7 +103,8 @@ jobs:
 
           
           echo "flake8 --format=json $PY_FILES"
-          echo flake8 $PY_FILES || true
+          echo "flake8 $PY_FILES"
+          flake8 $PY_FILES || true
           flake8 --format=json $PY_FILES > .reports/flake8-report.json
           
           
