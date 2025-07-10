@@ -10,8 +10,7 @@ This test suite covers:
 
 import json
 import logging
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import pytest
 from moto import mock_aws
 import boto3
@@ -50,22 +49,22 @@ def mock_initial_leads():
 def mock_invalid_leads():
     """Mock invalid lead record returned by DealerPeak API."""
     return [
-            {
-                "leadID": "lead1",
-                "dateCreated": "January, 15 2024 10:30:00"
-            },
-            {
-                "leadID": "lead2",
-                "dateCreated": "Invalid Date Format"
-            },
-            {
-                "leadID": "lead3",
-                "dateCreated": "January, 17 2024 10:30:00"
-            },
-            {
-                "leadID": "lead4",
-                "dateCreated": "January, 14 2024 10:30:00"
-            }
+        {
+            "leadID": "lead1",
+            "dateCreated": "January, 15 2024 10:30:00"
+        },
+        {
+            "leadID": "lead2",
+            "dateCreated": "Invalid Date Format"
+        },
+        {
+            "leadID": "lead3",
+            "dateCreated": "January, 17 2024 10:30:00"
+        },
+        {
+            "leadID": "lead4",
+            "dateCreated": "January, 14 2024 10:30:00"
+        }
     ]
 
 @pytest.fixture(scope="module")
@@ -305,7 +304,7 @@ def test_record_handler_no_leads(mocker, setup_secret, setup_s3, mock_event, cap
 @mock_aws
 def test_record_handler_error(mocker, setup_secret, setup_s3, mock_event, caplog):
     """Test error handling in record handler."""
-    caplog.set_level(logging.ERROR) 
+    caplog.set_level(logging.ERROR)
     
     mock_fetch = mocker.patch(f"{MODULE_PATH}.fetch_new_leads")
     mock_fetch.side_effect = Exception("Test error")
@@ -326,7 +325,6 @@ def test_lambda_handler_success(mocker, mock_initial_leads, setup_secret, setup_
     
     response = lambda_handler(mock_event, MagicMock())
     
-    
     assert response["batchItemFailures"] == []
 
 
@@ -340,10 +338,11 @@ def test_lambda_handler_error(mocker, mock_event, setup_secret, setup_s3):
         lambda_handler(mock_event, MagicMock())
     
     assert "All records failed processing" in str(exc_info.value)
-    assert "Test error" in str(exc_info.value) 
+    assert "Test error" in str(exc_info.value)
 
 @mock_aws
-def test_lambda_handler_partial_success(mocker, mock_initial_leads, setup_secret, setup_s3, mock_partial_failure_event, caplog):
+def test_lambda_handler_partial_success(mocker, mock_initial_leads, setup_secret, setup_s3,
+                                        mock_partial_failure_event, caplog):
     """Test lambda handler partial success handling."""
     mock_record_handler = mocker.patch(f"{MODULE_PATH}.record_handler")
     mock_record_handler.side_effect = [
