@@ -17,6 +17,7 @@ logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 
 
+
 def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")

@@ -39,6 +39,7 @@ def get_secret(secret_name, secret_key) -> Any:
     secret = loads(secret["SecretString"])[str(secret_key)]
     secret_data = loads(secret)
 
+    
     return secret_data
 
 

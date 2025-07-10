@@ -17,6 +17,7 @@ IS_PROD = ENVIRONMENT == "prod"
 s3_client = boto3.client("s3")
 
 
+
 def insert_appointment_parquet(key, df):
     """Insert to appointment table and linked tables."""
     integration = key.split("/")[2]
