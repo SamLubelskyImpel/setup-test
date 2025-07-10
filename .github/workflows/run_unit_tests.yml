@@ -17,13 +17,30 @@ jobs:
         with:
           fetch-depth: 0 # Ensure full history for testing context
 
-      - name: Identify Changed Services
-        uses: ./.github/actions/find_changed_services/
-        id: find-changed-services
+      - name: Identify Changed Files
+        id: identify-changed-files
+        run: |
+          echo "changed_files=$(git diff --name-only -r HEAD^1 HEAD | xargs)" >> $GITHUB_OUTPUT
         
-      - name: Identify changed files
-        uses: ./.github/actions/find_changed_files/
-        id: find-changed-files
+      - name: Identify changed services
+        id: identify-changed-services
+        run: |
+          CHANGED_SERVICES=""
+          for file in ${{ steps.identify-changed-files.outputs.changed_files }}; do
+            DIR_NAME=$(dirname $file)
+            while [ "$DIR_NAME" != "." ]; do
+              if [ -f "$DIR_NAME/template.yaml" ]; then
+                if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
+                  echo "Adding $DIR_NAME to changed services"
+                  CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES"
+                fi
+                break
+              fi
+              DIR_NAME=$(dirname $DIR_NAME)
+            done
+          done
+          echo "CHANGED_SERVICES: $CHANGED_SERVICES"
+          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,7 +63,7 @@ jobs:
 
       - name: Run Pytest on all changed services
         run: |
-          changed_services="${{ steps.find-changed-services.outputs.changed_services }}"
+          changed_services="${{ steps.identify-changed-services.outputs.changed_services }}"
           echo "Changed services: $changed_services"
           if [ -z "$changed_services" ]; then
             echo "No services changed. Skipping unit tests."
@@ -87,7 +104,7 @@ jobs:
         run: |
           pip install flake8
 
-          changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
+          changed_files="${{ steps.identify-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
           PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
@@ -110,7 +127,7 @@ jobs:
         run: |
           pip install cfn-lint
 
-          changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
+          changed_files="${{ steps.identify-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
           TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
