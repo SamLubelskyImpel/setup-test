@@ -17,7 +17,7 @@ jobs:
         id: identify-changed-files
         run: |
           echo "changed_files=$(git diff --name-only -r HEAD^1 HEAD | xargs)" >> $GITHUB_OUTPUT
-        
+          
       - name: Identify changed services
         id: identify-changed-services
         run: |
@@ -30,7 +30,7 @@ jobs:
                   echo "Adding $DIR_NAME to changed services"
                   CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES"
                 fi
-                break
+                 break
               fi
               DIR_NAME=$(dirname $DIR_NAME)
             done
