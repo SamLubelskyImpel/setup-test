@@ -16,29 +16,29 @@ jobs:
       - name: Identify Changed Files
         id: identify-changed-files
         run: |
-          changed_files=$(git diff --name-only -r HEAD^1 HEAD)
+          changed_files=$(git diff --name-only -r HEAD^1 HEAD) # Get all files changed in the whole PR (not just from the last commit)
           echo "changed_files: $changed_files"
           echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
 
       - name: Identify changed services
         id: identify-changed-services
         run: |
-          CHANGED_SERVICES=""
+          changed_services=""
           for file in ${{ steps.identify-changed-files.outputs.changed_files }}; do
             DIR_NAME=$(dirname $file)
             while [ "$DIR_NAME" != "." ]; do
               if [ -f "$DIR_NAME/template.yaml" ]; then
-                if [[ ! "$CHANGED_SERVICES" == *"$DIR_NAME"* ]]; then
+                if [[ ! "$changed_services" == *"$DIR_NAME"* ]]; then
                   echo "Adding $DIR_NAME to changed services"
-                  CHANGED_SERVICES="$DIR_NAME $CHANGED_SERVICES"
+                  changed_services="$DIR_NAME $changed_services"
                 fi
                  break
               fi
               DIR_NAME=$(dirname $DIR_NAME)
             done
           done
-          echo "CHANGED_SERVICES: $CHANGED_SERVICES"
-          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+          echo "changed_services: $changed_services"
+          echo "changed_services=$changed_services" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,6 +52,7 @@ jobs:
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
+          # Moto requires fake aws credentials to be set
           printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" \
                  "test-access-key-id" \
                  "test-secret-access-key" > ~/.aws/credentials
@@ -73,24 +74,24 @@ jobs:
             exit 0
           fi
 
-          COMMON_DEPS="pytest moto coverage boto3 pytest-mock"
+          common_deps="pytest moto coverage boto3 pytest-mock"
 
           for service_path in $changed_services; do
             echo "--- Running tests for service: $service_path ---"
             service_name="${service_path//\//-}"
-            VENV_DIR=".venv-$service_name"
+            venv_dir=".venv-$service_name"
 
-            rm -rf "$VENV_DIR"
-            python3 -m venv "$VENV_DIR"
-            source "$VENV_DIR/bin/activate"
+            rm -rf "$venv_dir"
+            python3 -m venv "$venv_dir"
+            source "$venv_dir/bin/activate"
 
-            pip install $COMMON_DEPS
-            SERVICE_REQUIREMENTS_FILE="${service_path}/app/requirements.txt"
-            if [ -f "$SERVICE_REQUIREMENTS_FILE" ]; then
-              echo "Installing service-specific dependencies from $SERVICE_REQUIREMENTS_FILE..."
-              pip install -r "$SERVICE_REQUIREMENTS_FILE"
+            pip install $common_deps
+            service_requirements_file="${service_path}/app/requirements.txt"
+            if [ -f "$service_requirements_file" ]; then
+              echo "Installing service-specific dependencies from $service_requirements_file..."
+              pip install -r "$service_requirements_file"
             else
-              echo "No service-specific requirements.txt found at $SERVICE_REQUIREMENTS_FILE. Using only common dependencies."
+              echo "No service-specific requirements.txt found at $service_requirements_file. Using only common dependencies."
             fi
 
             coverage run -m pytest $service_path/tests || true
@@ -109,20 +110,20 @@ jobs:
           changed_files="${{ steps.identify-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
-          PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
-          PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
-          PY_FILES="${PY_FILES## }"
-          echo "Changed .py files: $PY_FILES"
+          py_files=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
+          py_files=$(echo "$py_files" | tr '\n' ' ') # Convert newlines to spaces
+          py_files="${py_files## }" # Remove trailing spaces
+          echo "Changed .py files: $py_files"
 
-          if [ -z "$PY_FILES" ]; then
+          if [ -z "$py_files" ]; then
             echo "No changed .py files. Skipping ruff."
             exit 0
           fi
 
-          echo "flake8 $PY_FILES"
-          flake8 $PY_FILES || true
-          echo "flake8 --format=pylint --output-file=.reports/flake8-report.txt $PY_FILES"
-          flake8 --format=pylint --output-file=.reports/flake8-report.txt $PY_FILES
+          echo "flake8 $py_files"
+          flake8 $py_files || true
+          echo "flake8 --format=pylint --output-file=.reports/flake8-report.txt $py_files"
+          flake8 --format=pylint --output-file=.reports/flake8-report.txt $py_files
                 
       - name: Run cfn-lint on all changed files
         continue-on-error: true
@@ -132,20 +133,20 @@ jobs:
           changed_files="${{ steps.identify-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
 
-          TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
-          TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
-          TEMPLATE_FILES="${TEMPLATE_FILES## }"
-          echo "Changed template files: $TEMPLATE_FILES"
+          template_files=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
+          template_files=$(echo "$template_files" | tr '\n' ' ') # Convert newlines to spaces
+          template_files="${template_files## }" # Remove trailing spaces
+          echo "Changed template files: $template_files"
 
-          if [ -z "$TEMPLATE_FILES" ]; then
+          if [ -z "$template_files" ]; then
             echo "No changed template files. Skipping cfn-lint."
             exit 0
           fi
 
-          echo "cfn-lint $TEMPLATE_FILES"
-          cfn-lint $TEMPLATE_FILES || true
-          echo "cfn-lint --format json $TEMPLATE_FILES"
-          cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
+          echo "cfn-lint $template_files" 
+          cfn-lint $template_files || true
+          echo "cfn-lint --format json $template_files"
+          cfn-lint --format json $template_files > .reports/cfn-lint-report.json
          
       - name: Display report files
         run: |

@@ -54,7 +54,8 @@ jobs:
           template_files=$(find . -type f -name "template.yaml" -print0 | xargs -0 -n 1)
           echo "template_files: $template_files"
           pip install cfn-lint
-           cfn-lint --format json $template_files > .reports/cfn-lint-report.json
+          cfn-lint --format json $template_files > .reports/cfn-lint-report.json
+
       - name: Run Pytest on all services
         run: |
           service_dirs="${{ steps.find-service-dirs.outputs.service_dirs }}"
