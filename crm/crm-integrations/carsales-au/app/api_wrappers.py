@@ -30,6 +30,7 @@ class CrmApiWrapper:
         self.partner_id = CRM_API_SECRET_KEY
         self.api_key = self.get_secrets()
         
+        
     def get_secrets(self):
         secret = secret_client.get_secret_value(
             SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
