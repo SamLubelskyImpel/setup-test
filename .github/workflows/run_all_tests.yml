@@ -46,7 +46,7 @@ jobs:
         continue-on-error: true
         run: |
           pip install flake8
-          flake8 .
+          flake8 --format=pylint --output-file=.reports/flake8-report.txt .
 
       - name: Run cfn-lint on all template.yaml files
         continue-on-error: true
@@ -54,8 +54,7 @@ jobs:
           template_files=$(find . -type f -name "template.yaml" -print0 | xargs -0 -n 1)
           echo "template_files: $template_files"
           pip install cfn-lint
-          cfn-lint $template_files
-
+           cfn-lint --format json $template_files > .reports/cfn-lint-report.json
       - name: Run Pytest on all services
         run: |
           service_dirs="${{ steps.find-service-dirs.outputs.service_dirs }}"
