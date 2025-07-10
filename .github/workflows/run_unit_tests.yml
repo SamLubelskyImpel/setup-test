@@ -87,39 +87,46 @@ jobs:
         run: |
           pip install flake8
           pip install flake8-json
+
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
+
           PY_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep '\.py$') || true
           PY_FILES=$(echo "$PY_FILES" | tr '\n' ' ')
           PY_FILES="${PY_FILES## }"
+          echo "Changed .py files: $PY_FILES"
 
           if [ -z "$PY_FILES" ]; then
             echo "No changed .py files. Skipping ruff."
             exit 0
           fi
 
-          echo "Changed .py files: $PY_FILES"
+          
           echo "flake8 --format=json $PY_FILES"
           flake8 --format=json $PY_FILES > .reports/flake8-report.json
+          echo flake8 $PY_FILES
           
       - name: Run cfn-lint on all changed files
         continue-on-error: true
         run: |
           pip install cfn-lint
+
           changed_files="${{ steps.find-changed-files.outputs.changed_files }}"
           echo "Changed files: $changed_files"
+
           TEMPLATE_FILES=$(echo "$changed_files" | tr ' ' '\n' | grep 'template\.yaml$') || true
           TEMPLATE_FILES=$(echo "$TEMPLATE_FILES" | tr '\n' ' ')
           TEMPLATE_FILES="${TEMPLATE_FILES## }"
+          echo "Changed template files: $TEMPLATE_FILES"
 
           if [ -z "$TEMPLATE_FILES" ]; then
             echo "No changed template files. Skipping cfn-lint."
             exit 0
           fi
 
-          echo "Changed template files: $TEMPLATE_FILES"
           echo "cfn-lint --format json $TEMPLATE_FILES"
           cfn-lint --format json $TEMPLATE_FILES > .reports/cfn-lint-report.json
+          echo cfn-lint $TEMPLATE_FILES
 
       - name: Display report files
         run: |
