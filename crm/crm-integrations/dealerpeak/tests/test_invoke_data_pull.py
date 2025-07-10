@@ -349,7 +349,6 @@ def test_lambda_handler_partial_success(mocker, mock_initial_leads, setup_secret
         Exception("Test error"),
         mock_initial_leads
     ]
-    
     response = lambda_handler(mock_partial_failure_event, MagicMock())
     
     assert response["batchItemFailures"] == [
