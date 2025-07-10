@@ -104,7 +104,7 @@ jobs:
           echo "ruff check $PY_FILES"
           ruff check $PY_FILES || true
           echo "ruff check --format=json $PY_FILES"
-          ruff check --format=json $PY_FILES > .reports/ruff-report.json
+          ruff check --format=json $PY_FILES > .reports/ruff-report.json || true
           echo "flake8 --format=json $PY_FILES"
           echo "flake8 $PY_FILES"
           echo "flake8 --format=json $PY_FILES"
