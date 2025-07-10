@@ -85,6 +85,7 @@ jobs:
       - name: Run Ruff on all changed files
         continue-on-error: true
         run: |
+          pip install ruff
           pip install flake8
           pip install flake8-json
 
@@ -100,8 +101,10 @@ jobs:
             echo "No changed .py files. Skipping ruff."
             exit 0
           fi
-
-          
+          echo "ruff check $PY_FILES"
+          ruff check $PY_FILES || true
+          echo "ruff check --format=json $PY_FILES"
+          ruff check --format=json $PY_FILES > .reports/ruff-report.json
           echo "flake8 --format=json $PY_FILES"
           echo "flake8 $PY_FILES"
           echo "flake8 --format=json $PY_FILES"
