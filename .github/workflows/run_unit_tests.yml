@@ -16,7 +16,7 @@ jobs:
       - name: Identify Changed Files
         id: identify-changed-files
         run: |
-          changed_files=$(git diff --name-only -r HEAD^1 HEAD) # Get all files changed in the whole PR (not just from the last commit)
+          changed_files=$(git diff --name-only HEAD^1 HEAD | xargs) # Get all files changed in the whole PR (not just from the last commit)
           echo "changed_files: $changed_files"
           echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
 
@@ -94,8 +94,8 @@ jobs:
               echo "No service-specific requirements.txt found at $service_requirements_file. Using only common dependencies."
             fi
 
-            coverage run -m pytest $service_path/tests || true
-            coverage xml -o .reports/coverage-${service_name}.xml || true
+            coverage run -m pytest $service_path/tests 
+            coverage xml -o .reports/coverage-${service_name}.xml
 
             deactivate
             echo "--- Finished tests for service: $service_path ---"
