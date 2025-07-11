@@ -16,7 +16,7 @@ jobs:
       - name: Identify Changed Files
         id: identify-changed-files
         run: |
-          changed_files=$(git diff --name-only -r HEAD^1 HEAD) # Get all files changed in the whole PR (not just from the last commit)
+          changed_files=$(git diff --name-only HEAD^1 HEAD | xargs) # Get all files changed in the whole PR (not just from the last commit)
           echo "changed_files: $changed_files"
           echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
 
