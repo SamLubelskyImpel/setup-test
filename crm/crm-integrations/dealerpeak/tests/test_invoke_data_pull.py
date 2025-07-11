@@ -357,8 +357,3 @@ def test_lambda_handler_partial_success(mocker, mock_initial_leads, setup_secret
         }
     ]
     assert mock_record_handler.call_count == 2  # Both records were processed
-
-def test_fail():
-    assert False
-
-    
