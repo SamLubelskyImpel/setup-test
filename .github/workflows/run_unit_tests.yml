@@ -94,8 +94,8 @@ jobs:
               echo "No service-specific requirements.txt found at $service_requirements_file. Using only common dependencies."
             fi
 
-            coverage run -m pytest $service_path/tests || true
-            coverage xml -o .reports/coverage-${service_name}.xml || true
+            coverage run -m pytest $service_path/tests
+            coverage xml -o .reports/coverage-${service_name}.xml
 
             deactivate
             echo "--- Finished tests for service: $service_path ---"
