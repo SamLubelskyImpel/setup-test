@@ -88,7 +88,7 @@ jobs:
           from google import genai
           import requests
           import json
-          
+
           API_KEY = os.environ['API_KEY']
 
           jira_ticket = os.environ.get('JIRA_TICKET', '')
@@ -124,9 +124,10 @@ jobs:
                 auth=jira_auth
               )
               response.raise_for_status()
-              jira_ticket_comments = response.json()['comments']
+              raw_comments = json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": "))
+              comments = raw_comments.map(lambda x: x['body'])
+              jira_ticket_comments = "\n".join(comments)
               print(f"Jira ticket comments: {jira_ticket_comments}" )
-              print(json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": ")))
             except Exception as e:
               print(f"Error getting Jira ticket information: {e}")
 
