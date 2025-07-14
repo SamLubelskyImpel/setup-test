@@ -103,7 +103,7 @@ jobs:
             try:
               print("Getting Jira ticket description from Jira API")
 
-              basic_auth = HTTPBasicAuth('sammy56lt', ${{ secrets.JIRA_API_KEY }})
+              basic_auth = HTTPBasicAuth('sammy56lt', '${{ secrets.JIRA_API_KEY }}')
               response = requests.get(
                 f"${{secrets.JIRA_BASE_URL}}/rest/api/3/issue/{jira_ticket}",
                 headers={
