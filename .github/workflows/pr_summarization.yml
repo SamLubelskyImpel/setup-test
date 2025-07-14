@@ -125,6 +125,8 @@ jobs:
                 auth=jira_auth
               )
               response.raise_for_status()
+              formatted_comments = json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": "))
+              print(f"Formatted comments: {formatted_comments}")
               raw_comments = json.loads(response.text)['comments']
               print(f"Raw comments: {raw_comments}")
               comments = [x['body'] for x in raw_comments]
