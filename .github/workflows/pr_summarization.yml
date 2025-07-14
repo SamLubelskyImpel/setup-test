@@ -27,6 +27,9 @@ jobs:
     
       - name: Get Jira ticket number
         id: get-jira-ticket-number
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_DESCRIPTION: ${{ github.event.pull_request.body }}
         run: |
           import os
           import re
@@ -50,13 +53,13 @@ jobs:
                   f.write(f"jira_ticket={jira_ticket}\n")
           # Look for Jira ticket in PR title
           if not jira_ticket:
-              pr_title = os.environ.get('GITHUB_PR_TITLE', '')
+              pr_title = os.environ.get('PR_TITLE', '')
               match = re.search(regex, pr_title, re.IGNORECASE)
               if match:
                   jira_ticket = match.group(1)
           # Look for Jira ticket in PR description
           if not jira_ticket:
-              pr_description = os.environ.get('GITHUB_PR_DESCRIPTION', '')
+              pr_description = os.environ.get('PR_DESCRIPTION', '')
               match = re.search(regex, pr_description, re.IGNORECASE)
               if match:
                   jira_ticket = match.group(1)
