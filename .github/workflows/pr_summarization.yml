@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-      issues: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
