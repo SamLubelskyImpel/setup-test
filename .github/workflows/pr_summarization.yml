@@ -63,13 +63,15 @@ jobs:
         run: | 
           import os
           from google import genai
-          api_key = os.environ['API_KEY']
+          import requests
+          API_KEY = os.environ['API_KEY']
+          print(f"API_KEY: {API_KEY}")
           # Access the variables from environment
           jira_ticket = os.environ.get('JIRA_TICKET', '')
           
           print(f"Jira ticket from previous step: {jira_ticket}")
 
-          client = genai.Client(api_key=api_key)
+          client = genai.Client(api_key=API_KEY)
           with open('diff.txt', 'r') as f:
             diff = f.read()
           with open('.github/prompts/pr_summarization_instructions.txt', 'r') as f:
@@ -83,7 +85,14 @@ jobs:
             contents=full_prompt
           )
           print(response.text)
+          with open('pr_summary.txt', 'w') as f:
+            f.write(response.text)
           
+          requests.post(
+            f"https://api.github.com/repos/${{github.repository}}/issues/${{github.event.pull_request.number}}/comments",
+            headers={
+              "Authorization": f"Bearer ${{ secrets.GITHUB_TOKEN }}"
+            },
+            json={"body": response.text}
+          )
         shell: python
-        
-          
