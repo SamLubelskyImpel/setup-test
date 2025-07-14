@@ -136,8 +136,7 @@ jobs:
             contents=full_prompt
           )
           print("Truncated PR summary:")
-          print(response.text[:100])
-          response.raise_for_status()
+          print(response.text[:1000])
 
           comment_body = response.text
           if not jira_ticket_title:
