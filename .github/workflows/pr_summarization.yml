@@ -125,8 +125,9 @@ jobs:
                 auth=jira_auth
               )
               response.raise_for_status()
-              raw_comments = json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": "))
-              comments = raw_comments.map(lambda x: x['body'])
+              raw_comments = json.loads(response.text)['comments']
+              print(f"Raw comments: {raw_comments}")
+              comments = [x['body'] for x in raw_comments]
               jira_ticket_comments = "\n".join(comments)
               print(f"Jira ticket comments: {jira_ticket_comments}" )
             except Exception as e:
