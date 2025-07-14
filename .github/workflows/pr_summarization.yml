@@ -90,17 +90,17 @@ jobs:
           import json
           
           def extract_text_from_jira_comment(comment_body):
-            extracted_text = ""
+            extracted_text = []
 
             def _traverse_content(content_list):
               for item in content_list:
                 if item.get("type") == "text" and "text" in item:
-                  extracted_text += item["text"] + "\n"
+                  extracted_text.append(item["text"])
                 elif "content" in item and isinstance(item["content"], list):
                   _traverse_content(item["content"])
 
             _traverse_content(comment_body["content"])
-            return extracted_text
+            return "\n".join(extracted_text)
 
           API_KEY = os.environ['API_KEY']
 
