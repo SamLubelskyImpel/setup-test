@@ -21,31 +21,67 @@ jobs:
           pip install requests
           pip install google-genai
     
-      - name: Get Jira ticket number
-        id: get-jira-ticket-number
+      # - name: Get Jira ticket number
+      #   id: get-jira-ticket-number
+      #   run: |
+      #     import os
+      #     import re
+          
+      #     # Get branch name from GitHub context
+      #     branch_name = os.environ.get('GITHUB_HEAD_REF', '')  # For PRs
+      #     if not branch_name:
+      #         branch_name = os.environ.get('GITHUB_REF_NAME', '')  # Fallback for pushes
+          
+      #     print(f"Branch name: {branch_name}")
+          
+      #     # Look for Jira ticket in branch name
+      #     regex = r"(scrum-\d{1,5})"
+      #     match = re.search(regex, branch_name, re.IGNORECASE)
+          
+      #     if match:
+      #         jira_ticket = match.group(1)
+      #         print(f"Found Jira ticket: {jira_ticket}")
+      #         # Set output for next steps
+      #         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+      #             f.write(f"jira_ticket={jira_ticket}\n")
+      #     else:
+      #         print("No Jira ticket found in branch name")
+      #         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+      #             f.write("jira_ticket=\n")
+      #   shell: python
+      - name: Get git diff
         run: |
+          git diff HEAD^1 HEAD > diff.txt
+          cat diff.txt
+
+      - name: Generate PR summary
+        env:
+          # JIRA_TICKET: ${{ steps.get-jira-ticket-number.outputs.jira_ticket }}
+          API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: | 
           import os
-          import re
+          from google import genai
+          api_key = os.environ['API_KEY']
+          # Access the variables from environment
+          jira_ticket = os.environ.get('JIRA_TICKET', '')
           
-          # Get branch name from GitHub context
-          branch_name = os.environ.get('GITHUB_HEAD_REF', '')  # For PRs
-          if not branch_name:
-              branch_name = os.environ.get('GITHUB_REF_NAME', '')  # Fallback for pushes
+          print(f"Jira ticket from previous step: {jira_ticket}")
+
+          client = genai.Client(api_key=api_key)
+          with open('diff.txt', 'r') as f:
+            diff = f.read()
+          with open('../prompts/pr_summarization_instructions.txt', 'r') as f:
+            instructions = f.read()
+          full_prompt = f"""  
+          {instructions}
+          {diff}
+          """
+          response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=full_prompt
+          )
+          print(response.text)
           
-          print(f"Branch name: {branch_name}")
-          
-          # Look for Jira ticket in branch name
-          regex = r"(scrum-\d{1,5})"
-          match = re.search(regex, branch_name, re.IGNORECASE)
-          
-          if match:
-              jira_ticket = match.group(1)
-              print(f"Found Jira ticket: {jira_ticket}")
-              # Set output for next steps
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"jira_ticket={jira_ticket}\n")
-          else:
-              print("No Jira ticket found in branch name")
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write("jira_ticket=\n")
         shell: python
+        
+          

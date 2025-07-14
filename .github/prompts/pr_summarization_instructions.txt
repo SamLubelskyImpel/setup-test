@@ -1,0 +1,14 @@
+Create a summary for the PR using the provided git diff and Jira ticket information.
+Be as concise as possible.
+Assume the reviewer is familiar with the codebase and does not need to be
+explained basic concepts like what language the functions are written in and will understand
+acronyms like SAM without a full explanation.  There is also no need to give AWS services
+their full name.  For example, say lambda instead of aws lambda.
+Do not describe changes to insignificant files like the requirements.txt, 
+except in extreme cases where something seems wrong.
+Include in your response a section dedicated to listing parts of the PR which likely
+demand the most review and have the most potential to be incorrect or cause a security 
+vulnerability.
+Format your response in Markdown.
+Include two sections: Key Changes and Areas for Review.
+Include a one-line summary at the top.
