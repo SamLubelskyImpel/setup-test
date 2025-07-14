@@ -128,7 +128,7 @@ jobs:
               formatted_comments = json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": "))
               print(f"Formatted comments: {formatted_comments}")
               raw_comments = json.loads(response.text)['comments']
-              print(f"Raw comments: {raw_comments}")
+              print(f"Raw comments: {json.dumps(raw_comments, sort_keys=True, indent=4, separators=(',', ': '))}")
               comments = [x['body'] for x in raw_comments]
               jira_ticket_comments = "\n".join(comments)
               print(f"Jira ticket comments: {jira_ticket_comments}" )
