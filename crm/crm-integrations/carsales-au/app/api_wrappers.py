@@ -29,12 +29,6 @@ class CrmApiWrapper:
     def __init__(self) -> None:
         self.partner_id = CRM_API_SECRET_KEY
         self.api_key = self.get_secrets()
-        
-    def get_partner_id(self):
-        return self.partner_id
-    
-    def get_api_key(self):
-        return self.api_key
     
     def get_secrets(self):
         secret = secret_client.get_secret_value(
