@@ -128,7 +128,7 @@ jobs:
               response.raise_for_status()
 
               jira_ticket_title= response.json()['fields']['summary']
-              jira_ticket_description = response.json()['fields'].get('description', '')
+              jira_ticket_description = extract_text_from_jira_comment(response.json()['fields'].get('description', ''))
               print(f"Jira ticket title: {jira_ticket_title}")
               print(f"Jira ticket description: {jira_ticket_description}")
 
