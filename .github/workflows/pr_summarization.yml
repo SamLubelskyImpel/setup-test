@@ -88,11 +88,13 @@ jobs:
           with open('pr_summary.txt', 'w') as f:
             f.write(response.text)
           
-          requests.post(
+          response = requests.post(
             f"https://api.github.com/repos/${{github.repository}}/issues/${{github.event.pull_request.number}}/comments",
             headers={
               "Authorization": f"Bearer ${{ secrets.GITHUB_TOKEN }}"
             },
             json={"body": response.text}
           )
+          print(f"Response: {response.text}")
+          print(f"Response status code: {response.status_code}")
         shell: python
