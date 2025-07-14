@@ -101,13 +101,14 @@ jobs:
           if jira_ticket:
             try:
               print("Getting Jira ticket description from Jira API")
-
+              jira_headers = {
+                "Accept": "application/json"
+              }
+              jira_auth = ('sammy56lt@gmail.com', '${{ secrets.JIRA_API_KEY }}')
               response = requests.get(
                 f"${{secrets.JIRA_BASE_URL}}/rest/api/3/issue/{jira_ticket}",
-                headers={
-                  "Accept": "application/json"
-                },
-                auth=('sammy56lt@gmail.com', '${{ secrets.JIRA_API_KEY }}')
+                headers=jira_headers,
+                auth=jira_auth
               )
               response.raise_for_status()
 
@@ -116,6 +117,14 @@ jobs:
               print(f"Jira ticket title: {jira_ticket_title}")
               print(f"Jira ticket description: {jira_ticket_description}")
 
+              response = requests.get(
+                f"${{secrets.JIRA_BASE_URL}}/rest/api/3/issue/{jira_ticket}/comment",
+                headers=jira_headers,
+                auth=jira_auth
+              )
+              response.raise_for_status()
+              jira_ticket_comments = response.json()['comments']
+              print(f"Jira ticket comments: {jira_ticket_comments}" )
             except Exception as e:
               print(f"Error getting Jira ticket information: {e}")
 
@@ -133,6 +142,8 @@ jobs:
             full_prompt += f"\nJira ticket title: {jira_ticket_title}"
           if jira_ticket_description:
             full_prompt += f"\nJira ticket description: {jira_ticket_description}"
+          if jira_ticket_comments:
+            full_prompt += f"\nJira ticket comments: {jira_ticket_comments}"
           print("Full prompt:")
           print(full_prompt[-1000:])
           print("--------------------------------")
