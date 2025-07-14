@@ -130,7 +130,7 @@ jobs:
               raw_comments = json.loads(response.text)['comments']
               print(f"Raw comments: {json.dumps(raw_comments, sort_keys=True, indent=4, separators=(',', ': '))}")
               comments = [x['body'] for x in raw_comments]
-              jira_ticket_comments = "\n".join(comments)
+              jira_ticket_comments = json.dumps(comments, sort_keys=True, indent=4, separators=(',', ': '))
               print(f"Jira ticket comments: {jira_ticket_comments}" )
             except Exception as e:
               print(f"Error getting Jira ticket information: {e}")
