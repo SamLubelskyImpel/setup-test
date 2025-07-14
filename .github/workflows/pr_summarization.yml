@@ -139,16 +139,20 @@ jobs:
           print(response.text[:1000])
 
           comment_body = response.text
+
           if not jira_ticket_title:
-            comment_body = """This PR does not have a Jira ticket associated with it.  To improve the quality of the PR summary, 
-            in the future please add a JIRA ticket to the PR title, description or branch name.""" + comment_body
+            jira_ticket_reminder = """
+            This PR does not have a Jira ticket associated with it.  To improve the quality of the PR summary, 
+            in the future please add a JIRA ticket to the PR title, description or branch name.
+            """
+            comment_body = jira_ticket_reminder + "\n\n" + comment_body
 
           response = requests.post(
             f"https://api.github.com/repos/${{github.repository}}/issues/${{github.event.pull_request.number}}/comments",
             headers={
               "Authorization": f"Bearer ${{ secrets.GITHUB_TOKEN }}"
             },
-            json={"body": response.text}
+            json={"body": comment_body}
           )
           print(f"Response: {response.text}")
           print(f"Response status code: {response.status_code}")
