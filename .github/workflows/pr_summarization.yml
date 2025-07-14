@@ -99,6 +99,7 @@ jobs:
 
           jira_ticket_title = ""
           jira_ticket_description = ""
+          jira_ticket_comments = ""
           if jira_ticket:
             try:
               print("Getting Jira ticket description from Jira API")
