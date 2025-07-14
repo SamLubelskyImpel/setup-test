@@ -133,7 +133,9 @@ jobs:
             full_prompt += f"\nJira ticket title: {jira_ticket_title}"
           if jira_ticket_description:
             full_prompt += f"\nJira ticket description: {jira_ticket_description}"
-
+          print("Full prompt:")
+          print(full_prompt[-1000:])
+          print("--------------------------------")
           client = genai.Client(api_key=API_KEY)
           response = client.models.generate_content(
             model="gemini-2.5-flash",
