@@ -72,7 +72,7 @@ jobs:
           client = genai.Client(api_key=api_key)
           with open('diff.txt', 'r') as f:
             diff = f.read()
-          with open('../prompts/pr_summarization_instructions.txt', 'r') as f:
+          with open('.github/prompts/pr_summarization_instructions.txt', 'r') as f:
             instructions = f.read()
           full_prompt = f"""  
           {instructions}
