@@ -90,6 +90,7 @@ class CarsalesApiWrapper:
             "Authorization": f"Basic {encoded_auth}",
         }
 
+
         try:
             response = requests.request(
                 method=method,
