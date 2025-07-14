@@ -68,6 +68,7 @@ jobs:
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write("jira_ticket=\n")
           else:
+              jira_ticket = jira_ticket.upper()
               print(f"Found Jira ticket: {jira_ticket}")
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"jira_ticket={jira_ticket}\n")
