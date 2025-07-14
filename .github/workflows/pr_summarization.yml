@@ -125,6 +125,7 @@ jobs:
               response.raise_for_status()
               jira_ticket_comments = response.json()['comments']
               print(f"Jira ticket comments: {jira_ticket_comments}" )
+              print(json.dumps(json.loads(response.text), sort_keys=True, indent=4, separators=(",", ": ")))
             except Exception as e:
               print(f"Error getting Jira ticket information: {e}")
 
