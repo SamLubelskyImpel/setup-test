@@ -84,7 +84,7 @@ class CarsalesApiWrapper:
         """Call CarSales API."""
         auth_string = f"{self.__api_username}:{self.__api_password}"
         encoded_auth = base64.b64encode(auth_string.encode('utf-8')).decode('utf-8')
-
+        print("Testing print")
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Basic {encoded_auth}",
