@@ -2,7 +2,7 @@ name: Generate PR Summary
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize] # Change this to only trigger on opened PRs in production
+    types: [opened] # Change this to only trigger on opened PRs in production
 
 jobs:
   generate-pr-summary:

@@ -42,13 +42,27 @@ jobs:
           echo "changed_services: $changed_services"
           echo "changed_services=$changed_services" >> $GITHUB_OUTPUT
 
+      - name: Format Changed Services
+        run: |
+          RAW_CHANGED_SERVICES=${{ steps.identify-changed-services.outputs.changed_services }}
+          echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
+          if [ -z "$RAW_CHANGED_SERVICES" ]; then
+            echo "No changed services found"
+            echo "changed_services=[]" >> $GITHUB_OUTPUT
+          else
+            JSON_ARRAY=$(echo "$RAW_CHANGED_SERVICES" | jq -R -s -c 'split(" ") | map(select(length > 0))')
+            echo "JSON_ARRAY: $JSON_ARRAY"
+            echo "changed_services=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
   deploy-changed-services:
     needs: identify-deployable-services
     runs-on: ubuntu-latest
     strategy:
         fail-fast: false
         matrix:
-          service: ${{ needs.identify-deployable-services.outputs.changed_services }}
+          service: ${{ fromJson(needs.identify-deployable-services.outputs.changed_services) }}
 
     steps:
       - name: Checkout code
