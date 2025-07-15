@@ -3,3 +3,9 @@ variable "test-deploy" {
 
     value "test-deploy" {}
 }
+
+variable "Environment" {
+    value "test" {
+        environment = ["development"]
+    }
+}
