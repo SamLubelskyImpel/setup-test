@@ -87,10 +87,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           role-skip-session-tagging: true
-          
+      - name: Create unified-test AWS profile
+        run: |
+          aws configure set profile.unified-test.region ${{ secrets.AWS_REGION }}
+          aws configure set profile.unified-test.aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set profile.unified-test.aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set profile.unified-test.role_arn ${{ secrets.ROLE_ARN }}
+
       - name: Deploy changed services
-        env:
-          AWS_PROFILE: unified-test
         run: | 
             echo "deploying service: ${{ matrix.service }}"
             cd ${{ matrix.service }}
