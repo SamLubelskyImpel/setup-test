@@ -13,6 +13,7 @@ step "deploy-an-aws-cloudformation-template" {
             Octopus.Action.Aws.CloudFormation.RoleArn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
             Octopus.Action.Aws.CloudFormationTemplate = "crm/crm-integrations/dealerpeak/template.yaml"
+            Octopus.Action.Aws.CloudFormationTemplateParametersRaw = ".octopus/parameters.json"
             Octopus.Action.Aws.IamCapabilities = "[\"CAPABILITY_AUTO_EXPAND\",\"CAPABILITY_NAMED_IAM\"]"
             Octopus.Action.Aws.Region = "us-east-1"
             Octopus.Action.Aws.TemplateSource = "GitRepository"
@@ -21,7 +22,7 @@ step "deploy-an-aws-cloudformation-template" {
             Octopus.Action.AwsAccount.Variable = "test-deploy"
             Octopus.Action.EnabledFeatures = "Octopus.Features.CloudFormation.ChangeSet.Feature"
             Octopus.Action.GitRepository.Source = "Project"
-            Octopus.Action.Package.JsonConfigurationVariablesTargets = "crm/crm-integrations/dealerpeak/template.yaml"
+            Octopus.Action.Package.JsonConfigurationVariablesTargets = "crm/crm-integrations/dealerpeak/template.yaml, .octopus/parameters.json"
         }
         worker_pool = "hosted-windows"
     }
