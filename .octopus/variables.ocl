@@ -1,0 +1,5 @@
+variable "test-deploy" {
+    type = "AmazonWebServicesAccount"
+
+    value "test-deploy" {}
+}
