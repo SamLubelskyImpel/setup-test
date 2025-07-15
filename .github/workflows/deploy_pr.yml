@@ -1,0 +1,77 @@
+name: Deploy Changed Stacks to Ephemeral Test Environment for Pre-Merge Testing
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  identify-deployable-services:
+    runs-on: ubuntu-latest
+    outputs:
+      changed_services: ${{ steps.identify-changed-services.outputs.changed_services }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Identify Changed Files
+        id: identify-changed-files
+        run: |
+          changed_files=$(git diff --name-only HEAD^1 HEAD | xargs) # Get all files changed in the whole PR (not just from the last commit)
+          echo "changed_files: $changed_files"
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+
+      - name: Identify changed services
+        id: identify-changed-services
+        run: |
+          changed_services=""
+          for file in ${{ steps.identify-changed-files.outputs.changed_files }}; do
+            DIR_NAME=$(dirname $file)
+            while [ "$DIR_NAME" != "." ]; do
+              if [ -f "$DIR_NAME/template.yaml" ]; then
+                if [[ ! "$changed_services" == *"$DIR_NAME"* ]]; then
+                  echo "Adding $DIR_NAME to changed services"
+                  changed_services="$DIR_NAME $changed_services"
+                fi
+                 break
+              fi
+              DIR_NAME=$(dirname $DIR_NAME)
+            done
+          done
+          echo "changed_services: $changed_services"
+          echo "changed_services=$changed_services" >> $GITHUB_OUTPUT
+
+  deploy-changed-services:
+    needs: identify-deployable-services
+    runs-on: ubuntu-latest
+    strategy:
+        fail-fast: false
+        matrix:
+          service: ${{ needs.identify-deployable-services.outputs.changed_services }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' # Use a recent Python version
+
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.ROLE_ARN }}
+          role-session-name: unified-test
+          aws-region: ${{ env.AWS_REGION }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+      - name: Deploy changed services
+        working-directory: ${{ matrix.service }}
+        run: | 
+            sam build --parallel
+            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --stack-name=${{ matrix.service }} --s3-bucket=spincar-deploy-${{ env.AWS_REGION }}
