@@ -57,7 +57,7 @@ jobs:
         shell: bash
 
   deploy-changed-services:
-    needs: identify-deployable-services
+    needs: [identify-deployable-services]
     runs-on: ubuntu-latest
     strategy:
         fail-fast: false
