@@ -45,7 +45,7 @@ jobs:
       - name: Format Changed Services
         id: format-changed-services
         run: |
-          RAW_CHANGED_SERVICES=${{ steps.identify-changed-services.outputs.changed_services }}
+          RAW_CHANGED_SERVICES="${{ steps.identify-changed-services.outputs.changed_services }}"
           echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
           if [ -z "$RAW_CHANGED_SERVICES" ]; then
             echo "No changed services found"
