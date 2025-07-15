@@ -89,9 +89,9 @@ jobs:
           role-skip-session-tagging: true
           
       - name: Deploy changed services
-        working-directory: ${{ matrix.service }}
         run: | 
             echo "deploying service: ${{ matrix.service }}"
+            cd ${{ matrix.service }}
             sam build --parallel
             sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
         shell: bash
