@@ -1,1 +1,6 @@
-[{"Environment": "Test"}]
+[
+    {
+    "ParameterKey": "Environment",
+    "ParameterValue": "Test" 
+    }
+]
