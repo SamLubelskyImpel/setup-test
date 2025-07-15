@@ -32,7 +32,7 @@ jobs:
               if [ -f "$DIR_NAME/template.yaml" ]; then
                 if [[ ! "$changed_services" == *"$DIR_NAME"* ]]; then
                   echo "Adding $DIR_NAME to changed services"
-                  changed_services="$DIR_NAME $changed_services"
+                  changed_services="$changed_services $DIR_NAME"
                 fi
                  break
               fi
