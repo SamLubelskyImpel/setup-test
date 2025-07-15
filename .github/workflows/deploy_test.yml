@@ -92,3 +92,81 @@ jobs:
             cd ${{ matrix.service }}
             sam build --parallel
             sam deploy --config-env "test" --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
+  
+  run-integration-tests:
+    needs: [deploy-changed-services]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Upgrade pip
+        run: |
+          pip install --upgrade pip
+      - name: Identify Changed Files
+        id: identify-changed-files
+        run: |
+          changed_files=$(git diff --name-only HEAD^1 HEAD | xargs) # Get all files changed in the whole PR (not just from the last commit)
+          echo "changed_files: $changed_files"
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+  
+      - name: Identify changed services
+        id: identify-changed-services
+        run: |
+          changed_services=""
+          for file in ${{ steps.identify-changed-files.outputs.changed_files }}; do
+            DIR_NAME=$(dirname $file)
+            while [ "$DIR_NAME" != "." ]; do
+              if [ -f "$DIR_NAME/template.yaml" ]; then
+                if [[ ! "$changed_services" == *"$DIR_NAME"* ]]; then
+                  echo "Adding $DIR_NAME to changed services"
+                  changed_services="$DIR_NAME $changed_services"
+                fi
+                  break
+              fi
+              DIR_NAME=$(dirname $DIR_NAME)
+            done
+          done
+          echo "changed_services: $changed_services"
+          echo "changed_services=$changed_services" >> $GITHUB_OUTPUT
+      
+      - name: Run Integration Tests for all changed services
+        run: |
+          changed_services="${{ steps.identify-changed-services.outputs.changed_services }}"
+          echo "Changed services: $changed_services"
+
+          if [ -z "$changed_services" ]; then
+            echo "No services changed. Skipping integration tests."
+            exit 0
+          fi
+
+          common_deps="pytest moto coverage boto3 pytest-mock"
+
+          for service_path in $changed_services; do
+            echo "--- Running tests for service: $service_path ---"
+            service_name="${service_path//\//-}"
+            venv_dir=".venv-$service_name"
+
+            rm -rf "$venv_dir"
+            python3 -m venv "$venv_dir"
+            source "$venv_dir/bin/activate"
+
+            pip install $common_deps
+            service_requirements_file="${service_path}/app/requirements.txt"
+            if [ -f "$service_requirements_file" ]; then
+              echo "Installing service-specific dependencies from $service_requirements_file..."
+              pip install -r "$service_requirements_file"
+            else
+              echo "No service-specific requirements.txt found at $service_requirements_file. Using only common dependencies."
+            fi
+
+            pytest -c test_integration.cfg $service_path/tests 
+
+            deactivate
+            echo "--- Finished tests for service: $service_path ---"
+          done
