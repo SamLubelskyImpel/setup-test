@@ -5,7 +5,9 @@ step "deploy-an-aws-cloudformation-template" {
         action_type = "Octopus.AwsRunCloudFormation"
         properties = {
             Octopus.Action.AutoRetry.MaximumCount = "0"
-            Octopus.Action.Aws.AssumeRole = "False"
+            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
+            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
+            Octopus.Action.Aws.AssumeRole = "True"
             Octopus.Action.Aws.CloudFormation.RoleArn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
             Octopus.Action.Aws.CloudFormationTemplate = "crm/crm-integrations/dealerpeak/template.yaml"
