@@ -78,15 +78,6 @@ jobs:
         run: |
           pip install --upgrade pip
 
-      - name: Configure AWS CLI
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.ROLE_ARN }}
-          role-external-id: unified-test
-          aws-region: ${{ secrets.AWS_REGION }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          role-skip-session-tagging: true
       - name: Create unified-test AWS profile
         run: |
           aws configure set profile.unified-test.region ${{ secrets.AWS_REGION }}
