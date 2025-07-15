@@ -96,4 +96,4 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: | 
             sam build --parallel
-            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --stack-name=${{ matrix.service }} --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
+            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
