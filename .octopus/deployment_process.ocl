@@ -1,0 +1,23 @@
+step "deploy-an-aws-cloudformation-template" {
+    name = "Deploy an AWS CloudFormation template"
+
+    action {
+        action_type = "Octopus.AwsRunCloudFormation"
+        properties = {
+            Octopus.Action.AutoRetry.MaximumCount = "0"
+            Octopus.Action.Aws.AssumeRole = "False"
+            Octopus.Action.Aws.CloudFormation.RoleArn = "143813444726"
+            Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
+            Octopus.Action.Aws.CloudFormationTemplate = "crm/crm-integrations/dealerpeak/template.yaml"
+            Octopus.Action.Aws.IamCapabilities = "[\"CAPABILITY_IAM\"]"
+            Octopus.Action.Aws.Region = "us-east-1"
+            Octopus.Action.Aws.TemplateSource = "GitRepository"
+            Octopus.Action.Aws.WaitForCompletion = "True"
+            Octopus.Action.AwsAccount.UseInstanceRole = "False"
+            Octopus.Action.AwsAccount.Variable = "test-deploy"
+            Octopus.Action.GitRepository.Source = "Project"
+            Octopus.Action.Package.JsonConfigurationVariablesTargets = "crm/crm-integrations/dealerpeak/template.yaml"
+        }
+        worker_pool = "hosted-windows"
+    }
+}
