@@ -89,6 +89,8 @@ jobs:
           role-skip-session-tagging: true
           
       - name: Deploy changed services
+        env:
+          AWS_PROFILE: unified-test
         run: | 
             echo "deploying service: ${{ matrix.service }}"
             cd ${{ matrix.service }}
