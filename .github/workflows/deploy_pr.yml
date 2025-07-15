@@ -93,5 +93,5 @@ jobs:
             echo "deploying service: ${{ matrix.service }}"
             cd ${{ matrix.service }}
             sam build --parallel
-            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
+            sam deploy --config-env "test" --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
         shell: bash
