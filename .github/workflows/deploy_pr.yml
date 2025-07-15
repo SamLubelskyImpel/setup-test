@@ -8,7 +8,7 @@ jobs:
   identify-deployable-services:
     runs-on: ubuntu-latest
     outputs:
-      changed_services: ${{ steps.identify-changed-services.outputs.changed_services }}
+      changed_services: ${{ steps.format-changed-services.outputs.changed_services }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -43,6 +43,7 @@ jobs:
           echo "changed_services=$changed_services" >> $GITHUB_OUTPUT
 
       - name: Format Changed Services
+        id: format-changed-services
         run: |
           RAW_CHANGED_SERVICES=${{ steps.identify-changed-services.outputs.changed_services }}
           echo "RAW_CHANGED_SERVICES: $RAW_CHANGED_SERVICES"
@@ -82,7 +83,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.ROLE_ARN }}
           role-session-name: unified-test
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
@@ -90,4 +91,4 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: | 
             sam build --parallel
-            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --stack-name=${{ matrix.service }} --s3-bucket=spincar-deploy-${{ env.AWS_REGION }}
+            sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --stack-name=${{ matrix.service }} --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
