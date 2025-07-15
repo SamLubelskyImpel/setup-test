@@ -1,0 +1,3 @@
+variable "aws_secret_access_key" {
+    value "lIcAjn8APVmgIfitdQqNTflo0Ap/wCoeYMKY/dO9" {}
+}
