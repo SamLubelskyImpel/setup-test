@@ -66,6 +66,10 @@ jobs:
           service: ${{ fromJson(needs.identify-deployable-services.outputs.changed_services) }}
 
     steps:
+      - name: Print service
+        run: |
+          echo "deploying service: ${{ matrix.service }}"
+
       - name: Checkout code
         uses: actions/checkout@v3
 
