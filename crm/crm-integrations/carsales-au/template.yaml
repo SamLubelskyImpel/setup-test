@@ -40,7 +40,6 @@ Globals:
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-prod",
             !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:crm-reporting-topic-test"
           ]
-        TEST: "TEST"
 
 Resources:
   LambdaRole:
@@ -388,11 +387,6 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Threshold: 1
       TreatMissingData: notBreaching
-  Dddd
-  SendActivityLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/carsales-au-crm-${Environment}-SendActivity"
 
   LogGroupInvokeLambdaPermission:
     Type: AWS::Lambda::Permission
