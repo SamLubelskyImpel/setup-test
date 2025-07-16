@@ -24,9 +24,6 @@ CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
 UPLOAD_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 SNS_TOPIC_ARN = environ.get("SNS_TOPIC_ARN")
 
-sm_client = boto3.client('secretsmanager')
-s3_client = boto3.client("s3")
-
 
 class EventListenerError(Exception):
     pass
@@ -34,6 +31,7 @@ class EventListenerError(Exception):
 
 def get_secret(secret_name, secret_key) -> Any:
     """Get secret from Secrets Manager."""
+    sm_client = boto3.client('secretsmanager')
     secret = sm_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/{secret_name}"
     )
@@ -248,6 +246,7 @@ def record_handler(record: SQSRecord) -> None:
         bucket = message["detail"]["bucket"]["name"]
         key = message["detail"]["object"]["key"]
         product_dealer_id = key.split('/')[2]
+        s3_client = boto3.client("s3")
 
         response = s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()

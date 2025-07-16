@@ -15,8 +15,7 @@ BUCKET = environ.get("INTEGRATIONS_BUCKET")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = boto3.client("secretsmanager")
-sqs_client = boto3.client("sqs")
-s3_client = boto3.client("s3")
+
 
 
 def get_secrets():
@@ -75,6 +74,8 @@ def parse_salesperson(agent: dict, format_list: bool = False):
 
 def send_sqs_message(message_body: Dict[str, Any]) -> None:
     """Send SQS message."""
+    s3_client = boto3.client("s3")
+    sqs_client = boto3.client("sqs")
     s3_key = f"configurations/{'prod' if ENVIRONMENT == 'prod' else 'test'}_DEALERPEAK.json"
     try:
         queue_url = loads(

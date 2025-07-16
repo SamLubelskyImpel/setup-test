@@ -21,7 +21,6 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-secret_client = boto3.client("secretsmanager")
 
 
 def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
