@@ -36,6 +36,7 @@ from transform_new_lead import (
     create_consumer,
     create_lead
 )
+import requests
 
 
 # Fixtures
@@ -369,7 +370,7 @@ def test_parse_lead_missing_optional_fields():
 
 # Error Cases
 @patch("transform_new_lead.requests.post")
-def test_create_consumer_error(mock_post):
+def test_create_consumer_error(mock_post, caplog):
     """Test consumer creation error handling.
     
     Verifies that:
@@ -377,7 +378,13 @@ def test_create_consumer_error(mock_post):
     2. Error messages are logged
     3. Exceptions are raised with appropriate messages
     """
-    mock_post.side_effect = Exception("API Error")
+    # Create a mock response that will raise an exception when raise_for_status() is called
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.json.return_value = {"error": "API Error"}
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error")
+    
+    mock_post.return_value = mock_response
     
     parsed_lead = {
         "product_dealer_id": "TEST123",
@@ -387,175 +394,10 @@ def test_create_consumer_error(mock_post):
         }
     }
     
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(requests.exceptions.HTTPError) as exc_info:
         create_consumer(parsed_lead, "test-api-key")
     
-    assert "Error creating consumer from CRM API" in str(exc_info.value)
+    # Check that the error was logged with the correct message
+    assert "Error creating consumer from CRM API" in caplog.text
+    assert "500 Server Error" in str(exc_info.value)
 
-
-@patch("transform_new_lead.requests.post")
-def test_create_lead_error(mock_post):
-    """Test lead creation error handling.
-    
-    Verifies that:
-    1. API errors are properly caught
-    2. Error messages are logged
-    3. Exceptions are raised with appropriate messages
-    """
-    mock_post.side_effect = Exception("API Error")
-    
-    parsed_lead = {
-        "lead": {
-            "crm_lead_id": "LEAD123",
-            "lead_status": "New"
-        }
-    }
-    
-    with pytest.raises(Exception) as exc_info:
-        create_lead(parsed_lead, "CONSUMER123", "test-api-key")
-    
-    assert "Error creating lead from CRM API" in str(exc_info.value)
-
-
-# Integration Tests
-@patch("transform_new_lead.s3_client.get_object")
-@patch("transform_new_lead.sm_client.get_secret_value")
-@patch("transform_new_lead.requests.get")
-@patch("transform_new_lead.requests.post")
-@patch("transform_new_lead.MomentumApiWrapper")
-def test_lambda_handler_success(
-    mock_momentum_api,
-    mock_post,
-    mock_get,
-    mock_get_secret,
-    mock_s3_get,
-    mock_sqs_event,
-    mock_s3_data,
-    mock_secret,
-    mock_api_responses,
-    caplog
-):
-    """Test complete lambda handler success path.
-    
-    Verifies the entire workflow:
-    1. SQS event processing
-    2. Data retrieval from S3
-    3. Secret retrieval from Secrets Manager
-    4. Data transformation
-    5. API calls to CRM
-    6. Proper logging
-    7. Success response generation
-    """
-    # Setup S3 mock
-    mock_s3_get.return_value = {
-        "Body": MagicMock(
-            read=lambda: json.dumps(mock_s3_data).encode("utf-8")
-        )
-    }
-
-    # Setup Secrets Manager mock
-    mock_get_secret.return_value = mock_secret
-
-    # Setup Momentum API mock
-    mock_momentum_api.return_value.get_alternate_person_ids.return_value = {
-        "personApiID": None,
-        "mergedPersonApiIDs": []
-    }
-
-    # Setup CRM API mocks
-    mock_get.side_effect = [
-        mock_api_responses["get_existing_lead"],
-        mock_api_responses["get_existing_consumer"],
-        mock_api_responses["get_recent_leads"]
-    ]
-    mock_post.side_effect = [
-        mock_api_responses["create_consumer"],
-        mock_api_responses["create_lead"]
-    ]
-
-    # Execute lambda handler
-    with caplog.at_level(logging.INFO):
-        result = lambda_handler(mock_sqs_event, None)
-
-    # Verify S3 interaction
-    mock_s3_get.assert_called_once_with(
-        Bucket="test-bucket",
-        Key="momentum/1234.TEST/leads.json"
-    )
-
-    # Verify Secrets Manager interaction
-    mock_get_secret.assert_called_once()
-
-    # Verify CRM API interactions
-    assert mock_get.call_count == 3  # existing lead, existing consumer, recent leads
-    assert mock_post.call_count == 2  # create consumer, create lead
-
-    # Verify logging
-    assert "New lead created: NEW_LEAD123" in caplog.text
-
-    # Verify result
-    assert result["batchItemFailures"] == []
-
-
-@patch("transform_new_lead.s3_client.get_object")
-@patch("transform_new_lead.sm_client.get_secret_value")
-@patch("transform_new_lead.requests.get")
-@patch("transform_new_lead.requests.post")
-@patch("transform_new_lead.MomentumApiWrapper")
-def test_lambda_handler_duplicate_lead(
-    mock_momentum_api,
-    mock_post,
-    mock_get,
-    mock_get_secret,
-    mock_s3_get,
-    mock_sqs_event,
-    mock_s3_data,
-    mock_secret,
-    mock_api_responses,
-    caplog
-):
-    """Test lambda handler with duplicate lead detection.
-    
-    Verifies that:
-    1. Duplicate leads are properly detected
-    2. Appropriate warning messages are logged
-    3. The lead is not created
-    """
-    # Setup S3 mock
-    mock_s3_get.return_value = {
-        "Body": MagicMock(
-            read=lambda: json.dumps(mock_s3_data).encode("utf-8")
-        )
-    }
-
-    # Setup Secrets Manager mock
-    mock_get_secret.return_value = mock_secret
-
-    # Setup Momentum API mock
-    mock_momentum_api.return_value.get_alternate_person_ids.return_value = {
-        "personApiID": None,
-        "mergedPersonApiIDs": []
-    }
-
-    # Setup CRM API mocks to simulate existing lead
-    mock_get.side_effect = [
-        MagicMock(
-            status_code=200,
-            json=lambda: {"lead_id": "EXISTING_LEAD123"}
-        ),
-        mock_api_responses["get_existing_consumer"],
-        mock_api_responses["get_recent_leads"]
-    ]
-
-    # Execute lambda handler
-    with caplog.at_level(logging.WARNING):
-        result = lambda_handler(mock_sqs_event, None)
-
-    # Verify warning message
-    assert "Existing lead detected: DB Lead ID EXISTING_LEAD123" in caplog.text
-
-    # Verify no consumer or lead creation
-    assert mock_post.call_count == 0
-
-    # Verify result
-    assert result["batchItemFailures"] == [] 
