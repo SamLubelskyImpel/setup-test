@@ -29,6 +29,7 @@ from transform_new_lead import (
 )
 
 
+
 # Fixtures
 @pytest.fixture
 def mock_sqs_s3_event() -> Dict[str, Any]:
