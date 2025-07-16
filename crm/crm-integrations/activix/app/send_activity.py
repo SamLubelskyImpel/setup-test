@@ -19,45 +19,19 @@ CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
 
 logger = getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
+secret_client = client("secretsmanager")
 
+crm_api = CrmApiWrapper()
 
 
 def record_handler(record: SQSRecord):
     """Create activity on Activix."""
     logger.info(f"Record: {record}")
-
-    secret_client = client("secretsmanager")
-    crm_api = CrmApiWrapper()
     try:
-        body = record.json_body
-        details = body.get("detail", {})
-
-        idp_dealer_id = details.get("idp_dealer_id")
-        lead_id = details.get("lead_id")
-        activity_id = details.get("activity_id")
-
-        activity = crm_api.get_activity(activity_id)
-        dealer = crm_api.get_dealer_by_idp_dealer_id(idp_dealer_id)
-
-        activity = {
-            "lead_id": lead_id,
-            "crm_lead_id": activity.get("crm_lead_id", None),
-            "dealer_integration_partner_id": dealer.get("dealer_integration_partner_id", None),
-            "crm_dealer_id": dealer.get("crm_dealer_id", None),
-            "consumer_id": None,
-            "crm_consumer_id": activity.get("crm_consumer_id", None),
-            "dealer_integration_partner_metadata": dealer.get("metadata", None),
-            "activity_id": activity_id,
-            "notes": activity.get("notes", None),
-            "activity_due_ts": activity.get("activity_due_ts", None),
-            "activity_requested_ts": activity.get("activity_requested_ts", None),
-            "dealer_timezone": dealer.get("timezone", None),
-            "activity_type": activity.get("activity_type", None),
-            "contact_method": activity.get("contact_method", None),
-        }
+        activity = loads(record['body'])
         logger.info(f"Activity: {activity}")
 
-        salesperson = crm_api.get_salesperson(lead_id)
+        salesperson = crm_api.get_salesperson(activity["lead_id"])
         activix_crm_api = ActivixApiWrapper(activity=activity, salesperson=salesperson)
 
         activix_activity_id = activix_crm_api.create_activity()

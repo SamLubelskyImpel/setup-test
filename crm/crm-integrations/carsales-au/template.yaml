@@ -388,6 +388,11 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
 
+  SendActivityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/carsales-au-crm-${Environment}-SendActivity"
+
   LogGroupInvokeLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:

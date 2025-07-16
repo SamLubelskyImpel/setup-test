@@ -9,7 +9,7 @@ from os import environ
 from json import loads
 from boto3 import client
 import logging
-from datetime import datetime
+
 
 ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
@@ -17,46 +17,6 @@ SECRET_KEY = environ.get("SECRET_KEY")
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
 secret_client = client("secretsmanager")
-
-CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
-CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
-
-
-class CrmApiWrapper:
-    """CRM API Wrapper."""
-
-    def __init__(self) -> None:
-        self.partner_id = CRM_API_SECRET_KEY
-        self.api_key = self.get_secrets()
-
-    def get_secrets(self):
-        secret = secret_client.get_secret_value(
-            SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-api"
-        )
-        secret = loads(secret["SecretString"])[CRM_API_SECRET_KEY]
-        secret_data = loads(secret)
-
-        return secret_data["api_key"]
-
-    def __run_get(self, endpoint: str):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/{endpoint}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            },
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def get_activity(self, activity_id: int):
-        activity = self.__run_get(f"activities/{activity_id}")
-        return activity
-
-    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
-        dealer = self.__run_get(f"dealers/idp/{idp_dealer_id}")
-        return dealer
-
 
 class EskimoApiWrapper:
     """Eskimo API Wrapper."""
@@ -75,13 +35,13 @@ class EskimoApiWrapper:
 
     def __call_api(self, payload=None, method="POST", path=""):
         headers = {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json" 
         }
         url = f"{self.__api_url}{path}"
 
         response = requests.request(
             method=method,
-            url=url,
+            url=url, 
             json=payload,
             headers=headers,
         )
@@ -96,22 +56,20 @@ class EskimoApiWrapper:
             "note": self.__activity["notes"]
         }
         logger.info(f"Payload to CRM (Note): {payload}")
-        response = self.__call_api(payload, path="/updatenote")
+        response = self.__call_api(payload, path="/updatenote") 
         response.raise_for_status()
 
         return response.text
 
     def __insert_appointment(self):
         """Insert appointment on CRM."""
-
-        appt_date = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%dT%H:%M:%SZ")
         payload = {
             "accountId": self.__activity["crm_dealer_id"],
             "customerId": self.__activity["crm_consumer_id"],
-            "appointmentDate": appt_date
+            "appointmentDate": self.__activity["activity_due_ts"]
         }
         logger.info(f"Payload to CRM (Appointment): {payload}")
-        response = self.__call_api(payload, path="/createappointment")
+        response = self.__call_api(payload, path="/createappointment") 
         response.raise_for_status()
 
         return response.text
@@ -123,7 +81,7 @@ class EskimoApiWrapper:
         if self.__activity["activity_type"] == "appointment":
             return self.__insert_appointment()
         else:
-            logger.warning(
+            logger.error(
                 f"Eskimo CRM doesn't support activity type: {self.__activity['activity_type']}"
             )
             return None

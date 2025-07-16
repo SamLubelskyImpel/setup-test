@@ -18,7 +18,6 @@ from requests.exceptions import RequestException
 import boto3
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
-
 from lead_updates import (
     get_secrets,
     get_lead,
@@ -27,7 +26,6 @@ from lead_updates import (
     get_salesperson_by_lead_id,
     lambda_handler
 )
-
 
 MODULE_PATH = "lead_updates"  # For patching module-level items
 

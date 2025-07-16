@@ -74,10 +74,6 @@ class CRMAPIWrapper:
             logger.error(f"Error updating lead in CRM API: {e}, Response: {response.text}")
             raise APIError(f"Error updating lead in CRM API: {e}")
 
-    def get_idp_dealer(self, idp_dealer_id: str):
-        """Fetch dealer details from CRM API."""
-        return self.base_helper.call_crm_api(f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}")
-
 
 class ShiftDigitalAPIWrapper:
     """Handles API interactions with Shift Digital."""
@@ -262,24 +258,16 @@ class ShiftDigitalAPIWrapper:
             logger.error(f"Error fetching lead status from Shift Digital: {e}, Response: {response.text}")
             raise APIError(f"Error fetching lead status from Shift Digital API: {e}")
 
-    def extract_crm_lead_id(self, status_response: dict):
+    def extract_crm_lead_id(self, status_response: dict) -> str:
         """Extract the first available CRM lead ID from the Shift Digital API response."""
-        try:
-            leads = status_response.get("Leads", [])
+        leads = status_response.get("leads", [])
 
-            for lead in leads:
-                crms = lead.get("Crms", [])
-                if crms:
-                    crm_id = crms[0].get("Id", "")
-                    if not crm_id:
-                        raise ValueError("CRM lead ID is missing from the first Crms entry.")
-                    return crm_id
+        for lead in leads:
+            crms = lead.get("crms", [])
+            if crms:
+                return crms[0].get("id")
 
-            raise ValueError("No Crms entry found in any lead.")
-
-        except Exception as e:
-            logger.error(f"Failed to extract CRM lead ID: {e}")
-            raise
+        return None
 
     def validate_phone_number(self, phone_str: str):
         """Cleans and validates a phone number. Ensures it is exactly 10 digits."""

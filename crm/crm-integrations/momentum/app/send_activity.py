@@ -42,10 +42,10 @@ def get_salespersons_handler(event: Any, context: Any) -> Any:
                     "position_name": position_name,
                 }
             )
-
+        
         return {"statusCode": 200, "body": dumps(formatted_salespersons)}
 
-    except Exception:
+    except Exception as e:
         logger.exception(
             f"Failed to retrieve salespersons {event} to Momentum"
         )
@@ -58,23 +58,11 @@ def get_salespersons_handler(event: Any, context: Any) -> Any:
 def record_handler(record: SQSRecord):
     """Create activity on Momentum."""
     logger.info(f"Record: {record}")
-    activity = {}
-
     try:
-        body = record.json_body
-        details = body.get("detail", {})
-
-        salesperson = crm_api.get_salesperson(details["lead_id"])
-        activity = crm_api.get_activity(details["activity_id"])
-        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
-
-        if not activity:
-            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
-
-        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
-
+        activity = loads(record['body'])
+        salesperson = crm_api.get_salesperson(activity["lead_id"])
         if not salesperson and activity.get("activity_type", "") == "appointment":
-            logger.warning(f"No salespersons found for lead_id: {details['lead_id']}. Required for appointment activity.")
+            logger.warning(f"No salespersons found for lead_id: {activity['lead_id']}. Required for appointment activity.")
             return
 
         logger.info(f"Activity: {activity}, Salesperson: {salesperson}")
@@ -84,21 +72,16 @@ def record_handler(record: SQSRecord):
         momentum_activity_id = momentum_crm_api.create_activity()
         logger.info(f"Momentum responded with activity ID: {momentum_activity_id}")
 
-        crm_api.update_activity(details["activity_id"], momentum_activity_id)
+        crm_api.update_activity(activity["activity_id"], momentum_activity_id)
 
     except Exception as e:
         if "No existing scheduled appointments found" in str(e):
             logger.error(f"Error: {e}")
-            return
-        logger.exception(f"Failed to post activity {details['activity_id']} to Momentum")
-        logger.error(
-            f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
-            f"IdpDealerId: {details['idp_dealer_id']}\n"
-            f"LeadId: {details['lead_id']}\n"
-            f"ActivityId: {details['activity_id']}\n"
-            f"ActivityType: {activity.get('activity_type', '')}\n"
-            f"Traceback: {e}"
-        )
+            return 
+        logger.exception(f"Failed to post activity {activity['activity_id']} to Momentum")
+        logger.error("[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+            activity["dealer_integration_partner_id"], activity["lead_id"], activity["activity_id"], activity["activity_type"], e)
+            )
         raise
 
 

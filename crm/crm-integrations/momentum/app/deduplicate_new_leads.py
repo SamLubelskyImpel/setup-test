@@ -48,7 +48,7 @@ def record_handler(record: SQSRecord) -> None:
             QueueUrl=TRANSFORM_NEW_LEAD_QUEUE,
             MessageBody=message_body,
             MessageGroupId=crm_consumer_id,
-            MessageDeduplicationId=f"{crm_dealer_id}:{crm_consumer_id}"
+            MessageDeduplicationId=crm_consumer_id
         )
 
     except Exception as e:

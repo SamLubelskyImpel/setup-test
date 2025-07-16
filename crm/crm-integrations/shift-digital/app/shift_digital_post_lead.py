@@ -9,7 +9,7 @@ from aws_lambda_powertools.utilities.batch import (
     EventType,
     process_partial_response,
 )
-from api_wrappers import ShiftDigitalAPIWrapper, CRMAPIWrapper
+from api_wrappers import ShiftDigitalAPIWrapper
 from boto3.exceptions import Boto3Error
 
 ENVIRONMENT = environ.get("ENVIRONMENT", "test")
@@ -29,7 +29,6 @@ class MissingConfigurationError(Exception):
     """Exception raised when required configuration is missing."""
     pass
 
-
 def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
     """
     Retrieve configuration from S3.
@@ -45,7 +44,6 @@ def get_configuration(bucket: str, key: str) -> Dict[str, Any]:
         logger.error(f"Error fetching configuration from S3: {e}")
         raise
 
-
 def send_to_sqs(queue_url: str, message_body: str) -> None:
     """Send a message to SQS."""
     try:
@@ -56,23 +54,10 @@ def send_to_sqs(queue_url: str, message_body: str) -> None:
         logger.error(f"Failed to send message to SQS: {e}")
         raise
 
-
-def record_handler(record: SQSRecord) -> None:
-    """Processes incoming lead."""
-    logger.info(f"Processing record: {record}")
-    body = record.json_body
-
-    if not (body.get("id") and body.get("detail-type")):
-        logger.info("SQS message received. Ignored.")
-        return
-
-    logger.info("EventBridge message received.")
-    body = body.get("detail", {})
-    crm_api_wrapper = CRMAPIWrapper()
-    dealer_db = crm_api_wrapper.get_idp_dealer(body["idp_dealer_id"])
-    oem_partner = dealer_db.get("metadata", {}).get("oem_partner", {})
-
+def process_record(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Process incoming lead"""
     lead_id = body.get("lead_id")
+    oem_partner = body.get("oem_partner", {})
     dealer_code = oem_partner.get("dealer_code")
 
     if not lead_id or not dealer_code:
@@ -105,34 +90,30 @@ def record_handler(record: SQSRecord) -> None:
             logger.info(f"Queued Shift Digital Lead ID {shift_digital_lead_id} for callback processing.")
 
         else:
-            event_bus_client = boto3.client('events')
-            event_body = {
-                "lead_id": lead_id,
-                "consumer_id": body["consumer_id"],
-                "source_application": body["source_application"],
-                "idp_dealer_id": body["idp_dealer_id"],
-                "event_type": "Lead Created",
-                "partner_name": body["partner_name"]
-            }
-            logger.info(f"Sending message to ADF Assembler via EventRouting Bus: {event_body}")
-            response = event_bus_client.put_events(
-                Entries=[
-                        {
-                            "Source": "ShiftDigitalIntegration",
-                            "DetailType": "JSON",
-                            "Detail": json.dumps(event_body),
-                            "EventBusName": f"crm-shared-{ENVIRONMENT}-CrmEventBus"
-                        }
-                ]
-            )
-            logger.info(f"Event forwarded to ADF Assembler via EventBus: {response}")
+            # If NOT a Vehicle of Interest, send to STANDARD_ADF_QUEUE
+            config_key = f"configurations/{ENVIRONMENT}_ADF_ASSEMBLER.json"
+            config_data = get_configuration(BUCKET, config_key)
+            queue_url = config_data.get("STANDARD_ADF_QUEUE")
+
+            if not queue_url:
+                raise MissingConfigurationError("STANDARD_ADF_QUEUE not found in configuration.")
+
+            send_to_sqs(queue_url, json.dumps(body))
+            logger.info(f"Lead {lead_id} was a CONTACT LEAD and has been sent to STANDARD_ADF_QUEUE.")
 
     except Exception as e:
         logger.exception(f"Error posting lead to Shift Digital: {e}")
         raise
 
 
-def lambda_handler(event: Any, context: Any):
+
+def record_handler(record: SQSRecord) -> None:
+    """Processes each SQS record."""
+    logger.info(f"Processing record: {record}")
+    process_record(record.json_body)
+
+
+def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
     """Lambda function handler."""
     logger.info("Lambda invocation started.")
     try:

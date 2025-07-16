@@ -20,16 +20,14 @@ ENVIRONMENT = environ.get("ENVIRONMENT")
 SECRET_KEY = environ.get("SECRET_KEY")
 BUCKET = environ.get("INTEGRATIONS_BUCKET")
 
-
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
-
+s3_client = boto3.client("s3")
+secret_client = boto3.client("secretsmanager")
 
 
 def get_secrets():
     """Get DealerPeak API secrets."""
-    secret_client = boto3.client("secretsmanager")
     secret = secret_client.get_secret_value(
         SecretId=f"{'prod' if ENVIRONMENT == 'prod' else 'test'}/crm-integrations-partner"
     )
@@ -108,12 +106,9 @@ def filter_leads(leads: list, start_time: str):
 
 def save_raw_leads(leads: list, product_dealer_id: str):
     """Save raw leads to S3."""
-    s3_client = boto3.client("s3")
-
     format_string = '%Y/%m/%d/%H/%M'
     date_key = datetime.utcnow().strftime(format_string)
-    print("Hello world332")
-    
+
     s3_key = f"raw/dealerpeak/{product_dealer_id}/{date_key}_{uuid4()}.json"
     logger.info(f"Saving leads to {s3_key}")
     s3_client.put_object(

@@ -36,7 +36,7 @@ else
     exit 2
 fi
 
-user=$(aws iam get-user --output json | jq -r .User.UserName | sed 's/\./-/g')
+user=$(aws iam get-user --output json | jq -r .User.UserName)
 commit_id=$(git log -1 --format=%H)
 
 sam build --parallel

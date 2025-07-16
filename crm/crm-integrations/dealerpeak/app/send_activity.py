@@ -1,6 +1,7 @@
 """Send activity to DealerPeak."""
 
 import logging
+from json import loads
 from os import environ
 from typing import Any
 
@@ -13,28 +14,22 @@ from aws_lambda_powertools.utilities.batch import (
 )
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
 
+ENVIRONMENT = environ.get("ENVIRONMENT")
+SECRET_KEY = environ.get("SECRET_KEY")
+CRM_API_DOMAIN = environ.get("CRM_API_DOMAIN")
+CRM_API_SECRET_KEY = environ.get("UPLOAD_SECRET_KEY")
+
 logger = logging.getLogger()
 logger.setLevel(environ.get("LOGLEVEL", "INFO").upper())
-
+secret_client = boto3.client("secretsmanager")
 
 
 def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
     """Create activity on DealerPeak."""
     logger.info(f"Record: {record}")
-    activity = {}
-    logger.info("HELLO WORLD")
     try:
-        body = record.json_body
-        details = body.get("detail", {})
-
-        salesperson = crm_api.get_salesperson(details["lead_id"])
-        activity = crm_api.get_activity(details["activity_id"])
-        dealer = crm_api.get_dealer_by_idp_dealer_id(details["idp_dealer_id"])
-
-        activity["crm_dealer_id"] = dealer["crm_dealer_id"]
-
-        if not activity:
-            raise ValueError(f"Activity not found for ID: {details['activity_id']}")
+        activity = loads(record["body"])
+        salesperson = crm_api.get_salesperson(activity["lead_id"])
 
         dealer_peak_api = DealerpeakApiWrapper(
             activity=activity, salesperson=salesperson
@@ -43,21 +38,22 @@ def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
         dealerpeak_task_id = dealer_peak_api.create_activity()
         logger.info(f"Dealerpeak responded with task ID: {dealerpeak_task_id}")
 
-        crm_api.update_activity(details["activity_id"], dealerpeak_task_id)
+        crm_api.update_activity(activity["activity_id"], dealerpeak_task_id)
 
     except CRMApiError:
         return
     except Exception as e:
         logger.exception(
-            f"Failed to post activity {details['activity_id']} to Dealerpeak"
+            f"Failed to post activity {activity['activity_id']} to Dealerpeak"
         )
         logger.error(
-            f"[SUPPORT ALERT] Failed to Send Activity [CONTENT] "
-            f"IdpDealerId: {activity.get('idp_dealer_id', '')}\n"
-            f"LeadId: {details['lead_id']}\n"
-            f"ActivityId: {details['activity_id']}\n"
-            f"ActivityType: {activity.get('activity_type', '')}\n"
-            f"Traceback: {e}"
+            "[SUPPORT ALERT] Failed to Send Activity [CONTENT] DealerIntegrationPartnerId: {}\nLeadId: {}\nActivityId: {}\nActivityType: {}\nTraceback: {}".format(
+                activity["dealer_integration_partner_id"],
+                activity["lead_id"],
+                activity["activity_id"],
+                activity["activity_type"],
+                e,
+            )
         )
         raise
 
@@ -65,7 +61,9 @@ def record_handler(record: SQSRecord, crm_api: CrmApiWrapper):
 def lambda_handler(event: Any, context: Any) -> Any:
     """Create activity on DealerPeak."""
     logger.info(f"Event: {event}")
+
     crm_api = CrmApiWrapper()
+
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(

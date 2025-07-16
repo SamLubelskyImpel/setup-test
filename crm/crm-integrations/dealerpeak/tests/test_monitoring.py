@@ -10,7 +10,7 @@ This test suite covers:
 import pytest
 import json
 import base64
-import gzip
+import zlib
 import logging
 from moto import mock_aws
 
@@ -72,7 +72,7 @@ def mock_logs_event(mock_decoded_logs_data):
     """Creates a mock CloudWatch Logs event, gzipped and base64 encoded."""
     logs_data_json_str = json.dumps(mock_decoded_logs_data)
     logs_data_bytes = logs_data_json_str.encode('utf-8')
-    compressed_data = gzip.compress(logs_data_bytes)
+    compressed_data = zlib.compress(logs_data_bytes, wbits=zlib.MAX_WBITS | 16)
     encoded_data_str = base64.b64encode(compressed_data).decode('utf-8')
     return {
         "awslogs": {

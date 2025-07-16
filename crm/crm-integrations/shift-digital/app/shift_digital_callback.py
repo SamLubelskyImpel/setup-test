@@ -39,7 +39,7 @@ def process_callback(record: SQSRecord) -> None:
         raise
 
 
-def lambda_handler(event: Dict[str, Any], context: Any):
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda function handler."""
     logger.info("Shift Digital Callback Lambda invoked.")
     try:

@@ -60,46 +60,6 @@ class CrmApiWrapper:
 
         return salespersons[0]
 
-    def get_activity(self, activity_id: int):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/activities/{activity_id}",
-            headers={
-                "x_api_key": self.api_key,
-                "partner_id": self.partner_id,
-            }
-        )
-        response.raise_for_status()
-        logger.info(f"CRM API -get_activity-responded with: {response.status_code}")
-
-        if response.status_code != 200:
-            raise Exception(f"Error getting activity {activity_id}: {response.text}")
-
-        activity = response.json()
-        if not activity:
-            raise Exception(f"Activity not found for ID: {activity_id}")
-
-        return activity
-
-    def get_dealer_by_idp_dealer_id(self, idp_dealer_id: str):
-        response = requests.get(
-            url=f"https://{CRM_API_DOMAIN}/dealers/idp/{idp_dealer_id}",
-            headers={
-                "x_api_key": self.api_key, 
-                "partner_id": self.partner_id,
-            }
-        )
-        response.raise_for_status()
-        logger.info(f"CRM API -get_dealer_by_idp_dealer_id- responded with: {response.status_code}")
-
-        if response.status_code != 200:
-            raise Exception(f"Error getting dealer {idp_dealer_id}: {response.text}")
-
-        dealer = response.json()
-        if not dealer:
-            raise Exception(f"Dealer not found for idp_dealer_id: {idp_dealer_id}")
-
-        return dealer
-
     def update_activity(self, activity_id, crm_activity_id):
         try:
             response = requests.put(
@@ -178,6 +138,23 @@ class MomentumApiWrapper:
         logger.info(f"Response from CRM: {response.status_code}")
         return response
 
+    def convert_utc_to_timezone(self, input_ts: str) -> Tuple[str, str]:
+        """Convert UTC timestamp to dealer's local time."""
+        utc_datetime = datetime.strptime(input_ts, '%Y-%m-%dT%H:%M:%SZ')
+        utc_datetime = pytz.utc.localize(utc_datetime)
+
+        if not self.__dealer_timezone:
+            logger.warning("Dealer timezone not found for crm_dealer_id: {}".format(self.__activity["crm_dealer_id"]))
+            new_ts = utc_datetime.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Get the dealer timezone object, convert UTC datetime to dealer timezone
+            dealer_tz = pytz.timezone(self.__dealer_timezone)
+            dealer_datetime = utc_datetime.astimezone(dealer_tz)
+            new_ts = dealer_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+        timestamp_str = new_ts.split(" ")
+        return timestamp_str[0], timestamp_str[1]
+
     def __reschedule_appointment(self, url, appt_date, appt_time, payload):
         """Reschedule appointment on CRM."""
         crm_api = CrmApiWrapper()
@@ -204,7 +181,7 @@ class MomentumApiWrapper:
     def __create_appointment(self):
         """Create appointment on CRM."""
         url = "{}/lead/{}/appointment/sales".format(self.__api_url, self.__activity["crm_lead_id"])
-        appt_date, appt_time = datetime.strptime(self.__activity["activity_due_ts"], "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d %H:%M:%S").split(" ")
+        appt_date, appt_time = self.convert_utc_to_timezone(self.__activity["activity_due_ts"])
         request_id = str(uuid4())
 
         payload = {
@@ -323,15 +300,15 @@ class MomentumApiWrapper:
 
     def get_alternate_person_ids(self, person_api_id: str):
         """Retrieve all associated personApiIDs for a given consumer.
-
+        
         Args:
             person_api_id (str): The personApiID to look up alternate IDs for
-
+            
         Returns:
             dict: Response containing:
                 - personApiID (str): A single ID representing the main person ID
                 - mergedPersonApiIDs (list, optional): A list of IDs that have been merged with the main person ID
-
+                
         Example response:
             {
                 "personApiID": "12345",
@@ -343,5 +320,5 @@ class MomentumApiWrapper:
         response.raise_for_status()
         response_json = response.json()
         logger.info(f"Response from CRM for alternate person IDs: {response_json}")
-
+        
         return response_json

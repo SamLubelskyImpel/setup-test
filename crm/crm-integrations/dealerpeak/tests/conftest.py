@@ -12,9 +12,8 @@ from unittest.mock import patch, MagicMock
 from moto import mock_aws
 import boto3
 from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
-from pathlib import Path
 
-# Get the root directory (crm-integrations)
+# Add the app directory to the Python path
 app_dir = os.path.join(os.path.dirname(__file__), '..', 'app')
 sys.path.insert(0, app_dir)
 
