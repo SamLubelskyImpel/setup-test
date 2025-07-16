@@ -87,3 +87,9 @@ jobs:
             echo "--- Finished tests for service: $service_path ---"
           done
         shell: bash # Explicitly use bash for this step
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
