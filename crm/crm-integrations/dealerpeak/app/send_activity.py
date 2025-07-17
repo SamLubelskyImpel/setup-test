@@ -62,7 +62,6 @@ def lambda_handler(event: Any, context: Any) -> Any:
     logger.info(f"Event: {event}")
 
     crm_api = CrmApiWrapper()
-
     try:
         processor = BatchProcessor(event_type=EventType.SQS)
         result = process_partial_response(
