@@ -49,18 +49,6 @@ jobs:
         run: |
           pip install --upgrade pip
           
-      - name: Configure AWS CLI Credentials
-        run: |
-          aws configure set profile.default.output json
-          aws configure set profile.default.region ${{ secrets.AWS_REGION }}
-          aws configure set profile.default.aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set profile.default.aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-          aws configure set profile.unified-test.role_arn ${{ secrets.ROLE_ARN }}
-          aws configure set profile.unified-test.source_profile default
-          aws configure set profile.unified-test.region ${{ secrets.AWS_REGION }}
-          aws configure set profile.unified-test.output json
-
       - name: Setup AWS Config
         run: |
           mkdir -p ~/.aws
