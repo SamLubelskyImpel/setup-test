@@ -48,7 +48,7 @@ jobs:
       - name: Upgrade pip
         run: |
           pip install --upgrade pip
-          
+
       - name: Configure AWS CLI Credentials
         run: |
           aws configure set profile.default.output json
