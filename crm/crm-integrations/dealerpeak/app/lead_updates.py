@@ -31,6 +31,7 @@ def get_secrets():
 
 def get_lead(crm_dealer_id, crm_lead_id):
     """Get lead from DealerPeak."""
+    
     api_url, username, password = get_secrets()
     auth = HTTPBasicAuth(username, password)
     dealer_group_id = crm_dealer_id.split("__")[0]
