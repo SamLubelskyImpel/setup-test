@@ -37,7 +37,7 @@ step "apply-an-aws-cloudformation-change-set" {
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
             Octopus.Action.Aws.AssumedRoleSession = "unified-test"
             Octopus.Action.Aws.AssumeRole = "True"
-            Octopus.Action.Aws.CloudFormation.ChangeSet.Arn = "O#{Octopus.Action[Deploy an AWS CloudFormation template].Aws.CloudFormation.ChangeSet.GenerateName}"
+            Octopus.Action.Aws.CloudFormation.ChangeSet.Arn = "Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]"
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
             Octopus.Action.Aws.Region = "us-east-1"
             Octopus.Action.Aws.WaitForCompletion = "True"
