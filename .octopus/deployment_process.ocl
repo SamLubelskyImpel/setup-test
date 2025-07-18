@@ -1,3 +1,30 @@
+step "run-an-aws-cli-script" {
+    name = "Run an AWS CLI Script"
+
+    action {
+        action_type = "Octopus.AwsRunScript"
+        properties = {
+            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
+            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
+            Octopus.Action.Aws.AssumeRole = "True"
+            Octopus.Action.Aws.Region = "us-east-1"
+            Octopus.Action.AwsAccount.UseInstanceRole = "False"
+            Octopus.Action.AwsAccount.Variable = "test-deploy"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                pwd
+                cd crm/crm-integrations/dealerpeak
+                sam build --parallel
+                sam deploy --config-env "test" --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-windows"
+        worker_pool_variable = ""
+    }
+}
+
 step "deploy-an-aws-cloudformation-template" {
     name = "Deploy an AWS CloudFormation template"
 
@@ -63,33 +90,6 @@ step "apply-an-aws-cloudformation-change-set" {
             Octopus.Action.Aws.WaitForCompletion = "True"
             Octopus.Action.AwsAccount.UseInstanceRole = "False"
             Octopus.Action.AwsAccount.Variable = "test-deploy"
-        }
-        worker_pool = "hosted-windows"
-        worker_pool_variable = ""
-    }
-}
-
-step "run-an-aws-cli-script" {
-    name = "Run an AWS CLI Script"
-
-    action {
-        action_type = "Octopus.AwsRunScript"
-        properties = {
-            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
-            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
-            Octopus.Action.Aws.AssumeRole = "True"
-            Octopus.Action.Aws.Region = "us-east-1"
-            Octopus.Action.AwsAccount.UseInstanceRole = "False"
-            Octopus.Action.AwsAccount.Variable = "test-deploy"
-            Octopus.Action.Script.ScriptBody = <<-EOT
-                pwd
-                cd crm/crm-integrations/dealerpeak
-                sam build --parallel
-                sam deploy --config-env "test" --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
-                EOT
-            Octopus.Action.Script.ScriptSource = "Inline"
-            Octopus.Action.Script.Syntax = "Bash"
-            OctopusUseBundledTooling = "False"
         }
         worker_pool = "hosted-windows"
         worker_pool_variable = ""
