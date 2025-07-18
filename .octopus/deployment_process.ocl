@@ -28,26 +28,6 @@ step "deploy-an-aws-cloudformation-template" {
     }
 }
 
-step "run-a-script" {
-    name = "Run a Script"
-
-    action {
-        action_type = "Octopus.Script"
-        properties = {
-            Octopus.Action.Script.ScriptBody = <<-EOT
-                echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
-                echo "StackId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[StackId]}"
-                echo "ChangeCount: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangeCount]}"
-                echo "Changes: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[Changes]}"
-                EOT
-            Octopus.Action.Script.ScriptSource = "Inline"
-            Octopus.Action.Script.Syntax = "Bash"
-            OctopusUseBundledTooling = "False"
-        }
-        worker_pool = "hosted-ubuntu"
-    }
-}
-
 step "apply-an-aws-cloudformation-change-set" {
     name = "Apply an AWS CloudFormation Change Set"
 
@@ -66,5 +46,25 @@ step "apply-an-aws-cloudformation-change-set" {
         }
         worker_pool = "hosted-windows"
         worker_pool_variable = ""
+    }
+}
+
+step "run-a-script" {
+    name = "Run a Script"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
+                echo "StackId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[StackId]}"
+                echo "ChangeCount: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangeCount]}"
+                echo "Changes: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[Changes]}"
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
     }
 }
