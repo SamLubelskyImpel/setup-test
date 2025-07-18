@@ -16,6 +16,7 @@ Conditions:
       - 196800776222
   IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
+Error
 Globals:
   Function:
     Runtime: python3.9

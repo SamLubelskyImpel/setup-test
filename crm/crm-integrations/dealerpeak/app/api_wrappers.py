@@ -24,7 +24,7 @@ secret_client = boto3.client("secretsmanager")
 class CRMApiError(Exception):
     pass
 
-
+syntax error
 class CrmApiWrapper:
     """CRM API Wrapper."""
     def __init__(self) -> None:
