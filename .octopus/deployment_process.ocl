@@ -27,3 +27,23 @@ step "deploy-an-aws-cloudformation-template" {
         worker_pool = "hosted-windows"
     }
 }
+
+step "run-a-script" {
+    name = "Run a Script"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
+                echo "StackId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[StackId]}"
+                echo "ChangeCount: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangeCount]}"
+                echo "Changes: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[Changes]}"
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
+    }
+}
