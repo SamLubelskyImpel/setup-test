@@ -20,8 +20,7 @@ step "run-an-aws-cli-script" {
             Octopus.Action.Script.Syntax = "Bash"
             OctopusUseBundledTooling = "False"
         }
-        worker_pool = "hosted-windows"
-        worker_pool_variable = ""
+        worker_pool = "hosted-ubuntu"
     }
 }
 
