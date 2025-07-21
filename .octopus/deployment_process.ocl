@@ -1,3 +1,29 @@
+step "run-an-aws-cli-script" {
+    name = "Run an AWS CLI Script"
+
+    action {
+        action_type = "Octopus.AwsRunScript"
+        properties = {
+            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
+            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
+            Octopus.Action.Aws.AssumeRole = "True"
+            Octopus.Action.Aws.Region = "us-east-1"
+            Octopus.Action.AwsAccount.UseInstanceRole = "False"
+            Octopus.Action.AwsAccount.Variable = "test-deploy"
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                pwd
+                cd crm/crm-integrations/dealerpeak
+                sam build --parallel
+                sam deploy --config-env "test" --no-confirm-changeset --no-fail-on-empty-changeset --no-progressbar --s3-bucket=spincar-deploy-${{ secrets.AWS_REGION }}
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
+    }
+}
+
 step "deploy-an-aws-cloudformation-template" {
     name = "Deploy an AWS CloudFormation template"
 
@@ -14,7 +40,7 @@ step "deploy-an-aws-cloudformation-template" {
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
             Octopus.Action.Aws.CloudFormationTemplate = "crm/crm-integrations/dealerpeak/template.yaml"
             Octopus.Action.Aws.CloudFormationTemplateParametersRaw = ".octopus/parameters.json"
-            Octopus.Action.Aws.IamCapabilities = "[\"CAPABILITY_AUTO_EXPAND\",\"CAPABILITY_NAMED_IAM\"]"
+            Octopus.Action.Aws.IamCapabilities = "[\"CAPABILITY_AUTO_EXPAND\",\"CAPABILITY_NAMED_IAM\",\"CAPABILITY_IAM\"]"
             Octopus.Action.Aws.Region = "us-east-1"
             Octopus.Action.Aws.TemplateSource = "GitRepository"
             Octopus.Action.Aws.WaitForCompletion = "True"
@@ -25,5 +51,46 @@ step "deploy-an-aws-cloudformation-template" {
             Octopus.Action.Package.JsonConfigurationVariablesTargets = "crm/crm-integrations/dealerpeak/template.yaml, .octopus/parameters.json"
         }
         worker_pool = "hosted-windows"
+    }
+}
+
+step "run-a-script" {
+    name = "Run a Script"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
+                echo "StackId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[StackId]}"
+                echo "ChangeCount: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangeCount]}"
+                echo "Changes: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[Changes]}"
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "Bash"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
+    }
+}
+
+step "apply-an-aws-cloudformation-change-set" {
+    name = "Apply an AWS CloudFormation Change Set"
+
+    action {
+        action_type = "Octopus.AwsApplyCloudFormationChangeSet"
+        properties = {
+            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
+            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
+            Octopus.Action.Aws.AssumeRole = "True"
+            Octopus.Action.Aws.CloudFormation.ChangeSet.Arn = "Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]"
+            Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
+            Octopus.Action.Aws.Region = "us-east-1"
+            Octopus.Action.Aws.WaitForCompletion = "True"
+            Octopus.Action.AwsAccount.UseInstanceRole = "False"
+            Octopus.Action.AwsAccount.Variable = "test-deploy"
+        }
+        worker_pool = "hosted-windows"
+        worker_pool_variable = ""
     }
 }
