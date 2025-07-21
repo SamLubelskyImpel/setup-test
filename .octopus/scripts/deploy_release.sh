@@ -4,15 +4,20 @@ echo "cding to dealerpeak directory"
 cd ../..
 cd crm/crm-integrations/dealerpeak
 
-AWS_ACCESS_KEY_ID=$(get_octopusvariable "AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY=$(get_octopusvariable "AWS_SECRET_ACCESS_KEY")
-AWS_REGION=$(get_octopusvariable "AWS_REGION")
-ROLE_ARN=$(get_octopusvariable "ROLE_ARN")
+AWS_ACCESS_KEY_ID=${OctopusParameters["AWS Account.AccessKey"]}
+AWS_SECRET_ACCESS_KEY=${OctopusParameters["AWS Account.SecretKey"]}
+AWS_REGION="us-east-1"
+ROLE_ARN=${OctopusParameters["AWS Account.RoleArn"]}
 
 echo "AWS_REGION: $AWS_REGION"
+echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
+echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
+echo "ROLE_ARN: $ROLE_ARN"
 
 aws configure set profile.default.output json
 aws configure set profile.default.region $AWS_REGION
+aws configure set profile.default.aws_access_key_id $AWS_ACCESS_KEY_ID
+aws configure set profile.default.aws_secret_access_key $AWS_SECRET_ACCESS_KEY
 
 aws configure set profile.unified-test.role_arn $ROLE_ARN
 aws configure set profile.unified-test.source_profile default
