@@ -9,3 +9,9 @@ variable "Environment" {
         environment = ["development"]
     }
 }
+
+variable "AWS_REGION" {
+    value "us-east-1" {
+        environment = ["development"]
+    }
+}
