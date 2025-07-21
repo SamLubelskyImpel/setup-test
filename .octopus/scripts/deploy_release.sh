@@ -4,11 +4,6 @@ echo "cding to dealerpeak directory"
 cd ../..
 cd crm/crm-integrations/dealerpeak
 
-AWS_ACCESS_KEY_ID=${OctopusParameters["AWS Account.AccessKey"]}
-AWS_SECRET_ACCESS_KEY=${OctopusParameters["AWS Account.SecretKey"]}
-AWS_REGION="us-east-1"
-ROLE_ARN=${OctopusParameters["AWS Account.RoleArn"]}
-
 echo "AWS_REGION: $AWS_REGION"
 echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
 echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
