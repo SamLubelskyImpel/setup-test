@@ -7,7 +7,7 @@ cd crm/crm-integrations/dealerpeak
 echo "AWS_REGION: $AWS_REGION"
 echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
 echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
-echo "ROLE_ARN: $ROLE_ARN"
+echo "ROLE_ARN: $(get_octopusvariable "ROLE_ARN")"
 
 aws configure set profile.default.output json
 aws configure set profile.default.region $AWS_REGION
