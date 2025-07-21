@@ -1,9 +1,3 @@
-variable "test-deploy" {
-    type = "AmazonWebServicesAccount"
-
-    value "test-deploy" {}
-}
-
 variable "Environment" {
     value "test" {
         environment = ["development"]
@@ -17,5 +11,15 @@ variable "AWS_REGION" {
 }
 
 variable "ROLE_ARN" {
-    value "arn:aws:iam::143813444726:role/dev" {}
+    value "arn:aws:iam::143813444726:role/dev" {
+        environment = ["development"]
+    }
+}
+
+variable "test-deploy" {
+    type = "AmazonWebServicesAccount"
+
+    value "test-deploy" {
+        environment = ["development"]
+    }
 }
