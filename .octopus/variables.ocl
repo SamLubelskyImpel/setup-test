@@ -15,3 +15,7 @@ variable "AWS_REGION" {
         environment = ["development"]
     }
 }
+
+variable "ROLE_ARN" {
+    value "arn:aws:iam::143813444726:role/dev" {}
+}
