@@ -4,10 +4,12 @@ echo "cding to dealerpeak directory"
 cd ../..
 cd crm/crm-integrations/dealerpeak
 
+ROLE_ARN="arn:aws:iam::143813444726:role/dev"
+
 echo "AWS_REGION: $AWS_REGION"
 echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
 echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
-echo "arn:aws:iam::143813444726:role/dev"
+echo "ROLE_ARN: $ROLE_ARN"
 
 aws configure set profile.default.output json
 aws configure set profile.default.region $AWS_REGION
