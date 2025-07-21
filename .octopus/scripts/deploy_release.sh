@@ -2,7 +2,7 @@
 
 ls
 pwd
-cd crm/crm-integrations/dealerpeak
+cd ../../crm/crm-integrations/dealerpeak
 
 AWS_REGION=$(get_octopusvariable "AWS_REGION")
 echo "AWS_REGION: $AWS_REGION"
