@@ -18,7 +18,7 @@ step "run-an-aws-cli-script" {
         worker_pool = "hosted-ubuntu"
 
         container {
-            feed = "aws-sam-python-build"
+            feed = "aws-sam-feed"
             image = "public.ecr.aws/sam/build-python3.9:latest"
         }
     }
