@@ -11,7 +11,7 @@ step "run-an-aws-cli-script" {
             Octopus.Action.AwsAccount.UseInstanceRole = "False"
             Octopus.Action.AwsAccount.Variable = "test-deploy"
             Octopus.Action.GitRepository.Source = "Project"
-            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/.octopus/scripts/deploy_release.sh"
+            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
             Octopus.Action.Script.ScriptSource = "GitRepository"
             OctopusUseBundledTooling = "False"
         }
