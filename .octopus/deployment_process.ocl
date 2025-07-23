@@ -4,9 +4,11 @@ step "run-deploy-script" {
     action {
         action_type = "Octopus.Script"
         properties = {
+            Octopus.Action.EnabledFeatures = "Octopus.Features.SubstituteInFiles"
             Octopus.Action.GitRepository.Source = "Project"
             Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
             Octopus.Action.Script.ScriptSource = "GitRepository"
+            Octopus.Action.SubstituteInFiles.TargetFiles = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
             OctopusUseBundledTooling = "False"
         }
         worker_pool = "hosted-ubuntu"
