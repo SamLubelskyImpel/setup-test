@@ -10,6 +10,11 @@ step "run-deploy-script" {
             OctopusUseBundledTooling = "False"
         }
         worker_pool = "hosted-ubuntu"
+
+        container {
+            feed = "aws-sam-python-build"
+            image = "sam/build-python3.9:latest"
+        }
     }
 }
 
