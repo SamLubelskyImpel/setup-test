@@ -5,7 +5,7 @@ step "run-deploy-script" {
         action_type = "Octopus.Script"
         properties = {
             Octopus.Action.GitRepository.Source = "Project"
-            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/.octopus/deploy_release.sh"
+            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
             Octopus.Action.Script.ScriptSource = "GitRepository"
             OctopusUseBundledTooling = "False"
         }
