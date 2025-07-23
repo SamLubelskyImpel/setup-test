@@ -1,8 +1,29 @@
+step "run-deploy-script" {
+    name = "Run deploy Script"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.GitRepository.Source = "Project"
+            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
+            Octopus.Action.Script.ScriptSource = "GitRepository"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
+
+        container {
+            feed = "aws-sam-python-build"
+            image = "sam/build-python3.9:latest"
+        }
+    }
+}
+
 step "run-an-aws-cli-script" {
     name = "Run an AWS CLI Script"
 
     action {
         action_type = "Octopus.AwsRunScript"
+        is_disabled = true
         properties = {
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
             Octopus.Action.Aws.AssumedRoleSession = "unified-test"
@@ -29,12 +50,13 @@ step "deploy-an-aws-cloudformation-template" {
 
     action {
         action_type = "Octopus.AwsRunCloudFormation"
+        is_disabled = true
         properties = {
             Octopus.Action.AutoRetry.MaximumCount = "0"
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
             Octopus.Action.Aws.AssumedRoleSession = "unified-test"
             Octopus.Action.Aws.AssumeRole = "True"
-            Octopus.Action.Aws.CloudFormation.ChangeSet.Defer = "False"
+            Octopus.Action.Aws.CloudFormation.ChangeSet.Defer = "True"
             Octopus.Action.Aws.CloudFormation.ChangeSet.GenerateName = "True"
             Octopus.Action.Aws.CloudFormation.RoleArn = "arn:aws:iam::143813444726:role/cfn-deployer-universal-integration"
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
@@ -59,6 +81,7 @@ step "run-a-script" {
 
     action {
         action_type = "Octopus.Script"
+        is_disabled = true
         properties = {
             Octopus.Action.Script.ScriptBody = <<-EOT
                 echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
@@ -79,11 +102,12 @@ step "apply-an-aws-cloudformation-change-set" {
 
     action {
         action_type = "Octopus.AwsApplyCloudFormationChangeSet"
+        is_disabled = true
         properties = {
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
             Octopus.Action.Aws.AssumedRoleSession = "unified-test"
             Octopus.Action.Aws.AssumeRole = "True"
-            Octopus.Action.Aws.CloudFormation.ChangeSet.Arn = "Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]"
+            Octopus.Action.Aws.CloudFormation.ChangeSet.Arn = "#{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
             Octopus.Action.Aws.CloudFormationStackName = "dealerpeak-crm-integration-test"
             Octopus.Action.Aws.Region = "us-east-1"
             Octopus.Action.Aws.WaitForCompletion = "True"
@@ -91,6 +115,5 @@ step "apply-an-aws-cloudformation-change-set" {
             Octopus.Action.AwsAccount.Variable = "test-deploy"
         }
         worker_pool = "hosted-windows"
-        worker_pool_variable = ""
     }
 }
