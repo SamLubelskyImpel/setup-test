@@ -4,9 +4,14 @@ echo "cding to dealerpeak directory"
 cd ../..
 cd crm/crm-integrations/dealerpeak
 
-ROLE_ARN="arn:aws:iam::143813444726:role/dev"
-AWS_ACCESS_KEY_ID= "#{test_deploy.AccessKey}"
-AWS_SECRET_ACCESS_KEY= "#{test_deploy.SecretKey}"
+echo "ROLE_ARN: $(get_octopusvariable "ROLE_ARN")"
+echo "AWS_ACCESS_KEY_ID: $(get_octopusvariable "test_deploy.AccessKey")"
+echo "AWS_SECRET_ACCESS_KEY: $(get_octopusvariable "test_deploy.SecretKey")"
+echo "AWS_REGION: $(get_octopusvariable "AWS_REGION")"
+
+ROLE_ARN="$(get_octopusvariable "ROLE_ARN")"
+AWS_ACCESS_KEY_ID="$(get_octopusvariable "test_deploy.AccessKey")"
+AWS_SECRET_ACCESS_KEY="$(get_octopusvariable "test_deploy.SecretKey")"
 AWS_REGION="$(get_octopusvariable "AWS_REGION")"
 
 echo "AWS_REGION: $AWS_REGION"
