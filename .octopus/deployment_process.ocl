@@ -1,8 +1,35 @@
+step "run-an-aws-cli-script" {
+    name = "Run an AWS CLI Script"
+
+    action {
+        action_type = "Octopus.AwsRunScript"
+        properties = {
+            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
+            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
+            Octopus.Action.Aws.AssumeRole = "True"
+            Octopus.Action.Aws.Region = "us-east-1"
+            Octopus.Action.AwsAccount.UseInstanceRole = "False"
+            Octopus.Action.AwsAccount.Variable = "test-deploy"
+            Octopus.Action.GitRepository.Source = "Project"
+            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
+            Octopus.Action.Script.ScriptSource = "GitRepository"
+            OctopusUseBundledTooling = "False"
+        }
+        worker_pool = "hosted-ubuntu"
+
+        container {
+            feed = "aws-sam-python-build"
+            image = "sam/build-python3.9:latest"
+        }
+    }
+}
+
 step "deploy-an-aws-cloudformation-template" {
     name = "Deploy an AWS CloudFormation template"
 
     action {
         action_type = "Octopus.AwsRunCloudFormation"
+        is_disabled = true
         properties = {
             Octopus.Action.AutoRetry.MaximumCount = "0"
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
@@ -33,6 +60,7 @@ step "run-a-script" {
 
     action {
         action_type = "Octopus.Script"
+        is_disabled = true
         properties = {
             Octopus.Action.Script.ScriptBody = <<-EOT
                 echo "ChangesetId: #{Octopus.Action[Deploy an AWS CloudFormation template].Output.AwsOutputs[ChangesetId]}"
@@ -53,6 +81,7 @@ step "apply-an-aws-cloudformation-change-set" {
 
     action {
         action_type = "Octopus.AwsApplyCloudFormationChangeSet"
+        is_disabled = true
         properties = {
             Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
             Octopus.Action.Aws.AssumedRoleSession = "unified-test"
@@ -65,32 +94,5 @@ step "apply-an-aws-cloudformation-change-set" {
             Octopus.Action.AwsAccount.Variable = "test-deploy"
         }
         worker_pool = "hosted-windows"
-    }
-}
-
-step "run-an-aws-cli-script" {
-    name = "Run an AWS CLI Script"
-
-    action {
-        action_type = "Octopus.AwsRunScript"
-        is_disabled = true
-        properties = {
-            Octopus.Action.Aws.AssumedRoleArn = "arn:aws:iam::143813444726:role/dev"
-            Octopus.Action.Aws.AssumedRoleSession = "unified-test"
-            Octopus.Action.Aws.AssumeRole = "True"
-            Octopus.Action.Aws.Region = "us-east-1"
-            Octopus.Action.AwsAccount.UseInstanceRole = "False"
-            Octopus.Action.AwsAccount.Variable = "test-deploy"
-            Octopus.Action.GitRepository.Source = "Project"
-            Octopus.Action.Script.ScriptFileName = "#{Octopus.Project.Git.BasePath}/scripts/deploy_release.sh"
-            Octopus.Action.Script.ScriptSource = "GitRepository"
-            OctopusUseBundledTooling = "False"
-        }
-        worker_pool = "hosted-ubuntu"
-
-        container {
-            feed = "aws-sam-python-build"
-            image = "sam/build-python3.9:latest"
-        }
     }
 }
