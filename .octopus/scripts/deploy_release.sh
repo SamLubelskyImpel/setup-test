@@ -1,4 +1,5 @@
 #!/bin/bash
+apt install openssl
 
 echo "cding to dealerpeak directory"
 cd ../..
