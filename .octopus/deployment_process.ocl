@@ -9,7 +9,7 @@ step "run-deploy-script" {
             Octopus.Action.Script.ScriptSource = "GitRepository"
             OctopusUseBundledTooling = "False"
         }
-        worker_pool = "hosted-windows"
+        worker_pool = "hosted-ubuntu"
     }
 }
 
