@@ -7,6 +7,7 @@ cd crm/crm-integrations/dealerpeak
 ROLE_ARN="arn:aws:iam::143813444726:role/dev"
 AWS_ACCESS_KEY_ID= "#{test_deploy.AccessKey}"
 AWS_SECRET_ACCESS_KEY= "#{test_deploy.SecretKey}"
+AWS_REGION= "#{AWS_REGION}"
 echo "AWS_REGION: $AWS_REGION"
 echo "AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID"
 echo "AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY"
